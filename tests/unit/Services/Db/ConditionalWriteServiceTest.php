@@ -355,4 +355,56 @@ final class ConditionalWriteServiceTest extends CIUnitTestCase
             'дубль обязан оставлять 0 affectedRows на этом соединении — иначе foundRows включён и метод сломан'
         );
     }
+
+    /**
+     * exploit-fix-17 — до этой story `insertUnique()` жёстко ссылался на литеральную
+     * колонку `id` в `ON DUPLICATE KEY UPDATE id = id`. `telegram_updates_seen`
+     * (ADR-181) намеренно не несёт суррогатного `id` — PK у неё сам `update_id`.
+     * Временная таблица здесь воспроизводит ровно эту форму (PK — содержательная
+     * колонка, никакого `id` в схеме), чтобы доказать, что self-reference теперь
+     * идёт по ПЕРВОЙ колонке `$row`, а не по литералу `id`, который на этой схеме
+     * дал бы `Unknown column 'id'` даже на первой вставке (проверено вручную до
+     * фикса — `DatabaseException` на обоих вызовах, дедуп не отличим от «не
+     * дубль»). `transStatus` внутри чужой транзакции остаётся нетронутым — тот же
+     * контракт exploit-fix-18, теперь и для таблиц без суррогатного `id`.
+     */
+    public function testInsertUniqueWorksOnTableWithoutIdColumnAndDoesNotPoisonTransStatus(): void
+    {
+        $db = Database::connect('tests');
+        $db->query(
+            'CREATE TABLE insert_unique_no_id_scratch ('
+            . 'update_id BIGINT UNSIGNED PRIMARY KEY,'
+            . 'created_at DATETIME NOT NULL'
+            . ') ENGINE=InnoDB'
+        );
+
+        try {
+            $db->resetTransStatus();
+            $service = new ConditionalWriteService($db);
+            $row     = ['update_id' => 910099, 'created_at' => date('Y-m-d H:i:s')];
+
+            $db->transStart();
+
+            $first  = $service->insertUnique('insert_unique_no_id_scratch', $row);
+            $second = $service->insertUnique('insert_unique_no_id_scratch', $row);
+
+            $this->assertSame(WriteOutcome::Applied, $first, 'первая вставка на схеме без id обязана пройти');
+            $this->assertSame(WriteOutcome::Refused, $second, 'повтор PK обязан распознаваться как дубль, а не падать на Unknown column id');
+            $this->assertTrue(
+                $db->transStatus(),
+                'дубль на таблице без id не должен переводить transStatus в false'
+            );
+
+            $db->transComplete();
+
+            $this->assertTrue($db->transStatus(), 'transComplete() обязан закоммитить, а не откатить, транзакцию');
+            $this->assertSame(
+                1,
+                (int) $db->table('insert_unique_no_id_scratch')->where('update_id', 910099)->countAllResults(),
+                'дубль не должен был породить вторую строку'
+            );
+        } finally {
+            $db->query('DROP TABLE IF EXISTS insert_unique_no_id_scratch');
+        }
+    }
 }

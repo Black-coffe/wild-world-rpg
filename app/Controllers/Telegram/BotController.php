@@ -180,14 +180,27 @@ class BotController extends Controller
     /**
      * ADR-181 — дедуп повторной доставки webhook'а. Хранилище — таблица
      * `telegram_updates_seen` (PK `update_id`, story exploit-fix-04). Решение
-     * принимается по ИСХОДУ INSERT, не по предварительному SELECT: `1062` (дубль
-     * первичного ключа) → true, апдейт отбрасывается. Апдейт без числового
-     * `update_id` (битый JSON) дедупу не подлежит и проходит насквозь — false.
+     * принимается через единственный примитив «вставить и отличить дубль» —
+     * `ConditionalWriteService::insertUnique()` (story exploit-fix-18): `Refused`
+     * → строка уже была, апдейт отбрасывается; `Applied` → первая доставка.
+     * Никакого собственного `try/catch` вокруг сырой вставки здесь больше нет —
+     * дубль распознаётся по возвращённому `WriteOutcome`, не по коду ошибки
+     * драйвера (story exploit-fix-17, ADR-181 §2 против story exploit-fix-09,
+     * которая ловила только `DatabaseException` и молчала при `DBDebug=false`,
+     * где CI4 возвращает `false` из `query()` вместо исключения).
      *
-     * Fail-open при недоступности хранилища (не при найденном дубле — тот всегда
-     * отбрасывается): любая другая ошибка БД (нет таблицы, нет соединения) не
-     * должна останавливать бота для всех игроков — обработка продолжается, error-
-     * лог с фиксированным маркером `[Bot.webhook] dedup:` для грепа/мониторинга.
+     * Апдейт без числового `update_id` (битый JSON) дедупу не подлежит и
+     * проходит насквозь — error-лог с тем же маркером `[Bot.webhook] dedup:`,
+     * чтобы такие апдейты были видны мониторингу, не только тихим `false`.
+     *
+     * Fail-open при недоступности хранилища (не при найденном дубле — тот
+     * всегда отбрасывается): `insertUnique()` бросает `DatabaseException` и при
+     * `DBDebug=true` (исключение от драйвера), и при `DBDebug=false` (сам метод
+     * превращает `query() === false` + `$db->error()` в брошенное исключение —
+     * см. докблок `ConditionalWriteService::insertUnique()`). Любая другая
+     * ошибка БД (нет таблицы, нет соединения) не должна останавливать бота для
+     * всех игроков — обработка продолжается, error-лог с фиксированным
+     * маркером `[Bot.webhook] dedup:` для грепа/мониторинга.
      *
      * @param array<array-key, mixed> $update
      */
@@ -195,21 +208,22 @@ class BotController extends Controller
     {
         $updateId = $update['update_id'] ?? null;
         if (! is_int($updateId)) {
+            log_message(
+                'error',
+                '[Bot.webhook] dedup: апдейт без числового update_id — обработка продолжается без дедупа'
+            );
+
             return false;
         }
 
         try {
-            \Config\Database::connect()->query(
-                'INSERT INTO telegram_updates_seen (update_id, created_at) VALUES (?, ?)',
-                [$updateId, date('Y-m-d H:i:s')]
+            $outcome = (new \App\Services\Db\ConditionalWriteService())->insertUnique(
+                'telegram_updates_seen',
+                ['update_id' => $updateId, 'created_at' => date('Y-m-d H:i:s')]
             );
 
-            return false;
+            return $outcome === \App\Services\Db\WriteOutcome::Refused;
         } catch (\CodeIgniter\Database\Exceptions\DatabaseException $e) {
-            if ((int) $e->getCode() === 1062) {
-                return true;
-            }
-
             log_message(
                 'error',
                 '[Bot.webhook] dedup: telegram_updates_seen недоступна — fail-open, update_id '

@@ -149,8 +149,12 @@ final class ConditionalWriteService
      * незаметно обрекал всю транзакцию на откат в `transComplete()`.
      *
      * Теперь дубль не порождает ошибки на уровне драйвера вовсе: вставка идёт
-     * формой `INSERT … ON DUPLICATE KEY UPDATE id = id` — self-reference на
-     * первичный ключ, который у дубля не меняется. `$db->foundRows` (см.
+     * формой `INSERT … ON DUPLICATE KEY UPDATE col = col` — self-reference на
+     * ПЕРВУЮ колонку переданного `$row` (exploit-fix-17: не литеральный `id` —
+     * `telegram_updates_seen` не несёт суррогатного `id` вовсе, PK у неё сам
+     * `update_id`; `col = col` — no-op для любой колонки любого типа, поэтому
+     * замена не задевает ни один существующий вызов с суррогатным `id`), который
+     * у дубля не меняется. `$db->foundRows` (см.
      * `app/Config/Database.php`) нигде в проекте не включён, поэтому
      * `MYSQLI_CLIENT_FOUND_ROWS` не выставляется на соединении, и MySQL
      * возвращает `affectedRows() === 0` для дубля, у которого `UPDATE` не
@@ -181,9 +185,14 @@ final class ConditionalWriteService
     {
         $prefixed = $this->db->prefixTable($table);
         $columns  = array_keys($row);
-        $sql      = "INSERT INTO {$prefixed} (" . implode(', ', $columns) . ') VALUES ('
+        // exploit-fix-17 — self-reference на ПЕРВУЮ колонку `$row`, не литеральный `id`:
+        // `telegram_updates_seen` не несёт колонки `id` вовсе (PK — сам `update_id`).
+        // Бэктики — колонка приходит от вызывающего, а не от игрока, но `INSERT …
+        // ({$columns})` уже собирается тем же способом чуть ниже — риск не новый.
+        $selfRefColumn = '`' . $columns[0] . '`';
+        $sql           = "INSERT INTO {$prefixed} (" . implode(', ', $columns) . ') VALUES ('
             . implode(', ', array_fill(0, count($columns), '?')) . ')'
-            . ' ON DUPLICATE KEY UPDATE id = id';
+            . " ON DUPLICATE KEY UPDATE {$selfRefColumn} = {$selfRefColumn}";
 
         $result = $this->db->query($sql, array_values($row));
 

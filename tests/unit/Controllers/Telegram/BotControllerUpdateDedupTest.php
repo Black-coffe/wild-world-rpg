@@ -53,6 +53,10 @@ final class BotControllerUpdateDedupTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        // DBDebug — значение живёт на общем соединении (докблок DatabaseTestTrait
+        // предупреждает об этом же), всегда возвращаем дефолт, даже если тест упал
+        // до собственного restore.
+        $this->enableDBDebug();
         PlayerActionLogger::reset();
         $this->dropTableIfPresent();
         parent::tearDown();
@@ -156,6 +160,66 @@ final class BotControllerUpdateDedupTest extends CIUnitTestCase
             'error',
             '[Bot.webhook] dedup:',
             'отказ хранилища обязан писать error-маркер — иначе fail-open неотличим от работающего дедупа'
+        );
+    }
+
+    /**
+     * exploit-fix-17 — при `DBDebug=false` CI4 не бросает исключение из `query()`,
+     * а возвращает `false` (код ошибки лежит в `$db->error()`). Раньше
+     * `isDuplicateUpdate()` ловил только `DatabaseException` — на этом режиме отказ
+     * хранилища проходил бы вообще без лога. Таблица дедупа намеренно не создаётся —
+     * та же «хранилище недоступно» (MySQL 1146), что и в тесте выше, но под другим
+     * DBDebug, чтобы доказать оба режима отдельно.
+     */
+    public function testUnavailableStorageUnderDbDebugFalseFailsOpenAndLogsErrorMarker(): void
+    {
+        $this->disableDBDebug();
+
+        $controller = $this->controllerFor($this->privateUpdate(910004));
+
+        $controller->webhook();
+
+        $this->assertSame(
+            1,
+            $controller->dispatchCalls,
+            'при недоступном хранилище дедупа под DBDebug=false обработка обязана продолжаться (fail-open)'
+        );
+        $this->assertLogContains(
+            'error',
+            '[Bot.webhook] dedup:',
+            'отказ хранилища под DBDebug=false обязан писать error-маркер так же, как и под DBDebug=true'
+        );
+    }
+
+    /**
+     * exploit-fix-17 — апдейт без `update_id` (битый JSON) дедупу не подлежит и
+     * проходит насквозь, но теперь это тоже видно мониторингу error-логом, а не
+     * тихим `false`.
+     */
+    public function testUpdateWithoutUpdateIdLogsErrorMarkerAndStillReachesDispatch(): void
+    {
+        $this->createTable();
+
+        $controller = $this->controllerFor([
+            'message' => [
+                'message_id' => 10,
+                'from'       => ['id' => 777, 'is_bot' => false],
+                'chat'       => ['id' => 777, 'type' => 'private'],
+                'text'       => 'x',
+            ],
+        ]);
+
+        $controller->webhook();
+
+        $this->assertSame(
+            1,
+            $controller->dispatchCalls,
+            'апдейт без update_id не подлежит дедупу — обработка обязана продолжаться'
+        );
+        $this->assertLogContains(
+            'error',
+            '[Bot.webhook] dedup:',
+            'апдейт без update_id обязан писать error-маркер — иначе дефект в апстриме не виден мониторингу'
         );
     }
 }
