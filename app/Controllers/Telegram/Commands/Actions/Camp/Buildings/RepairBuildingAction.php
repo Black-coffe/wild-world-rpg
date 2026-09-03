@@ -126,11 +126,16 @@ class RepairBuildingAction extends BaseAction
             }
         }
 
-        if (! $shortage) {
+        if ($shortage) {
+            // exploit-fix-15 (C2) — отказ на любой строке обязан откатить уже списанные
+            // строки, а не коммитить их через transComplete(): раньше break без
+            // transRollback() оставлял первые строки плана списанными при недостатке на
+            // второй, а игрок читал «попробуй снова», как будто ничего не изменилось.
+            $db->transRollback();
+        } else {
             $this->characterBuildingModel->update($this->asInt($cb['id'] ?? null), ['hp' => $plan['maxHp']]);
+            $db->transComplete();
         }
-
-        $db->transComplete();
 
         if ($shortage) {
             return $this->msg($chatId, '❗ Ресурсов стало меньше, чем при проверке, — кто-то успел их потратить. Попробуй снова.');

@@ -136,8 +136,15 @@ final class CargoDroneAutoSendAction extends BaseAction
             $totalKg     += $item['qty'] * $item['weight'];
         }
 
-        $newCharge = max(0, $charge - $drain);
-        $this->logModel->update($logId, ['durability_count' => $newCharge]);
+        // exploit-fix-15 (M1) — заряд списывается только при увезённом грузе: раньше
+        // durability_count уменьшался безусловно, вне ветки успеха и до проверки
+        // $delivered, — при полностью провалившемся автовывозе (близнец CargoDroneSendAction
+        // списывает только внутри WriteOutcome::Applied) заряд уходил впустую.
+        $newCharge = $charge;
+        if ($delivered !== []) {
+            $newCharge = max(0, $charge - $drain);
+            $this->logModel->update($logId, ['durability_count' => $newCharge]);
+        }
 
         $db->transComplete();
 
