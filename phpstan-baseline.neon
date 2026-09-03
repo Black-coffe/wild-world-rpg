@@ -10305,18 +10305,6 @@ parameters:
 		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Models/ResourcesBankModel.php
-
-		-
-			message: '#^Cannot access offset ''resources_purchased'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Models/ResourcesBankModel.php
-
-		-
-			message: '#^Method App\\Models\\ResourcesBankModel\:\:updateOrInsertResource\(\) should return bool but returns int\|string\|false\.$#'
-			identifier: return.type
 			count: 1
 			path: app/Models/ResourcesBankModel.php
 

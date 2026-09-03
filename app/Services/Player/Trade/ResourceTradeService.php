@@ -34,6 +34,18 @@ final class ResourceTradeService
     }
 
     /**
+     * exploit-fix-16 (ADR-181 §M3) — обёртка над единственной точкой создания строки
+     * `resources_bank` (`ResourcesBankModel::createOrBumpCounter()`), общей для обеих
+     * вызывающих сторон сервиса (`sellResource()` и `bumpBankSold()`) и покупки
+     * (`ResourcesBankModel::updatePurchasedQuantity()`, вызывается из `buyResource()`).
+     * Логика — не копия, а единственная реализация в модели: сервис её не дублирует.
+     */
+    private function createOrBumpBank(int $resourceId, int $sellQuantity): void
+    {
+        $this->resourcesBankModel->createOrBumpCounter($resourceId, $sellQuantity, 'resources_sold');
+    }
+
+    /**
      * Цена за единицу — ровно то поле, по которому считает сделка.
      *
      * 🔴 Тип `array|ResourceEntity`, а не голый `array`: `ResourceModel::find()` отдаёт
@@ -150,12 +162,7 @@ final class ResourceTradeService
                 'last_update'    => date('Y-m-d H:i:s'),
             ]);
         } else {
-            $this->resourcesBankModel->insert([
-                'resource_id'      => $resourceId,
-                'current_quantity' => 0,
-                'resources_sold'   => $sellQuantity,
-                'last_update'      => date('Y-m-d H:i:s'),
-            ]);
+            $this->createOrBumpBank($resourceId, $sellQuantity);
         }
 
         $message = "Продажа ресурса *'{$resource['name']}'* в количестве *{$sellQuantity}* успешно выполнена.\n"
@@ -555,12 +562,7 @@ final class ResourceTradeService
                 'last_update'    => date('Y-m-d H:i:s'),
             ]);
         } else {
-            $bankModel->insert([
-                'resource_id'      => $resourceId,
-                'current_quantity' => 0,
-                'resources_sold'   => $qty,
-                'last_update'      => date('Y-m-d H:i:s'),
-            ]);
+            $this->createOrBumpBank($resourceId, $qty);
         }
     }
 }
