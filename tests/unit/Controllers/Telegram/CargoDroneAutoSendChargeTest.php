@@ -400,6 +400,15 @@ final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
         $concurrentDb->close();
 
         $this->assertInstanceOf(ServerResponse::class, $response);
+        // exploit-fix-31 (R3 m1) — раньше этот путь (chargeRefused) отвечал общим текстом
+        // «Рюкзак опустел раньше, чем дрон успел взлететь» — рюкзак тут ни при чём, груз уже
+        // доставлен на склад в этой же транзакции, причина отказа — заряд.
+        $replyText = $response->getResult() instanceof \Longman\TelegramBot\Entities\Message
+            ? $response->getResult()->getText()
+            : null;
+        $this->assertIsString($replyText);
+        $this->assertStringContainsString('Заряд', $replyText, 'отказ по заряду обязан называть заряд причиной, а не рюкзак');
+        $this->assertStringNotContainsString('Рюкзак опустел', $replyText, 'текст про пустой рюкзак не годится для отказа по заряду — груз реально уехал');
 
         $log = $this->db()->table('crafted_items_log')->where('id', $logId)->get()->getRowArray();
         $this->assertIsArray($log);

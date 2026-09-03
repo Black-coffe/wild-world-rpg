@@ -148,16 +148,22 @@ class CargoDroneSendAction extends BaseAction
         }
 
         $chargeRefused = $outcome === WriteOutcome::Applied && $chargeOutcome !== WriteOutcome::Applied;
-        if ($chargeRefused) {
+
+        // exploit-fix-31 (R3-critical) — раньше на пути $outcome !== Applied (Refused/Missing)
+        // не звался ни transComplete(), ни transRollback(): транзакция оставалась открытой на
+        // глубине 1, и записи BotController::finally (last_seen, firehose) на том же соединении
+        // после этого экшена терялись. Теперь транзакция завершается ровно один раз на КАЖДОМ
+        // пути выхода: rollback при отказе на любом из двух списаний, иначе — исход по
+        // transComplete() (exploit-fix-23 — откат вне ветки WriteOutcome не должен вести в ветку
+        // «взлетел», поэтому transComplete() не зовём после уже сделанного вручную rollback).
+        if ($outcome !== WriteOutcome::Applied || $chargeRefused) {
             // Ресурс уже списан из рюкзака и доставлен на склад выше в этой же транзакции —
             // явный rollback нужен, иначе транзакция закоммитит доставку без списания заряда.
             $db->transRollback();
+            $committed = false;
+        } else {
+            $committed = $db->transComplete();
         }
-
-        // exploit-fix-23 — исход читаем по возврату transComplete(): откат вне
-        // ветки WriteOutcome не должен вести в ветку «взлетел». Не зовём transComplete()
-        // после уже сделанного вручную transRollback().
-        $committed = $outcome === WriteOutcome::Applied && !$chargeRefused && $db->transComplete();
 
         if ($outcome !== WriteOutcome::Applied) {
             return $this->errReply($chatId, $outcome === WriteOutcome::Missing

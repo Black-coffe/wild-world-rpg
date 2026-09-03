@@ -172,8 +172,19 @@ final class CargoDroneAutoSendAction extends BaseAction
         // с нулевой глубиной.
         $committed = !$chargeRefused && $db->transComplete();
 
-        if ($delivered === [] || $chargeRefused || !$committed) {
+        if ($delivered === []) {
             return $this->errReply($chatId, 'Рюкзак опустел раньше, чем дрон успел взлететь, — кто-то успел потратиться. Попробуй ещё раз.');
+        }
+        // exploit-fix-31 (R3 m1) — раньше все три причины отказа (пустой рюкзак, отказ
+        // списания заряда, откат transComplete()) отвечали одним текстом про рюкзак; на
+        // путях $chargeRefused/!$committed рюкзак уже списан и доставлен успешно — причина
+        // отказа не в нём. Текст теперь называет заряд, как у ручного дрона
+        // (CargoDroneSendAction.php).
+        if ($chargeRefused) {
+            return $this->errReply($chatId, 'Заряд дрона списал кто-то другой быстрее — груз не отправлен, попробуй ещё раз.');
+        }
+        if (!$committed) {
+            return $this->errReply($chatId, 'Отправка не сохранилась — транзакция откатилась, попробуй ещё раз.');
         }
 
         $totalKg = round($totalKg, 1);

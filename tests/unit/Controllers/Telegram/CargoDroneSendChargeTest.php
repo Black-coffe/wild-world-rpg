@@ -325,6 +325,11 @@ final class CargoDroneSendChargeTest extends CIUnitTestCase
         $concurrentDb->close();
 
         $this->assertInstanceOf(ServerResponse::class, $response);
+        $replyText = $response->getResult() instanceof \Longman\TelegramBot\Entities\Message
+            ? $response->getResult()->getText()
+            : null;
+        $this->assertIsString($replyText);
+        $this->assertStringContainsString('Заряд', $replyText, 'отказ по заряду обязан называть заряд причиной, а не рюкзак/ресурс (эталон для CargoDroneAutoSendAction, exploit-fix-31 m1)');
 
         $log = $this->db()->table('crafted_items_log')->where('id', $logId)->get()->getRowArray();
         $this->assertIsArray($log);
@@ -334,5 +339,75 @@ final class CargoDroneSendChargeTest extends CIUnitTestCase
         $storageRow = $this->db()->table('base_storage')
             ->where('character_id', $charId)->where('resource_id', $woodId)->get()->getRowArray();
         $this->assertNull($storageRow, 'доставка на склад откатилась — второй вылет не состоялся');
+    }
+
+    /**
+     * exploit-fix-31 (R3-critical) — до правки на пути `$outcome !== WriteOutcome::Applied`
+     * (`Refused`/`Missing` при списании ресурса) `handle()` не звал ни `transComplete()`, ни
+     * `transRollback()` вовсе: `transStart()` уже открыл транзакцию глубиной 1, и она
+     * оставалась висеть после `return`. `BotController::finally` пишет `last_seen` и строку
+     * firehose НА ТОМ ЖЕ соединении сразу после — обе записи попадали в чужую незакрытую
+     * транзакцию и терялись при следующем открытии (`transStart()` следующего запроса) или
+     * при обрыве соединения.
+     *
+     * Гонка на уровне ресурса воспроизведена тем же приёмом, что и в
+     * `CargoDroneAutoSendChargeTest::testAllDecrementsRefusedAfterPlanLeavesChargeAndLogUntouched()`:
+     * колбэк на `DBQuery` перехватывает builder-`SELECT` внутри
+     * `CharacterResourceModel::decrementIfAtLeast()` (`where(...)->first()`) и обнуляет остаток
+     * ПОСЛЕ того, как строка найдена, но ДО условного `UPDATE ... WHERE quantity >= ?` — тот
+     * же снимок, что оставил бы конкурентный писатель, потративший ресурс в промежутке между
+     * чтением `$invQty` (до `transStart()`) и условным списанием (внутри неё). Это ведёт в
+     * `WriteOutcome::Refused`, тот самый путь, где раньше не звалось ничего.
+     */
+    public function testResourceRefusalClosesTransactionSoLaterWritesSurvive(): void
+    {
+        [$tgId, $charId] = $this->seedCharacter();
+        $woodId = $this->ensureResource('Древесина', 'Wood');
+
+        $this->db()->table('character_resources')->insert([
+            'id_characters' => $charId, 'id_resources' => $woodId, 'quantity' => 5,
+        ]);
+        $logId = $this->seedCargoDrone($charId, 250);
+
+        $charIdForHook = $charId;
+        $woodIdForHook = $woodId;
+        Events::on('DBQuery', function (Query $query) use ($charIdForHook, $woodIdForHook): void {
+            $sql = $query->getOriginalQuery();
+            if (! str_contains($sql, 'FROM `character_resources`') || ! str_contains($sql, '`id_characters`')) {
+                return;
+            }
+            $this->db()->table('character_resources')
+                ->where('id_characters', $charIdForHook)
+                ->where('id_resources', $woodIdForHook)
+                ->update(['quantity' => 0]);
+        });
+
+        $response = (new CargoDroneSendAction($this->cbq($tgId, "cargoDroneSend_{$logId}_{$woodId}")))->handle();
+
+        Events::removeAllListeners('DBQuery');
+
+        $this->assertInstanceOf(ServerResponse::class, $response);
+        $this->assertSame(
+            0,
+            $this->db()->transDepth,
+            'транзакция обязана закрыться на пути отказа по ресурсу — глубина 0 после handle()'
+        );
+
+        $log = $this->db()->table('crafted_items_log')->where('id', $logId)->get()->getRowArray();
+        $this->assertIsArray($log);
+        $this->assertSame(250, (int) $log['durability_count'], 'заряд не тронут — списание ресурса отказало раньше');
+
+        // Запись сразу после handle() на ТОМ ЖЕ соединении — как BotController::finally
+        // пишет last_seen/firehose. Если бы транзакция осталась висеть открытой, эта запись
+        // ушла бы в неё же и была бы невидима другому соединению до незапланированного
+        // коммита/отката.
+        $this->db()->table('telegram_users')->insert(['telegram_id' => $tgId]);
+        $markerId = (int) $this->db()->insertID();
+
+        $secondDb = Database::connect('tests', false);
+        $visible  = $secondDb->table('telegram_users')->where('id', $markerId)->get()->getRowArray();
+        $secondDb->close();
+
+        $this->assertIsArray($visible, 'запись, сделанная после handle(), обязана пережить конец «запроса» — видна второму соединению');
     }
 }
