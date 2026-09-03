@@ -50,6 +50,26 @@ class ResourcesBankModel extends Model
     }
 
     /**
+     * exploit-fix-32 (R3-major) — горячий путь бампа существующей строки: голый
+     * `increment()`, БЕЗ предварительного `insertUnique()`. На горячей ветке продажи
+     * строка `resources_bank` почти всегда уже есть (создаётся один раз на ресурс,
+     * story 16) — `insertUnique()` на каждую сделку жёг бы `AUTO_INCREMENT` впустую
+     * даже при штатном `Refused`. `increment()` — `UPDATE … SET col = col + ?`, InnoDB
+     * locking read последней зафиксированной версии, а не снимка REPEATABLE READ
+     * вызывающего (см. докблок `createOrBumpCounter` — тот же аргумент). Возвращает
+     * `Missing`, если строки ещё нет вовсе (первая сделка по ресурсу) — тогда
+     * вызывающий обязан упасть на `createOrBumpCounter()` (insertUnique + fallback).
+     */
+    public function incrementCounterIfExists(int $resourceId, int $qty, string $counterColumn): WriteOutcome
+    {
+        if (! in_array($counterColumn, ['resources_sold', 'resources_purchased'], true)) {
+            throw new \InvalidArgumentException("incrementCounterIfExists: недопустимая колонка {$counterColumn}");
+        }
+
+        return $this->conditionalWrite()->increment('resources_bank', ['resource_id' => $resourceId], $counterColumn, $qty);
+    }
+
+    /**
      * exploit-fix-16 (ADR-181 §M3) — единственная точка создания строки `resources_bank`
      * во всём `app/` (продажа, оптовая продажа, покупка). `UNIQUE(resource_id)` (story 10)
      * означает, что две одновременные первые сделки одного ресурса гонятся за одной

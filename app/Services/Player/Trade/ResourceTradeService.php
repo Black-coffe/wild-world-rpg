@@ -8,6 +8,7 @@ use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\ResourcesBankModel;
+use App\Services\Db\WriteOutcome;
 
 /**
  * Идея #6 (Arseny, 21.01.2025) — service-extraction торговли ресурсами,
@@ -35,14 +36,29 @@ final class ResourceTradeService
 
     /**
      * exploit-fix-16 (ADR-181 §M3) — обёртка над единственной точкой создания строки
-     * `resources_bank` (`ResourcesBankModel::createOrBumpCounter()`), общей для обеих
-     * вызывающих сторон сервиса (`sellResource()` и `bumpBankSold()`) и покупки
-     * (`ResourcesBankModel::updatePurchasedQuantity()`, вызывается из `buyResource()`).
-     * Логика — не копия, а единственная реализация в модели: сервис её не дублирует.
+     * `resources_bank`, общей для обеих вызывающих сторон сервиса (`sellResource()`
+     * и `bumpBankSold()`) и покупки (`ResourcesBankModel::updatePurchasedQuantity()`,
+     * вызывается из `buyResource()`). Логика — не копия, а единственная реализация
+     * в модели: сервис её не дублирует.
+     *
+     * exploit-fix-32 (R3-major) — раньше вызывающие читали `resources_bank` через
+     * `where()->first()` и писали счётчик абсолютным значением: между чтением и
+     * записью снимок REPEATABLE READ терял параллельный бамп той же строки (тот же
+     * класс дыры, что story 25 закрыла на ветке `Refused` первой сделки). Теперь
+     * горячий путь — `incrementCounterIfExists()` (голый `increment()`, без
+     * `insertUnique()` на каждую сделку); `Missing` (строки ещё нет — первая сделка
+     * по ресурсу) падает на `createOrBumpCounter()` (insertUnique + fallback
+     * increment на `Refused`). Исход возвращается вызывающему — при не-`Applied`
+     * сделка не рапортует успех (Goal story).
      */
-    private function createOrBumpBank(int $resourceId, int $sellQuantity): void
+    private function createOrBumpBank(int $resourceId, int $sellQuantity): WriteOutcome
     {
-        $this->resourcesBankModel->createOrBumpCounter($resourceId, $sellQuantity, 'resources_sold');
+        $outcome = $this->resourcesBankModel->incrementCounterIfExists($resourceId, $sellQuantity, 'resources_sold');
+        if ($outcome !== WriteOutcome::Missing) {
+            return $outcome;
+        }
+
+        return $this->resourcesBankModel->createOrBumpCounter($resourceId, $sellQuantity, 'resources_sold');
     }
 
     /**
@@ -155,14 +171,12 @@ final class ResourceTradeService
             $this->characterResourceModel->delete($charRes['id']);
         }
 
-        $bank = $this->resourcesBankModel->where('resource_id', $resourceId)->first();
-        if ($bank) {
-            $this->resourcesBankModel->update($bank['id'], [
-                'resources_sold' => $bank['resources_sold'] + $sellQuantity,
-                'last_update'    => date('Y-m-d H:i:s'),
-            ]);
-        } else {
-            $this->createOrBumpBank($resourceId, $sellQuantity);
+        $bankOutcome = $this->createOrBumpBank($resourceId, $sellQuantity);
+        if ($bankOutcome !== WriteOutcome::Applied) {
+            return [
+                'success' => false,
+                'message' => 'Не удалось учесть продажу в банке ресурсов — обратитесь к администрации.',
+            ];
         }
 
         $message = "Продажа ресурса *'{$resource['name']}'* в количестве *{$sellQuantity}* успешно выполнена.\n"
@@ -467,11 +481,25 @@ final class ResourceTradeService
         $db = \Config\Database::connect();
         $db->transStart();
 
+        // exploit-fix-32 (R3-major) — bumpBankSold пишет через ConditionalWriteService
+        // (raw query, не Model::update()): его отказ НЕ переводит transStatus в false
+        // сам по себе (то же свойство примитива, что и Refused у insertUnique, см.
+        // ConditionalWriteService докблок exploit-fix-18). Держим худший исход строк
+        // явно и валим транзакцию, если хоть один бамп не Applied — иначе сделка
+        // тихо рапортовала бы успех при потерянном счётчике банка.
+        $bankFailed = false;
         foreach ($plan['lines'] as $line) {
             $this->characterResourceModel->decreaseQtyById($line['charResId'], $line['qty']);
-            $this->bumpBankSold($line['id'], $line['qty']);
+            if ($this->bumpBankSold($line['id'], $line['qty']) !== WriteOutcome::Applied) {
+                $bankFailed = true;
+            }
         }
         $this->characterModel->increaseGold($charId, (float) $plan['totalGold']);
+
+        if ($bankFailed) {
+            $db->transRollback();
+            return ['success' => false, 'message' => 'Не удалось выполнить оптовую продажу, попробуйте ещё раз.', 'typesSold' => 0, 'totalQty' => 0, 'totalGold' => 0, 'lines' => []];
+        }
 
         $db->transComplete();
 
@@ -546,23 +574,16 @@ final class ResourceTradeService
     }
 
     /**
-     * Учёт продажи в банке ресурсов (для price-discovery). Свежий инстанс модели на
-     * вызов — builder-state quirk where()->first() в loop'е (memory ci4_model_builder_state_quirk).
+     * Учёт продажи в банке ресурсов (для price-discovery) — оптовая ветка.
+     *
+     * exploit-fix-32 (R3-major) — раньше держала собственную копию read-then-write
+     * абсолютным значением (тот же класс дыры, что и `sellResource()`, плюс отдельный
+     * `where()->first()` builder-state quirk на свежем инстансе модели). Теперь —
+     * тонкая обёртка над `createOrBumpBank()` (raw-запросы `ConditionalWriteService`,
+     * без Model-builder — quirk больше не актуален); исход возвращается вызывающему.
      */
-    private function bumpBankSold(int $resourceId, int $qty): void
+    private function bumpBankSold(int $resourceId, int $qty): WriteOutcome
     {
-        $bankModel = new ResourcesBankModel();
-        $bank      = $bankModel->where('resource_id', $resourceId)->first();
-        $bankId = is_array($bank) && is_numeric($bank['id'] ?? null) ? (int) $bank['id'] : 0;
-        if (is_array($bank) && $bankId > 0) {
-            $soldRaw = $bank['resources_sold'] ?? 0;
-            $sold    = is_numeric($soldRaw) ? (int) $soldRaw : 0;
-            $bankModel->update($bankId, [
-                'resources_sold' => $sold + $qty,
-                'last_update'    => date('Y-m-d H:i:s'),
-            ]);
-        } else {
-            $this->createOrBumpBank($resourceId, $qty);
-        }
+        return $this->createOrBumpBank($resourceId, $qty);
     }
 }

@@ -43,14 +43,32 @@ class ResourceBankUpdateHandler
         // Получаем все ресурсы
         $resources = $this->resourceModel->findAll();
 
+        $db = \Config\Database::connect();
+
         foreach ($resources as $resource) {
-            // Ищем запись в resources_bank
-            $bankData = $this->resourcesBankModel
-                ->where('resource_id', $resource['id'])
-                ->first();
+            // exploit-fix-32 (R3-major) — раньше SELECT (обычный, снимок вне лока) и
+            // UPDATE абсолютным значением шли отдельными вызовами: сделка, вклинившаяся
+            // между ними, стиралась целиком (не только один бамп — весь параллельный
+            // increment() пропадал под перезаписью абсолютной пары purchased/sold).
+            // Транзакция + `SELECT … FOR UPDATE` держат строку до собственного COMMIT —
+            // конкурентный increment() из ResourceTradeService либо успевает ДО (крон
+            // читает уже свежее значение), либо ждёт эту транзакцию и применяется ПОСЛЕ
+            // (на уже состаренном значении), но не может провалиться в щель между чтением
+            // и записью крона.
+            $db->transStart();
+
+            // FOR UPDATE — только MySQL: SQLite (тестовая группа) синтаксис не знает,
+            // тот же приём, что и CharacterStatsService::mutate().
+            $sql = 'SELECT id, resources_purchased, resources_sold FROM ' . $db->prefixTable('resources_bank') . ' WHERE resource_id = ?';
+            if ($db->DBDriver === 'MySQLi') {
+                $sql .= ' FOR UPDATE';
+            }
+            $lock     = $db->query($sql, [$resource['id']]);
+            $bankData = $lock instanceof \CodeIgniter\Database\BaseResult ? $lock->getRowArray() : null;
 
             // Если записи нет, пропускаем (нет купленных/проданных)
             if (!$bankData) {
+                $db->transComplete();
                 continue;
             }
 
@@ -85,12 +103,15 @@ class ResourceBankUpdateHandler
                 $newSold      = max(0, $sold - 1);
             }
 
-            // Обновляем банк
+            // Обновляем банк — всё ещё под локом этой же транзакции (строка не
+            // отпускалась с момента SELECT … FOR UPDATE выше).
             $this->resourcesBankModel->update($bankData['id'], [
                 'resources_purchased' => $newPurchased,
                 'resources_sold'      => $newSold,
                 'last_update'         => date('Y-m-d H:i:s'),
             ]);
+
+            $db->transComplete();
         }
     }
 
