@@ -7,6 +7,8 @@ namespace Tests\Unit\Services\Player\Trade;
 use App\Models\ResourcesBankModel;
 use App\Services\Db\WriteOutcome;
 use App\Services\Player\Trade\ResourceTradeService;
+use CodeIgniter\Database\Query;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -120,12 +122,37 @@ final class ResourceBankInsertRaceTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        // exploit-fix-37 (R4-major, delta): страхует тесты с Events::on('DBQuery', …) ниже —
+        // слушатель не должен пережить свой тест и мешать соседним (образец —
+        // ConditionalWriteServiceTest::tearDown(), story 33).
+        Events::removeAllListeners('DBQuery');
+
         $db = Database::connect('tests');
         foreach (self::TABLES as $t) {
             $db->query("DROP TABLE IF EXISTS {$t}");
         }
         $this->cleanCache();
         parent::tearDown();
+    }
+
+    /** @return list<string> SQL-тексты запросов, у которых `getOriginalQuery()` содержит и `INSERT`, и `resources_bank`. */
+    private function countInsertsIntoResourcesBankDuring(callable $action): array
+    {
+        $seen = [];
+        Events::on('DBQuery', static function (Query $query) use (&$seen): void {
+            $sql = $query->getOriginalQuery();
+            if (str_starts_with(ltrim($sql), 'INSERT') && str_contains($sql, 'resources_bank')) {
+                $seen[] = $sql;
+            }
+        });
+
+        try {
+            $action();
+        } finally {
+            Events::removeAllListeners('DBQuery');
+        }
+
+        return $seen;
     }
 
     private function cleanCache(): void
@@ -321,6 +348,77 @@ final class ResourceBankInsertRaceTest extends CIUnitTestCase
         $this->assertSame(7, (int) $bank['resources_purchased'], 'покупка учтена один раз (4 существующих + 3 новых)');
         $this->assertSame(6, (int) $bank['resources_sold'], 'обновление счётчика покупок не должно трогать чужой resources_sold');
         $this->assertSame(9, (int) $bank['current_quantity'], 'перечитывание строки на Refused не должно затирать чужой current_quantity');
+    }
+
+    /**
+     * exploit-fix-37 (R4-major, delta) — ЯДРО ЭТОЙ STORY, доказано напрямую: строка банка уже
+     * есть → горячий путь `updatePurchasedQuantity()` обязан пройти голым `increment()` и НИ РАЗУ
+     * не позвать `insertUnique()` (докблок примитива запрещает эту форму на горячем пути —
+     * ODKU жжёт `AUTO_INCREMENT`, берёт X-lock). Перехват `Events::on('DBQuery', …)` — тот же
+     * приём, что `ConditionalWriteServiceTest`/`CargoDroneAutoSendChargeTest` — ловит РЕАЛЬНЫЙ
+     * SQL, а не подставное состояние.
+     */
+    public function testBuyResourceHotPathIssuesNoInsertWhenBankRowExists(): void
+    {
+        $this->seedCharacter(self::CHAR_ID, 1000.0);
+
+        Database::connect('tests')->table('resources_bank')->insert([
+            'resource_id'         => self::RESOURCE_ID,
+            'current_quantity'    => 9,
+            'resources_purchased' => 4,
+            'resources_sold'      => 6,
+            'last_update'         => date('Y-m-d H:i:s'),
+        ]);
+
+        $result = null;
+        $inserts = $this->countInsertsIntoResourcesBankDuring(function () use (&$result): void {
+            $result = (new ResourceTradeService())->buyResource(
+                ['id' => self::CHAR_ID, 'gold' => 1000, 'level' => 1],
+                self::RESOURCE_ID,
+                3
+            );
+        });
+
+        $this->assertIsArray($result);
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertSame(
+            [],
+            $inserts,
+            'горячий путь покупки при существующей строке банка не должен звать insertUnique()'
+        );
+        $bank = $this->bankRow(self::RESOURCE_ID);
+        $this->assertNotNull($bank);
+        $this->assertSame(7, (int) $bank['resources_purchased'], 'счётчик покупок вырос ровно на qty (4 + 3)');
+    }
+
+    /**
+     * Обратная сторона предыдущего теста: строки банка ещё нет вовсе (первая покупка ресурса) —
+     * `updatePurchasedQuantity()` обязан упасть на `createOrBumpCounter()` и выпустить ровно один
+     * `INSERT` в `resources_bank`.
+     */
+    public function testBuyResourceIssuesExactlyOneInsertWhenBankRowMissing(): void
+    {
+        $this->seedCharacter(self::CHAR_ID, 1000.0);
+
+        $result = null;
+        $inserts = $this->countInsertsIntoResourcesBankDuring(function () use (&$result): void {
+            $result = (new ResourceTradeService())->buyResource(
+                ['id' => self::CHAR_ID, 'gold' => 1000, 'level' => 1],
+                self::RESOURCE_ID,
+                4
+            );
+        });
+
+        $this->assertIsArray($result);
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertCount(
+            1,
+            $inserts,
+            'первая покупка ресурса обязана создать строку банка ровно одним insertUnique()'
+        );
+        $bank = $this->bankRow(self::RESOURCE_ID);
+        $this->assertNotNull($bank);
+        $this->assertSame(4, (int) $bank['resources_purchased']);
     }
 
     /**

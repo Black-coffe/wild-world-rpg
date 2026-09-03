@@ -44,9 +44,26 @@ class ResourcesBankModel extends Model
         return $this->conditionalWrite ??= new ConditionalWriteService();
     }
 
+    /**
+     * exploit-fix-37 (R4-major) — раньше на каждую покупку звался `createOrBumpCounter()`
+     * (голый `insertUnique()`), хотя строка `resources_bank` почти всегда уже есть (создаётся
+     * один раз на ресурс, story 16) — тот же аргумент, что и story 32 для продажи: `insertUnique()`
+     * на горячем пути жжёт `AUTO_INCREMENT` и берёт X-lock даже при штатном `Refused`. Теперь —
+     * `incrementCounterIfExists()` первым (голый `increment()`); `Missing` (строки ещё нет — первая
+     * сделка по ресурсу) падает на `createOrBumpCounter()` (insertUnique + fallback increment на
+     * `Refused`).
+     */
     public function updatePurchasedQuantity($resourceId, $quantity): WriteOutcome
     {
-        return $this->createOrBumpCounter((int) $resourceId, (int) $quantity, 'resources_purchased', (int) $quantity);
+        $resourceId = (int) $resourceId;
+        $quantity   = (int) $quantity;
+
+        $outcome = $this->incrementCounterIfExists($resourceId, $quantity, 'resources_purchased');
+        if ($outcome !== WriteOutcome::Missing) {
+            return $outcome;
+        }
+
+        return $this->createOrBumpCounter($resourceId, $quantity, 'resources_purchased', $quantity);
     }
 
     /**

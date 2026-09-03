@@ -358,7 +358,17 @@ final class ResourceTradeService
         }
 
         $this->characterResourceModel->addOrIncreaseResource($buyerId, $resourceId, $qty);
-        $this->resourcesBankModel->updatePurchasedQuantity($resourceId, $qty);
+
+        // exploit-fix-37 (R4-major) — исход банка раньше отбрасывался (тот же класс дыры, что
+        // story 32 закрыла на sellResource): при не-Applied сделка не рапортует успех, зеркалит
+        // проверку `$bankOutcome` в sellResource().
+        $bankOutcome = $this->resourcesBankModel->updatePurchasedQuantity($resourceId, $qty);
+        if ($bankOutcome !== WriteOutcome::Applied) {
+            return [
+                'success' => false,
+                'message' => 'Не удалось учесть покупку в банке ресурсов — обратитесь к администрации.',
+            ];
+        }
 
         // Форензика спроса. Продажа писала `SELL_RESOURCE` с 10.06, покупка не писала
         // НИЧЕГО — единственным следом был счётчик `resources_bank.resources_purchased`,
