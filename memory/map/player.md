@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-08-19
+last-verified: 2026-09-03
 
 # Scout report: Игрок (Services/Player)
 
@@ -38,10 +38,16 @@ outbound: модели `app/Models/*`, `Services/GameSettings`, `Services/Notifi
 - Заряды при слиянии стаков зажимаются `min(dur, base)` на каждом чтении.
 - `Death/PlayerRespawner.php:82` всё ещё берёт `claimed_cells` bare `first()` (не тронут story
   backpack-teleport-base-choice — non-goal).
-- Ловушки (exploit-audit, `docs/specs/exploit-audit/REPORT.md`): 🔴 `EA-duplication-02` —
-  портативный телепорт срабатывает дважды с одного заряда (снимок `validatePortable()`,
-  `TeleportItemConsumer` пишет абсолют и ничего не возвращает); 🔴 `EA-gaps-04` — маяк ставится
-  до списания предмета, `false` от `subtractItem()` игнорируется.
+- **ЗАКРЫТО (2026-09, exploit-fix-08, F7, ADR-181).** `EA-duplication-02` — портативный телепорт
+  срабатывал дважды с одного заряда. `TeleportItemConsumer::consumePortable()`/`consumeBackpack()`
+  теперь делают CAS по снимку (`WHERE id=? AND quantity=? AND durability_count=?`,
+  `bool`/`?int` вместо `void`/`int`); `TeleportUseAction` списывает до перемещения и перемещает
+  только на подтверждённый исход. Не через `ConditionalWriteService` — инлайн CAS (у примитива нет
+  готового метода под двухколоночный condition с произвольным новым значением).
+- **ЗАКРЫТО (2026-09, exploit-fix-07, F5, ADR-181).** `EA-gaps-04` — маяк ставился до списания
+  предмета. См. `bases.md` (`BeaconInstaller`).
+- Ресурсы персонажа матчатся по (`id_characters`, `id_resources`) — см. Key types выше;
+  `decreaseResources()` (F0/ADR-181, 2026-09) удалена, см. `craft.md`.
 
 ## Vault
 `mmorpg-vault/apps/player/index.md` · `mmorpg-vault/tech-writing/services/`

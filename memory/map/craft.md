@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-08-19
+last-verified: 2026-09-03
 
 # Scout report: Крафт, ремонт, экономика предметов
 
@@ -32,11 +32,19 @@ outbound: ресурсы персонажа, `GameSettings`, `Images`.
 - Цена на экране обязана приходить из сервиса сделки, а не из сырого поля БД.
 - Списание — `deductCraftedItem`, не `update()` с raw-set.
 - Любое число баланса (стоимость, время, вероятность) — в `GameSettings` с rationale, не в коде.
-- Ловушка (exploit-audit, `docs/specs/exploit-audit/REPORT.md` #4, `EA-economy-01`):
-  `BuyCraftConfirmAction` не имеет ни одной проверки `qty > 0` на всём пути от разбора callback
-  до записи — отрицательное `qty` печатает золото и раздувает сток торговца (нужен модифицированный
-  клиент, кнопки шлют только положительные значения). Тот же незащищённый вход, `qty=0`, пишет
-  фантомную строку в `transactions` (`EA-economy-02`).
+- **ЗАКРЫТО (2026-09, exploit-fix-02, H1).** `EA-economy-01`/`EA-economy-02` — было: ни одной
+  проверки `qty > 0` на пути `BuyCraftConfirmAction`/`SellCraftConfirmAction`, отрицательное `qty`
+  печатало золото и раздувало сток торговца, `qty=0` писал фантомную строку в `transactions`.
+  Гвард `qty > 0` теперь стоит на самом экране (не на побочном эффекте `VendorDailyLimitService`),
+  сразу после каста `(int) $quantity`, до любого чтения/записи. Отдельная честная причина отказа —
+  не переиспользует текст `VendorDailyLimitService::refusalText()` («монеты торговца кончились»).
+- **(2026-09, ADR-181) Отмена очереди крафта** (`CancelQueuedCraftAction`) — снятие строки
+  `character_tasks` теперь условный `DELETE ... WHERE status='queued'` **первым** шагом транзакции,
+  три возврата (ресурсы/крафт/золото) — только при подтверждённом снятии. Раньше строка удалялась
+  безусловным `Model::delete()` последней. См. `mmorpg-vault/tech-writing/handlers/craft/CancelQueuedCraftAction.md`.
+- **(2026-09, ADR-181) Списание ресурсов** — `CharacterResourceModel::decreaseResources()` удалено
+  (читало-считало-писало, при нехватке удаляло строку и рапортовало успех); заменено
+  `decrementIfAtLeast()` через `ConditionalWriteService` во всех семи бывших вызывающих.
 
 ## Vault
 `mmorpg-vault/tech-writing/craft/` · `mmorpg-vault/apps/player/index.md`

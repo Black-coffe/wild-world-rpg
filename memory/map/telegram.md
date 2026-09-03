@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-08-19
+last-verified: 2026-09-03
 
 # Scout report: Telegram-поверхность
 
@@ -28,6 +28,12 @@ outbound: `Services/Player`, `Services/World`, `Services/Craft*`, `Services/Base
 `Services/Onboarding`, `Services/Notifications`.
 
 ## Gotchas
+- **(2026-09, ADR-181) Дедуп `update_id`.** `BotController::webhook()` вставляет `update_id` в
+  `telegram_updates_seen` через `App\Services\Db\ConditionalWriteService::insertUnique()` сразу
+  после разбора JSON, до community-gate/ADR-168 strip/firehose/E6-E8/диспетча. Дубль → тихий
+  `200 OK`, обработка не идёт. Отказ хранилища — fail-open + `error`-лог с маркером
+  `[Bot.webhook] dedup:`. До этого дедупа не было вовсе — повтор доставки вебхука проходил как
+  новое действие игрока.
 - **Фото только через `MediaSender`** (`sendPhotoOrText` / `editOrSend` / `editTextOrSend`). Прямой
   `Request::sendPhoto(` в app-коде запрещён: он ломает режим media-off.
 - **Caption обязан нести весь смысл** — картинка это усиление, а не носитель (правило MEDIA-OFF).

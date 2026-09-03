@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-08-19
+last-verified: 2026-09-03
 
 # Scout report: Слой данных (модели, миграции, сущности)
 
@@ -13,8 +13,13 @@ last-verified: 2026-08-19
   `BattleCharacter`, `BattleLogEntity`, `User`, `Traits/`.
 - `app/Repositories/CI4CharacterRepository.php` + `Contracts/` — единственный репозиторий (raw SQL,
   без префиксов таблиц).
-- `app/Database/Migrations/` — 524 файла; исключены из classmap и из phpstan.
+- `app/Database/Migrations/` — 524+ файла; исключены из classmap и из phpstan.
 - `app/Config/WipeManifest.php` — стратегия вайпа для каждой таблицы.
+- **`app/Services/Db/`** (2026-09, ADR-181) — `ConditionalWriteService` (`decrementIfAtLeast`,
+  `transitionIfCurrent`, `increment`, `insertUnique` — три исхода `WriteOutcome`, не `bool`) и
+  `NamedLock` (`GET_LOCK` non-blocking, `withLock()`). Единый дом правила «списание — условный
+  `UPDATE` с проверкой `affectedRows`, не read-then-write». Подробность —
+  `mmorpg-vault/tech-writing/services/ConditionalWriteService.md`.
 
 ## Key types / contracts
 Шесть стратегий вайпа: `KEEP`, `PLAYER_DATA`, `TRANSIENT`, `CHARACTER_RESET`, `IDENTITY_RESET`,
@@ -30,6 +35,18 @@ outbound: MySQL / MariaDB.
 - `increment()` на кэше CI4 продлевает TTL: окно, отсчитываемое по TTL, не закрывается никогда.
 - Эмодзи-колонки обязаны быть `utf8mb4`.
 - `first()` без `orderBy` врёт, когда подходящих строк несколько.
+- **`strictOn = false`** (`app/Config/Database.php`, группы `default` и `tests`) — CI4 снимает
+  `STRICT_TRANS_TABLES`/`STRICT_ALL_TABLES` из `sql_mode` на каждом коннекте, даже когда сервер
+  строгий. Пропущенная `NOT NULL`-колонка без `DEFAULT` в приложении не бросает исключение — MySQL
+  молча подставляет implicit default. Проектный дефект вне exploit-fix (хвост в `FIX-BACKLOG.md`);
+  `ConditionalWriteService::insertUnique()` документирует это явно в своём докблоке.
+- **`ConditionalWriteService::insertUnique()` — self-reference на первую колонку `$row`**, не на
+  литеральный `id`: таблицы без суррогатного `id` (например `telegram_updates_seen`) иначе получили
+  бы `Unknown column 'id'`. `ON DUPLICATE KEY UPDATE` на уже существующей строке берёт X-lock и
+  сжигает `AUTO_INCREMENT` — не для горячего пути «строка почти всегда уже есть».
+- Дубль внутри чужой транзакции у `insertUnique()` **не** портит `transStatus` (форма ODKU, не
+  перехват 1062-исключения) — иначе штатный `Refused` незаметно обрекал бы всю транзакцию вызывающего
+  на откат в `transComplete()`.
 - В тестах время сеять как `NOW() - INTERVAL`, а не `date()` в PHP — иначе окна плывут.
 - Миграции phpstan не смотрит: синтаксис проверяется `php -l` (см. `## Commands` в конституции).
 - Локальная база поднимается **дампом с testbot**: прогон миграций с нуля не проходит.
@@ -39,4 +56,6 @@ outbound: MySQL / MariaDB.
   `characters` не несут `armor`/`max_health`).
 
 ## Vault
-`mmorpg-vault/tech-writing/models/` · `mmorpg-vault/tech-writing/db/` · ADR-087
+`mmorpg-vault/tech-writing/models/` · `mmorpg-vault/tech-writing/db/` · ADR-087 · ADR-181
+(`mmorpg-vault/tech-writing/services/ConditionalWriteService.md`,
+`mmorpg-vault/tech-writing/db/{telegram_updates_seen,resources_bank}.md`)
