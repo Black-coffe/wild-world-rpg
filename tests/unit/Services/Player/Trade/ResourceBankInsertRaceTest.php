@@ -56,10 +56,10 @@ final class ResourceBankInsertRaceTest extends CIUnitTestCase
 
     /**
      * exploit-fix-40 (R5-minor, m8) — держит собственный `DBQuery`-слушатель по ссылке,
-     * чтобы `tearDown()` мог снять точечно ({@see Events::removeListener()}), а не
-     * `removeAllListeners('DBQuery')`: `app/Config/Events.php:46` вешает на `DBQuery`
-     * СВОЙ слушатель (аудит) — `removeAllListeners` глушил бы и его до конца тестового
-     * процесса, а не только на время этого теста.
+     * чтобы `tearDown()` мог снять точечно ({@see Events::removeListener()}), не задев
+     * чужие слушатели того же события: `app/Config/Events.php:46` вешает на `DBQuery`
+     * СВОЙ слушатель (аудит), который обязан пережить этот тест и остаться работать
+     * для всех последующих.
      */
     private ?\Closure $dbQueryListener = null;
 
