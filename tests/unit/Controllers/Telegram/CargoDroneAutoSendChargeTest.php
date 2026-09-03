@@ -55,6 +55,16 @@ final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
     /** @var list<int> id персонажей, заведённых этим тестом. */
     private array $ownCharacterIds = [];
 
+    /**
+     * exploit-fix-41 (R5-minor, m5) — `telegram_users` не входит в CHAR_LINKED (там нет
+     * колонки-владельца персонажа), но каждый вызов {@see seedCharacter()} и маркерная
+     * запись «после handle()» вставляют туда строку. tearDown() ниже удаляет ровно эти
+     * id, а не всю таблицу — она общая с соседними воркерами.
+     *
+     * @var list<int>
+     */
+    private array $ownTelegramUserIds = [];
+
     /** Таблица → колонка-владелец персонажа, для чистки строк в общих таблицах. */
     private const CHAR_LINKED = [
         'characters'           => 'id',
@@ -161,6 +171,10 @@ final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         Events::removeAllListeners('DBQuery');
+        // exploit-fix-41 — DBDebug=false персистирует на общем `tests`-соединении между
+        // тестами (тот же урок, что и в InsertUniqueContractTest); всегда возвращаем
+        // к дефолту, даже если конкретный тест не трогал его сам.
+        $this->enableDBDebug();
 
         try {
             foreach (self::CHAR_LINKED as $table => $col) {
@@ -169,6 +183,13 @@ final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
                 }
                 try {
                     $this->db()->table($table)->whereIn($col, $this->ownCharacterIds)->delete();
+                } catch (\Throwable $e) {
+                    // Таблица общая и уже не наша — не мешаем соседнему воркеру фаталом здесь.
+                }
+            }
+            if (! in_array('telegram_users', $this->createdTables, true) && $this->ownTelegramUserIds !== []) {
+                try {
+                    $this->db()->table('telegram_users')->whereIn('id', $this->ownTelegramUserIds)->delete();
                 } catch (\Throwable $e) {
                     // Таблица общая и уже не наша — не мешаем соседнему воркеру фаталом здесь.
                 }
@@ -227,12 +248,21 @@ final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
         return is_array($arr) && is_numeric($arr['quantity'] ?? null) ? (int) $arr['quantity'] : 0;
     }
 
+    /** Вставляет строку telegram_users и запоминает id для чистки в tearDown() (m5). */
+    private function insertTelegramUser(int $tgId): int
+    {
+        $this->db()->table('telegram_users')->insert(['telegram_id' => $tgId]);
+        $id = (int) $this->db()->insertID();
+        $this->ownTelegramUserIds[] = $id;
+
+        return $id;
+    }
+
     /** @return array{0:int,1:int} [telegram_id, character_id] */
     private function seedCharacter(): array
     {
-        $tgId = random_int(730_000_000, 739_999_999);
-        $this->db()->table('telegram_users')->insert(['telegram_id' => $tgId]);
-        $tgUid = (int) $this->db()->insertID();
+        $tgId  = random_int(730_000_000, 739_999_999);
+        $tgUid = $this->insertTelegramUser($tgId);
 
         $this->db()->table('characters')->insert([
             'telegram_user_id' => $tgUid, 'gold' => 0, 'health' => 100, 'tired' => 100,
@@ -482,8 +512,97 @@ final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
         // Запись сразу после handle() на ТОМ ЖЕ соединении — как BotController::finally пишет
         // last_seen/firehose. Если бы транзакция осталась висеть открытой, эта запись ушла бы в
         // неё же и была бы невидима другому соединению до незапланированного коммита/отката.
-        $this->db()->table('telegram_users')->insert(['telegram_id' => $tgId]);
-        $markerId = (int) $this->db()->insertID();
+        $markerId = $this->insertTelegramUser($tgId);
+
+        $secondDb = Database::connect('tests', false);
+        $visible  = $secondDb->table('telegram_users')->where('id', $markerId)->get()->getRowArray();
+        $secondDb->close();
+
+        $this->assertIsArray($visible, 'запись, сделанная после handle(), обязана пережить конец «запроса» — видна второму соединению');
+    }
+
+    /**
+     * exploit-fix-41 (R5-minor, m6) — путь «запрос упал молча, исключения нет»: story 36
+     * закрыла только путь исключения (`catch (\Throwable $e)`), но `transComplete()` может
+     * вернуть `false` без единого брошенного исключения — при `DBDebug=false` неудачный
+     * запрос помечает `transStatus=false` (`BaseConnection::handleTransStatus()`) и просто
+     * возвращает `false`, а `transStrict=true` (`Config\Database`) держит `transStatus=false`
+     * до явного `resetTransStatus()`. Близнец
+     * {@see CargoDroneSendChargeTest::testSilentTransactionFailureWithoutExceptionResetsTransStatus()}.
+     *
+     * Тихий отказ воспроизведён реальной SQL-ошибкой (обращение к несуществующей колонке)
+     * внутри транзакции handle(), на ТОМ ЖЕ соединении — `DBDebug=false` гарантирует
+     * отсутствие исключения. `DBQuery`-хук ставит флаг `$injected`, чтобы не зациклиться
+     * на собственном же инжектированном запросе. Перехват — на WRITE-запросе (`INSERT` в
+     * `base_storage` внутри `BaseStorageModel::deliver()`), не на SELECT: тот же приём,
+     * что и в `testExceptionDuringTransactionRollsBackAndClosesTransaction()` выше —
+     * перехват builder-SELECT внутри `decrementIfAtLeast()` (как в
+     * `testAllDecrementsRefusedAfterPlanLeavesChargeAndLogUntouched()`) переписал бы
+     * `$this->resultID` соединения ДО того, как исходный `SELECT` успел его прочитать
+     * (докблок класса выше), искажая измерение вместо воспроизведения сценария ревьюера.
+     */
+    public function testSilentTransactionFailureWithoutExceptionResetsTransStatus(): void
+    {
+        [$tgId, $charId] = $this->seedCharacter();
+        $woodId = $this->ensureResource('Древесина', 'Wood');
+
+        $this->db()->table('character_resources')->insert([
+            'id_characters' => $charId, 'id_resources' => $woodId, 'quantity' => 5,
+        ]);
+        $logId = $this->seedCargoDrone($charId, 250);
+
+        $this->disableDBDebug();
+
+        $injected = false;
+        Events::on('DBQuery', function (Query $query) use (&$injected): void {
+            if ($injected) {
+                return;
+            }
+            $sql = $query->getOriginalQuery();
+            $isStorageWrite = str_contains($sql, 'base_storage')
+                && (str_starts_with($sql, 'INSERT') || str_starts_with($sql, 'UPDATE'));
+            if (! $isStorageWrite) {
+                return;
+            }
+            $injected = true;
+            // Тихий отказ: колонка не существует → resultID=false → handleTransStatus()
+            // помечает transStatus=false. DBDebug=false — без исключения, безусловно.
+            $this->db()->query('UPDATE crafted_items_log SET no_such_column = 1 WHERE id = -1');
+        });
+
+        $response = (new CargoDroneAutoSendAction($this->cbq($tgId, 'cargoDroneAuto_' . $logId)))->handle();
+
+        Events::removeAllListeners('DBQuery');
+        $this->enableDBDebug();
+
+        $this->assertTrue($injected, 'хук обязан был поймать и подменить целевой запрос — иначе тест ничего не проверил');
+
+        $this->assertInstanceOf(ServerResponse::class, $response);
+        $replyText = $response->getResult() instanceof \Longman\TelegramBot\Entities\Message
+            ? $response->getResult()->getText()
+            : null;
+        $this->assertIsString($replyText);
+
+        $this->assertSame(0, $this->db()->transDepth, 'транзакция обязана закрыться на тихом отказе — глубина 0 после handle()');
+        $this->assertTrue(
+            $this->db()->transStatus(),
+            'resetTransStatus() обязан вернуть флаг успеха после тихого (без исключения) отказа — иначе следующий transStart() того же соединения унаследует чужой сбой'
+        );
+
+        $this->assertSame(5, $this->backpackQty($charId, $woodId), 'списание рюкзака откатилось вместе с тихим отказом');
+
+        $log = $this->db()->table('crafted_items_log')->where('id', $logId)->get()->getRowArray();
+        $this->assertIsArray($log);
+        $this->assertSame(250, (int) $log['durability_count'], 'заряд не тронут — вся транзакция откатилась');
+
+        $storageRow = $this->db()->table('base_storage')
+            ->where('character_id', $charId)->where('resource_id', $woodId)->get()->getRowArray();
+        $this->assertNull($storageRow, 'доставка на склад откатилась вместе с тихим отказом');
+
+        // Запись сразу после handle() на ТОМ ЖЕ соединении — как BotController::finally пишет
+        // last_seen/firehose. Если бы транзакция осталась в поломанном состоянии, эта запись
+        // ушла бы в откатывающуюся транзакцию или сама бы отказала.
+        $markerId = $this->insertTelegramUser($tgId);
 
         $secondDb = Database::connect('tests', false);
         $visible  = $secondDb->table('telegram_users')->where('id', $markerId)->get()->getRowArray();

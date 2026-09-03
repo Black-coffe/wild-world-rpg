@@ -127,6 +127,12 @@ class CargoDroneSendAction extends BaseAction
 
         $fromCell = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : null;
 
+        // exploit-fix-41 (R5-minor, m6) — резервируется ДО transStart(), чтобы решить ниже,
+        // была ли эта транзакция верхнего уровня для соединения: resetTransStatus() после
+        // тихого отказа безопасен только когда мы сами открыли транзакцию (глубина была 0),
+        // иначе мы затёрли бы состояние отказа, принадлежащее внешней транзакции.
+        $transDepthBeforeStart = $db->transDepth;
+
         $db->transStart();
         try {
             $outcome       = $this->resourceModel->decrementIfAtLeast($charId, $resId, $sendQty);
@@ -164,6 +170,14 @@ class CargoDroneSendAction extends BaseAction
                 $committed = false;
             } else {
                 $committed = $db->transComplete();
+                if (! $committed && $transDepthBeforeStart === 0) {
+                    // exploit-fix-41 (R5-minor, m6) — путь «запрос упал молча, исключения нет»:
+                    // при transStrict=true transComplete() уже сделал transRollback() и оставил
+                    // transStatus=false до конца PHP-запроса (следующий transStart() того же
+                    // соединения унаследовал бы чужой сбой). Story 36 закрыла тот же инвариант
+                    // для пути исключения — здесь тот же resetTransStatus() нужен на тихом пути.
+                    $db->resetTransStatus();
+                }
             }
         } catch (\Throwable $e) {
             // exploit-fix-36 (R4-major) — исключение между transStart() и завершением (любой
