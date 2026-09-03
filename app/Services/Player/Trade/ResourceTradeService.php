@@ -337,6 +337,24 @@ final class ResourceTradeService
             return ['success' => false, 'message' => "У вас недостаточно золота для покупки {$qty} ед. (нужно {$totalCost}💰)."];
         }
 
+        $buyerIdRaw = $character['id'] ?? null;
+        $buyerId    = is_numeric($buyerIdRaw) ? (int) $buyerIdRaw : 0;
+
+        // exploit-fix-40 (R5-minor, близнец m1 круга 4 на стороне продажи) — банк
+        // проверяется ДО необратимых списаний/выдач, а не после. Раньше отказ банка
+        // сообщался игроку уже ПОСЛЕ decreaseGold (:352 было) и addOrIncreaseResource
+        // (:360 было) — золото списывалось и ресурс выдавался, а сделка рапортовала
+        // провал. `updatePurchasedQuantity` не зависит от состояния золота/инвентаря
+        // покупателя, поэтому переставить её раньше безопасно — не нужна ни
+        // транзакция, ни откат.
+        $bankOutcome = $this->resourcesBankModel->updatePurchasedQuantity($resourceId, $qty);
+        if ($bankOutcome !== WriteOutcome::Applied) {
+            return [
+                'success' => false,
+                'message' => 'Не удалось учесть покупку в банке ресурсов — обратитесь к администрации.',
+            ];
+        }
+
         // Fix 2026-07-27 (последний незакрытый близнец класса lost-update): результат
         // списания ОБЯЗАН проверяться. Предчек выше судит по снапшоту $character,
         // прочитанному в начале запроса; decreaseGold перепроверяет достаточность от
@@ -346,9 +364,6 @@ final class ResourceTradeService
         // покупка становилась бесплатной и печатала ценность из воздуха. Зеркалит
         // остальные call-site'ы decreaseGold (Караван, Ремонт, Страховка, Оракул,
         // Телепорт, Подать, Смерть, Магазин поселения).
-        $buyerIdRaw = $character['id'] ?? null;
-        $buyerId    = is_numeric($buyerIdRaw) ? (int) $buyerIdRaw : 0;
-
         if (! $this->characterModel->decreaseGold($buyerId, (float) $totalCost)) {
             return [
                 'success' => false,
@@ -358,17 +373,6 @@ final class ResourceTradeService
         }
 
         $this->characterResourceModel->addOrIncreaseResource($buyerId, $resourceId, $qty);
-
-        // exploit-fix-37 (R4-major) — исход банка раньше отбрасывался (тот же класс дыры, что
-        // story 32 закрыла на sellResource): при не-Applied сделка не рапортует успех, зеркалит
-        // проверку `$bankOutcome` в sellResource().
-        $bankOutcome = $this->resourcesBankModel->updatePurchasedQuantity($resourceId, $qty);
-        if ($bankOutcome !== WriteOutcome::Applied) {
-            return [
-                'success' => false,
-                'message' => 'Не удалось учесть покупку в банке ресурсов — обратитесь к администрации.',
-            ];
-        }
 
         // Форензика спроса. Продажа писала `SELL_RESOURCE` с 10.06, покупка не писала
         // НИЧЕГО — единственным следом был счётчик `resources_bank.resources_purchased`,

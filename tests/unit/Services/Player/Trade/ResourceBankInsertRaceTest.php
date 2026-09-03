@@ -52,7 +52,16 @@ final class ResourceBankInsertRaceTest extends CIUnitTestCase
     private const RESOURCE_ID = 42;
 
     /** @var list<string> */
-    private const TABLES = ['characters', 'character_resources', 'resources', 'resources_bank'];
+    private const TABLES = ['characters', 'character_resources', 'resources', 'resources_bank', 'action_log'];
+
+    /**
+     * exploit-fix-40 (R5-minor, m8) — держит собственный `DBQuery`-слушатель по ссылке,
+     * чтобы `tearDown()` мог снять точечно ({@see Events::removeListener()}), а не
+     * `removeAllListeners('DBQuery')`: `app/Config/Events.php:46` вешает на `DBQuery`
+     * СВОЙ слушатель (аудит) — `removeAllListeners` глушил бы и его до конца тестового
+     * процесса, а не только на время этого теста.
+     */
+    private ?\Closure $dbQueryListener = null;
 
     protected function setUp(): void
     {
@@ -60,7 +69,12 @@ final class ResourceBankInsertRaceTest extends CIUnitTestCase
         $this->cleanCache();
         $db = Database::connect('tests');
 
+        // action_log несёт FK на characters — дропаем первой (см. tearDown() тот же приём).
+        $db->query('DROP TABLE IF EXISTS action_log');
         foreach (self::TABLES as $t) {
+            if ($t === 'action_log') {
+                continue;
+            }
             $db->query("DROP TABLE IF EXISTS {$t}");
         }
 
@@ -108,6 +122,25 @@ final class ResourceBankInsertRaceTest extends CIUnitTestCase
             )
         ');
 
+        // exploit-fix-40 — схема из миграции `2024-03-18-134951_CreateActionLogTable` +
+        // `2026-07-07-100000_ExtendActionLogStatusEnum` (enum расширен REJECTED), нужна
+        // для проверки `logPurchase()` (m8/acceptance: успешная покупка сохраняет запись
+        // журнала). FK на `characters.id` держит форму продовой таблицы.
+        $db->query("
+            CREATE TABLE action_log (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                character_id INT NOT NULL,
+                chat_id BIGINT UNSIGNED NOT NULL,
+                action_name VARCHAR(255) NOT NULL,
+                action_status ENUM('Pending','Completed','Skipped','REJECTED') NOT NULL DEFAULT 'Pending',
+                description TEXT NULL,
+                created_at DATETIME NULL,
+                updated_at DATETIME NULL,
+                CONSTRAINT fk_action_log_character FOREIGN KEY (character_id) REFERENCES characters(id)
+                    ON DELETE CASCADE ON UPDATE CASCADE
+            )
+        ");
+
         $db->table('resources')->insert([
             'id'           => self::RESOURCE_ID,
             'name'         => 'Ржавый лом',
@@ -122,13 +155,20 @@ final class ResourceBankInsertRaceTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
-        // exploit-fix-37 (R4-major, delta): страхует тесты с Events::on('DBQuery', …) ниже —
-        // слушатель не должен пережить свой тест и мешать соседним (образец —
-        // ConditionalWriteServiceTest::tearDown(), story 33).
-        Events::removeAllListeners('DBQuery');
+        // exploit-fix-40 (R5-minor, m8) — снимаем ТОЛЬКО свой слушатель по ссылке (см.
+        // докблок свойства `$dbQueryListener`), а не все `DBQuery`-слушатели разом.
+        if ($this->dbQueryListener !== null) {
+            Events::removeListener('DBQuery', $this->dbQueryListener);
+            $this->dbQueryListener = null;
+        }
 
         $db = Database::connect('tests');
+        // action_log несёт FK на characters — дропаем первой, иначе DROP characters падает.
+        $db->query('DROP TABLE IF EXISTS action_log');
         foreach (self::TABLES as $t) {
+            if ($t === 'action_log') {
+                continue;
+            }
             $db->query("DROP TABLE IF EXISTS {$t}");
         }
         $this->cleanCache();
@@ -139,17 +179,22 @@ final class ResourceBankInsertRaceTest extends CIUnitTestCase
     private function countInsertsIntoResourcesBankDuring(callable $action): array
     {
         $seen = [];
-        Events::on('DBQuery', static function (Query $query) use (&$seen): void {
+        // exploit-fix-40 (m8) — слушатель хранится в `$this->dbQueryListener`, чтобы
+        // сняться по ссылке (`Events::removeListener()`), не затронув чужой слушатель
+        // `DBQuery` из `app/Config/Events.php:46`.
+        $this->dbQueryListener = static function (Query $query) use (&$seen): void {
             $sql = $query->getOriginalQuery();
             if (str_starts_with(ltrim($sql), 'INSERT') && str_contains($sql, 'resources_bank')) {
                 $seen[] = $sql;
             }
-        });
+        };
+        Events::on('DBQuery', $this->dbQueryListener);
 
         try {
             $action();
         } finally {
-            Events::removeAllListeners('DBQuery');
+            Events::removeListener('DBQuery', $this->dbQueryListener);
+            $this->dbQueryListener = null;
         }
 
         return $seen;
@@ -476,5 +521,79 @@ final class ResourceBankInsertRaceTest extends CIUnitTestCase
             (int) $bank['current_quantity'],
             'increment() не трогает чужие поля строки'
         );
+    }
+
+    /**
+     * exploit-fix-40 (R5-minor, acceptance criteria #1) — ЯДРО ЭТОЙ STORY: отказ банка
+     * (`WriteOutcome::Refused`) сообщённый игроку не оставляет золото списанным и ресурс
+     * выданным. Однопоточный вызов `updatePurchasedQuantity()` на реальной MySQL не может
+     * детерминированно дойти до не-`Applied` исхода (первая покупка всегда создаёт строку
+     * через `insertUnique()`, дальнейшие — бампают существующую голым `increment()`) —
+     * реальную гонку двух соединений уже доказывают тесты выше через
+     * `ResourcesBankModel`/`ConditionalWriteService` напрямую. Здесь предмет проверки —
+     * поведение `buyResource()` НА исходе отказа, не сам механизм отказа, поэтому в
+     * приватное поле сервиса подставляется подкласс модели, зашитый на `Refused`
+     * (reflection на `resourcesBankModel` — тот же приём, что уже устоялся в этом наборе
+     * для `createOrBumpBank()`).
+     */
+    public function testBuyResourceBankRefusalLeavesGoldAndBackpackUnchanged(): void
+    {
+        $this->seedCharacter(self::CHAR_ID, 1000.0);
+
+        $service = new ResourceTradeService();
+        $refusingBank = new class extends ResourcesBankModel {
+            public function updatePurchasedQuantity($resourceId, $quantity): WriteOutcome
+            {
+                return WriteOutcome::Refused;
+            }
+        };
+        $property = (new ReflectionClass($service))->getProperty('resourcesBankModel');
+        $property->setAccessible(true);
+        $property->setValue($service, $refusingBank);
+
+        $result = $service->buyResource(
+            ['id' => self::CHAR_ID, 'gold' => 1000, 'level' => 1],
+            self::RESOURCE_ID,
+            4
+        );
+
+        $this->assertFalse($result['success'], 'отказ банка обязан сообщаться как провал сделки');
+
+        $char = Database::connect('tests')->table('characters')->where('id', self::CHAR_ID)->get()->getRowArray();
+        $this->assertNotNull($char);
+        $this->assertSame(1000.0, (float) $char['gold'], 'золото не должно быть списано при отказе банка');
+
+        $backpackRows = Database::connect('tests')->table('character_resources')
+            ->where('id_characters', self::CHAR_ID)
+            ->where('id_resources', self::RESOURCE_ID)
+            ->countAllResults();
+        $this->assertSame(0, $backpackRows, 'ресурс не должен быть выдан при отказе банка');
+    }
+
+    /**
+     * exploit-fix-40 (acceptance criteria #2) — завершённая покупка сохраняет запись
+     * журнала (`logPurchase()` → `action_log.action_name='BUY_RESOURCE'`), зеркалит
+     * `SELL_RESOURCE` у продажи.
+     */
+    public function testBuyResourceWritesPurchaseJournalEntryOnSuccess(): void
+    {
+        $this->seedCharacter(self::CHAR_ID, 1000.0);
+
+        $result = (new ResourceTradeService())->buyResource(
+            ['id' => self::CHAR_ID, 'gold' => 1000, 'level' => 1],
+            self::RESOURCE_ID,
+            4,
+            555
+        );
+
+        $this->assertTrue($result['success'], $result['message']);
+
+        $log = Database::connect('tests')->table('action_log')
+            ->where('character_id', self::CHAR_ID)
+            ->where('action_name', 'BUY_RESOURCE')
+            ->get()->getRowArray();
+        $this->assertNotNull($log, 'успешная покупка обязана оставить запись журнала');
+        $this->assertSame('Completed', $log['action_status']);
+        $this->assertSame('555', (string) $log['chat_id'], 'chat_id проброшен параметром вызова');
     }
 }
