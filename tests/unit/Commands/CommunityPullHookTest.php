@@ -131,6 +131,11 @@ SH
     private function runHook(): array
     {
         $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+        // Хук считает день через `date +%Y-%m-%d` по TZ операционной системы, тест — через
+        // PHP date() по таймзоне приложения. Около полуночи (CI в UTC, приложение в Europe/Kyiv)
+        // они расходятся на день (красный CI 2026-09-03 21:10 UTC). Дочерний процесс наследует
+        // окружение — выравниваем его часы на таймзону PHP.
+        putenv('TZ=' . date_default_timezone_get());
         $proc = proc_open(
             [
                 $this->bashBinary(),
