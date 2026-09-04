@@ -20,26 +20,30 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start-brief.sh\"",
             "timeout": 20,
-            "statusMessage": "VULYK: сводка улья…"
+            "statusMessage": "VULYK: \u0441\u0432\u043e\u0434\u043a\u0430 \u0443\u043b\u044c\u044f\u2026"
           },
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/vulyk-update-check.sh\"",
             "timeout": 20,
-            "statusMessage": "VULYK: проверяю версию фреймворка…"
+            "statusMessage": "VULYK: \u043f\u0440\u043e\u0432\u0435\u0440\u044f\u044e \u0432\u0435\u0440\u0441\u0438\u044e \u0444\u0440\u0435\u0439\u043c\u0432\u043e\u0440\u043a\u0430\u2026"
           },
           {
             "type": "command",
             "shell": "powershell",
             "timeout": 30,
-            "statusMessage": "Проверяю git-обновления с другой машины…",
+            "statusMessage": "\u041f\u0440\u043e\u0432\u0435\u0440\u044f\u044e git-\u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f \u0441 \u0434\u0440\u0443\u0433\u043e\u0439 \u043c\u0430\u0448\u0438\u043d\u044b\u2026",
             "command": "$ErrorActionPreference='SilentlyContinue'; function st($p){ if(Test-Path $p){ git -C $p fetch -q --all --tags 2>$null; (git -C $p status -sb 2>$null | Select-Object -First 1) } else { \"missing: $p\" } }; $code=st 'C:\\laragon\\www\\mmorpg'; $vault=st 'C:\\Projects\\mmorpg-vault'; $ctx=\"Multi-machine git check (PC<->laptop) at session start. code: $code | vault: $vault. If either shows 'behind' run git pull --rebase before working; if 'diverged' rebase, do not force.\"; @{hookSpecificOutput=@{hookEventName='SessionStart';additionalContext=$ctx}} | ConvertTo-Json -Compress"
           },
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/community-pull.sh\"",
             "timeout": 20,
-            "statusMessage": "ADR-176: тяну открытые вопросы из чата сообщества…"
+            "statusMessage": "ADR-176: \u0442\u044f\u043d\u0443 \u043e\u0442\u043a\u0440\u044b\u0442\u044b\u0435 \u0432\u043e\u043f\u0440\u043e\u0441\u044b \u0438\u0437 \u0447\u0430\u0442\u0430 \u0441\u043e\u043e\u0431\u0449\u0435\u0441\u0442\u0432\u0430\u2026"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/top-model-brief.sh\""
           }
         ]
       }
@@ -51,7 +55,7 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-end-learnings.sh\"",
             "timeout": 20,
-            "statusMessage": "VULYK: сохраняю уроки сессии…"
+            "statusMessage": "VULYK: \u0441\u043e\u0445\u0440\u0430\u043d\u044f\u044e \u0443\u0440\u043e\u043a\u0438 \u0441\u0435\u0441\u0441\u0438\u0438\u2026"
           }
         ]
       }
@@ -63,7 +67,7 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/context-guard.sh\"",
             "timeout": 20,
-            "statusMessage": "VULYK: снимок памяти улья…"
+            "statusMessage": "VULYK: \u0441\u043d\u0438\u043c\u043e\u043a \u043f\u0430\u043c\u044f\u0442\u0438 \u0443\u043b\u044c\u044f\u2026"
           }
         ]
       }
@@ -76,7 +80,7 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-usage-counter.sh\"",
             "timeout": 20,
-            "statusMessage": "VULYK: счётчик скиллов…"
+            "statusMessage": "VULYK: \u0441\u0447\u0451\u0442\u0447\u0438\u043a \u0441\u043a\u0438\u043b\u043b\u043e\u0432\u2026"
           }
         ]
       },
@@ -87,8 +91,8 @@
             "type": "command",
             "shell": "powershell",
             "timeout": 15,
-            "statusMessage": "Редколлегия: проверяю, не site-черновик ли это…",
-            "command": "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $ErrorActionPreference='SilentlyContinue'; $raw=[Console]::In.ReadToEnd(); if(-not $raw){exit 0}; try{$j=$raw|ConvertFrom-Json}catch{exit 0}; $fp=$j.tool_input.file_path; if(-not $fp){exit 0}; $norm=$fp.Replace([char]92,'/'); if(-not (($norm -like '*inbox/site-drafts/*') -and $norm.EndsWith('.md'))){exit 0}; $msg='[РЕДКОЛЛЕГИЯ] Создан/изменён site-черновик: '+$fp+'. Прежде чем публиковать его на wildworld.fun, ОБЯЗАН прогнать через скилл /redkollegiya (7 ревьюеров-персонажей + UI/UX-гейт на 3 вьюпортах). Прямая публикация в обход редколлегии запрещена. Если редколлегия уже идёт по этому черновику - просто продолжай её, повторно не запускай.'; @{hookSpecificOutput=@{hookEventName='PostToolUse';additionalContext=$msg}} | ConvertTo-Json -Compress"
+            "statusMessage": "\u0420\u0435\u0434\u043a\u043e\u043b\u043b\u0435\u0433\u0438\u044f: \u043f\u0440\u043e\u0432\u0435\u0440\u044f\u044e, \u043d\u0435 site-\u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a \u043b\u0438 \u044d\u0442\u043e\u2026",
+            "command": "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $ErrorActionPreference='SilentlyContinue'; $raw=[Console]::In.ReadToEnd(); if(-not $raw){exit 0}; try{$j=$raw|ConvertFrom-Json}catch{exit 0}; $fp=$j.tool_input.file_path; if(-not $fp){exit 0}; $norm=$fp.Replace([char]92,'/'); if(-not (($norm -like '*inbox/site-drafts/*') -and $norm.EndsWith('.md'))){exit 0}; $msg='[\u0420\u0415\u0414\u041a\u041e\u041b\u041b\u0415\u0413\u0418\u042f] \u0421\u043e\u0437\u0434\u0430\u043d/\u0438\u0437\u043c\u0435\u043d\u0451\u043d site-\u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a: '+$fp+'. \u041f\u0440\u0435\u0436\u0434\u0435 \u0447\u0435\u043c \u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u0442\u044c \u0435\u0433\u043e \u043d\u0430 wildworld.fun, \u041e\u0411\u042f\u0417\u0410\u041d \u043f\u0440\u043e\u0433\u043d\u0430\u0442\u044c \u0447\u0435\u0440\u0435\u0437 \u0441\u043a\u0438\u043b\u043b /redkollegiya (7 \u0440\u0435\u0432\u044c\u044e\u0435\u0440\u043e\u0432-\u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0435\u0439 + UI/UX-\u0433\u0435\u0439\u0442 \u043d\u0430 3 \u0432\u044c\u044e\u043f\u043e\u0440\u0442\u0430\u0445). \u041f\u0440\u044f\u043c\u0430\u044f \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u044f \u0432 \u043e\u0431\u0445\u043e\u0434 \u0440\u0435\u0434\u043a\u043e\u043b\u043b\u0435\u0433\u0438\u0438 \u0437\u0430\u043f\u0440\u0435\u0449\u0435\u043d\u0430. \u0415\u0441\u043b\u0438 \u0440\u0435\u0434\u043a\u043e\u043b\u043b\u0435\u0433\u0438\u044f \u0443\u0436\u0435 \u0438\u0434\u0451\u0442 \u043f\u043e \u044d\u0442\u043e\u043c\u0443 \u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a\u0443 - \u043f\u0440\u043e\u0441\u0442\u043e \u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0430\u0439 \u0435\u0451, \u043f\u043e\u0432\u0442\u043e\u0440\u043d\u043e \u043d\u0435 \u0437\u0430\u043f\u0443\u0441\u043a\u0430\u0439.'; @{hookSpecificOutput=@{hookEventName='PostToolUse';additionalContext=$msg}} | ConvertTo-Json -Compress"
           }
         ]
       },
@@ -99,8 +103,8 @@
             "type": "command",
             "shell": "powershell",
             "timeout": 15,
-            "statusMessage": "Wipe-coverage: не миграция ли это…",
-            "command": "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $ErrorActionPreference='SilentlyContinue'; $raw=[Console]::In.ReadToEnd(); if(-not $raw){exit 0}; try{$j=$raw|ConvertFrom-Json}catch{exit 0}; $fp=$j.tool_input.file_path; if(-not $fp){exit 0}; $norm=$fp.Replace([char]92,'/'); if(-not (($norm -like '*app/Database/Migrations/*') -and $norm.EndsWith('.php'))){exit 0}; $msg='[WIPE-COVERAGE] Изменена/создана миграция: '+$fp+'. ОБЯЗАТЕЛЬНО: если она СОЗДАЁТ новую таблицу или добавляет player-связанную колонку — классифицируй таблицу в Config\\WipeManifest (KEEP / PLAYER_DATA / TRANSIENT / CHARACTER_RESET / IDENTITY_RESET / SEED_RESET) и прогони tests/unit/Config/WipeManifestCoverageTest. Новая таблица без записи в манифесте = падение coverage-теста = блок deploy. Подпадает ли она под вайп? (см. ADR-087).'; @{hookSpecificOutput=@{hookEventName='PostToolUse';additionalContext=$msg}} | ConvertTo-Json -Compress"
+            "statusMessage": "Wipe-coverage: \u043d\u0435 \u043c\u0438\u0433\u0440\u0430\u0446\u0438\u044f \u043b\u0438 \u044d\u0442\u043e\u2026",
+            "command": "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $ErrorActionPreference='SilentlyContinue'; $raw=[Console]::In.ReadToEnd(); if(-not $raw){exit 0}; try{$j=$raw|ConvertFrom-Json}catch{exit 0}; $fp=$j.tool_input.file_path; if(-not $fp){exit 0}; $norm=$fp.Replace([char]92,'/'); if(-not (($norm -like '*app/Database/Migrations/*') -and $norm.EndsWith('.php'))){exit 0}; $msg='[WIPE-COVERAGE] \u0418\u0437\u043c\u0435\u043d\u0435\u043d\u0430/\u0441\u043e\u0437\u0434\u0430\u043d\u0430 \u043c\u0438\u0433\u0440\u0430\u0446\u0438\u044f: '+$fp+'. \u041e\u0411\u042f\u0417\u0410\u0422\u0415\u041b\u042c\u041d\u041e: \u0435\u0441\u043b\u0438 \u043e\u043d\u0430 \u0421\u041e\u0417\u0414\u0410\u0401\u0422 \u043d\u043e\u0432\u0443\u044e \u0442\u0430\u0431\u043b\u0438\u0446\u0443 \u0438\u043b\u0438 \u0434\u043e\u0431\u0430\u0432\u043b\u044f\u0435\u0442 player-\u0441\u0432\u044f\u0437\u0430\u043d\u043d\u0443\u044e \u043a\u043e\u043b\u043e\u043d\u043a\u0443 \u2014 \u043a\u043b\u0430\u0441\u0441\u0438\u0444\u0438\u0446\u0438\u0440\u0443\u0439 \u0442\u0430\u0431\u043b\u0438\u0446\u0443 \u0432 Config\\WipeManifest (KEEP / PLAYER_DATA / TRANSIENT / CHARACTER_RESET / IDENTITY_RESET / SEED_RESET) \u0438 \u043f\u0440\u043e\u0433\u043e\u043d\u0438 tests/unit/Config/WipeManifestCoverageTest. \u041d\u043e\u0432\u0430\u044f \u0442\u0430\u0431\u043b\u0438\u0446\u0430 \u0431\u0435\u0437 \u0437\u0430\u043f\u0438\u0441\u0438 \u0432 \u043c\u0430\u043d\u0438\u0444\u0435\u0441\u0442\u0435 = \u043f\u0430\u0434\u0435\u043d\u0438\u0435 coverage-\u0442\u0435\u0441\u0442\u0430 = \u0431\u043b\u043e\u043a deploy. \u041f\u043e\u0434\u043f\u0430\u0434\u0430\u0435\u0442 \u043b\u0438 \u043e\u043d\u0430 \u043f\u043e\u0434 \u0432\u0430\u0439\u043f? (\u0441\u043c. ADR-087).'; @{hookSpecificOutput=@{hookEventName='PostToolUse';additionalContext=$msg}} | ConvertTo-Json -Compress"
           }
         ]
       }

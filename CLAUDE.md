@@ -32,6 +32,15 @@ This is a Telegram-based MMORPG game built with CodeIgniter 4 and the Longman Te
 перечислены в `CLAUDE.vulyk.md` → `## Project bindings`; чем именно правленая установка отличается
 от ванильной поставки и что перепроверять после `/vulyk-update` — в `docs/vulyk/ADAPTATION.md`.
 
+**Модель верхней касты: `TOP_MODEL = opus`.** Строка стоит именно здесь, а не в `CLAUDE.vulyk.md`
+(где лежит её обоснование), по технической причине: резолвер `scripts/top-model.sh` из VULYK 0.10.0
+объявляет, что читает обе конституции, но его `constitution_pin()` делает `return` внутри цикла и
+до второго файла не доходит никогда. Пин в `CLAUDE.vulyk.md` он молча игнорирует и уходит решать
+по тарифу — на Max это `fable`. Мы держим Opus 5 сознательно: он вне 30-дневного retention'а,
+который тянет за собой Fable, и вдвое дешевле. `CLAUDE.md` рамка не перезаписывает никогда, так что
+эта строка переживает любой `/vulyk-update`. Проверка — `bash scripts/top-model.sh --explain`
+должен сказать `decided by: constitution`.
+
 **Что это меняет в повседневной работе:** прежде чем начать задачу — назови её тир (0–4). Tier 0–1
 делается напрямую, без церемонии. С Tier 2 появляются `brief.md`, story-файлы и scope-гейт; Tier 3–4
 идут полным конвейером `/vulyk-plan` → одобрение → `/vulyk-build` → `/vulyk-review`. Ворота из этого
