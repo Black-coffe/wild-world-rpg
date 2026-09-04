@@ -170,6 +170,16 @@ final class CargoDroneAutoSendAction extends BaseAction
                 // transStatus. Явный rollback нужен, иначе транзакция «успешно» закоммитит доставку
                 // без списания заряда — тот самый бесплатный вылет.
                 $db->transRollback();
+                // R6-major 1 — комментарий ниже (у resetTransStatus() под transComplete()) раньше
+                // утверждал, что здесь сбрасывать нечего, потому что rollback сделан вручную «без
+                // отказа самого transComplete()». Неверно: флаг ставит
+                // BaseConnection::handleTransStatus() при ЛЮБОМ упавшем запросе внутри
+                // транзакции — а decrementIfAtLeast() на durability_count не может отличить
+                // честный отказ по заряду (affectedRows()===0) от тихо упавшего UPDATE
+                // (lock-wait-timeout, деадлок, affected_rows=-1) — оба дают Refused и ведут сюда.
+                if ($transDepthBeforeStart === 0) {
+                    $db->resetTransStatus();
+                }
             }
 
             // exploit-fix-23 — исход читаем по возврату transComplete(): откат по любой
@@ -183,8 +193,8 @@ final class CargoDroneAutoSendAction extends BaseAction
                 // transStatus=false до конца PHP-запроса (следующий transStart() того же
                 // соединения унаследовал бы чужой сбой). Story 36 закрыла тот же инвариант
                 // для пути исключения — здесь тот же resetTransStatus() нужен на тихом пути.
-                // Ветку $chargeRefused не трогаем — там rollback сделан вручную без отказа
-                // самого transComplete(), сбрасывать нечего.
+                // Ветку $chargeRefused здесь не трогаем — тот сброс сделан выше, сразу после
+                // её собственного transRollback() (R6-major 1).
                 $db->resetTransStatus();
             }
         } catch (\Throwable $e) {
@@ -195,8 +205,14 @@ final class CargoDroneAutoSendAction extends BaseAction
             // здесь тот же инвариант нужен на пути исключения. transStrict() включён
             // (Config\Database), поэтому после отката transStatus() держится false до явного
             // resetTransStatus() (feedback_transcomplete_false_success_when_strict_off).
+            // R6-minor m1 — тот же гард «сбрасываем только верхнеуровневую транзакцию», что и
+            // на путях отказа выше: сегодня у экшена нет вызывающего с открытой транзакцией
+            // (BotController её не открывает), но правило обязано быть одинаковым на всех
+            // путях выхода, а не только на новых.
             $db->transRollback();
-            $db->resetTransStatus();
+            if ($transDepthBeforeStart === 0) {
+                $db->resetTransStatus();
+            }
             throw $e;
         }
 

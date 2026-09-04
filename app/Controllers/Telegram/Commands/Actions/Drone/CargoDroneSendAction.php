@@ -168,6 +168,17 @@ class CargoDroneSendAction extends BaseAction
                 // явный rollback нужен, иначе транзакция закоммитит доставку без списания заряда.
                 $db->transRollback();
                 $committed = false;
+                // R6-major 1 — комментарий здесь раньше утверждал, что сбрасывать флаг нечего,
+                // потому что rollback сделан вручную «без отказа самого transComplete()». Это
+                // неверно: флаг ставит BaseConnection::handleTransStatus() при ЛЮБОМ упавшем
+                // запросе внутри транзакции — а decrementIfAtLeast() не может отличить честный
+                // отказ (affectedRows()===0) от тихо упавшего UPDATE (lock-wait-timeout, деадлок,
+                // affected_rows=-1) — оба дают Refused/Missing и ведут в эту же ветку. Без
+                // resetTransStatus() здесь transStatus=false пережил бы handle() ровно как на
+                // тихом пути ниже.
+                if ($transDepthBeforeStart === 0) {
+                    $db->resetTransStatus();
+                }
             } else {
                 $committed = $db->transComplete();
                 if (! $committed && $transDepthBeforeStart === 0) {
@@ -189,8 +200,14 @@ class CargoDroneSendAction extends BaseAction
             // явного resetTransStatus() — иначе следующий transStart() того же запроса
             // унаследует чужой сбой и откатит уже не относящуюся к нему работу
             // (feedback_transcomplete_false_success_when_strict_off).
+            // R6-minor m1 — тот же гард «сбрасываем только верхнеуровневую транзакцию», что и
+            // на путях отказа выше: сегодня у экшена нет вызывающего с открытой транзакцией
+            // (BotController её не открывает), но правило обязано быть одинаковым на всех
+            // путях выхода, а не только на новых.
             $db->transRollback();
-            $db->resetTransStatus();
+            if ($transDepthBeforeStart === 0) {
+                $db->resetTransStatus();
+            }
             throw $e;
         }
 

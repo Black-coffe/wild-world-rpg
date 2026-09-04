@@ -52,6 +52,16 @@ final class CargoDroneSendChargeTest extends CIUnitTestCase
      */
     private array $ownTelegramUserIds = [];
 
+    /**
+     * exploit-fix-41 (R6-minor m3) — тот же приём, что story 40 закрыла для
+     * `ResourceBankInsertRaceTest` (m8 круга 5): `Events::removeAllListeners('DBQuery')`
+     * снимает ВСЕХ слушателей события, включая зарегистрированного приложением
+     * (`app/Config/Events.php:46`, коллектор тулбара) — после первого такого теста он не
+     * вернётся до конца процесса. Каждый `Events::on('DBQuery', …)` в этом файле держит
+     * свой callback здесь и снимается точечно через `Events::removeListener()`.
+     */
+    private ?\Closure $dbQueryListener = null;
+
     /** Таблица → колонка-владелец персонажа, для чистки строк в общих таблицах. */
     private const CHAR_LINKED = [
         'characters'           => 'id',
@@ -157,7 +167,13 @@ final class CargoDroneSendChargeTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
-        Events::removeAllListeners('DBQuery');
+        // exploit-fix-41 (R6-minor m3) — снимаем ТОЛЬКО свой слушатель по ссылке (см.
+        // докблок `$dbQueryListener`), а не все `DBQuery`-слушатели разом — safety-net на
+        // случай, если конкретный тест упал до собственного явного removeListener().
+        if ($this->dbQueryListener !== null) {
+            Events::removeListener('DBQuery', $this->dbQueryListener);
+            $this->dbQueryListener = null;
+        }
         // exploit-fix-41 — DBDebug=false персистирует на общем `tests`-соединении между
         // тестами (тот же урок, что и в InsertUniqueContractTest); всегда возвращаем
         // к дефолту, даже если конкретный тест не трогал его сам.
@@ -341,7 +357,7 @@ final class CargoDroneSendChargeTest extends CIUnitTestCase
         $concurrentDb = Database::connect('tests', false);
 
         $logIdForHook = $logId;
-        Events::on('DBQuery', function (Query $query) use ($logIdForHook, $concurrentDb): void {
+        $this->dbQueryListener = function (Query $query) use ($logIdForHook, $concurrentDb): void {
             $sql = $query->getOriginalQuery();
             // ConditionalWriteService собирает UPDATE/DELETE через prefixTable() — сырой SQL без
             // бэктиков вокруг имени таблицы, поэтому фильтр здесь без бэктиков.
@@ -356,10 +372,13 @@ final class CargoDroneSendChargeTest extends CIUnitTestCase
             $concurrentDb->table('crafted_items_log')
                 ->where('id', $logIdForHook)
                 ->update(['durability_count' => 50]);
-        });
+        };
+        Events::on('DBQuery', $this->dbQueryListener);
 
         $response = (new CargoDroneSendAction($this->cbq($tgId, "cargoDroneSend_{$logId}_{$woodId}")))->handle();
 
+        Events::removeListener('DBQuery', $this->dbQueryListener);
+        $this->dbQueryListener = null;
         $concurrentDb->close();
 
         $this->assertInstanceOf(ServerResponse::class, $response);
@@ -368,6 +387,12 @@ final class CargoDroneSendChargeTest extends CIUnitTestCase
             : null;
         $this->assertIsString($replyText);
         $this->assertStringContainsString('Заряд', $replyText, 'отказ по заряду обязан называть заряд причиной, а не рюкзак/ресурс (эталон для CargoDroneAutoSendAction, exploit-fix-31 m1)');
+
+        $this->assertSame(0, $this->db()->transDepth, 'транзакция обязана закрыться на пути отказа по заряду — глубина 0 после handle()');
+        $this->assertTrue(
+            $this->db()->transStatus(),
+            'exploit-fix-41 (R6-major 1) — resetTransStatus() обязан вернуть флаг успеха и на пути отказа по заряду, иначе следующий transStart() того же соединения унаследует чужой сбой'
+        );
 
         $log = $this->db()->table('crafted_items_log')->where('id', $logId)->get()->getRowArray();
         $this->assertIsArray($log);
@@ -409,7 +434,7 @@ final class CargoDroneSendChargeTest extends CIUnitTestCase
 
         $charIdForHook = $charId;
         $woodIdForHook = $woodId;
-        Events::on('DBQuery', function (Query $query) use ($charIdForHook, $woodIdForHook): void {
+        $this->dbQueryListener = function (Query $query) use ($charIdForHook, $woodIdForHook): void {
             $sql = $query->getOriginalQuery();
             if (! str_contains($sql, 'FROM `character_resources`') || ! str_contains($sql, '`id_characters`')) {
                 return;
@@ -418,17 +443,23 @@ final class CargoDroneSendChargeTest extends CIUnitTestCase
                 ->where('id_characters', $charIdForHook)
                 ->where('id_resources', $woodIdForHook)
                 ->update(['quantity' => 0]);
-        });
+        };
+        Events::on('DBQuery', $this->dbQueryListener);
 
         $response = (new CargoDroneSendAction($this->cbq($tgId, "cargoDroneSend_{$logId}_{$woodId}")))->handle();
 
-        Events::removeAllListeners('DBQuery');
+        Events::removeListener('DBQuery', $this->dbQueryListener);
+        $this->dbQueryListener = null;
 
         $this->assertInstanceOf(ServerResponse::class, $response);
         $this->assertSame(
             0,
             $this->db()->transDepth,
             'транзакция обязана закрыться на пути отказа по ресурсу — глубина 0 после handle()'
+        );
+        $this->assertTrue(
+            $this->db()->transStatus(),
+            'exploit-fix-41 (R6-major 1) — resetTransStatus() обязан вернуть флаг успеха и на пути отказа по ресурсу, иначе следующий transStart() того же соединения унаследует чужой сбой'
         );
 
         $log = $this->db()->table('crafted_items_log')->where('id', $logId)->get()->getRowArray();
@@ -467,14 +498,15 @@ final class CargoDroneSendChargeTest extends CIUnitTestCase
         ]);
         $logId = $this->seedCargoDrone($charId, 250);
 
-        Events::on('DBQuery', function (Query $query): void {
+        $this->dbQueryListener = function (Query $query): void {
             $sql = $query->getOriginalQuery();
             $isStorageWrite = str_contains($sql, 'base_storage')
                 && (str_starts_with($sql, 'INSERT') || str_starts_with($sql, 'UPDATE'));
             if ($isStorageWrite) {
                 throw new \RuntimeException('exploit-fix-36: искусственный сбой внутри транзакции дрона');
             }
-        });
+        };
+        Events::on('DBQuery', $this->dbQueryListener);
 
         $caught = null;
         try {
@@ -483,7 +515,8 @@ final class CargoDroneSendChargeTest extends CIUnitTestCase
             $caught = $e;
         }
 
-        Events::removeAllListeners('DBQuery');
+        Events::removeListener('DBQuery', $this->dbQueryListener);
+        $this->dbQueryListener = null;
 
         $this->assertInstanceOf(\RuntimeException::class, $caught, 'исключение обязано быть доставлено вызывающему, а не проглочено');
         $this->assertSame('exploit-fix-36: искусственный сбой внутри транзакции дрона', $caught->getMessage());
@@ -546,7 +579,7 @@ final class CargoDroneSendChargeTest extends CIUnitTestCase
         $this->disableDBDebug();
 
         $injected = false;
-        Events::on('DBQuery', function (Query $query) use (&$injected): void {
+        $this->dbQueryListener = function (Query $query) use (&$injected): void {
             if ($injected) {
                 return;
             }
@@ -560,11 +593,13 @@ final class CargoDroneSendChargeTest extends CIUnitTestCase
             // Тихий отказ: колонка не существует → resultID=false → handleTransStatus()
             // помечает transStatus=false. DBDebug=false — без исключения, безусловно.
             $this->db()->query('UPDATE crafted_items_log SET no_such_column = 1 WHERE id = -1');
-        });
+        };
+        Events::on('DBQuery', $this->dbQueryListener);
 
         $response = (new CargoDroneSendAction($this->cbq($tgId, "cargoDroneSend_{$logId}_{$woodId}")))->handle();
 
-        Events::removeAllListeners('DBQuery');
+        Events::removeListener('DBQuery', $this->dbQueryListener);
+        $this->dbQueryListener = null;
         $this->enableDBDebug();
 
         $this->assertTrue($injected, 'хук обязан был поймать и подменить целевой запрос — иначе тест ничего не проверил');
