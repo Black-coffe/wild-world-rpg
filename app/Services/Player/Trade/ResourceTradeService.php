@@ -340,45 +340,104 @@ final class ResourceTradeService
         $buyerIdRaw = $character['id'] ?? null;
         $buyerId    = is_numeric($buyerIdRaw) ? (int) $buyerIdRaw : 0;
 
-        // exploit-fix-40 (R5-minor, близнец m1 круга 4 на стороне продажи) — банк
-        // проверяется ДО необратимых списаний/выдач, а не после. Раньше отказ банка
-        // сообщался игроку уже ПОСЛЕ decreaseGold (:352 было) и addOrIncreaseResource
-        // (:360 было) — золото списывалось и ресурс выдавался, а сделка рапортовала
-        // провал. `updatePurchasedQuantity` не зависит от состояния золота/инвентаря
-        // покупателя, поэтому переставить её раньше безопасно — не нужна ни
-        // транзакция, ни откат.
-        $bankOutcome = $this->resourcesBankModel->updatePurchasedQuantity($resourceId, $qty);
-        if ($bankOutcome !== WriteOutcome::Applied) {
+        // exploit-fix-40 (R5-minor → follow-up после регрессии в
+        // ResourceTradeGoldRaceTest::testBuyRejectedWhenGoldAlreadySpentConcurrently) —
+        // банк, списание золота и выдача ресурса идут ОДНОЙ транзакцией: отказ ЛЮБОЙ
+        // из трёх (банк не-Applied, золота не хватило, — а `addOrIncreaseResource`
+        // считается необратимым по контракту, если он вообще исполнился) откатывает
+        // ВСЕ уже сделанные записи этой покупки. Первая версия story переставляла банк
+        // ПЕРЕД `decreaseGold()` без транзакции — это чинило m1 (отказ банка не оставлял
+        // спишенного золота/выданного ресурса), но открывала зеркальную дыру: отказ
+        // ПОСЛЕДУЮЩЕГО `decreaseGold()` (гонка «золото уже потрачено параллельно»)
+        // оставлял банк уже бампнутым за несостоявшуюся покупку — учтённой продажу,
+        // которой не было.
+        //
+        // Паттерн — `ResourceBankUpdateHandler::process()` (не `bulkSellResources()`
+        // ниже: тот использует `transStart()`/`transComplete()`, который при
+        // `transStrict=true` не сбрасывает липкий `transStatus` сам, см. memory
+        // `feedback_transcomplete_false_success_when_strict_off`). Явные
+        // `transBegin()`/`transCommit()`/`transRollback()`; `resetTransStatus()` —
+        // только если ЭТА покупка была транзакцией верхнего уровня для соединения
+        // (глубина была 0 до `transBegin()`), иначе чужой отравленный флаг не стирается.
+        $db                = \Config\Database::connect();
+        $topLevelPurchase  = ($db->transDepth === 0);
+        $db->transBegin();
+
+        try {
+            $bankOutcome = $this->resourcesBankModel->updatePurchasedQuantity($resourceId, $qty);
+            if ($bankOutcome !== WriteOutcome::Applied) {
+                $db->transRollback();
+                if ($topLevelPurchase) {
+                    $db->resetTransStatus();
+                }
+
+                return [
+                    'success' => false,
+                    'message' => 'Не удалось учесть покупку в банке ресурсов — обратитесь к администрации.',
+                ];
+            }
+
+            // Fix 2026-07-27 (последний незакрытый близнец класса lost-update): результат
+            // списания ОБЯЗАН проверяться. Предчек выше судит по снапшоту $character,
+            // прочитанному в начале запроса; decreaseGold перепроверяет достаточность от
+            // СВЕЖЕГО золота под row-lock'ом (CharacterStatsService) и возвращает false,
+            // когда денег уже нет. Без этой ветки параллельная трата (быстрые тапы,
+            // webhook-retry Телеграма) роняла списание, а ресурс начислялся всё равно —
+            // покупка становилась бесплатной и печатала ценность из воздуха. Зеркалит
+            // остальные call-site'ы decreaseGold (Караван, Ремонт, Страховка, Оракул,
+            // Телепорт, Подать, Смерть, Магазин поселения). Отказ откатывает и уже
+            // применённый бамп банка (exploit-fix-40 follow-up).
+            if (! $this->characterModel->decreaseGold($buyerId, (float) $totalCost)) {
+                $db->transRollback();
+                if ($topLevelPurchase) {
+                    $db->resetTransStatus();
+                }
+
+                return [
+                    'success' => false,
+                    'message' => "Не удалось списать *{$totalCost}*💰 — золото уже ушло на другое действие. "
+                        . 'Проверьте баланс и попробуйте снова.',
+                ];
+            }
+
+            $this->characterResourceModel->addOrIncreaseResource($buyerId, $resourceId, $qty);
+
+            if ($db->transStatus() === false) {
+                throw new \RuntimeException('ResourceTradeService::buyResource: транзакция упала для character_id=' . $buyerId);
+            }
+
+            $committed = $db->transCommit();
+            if ($committed === false) {
+                throw new \RuntimeException('ResourceTradeService::buyResource: transCommit() вернул false для character_id=' . $buyerId);
+            }
+        } catch (\Throwable $e) {
+            if ($db->transDepth > 0) {
+                $db->transRollback();
+            }
+            if ($topLevelPurchase) {
+                $db->resetTransStatus();
+            }
+            log_message(
+                'error',
+                'ResourceTradeService::buyResource: покупка упала для character_id={character_id}: {message}',
+                ['character_id' => $buyerId, 'message' => $e->getMessage()]
+            );
+
             return [
                 'success' => false,
-                'message' => 'Не удалось учесть покупку в банке ресурсов — обратитесь к администрации.',
+                'message' => 'Не удалось выполнить покупку — попробуйте ещё раз.',
             ];
         }
-
-        // Fix 2026-07-27 (последний незакрытый близнец класса lost-update): результат
-        // списания ОБЯЗАН проверяться. Предчек выше судит по снапшоту $character,
-        // прочитанному в начале запроса; decreaseGold перепроверяет достаточность от
-        // СВЕЖЕГО золота под row-lock'ом (CharacterStatsService) и возвращает false,
-        // когда денег уже нет. Без этой ветки параллельная трата (быстрые тапы,
-        // webhook-retry Телеграма) роняла списание, а ресурс начислялся всё равно —
-        // покупка становилась бесплатной и печатала ценность из воздуха. Зеркалит
-        // остальные call-site'ы decreaseGold (Караван, Ремонт, Страховка, Оракул,
-        // Телепорт, Подать, Смерть, Магазин поселения).
-        if (! $this->characterModel->decreaseGold($buyerId, (float) $totalCost)) {
-            return [
-                'success' => false,
-                'message' => "Не удалось списать *{$totalCost}*💰 — золото уже ушло на другое действие. "
-                    . 'Проверьте баланс и попробуйте снова.',
-            ];
-        }
-
-        $this->characterResourceModel->addOrIncreaseResource($buyerId, $resourceId, $qty);
 
         // Форензика спроса. Продажа писала `SELL_RESOURCE` с 10.06, покупка не писала
         // НИЧЕГО — единственным следом был счётчик `resources_bank.resources_purchased`,
         // а он с ADR-175 затухает, то есть историю покупок восстановить было нечем.
         // Пишем в сервисе, а не в экране: у покупки два входа (кнопка и «своё число»
         // через ForceReply), и логирование в одном из них уже разошлось у продажи.
+        // Журнал пишется ТОЛЬКО после успешного commit (acceptance criteria #2) — своя
+        // отдельная запись `action_log`, не часть игровой транзакции (contract
+        // `logPurchase()`: своё исключение глотается, форензика не роняет уже
+        // проведённую сделку).
         $nameRaw          = $resource['name'] ?? null;
         $resourceNameSafe = is_string($nameRaw) && $nameRaw !== '' ? $nameRaw : "Ресурс#{$resourceId}";
         $this->logPurchase($buyerId, $chatId, $resourceNameSafe, $qty, $totalCost);
