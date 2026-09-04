@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-03
+last-verified: 2026-09-04
 
 # Scout report: Слой данных (модели, миграции, сущности)
 
@@ -63,6 +63,16 @@ outbound: MySQL / MariaDB.
 - Миграция `2024-03-21-224528_CreateResourcesTable.php` не проходит на пустой БД: `biome_id`
   объявлен `TEXT` + `unsigned=>true`, CI4 `Forge` безусловно приписывает `UNSIGNED` любому типу —
   `TEXT UNSIGNED` MySQL 8 отклоняет. Падает и на голом `php spark migrate`, не только в тестах.
+- **CI4 `transRollback()` на глубине >1 только декрементирует счётчик — нет savepoint'ов.**
+  Вложенный `transBegin()` внутри уже открытой транзакции вызывающего не создаёт точку отката:
+  откат внутренней «транзакции» физически не отменяет уже выполненные `UPDATE`/`INSERT` этого
+  вложенного блока, только уменьшает `transDepth`. `resetTransStatus()` поэтому обязан звать
+  **только владелец транзакции верхнего уровня** (глубина была 0 до своего `transBegin()`/
+  `transStart()`) — иначе вложенный вызов стирает флаг отказа, принадлежащий внешней транзакции,
+  которая ещё не решила, откатываться ей или нет (`ResourceBankUpdateHandler::process()` —
+  exploit-fix-35/39, `ResourceTradeService::buyResource()` — exploit-fix-40, оба cargo-дрона —
+  exploit-fix-36/41: везде один и тот же паттерн — `$topLevel = ($db->transDepth === 0)` до
+  открытия своей транзакции, `resetTransStatus()` только `if ($topLevel)`).
 
 ## Vault
 `mmorpg-vault/tech-writing/models/` · `mmorpg-vault/tech-writing/db/` · ADR-087 · ADR-181
