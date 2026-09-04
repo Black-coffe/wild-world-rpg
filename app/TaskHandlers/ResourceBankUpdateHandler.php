@@ -64,12 +64,30 @@ class ResourceBankUpdateHandler
             // PHP-процесса. Крон работает в одном процессе с соседними
             // task-handler'ами (`Config\Tasks.php`) на одном разделяемом
             // соединении — их записи после первой сбойной итерации крона молча
-            // откатывались бы. Теперь каждая итерация — собственная транзакция с
-            // явным `transBegin()`/`transCommit()`/`transRollback()` в try/catch:
-            // любой сбой (упавший запрос — `transStatus()===false` после тела
-            // итерации — или брошенное исключение) закрывает транзакцию
-            // `transRollback()`, обнуляет липкий флаг `resetTransStatus()`,
-            // логируется `error` с `resource_id` и цикл идёт к следующему ресурсу.
+            // откатывались бы. Каждая итерация — собственная транзакция с явным
+            // `transBegin()`/`transCommit()`/`transRollback()` в try/catch.
+            //
+            // exploit-fix-39 (R5-critical) — раньше ранний выход «строки банка нет»
+            // (`!$bankData`) уходил в `transCommit(); continue;` МИМО единственной
+            // проверки `transStatus()`, стоявшей в конце тела итерации. Упавший
+            // `SELECT … FOR UPDATE` (lock-wait-timeout и т.п.) тоже даёт
+            // `$bankData === null`, неотличимо от штатного «строки нет» — и такой
+            // сбой утекал молча, флаг оставался `false` до конца процесса, ничего
+            // не логировалось. Теперь весь код итерации (чтение, запись, коммит)
+            // идёт через одну точку проверки `transStatus()` ниже — она видит
+            // упавший SELECT … FOR UPDATE ровно так же, как упавшую запись, потому
+            // что оба случая ветвятся через один и тот же `$bankData===null`/не-null
+            // путь, и ни один не выходит из тела итерации раньше неё:
+            // любой исход — успех, «строки нет», упавший запрос, брошенное
+            // исключение, упавший `transCommit()` — заканчивается в одном месте,
+            // которое откатывает и логирует. `resetTransStatus()` вызывается
+            // только если ЭТА итерация была транзакцией верхнего уровня
+            // (глубина была 0 до `transBegin()`) — иначе (`process()` вызван
+            // внутри чужой открытой транзакции — сегодня такого вызывающего в
+            // `app/` нет, но контракт не завязан на это) чужой отравленный флаг
+            // не стирается: без savepoint'ов в CI4 внешняя транзакция обязана
+            // сама решить, откатываться ей или нет.
+            $topLevelIteration = ($db->transDepth === 0);
             $db->transBegin();
 
             try {
@@ -83,67 +101,75 @@ class ResourceBankUpdateHandler
                 $lock     = $db->query($sql, [$resource['id']]);
                 $bankData = $lock instanceof \CodeIgniter\Database\BaseResult ? $lock->getRowArray() : null;
 
-                // Если записи нет, пропускаем (нет купленных/проданных)
-                if (!$bankData) {
-                    $db->transCommit();
-                    continue;
+                // Если записи нет — штатный случай (нет купленных/проданных),
+                // но завершаем итерацию через ту же единственную точку ниже.
+                if ($bankData) {
+                    // Получаем показатели спроса/предложения
+                    $purchased = (int)$bankData['resources_purchased'];
+                    $sold      = (int)$bankData['resources_sold'];
+
+                    // Считаем ratio, зажатый в коридор [0.35 .. 3.5] — из счётчиков ДО состаривания
+                    $ratio = ($purchased + 1) / ($sold + 1);
+                    $priceFactor = max(0.35, min(3.5, $ratio));
+
+                    // Вычисляем новые цены, исходя из базовой price
+                    $basePrice = $resource['price'];
+                    $newPrice  = $basePrice * $priceFactor;
+
+                    // Предположим, покупка на 5% дороже, продажа на 5% дешевле
+                    $buyPrice  = round($newPrice * 1.05, 2);
+                    $sellPrice = round($newPrice * 0.95, 2);
+
+                    // Обновляем в таблице resources
+                    $this->resourceModel->update($resource['id'], [
+                        'buy_price'  => $buyPrice,
+                        'sell_price' => $sellPrice,
+                    ]);
+
+                    if ($proportionalDecay) {
+                        [$newPurchased, $newSold] = $this->decayCounters($purchased, $sold, $intervalMinutes, $halfLifeHours, $counterCap);
+                    } else {
+                        // "Состариваем" (уменьшаем) показатели purchased/sold
+                        // чтобы при отсутствии сделок цена постепенно возвращалась к базовой
+                        $newPurchased = max(0, $purchased - 1);
+                        $newSold      = max(0, $sold - 1);
+                    }
+
+                    // Обновляем банк — всё ещё под локом этой же транзакции (строка не
+                    // отпускалась с момента SELECT … FOR UPDATE выше).
+                    $this->resourcesBankModel->update($bankData['id'], [
+                        'resources_purchased' => $newPurchased,
+                        'resources_sold'      => $newSold,
+                        'last_update'         => date('Y-m-d H:i:s'),
+                    ]);
                 }
 
-                // Получаем показатели спроса/предложения
-                $purchased = (int)$bankData['resources_purchased'];
-                $sold      = (int)$bankData['resources_sold'];
-
-                // Считаем ratio, зажатый в коридор [0.35 .. 3.5] — из счётчиков ДО состаривания
-                $ratio = ($purchased + 1) / ($sold + 1);
-                $priceFactor = max(0.35, min(3.5, $ratio));
-
-                // Вычисляем новые цены, исходя из базовой price
-                $basePrice = $resource['price'];
-                $newPrice  = $basePrice * $priceFactor;
-
-                // Предположим, покупка на 5% дороже, продажа на 5% дешевле
-                $buyPrice  = round($newPrice * 1.05, 2);
-                $sellPrice = round($newPrice * 0.95, 2);
-
-                // Обновляем в таблице resources
-                $this->resourceModel->update($resource['id'], [
-                    'buy_price'  => $buyPrice,
-                    'sell_price' => $sellPrice,
-                ]);
-
-                if ($proportionalDecay) {
-                    [$newPurchased, $newSold] = $this->decayCounters($purchased, $sold, $intervalMinutes, $halfLifeHours, $counterCap);
-                } else {
-                    // "Состариваем" (уменьшаем) показатели purchased/sold
-                    // чтобы при отсутствии сделок цена постепенно возвращалась к базовой
-                    $newPurchased = max(0, $purchased - 1);
-                    $newSold      = max(0, $sold - 1);
-                }
-
-                // Обновляем банк — всё ещё под локом этой же транзакции (строка не
-                // отпускалась с момента SELECT … FOR UPDATE выше).
-                $this->resourcesBankModel->update($bankData['id'], [
-                    'resources_purchased' => $newPurchased,
-                    'resources_sold'      => $newSold,
-                    'last_update'         => date('Y-m-d H:i:s'),
-                ]);
-
-                // Упавший запрос внутри транзакции CI4 не бросает исключение
+                // Единственная точка проверки на ВЕСЬ путь итерации — «прочитано» и
+                // «не прочитано» (в т.ч. упавший SELECT … FOR UPDATE, который даёт
+                // тот же $bankData===null, что и штатное «строки нет») сходятся
+                // сюда. Упавший запрос внутри транзакции CI4 не бросает исключение
                 // (`BaseConnection::query()` глотает его молча, если
                 // `transException` не включён) — он лишь выставляет
                 // `transStatus=false`. Проверяем это явно и уходим в catch-ветку,
                 // а не полагаемся на `transComplete()`, которая при
                 // `transStrict=true` не сбрасывает липкий флаг сама.
                 if ($db->transStatus() === false) {
-                    throw new \RuntimeException('ResourceBankUpdateHandler: запрос итерации упал для resource_id=' . $resource['id']);
+                    throw new \RuntimeException('ResourceBankUpdateHandler: итерация упала для resource_id=' . $resource['id']);
                 }
 
-                $db->transCommit();
+                // Исход коммита тоже проверяется (R5 m10): `false` неотличим от
+                // успешного, если результат не читать.
+                $committed = $db->transCommit();
+                if ($committed === false) {
+                    throw new \RuntimeException('ResourceBankUpdateHandler: transCommit() вернул false для resource_id=' . $resource['id']);
+                }
             } catch (\Throwable $e) {
                 if ($db->transDepth > 0) {
                     $db->transRollback();
                 }
-                $db->resetTransStatus();
+                if ($topLevelIteration) {
+                    $db->resetTransStatus();
+                }
                 log_message(
                     'error',
                     'ResourceBankUpdateHandler: итерация для resource_id={resource_id} упала: {message}',

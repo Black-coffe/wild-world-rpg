@@ -67,6 +67,45 @@ use Config\Database;
  *    тестовой строки) и точное восстановление в `tearDown()`, если таблица не была создана
  *    самим тестом (её тогда дропает `tearDown()` целиком).
  *
+ * exploit-fix-39 (R5-critical, R5-major 2/3, R5 m10) — круг 5 воспроизвёл реальный
+ * end-to-end сбой, который story 35 не закрыла: ранний выход «строки банка нет»
+ * (`!$bankData`) уходил в `transCommit(); continue;` МИМО единственной проверки
+ * `transStatus()` — упавший `SELECT … FOR UPDATE` (lock-wait-timeout против живой
+ * сделки) даёт ТОТ ЖЕ `$bankData === null`, что и штатное «строки нет», и утекал молча,
+ * без лога, оставляя `transStatus=false` до конца процесса крона. Старый различающий
+ * тест ниже (`testProcessSurvivesPoisonedTransStatusAndClosesNestedTransaction`) травил
+ * флаг ЧУЖИМ запросом ДО вызова `process()` — обе его итерации доходили до проверки в
+ * конце тела и ловились, ветка `!$bankData` не исполнялась ни разу, поэтому дефект
+ * оставался незамеченным (R5-major 3). Тот же тест ТРЕБОВАЛ, чтобы `process()`,
+ * вызванный ВНУТРИ уже открытой транзакции вызывающего, стирал чужой отравленный флаг
+ * (`resetTransStatus()` в `catch` был безусловным) — без savepoint'ов в CI4 это
+ * означало, что крон способен «вылечить» обречённую на откат чужую транзакцию, и она
+ * спокойно закоммитится (R5-major 2).
+ *
+ * Фикс в `ResourceBankUpdateHandler::process()`: весь код итерации (чтение, запись)
+ * сходится в ОДНУ точку проверки `transStatus()` — она видит упавший
+ * `SELECT … FOR UPDATE` ровно так же, как упавшую запись, потому что оба случая дают
+ * один и тот же `$bankData===null`/не-null путь и ни один не выходит из тела итерации
+ * раньше этой точки (single `transStatus()` call site — вызов дважды в одном PHP-скоупе
+ * даёт для phpstan `identical.alwaysFalse` на «чистой» — с точки зрения статического
+ * анализа — функции). Та же точка проверяет исход `transCommit()` (R5 m10) и вызывает
+ * `resetTransStatus()` ТОЛЬКО если ЭТА итерация была транзакцией верхнего уровня
+ * (`transDepth` был `0` до её собственного `transBegin()`).
+ *
+ * Три новых различающих теста, реальный триггер (второе mysqli-соединение держит
+ * `FOR UPDATE`, `SET SESSION innodb_lock_wait_timeout=1` на соединении `process()`, не
+ * мок):
+ * - `testProcessLogsAndRecoversWhenReadInsideIterationFails` (Тест A) — лочит строку
+ *   `resources_bank` ДО вызова `process()`: его собственный `SELECT … FOR UPDATE`
+ *   ловит реальный lock-wait-timeout.
+ * - `testProcessLogsAndRecoversWhenWriteInsideIterationFails` (Тест B) — лочит строку
+ *   `resources` (не `resources_bank`, иначе заблокировался бы тот же `SELECT … FOR
+ *   UPDATE`, что и в тесте A): чтение банка проходит штатно, а `resourceModel->update()`
+ *   внутри итерации ловит lock-wait-timeout на записи.
+ * - `testProcessDoesNotClearCallersPoisonedTransStatusWhenNested` (Тест C, заменяет
+ *   старый тест выше) — отравляет флаг ВНЕШНЕЙ транзакции ДО вызова `process()` и
+ *   проверяет, что флаг остаётся `false` ПОСЛЕ (а не стирается — R5-major 2).
+ *
  * @internal
  */
 final class ResourceBankHotPathTest extends CIUnitTestCase
@@ -427,30 +466,42 @@ final class ResourceBankHotPathTest extends CIUnitTestCase
     }
 
     /**
-     * Acceptance criteria (R4-critical) — итерация с искусственно упавшим запросом внутри
-     * ОТКРЫТОЙ транзакции не должна отравлять `transStatus` до конца процесса: `process()`
-     * обязан завершить остальные ресурсы, закрыть свою транзакцию, сбросить липкий флаг, а
-     * следующая (полностью здоровая) транзакция того же соединения обязана закоммититься.
-     *
-     * Воспроизводится ровно тот механизм, что нашёл ревьюер: искусственный сбой запроса
-     * ВНУТРИ уже открытой (нашей собственной, `db1`) транзакции ставит `$db1->transStatus`
-     * в `false` (`BaseConnection::handleTransStatus()` — флаг липкий, `transDepth!==0`).
-     * `ResourceBankUpdateHandler::process()` резолвит ту же группу `'tests'` (тот же
-     * закэшированный объект соединения) — его собственные `transBegin()` присоединяются к
-     * уже открытой транзакции `db1` (вложенность CI4, `transDepth` растёт), поэтому каждая
-     * его итерация НАСЛЕДУЕТ уже отравленный флаг. Первая обработанная итерация обязана
-     * поймать это (`transStatus()===false` после своих собственных запросов), закрыть свою
-     * вложенную транзакцию, вызвать `resetTransStatus()` и залогировать `error` — именно
-     * это снимает отравление для ВСЕХ последующих итераций. Поскольку CI4 не поддерживает
-     * savepoint'ы, вложенный `transRollback()` лишь уменьшает `transDepth` — уже
-     * выполненные `UPDATE`'ы первой итерации физически не откатываются (тот же нюанс
-     * вложенности, уже задокументированный выше для acceptance criteria #2), поэтому оба
-     * тестовых ресурса ожидаемо доходят до состаренного состояния независимо от того,
-     * какой из них попал на "отравленную" итерацию.
+     * Восстанавливает `innodb_lock_wait_timeout` на дефолт MySQL (50с) — тесты A/B
+     * ускоряют таймаут до 1с на общем закэшированном соединении `tests` (`defaultGroup`
+     * под phpunit), чтобы не ждать реальные полминуты; значение сессионное, но
+     * соединение переживает тест и разделяется со всем остальным прогоном — если не
+     * вернуть, следующий тест того же процесса, которому легитимно нужно подождать лок
+     * дольше секунды, ловил бы ложный таймаут.
      */
-    public function testProcessSurvivesPoisonedTransStatusAndClosesNestedTransaction(): void
+    private function restoreLockWaitTimeout(\CodeIgniter\Database\BaseConnection $db): void
     {
-        $secondResourceId       = $this->insertResourceRow('hotpath second');
+        $db->query('SET SESSION innodb_lock_wait_timeout = 50');
+    }
+
+    /**
+     * Тест A (acceptance criteria story 39) — падение ЧТЕНИЯ внутри итерации: реальный
+     * lock-wait-timeout, не мок.
+     *
+     * Второе, независимое mysqli-соединение (`db2`, тот же приём, что и в тестах выше)
+     * держит `SELECT … FOR UPDATE` на строке `resources_bank` заблокированного ресурса
+     * ДО вызова `process()` — ровно та живая сделка, о которой говорит Goal story
+     * (`ConditionalWriteService::increment()` берёт X-lock на ту же строку). Соединению,
+     * которым пользуется `process()` (`\Config\Database::connect()` без аргументов =
+     * `defaultGroup`, под phpunit это та же группа `'tests'`, что и `db1`), выставлен
+     * `innodb_lock_wait_timeout=1`, чтобы MySQL сам уронил `SELECT … FOR UPDATE` его
+     * собственной итерации реальной ошибкой 1205 — не через искусственный несуществующий
+     * запрос, а через настоящий конфликт блокировок.
+     *
+     * Условие story: упавший SELECT даёт $bankData===null — та же единственная точка
+     * проверки `transStatus()`, что и штатное «строки нет» — ловит его, ошибка попадает
+     * в error-лог с `resource_id`, `transStatus()===true` и `transDepth===0` после
+     * `process()`, соседний незаблокированный ресурс обработан
+     * штатно, а следующая транзакция того же соединения коммитится и видна второму
+     * соединению.
+     */
+    public function testProcessLogsAndRecoversWhenReadInsideIterationFails(): void
+    {
+        $secondResourceId         = $this->insertResourceRow('hotpath read-lock neighbour');
         $this->extraResourceIds[] = $secondResourceId;
 
         $this->seedBankRow($this->resourceId, 3, 0, 10);
@@ -459,23 +510,164 @@ final class ResourceBankHotPathTest extends CIUnitTestCase
         $db1 = Database::connect('tests');
         $db2 = Database::connect('tests', false);
 
+        try {
+            $db2->transBegin();
+            $db2->query(
+                'SELECT id FROM ' . $db1->prefixTable('resources_bank') . ' WHERE resource_id = ? FOR UPDATE',
+                [$this->resourceId]
+            );
+
+            $db1->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+            (new ResourceBankUpdateHandler())->process(1);
+        } finally {
+            if ($db2->transDepth > 0) {
+                $db2->transRollback();
+            }
+            $this->restoreLockWaitTimeout($db1);
+        }
+
+        $this->assertSame(0, $db1->transDepth, 'process() обязан закрыть свою транзакцию даже на сбойной итерации чтения');
+        $this->assertTrue($db1->transStatus(), 'top-level итерация обязана сбросить липкий флаг перед возвратом из process()');
+
+        $this->assertLogContains(
+            'error',
+            'resource_id=' . $this->resourceId,
+            'сбой SELECT … FOR UPDATE обязан попасть в лог error с resource_id заблокированного ресурса'
+        );
+
+        $bankBlocked = $this->bankRow($this->resourceId);
+        $this->assertNotNull($bankBlocked);
+        $this->assertSame(10, (int) $bankBlocked['resources_sold'], 'сбойная итерация не применяет частичную запись — строка не изменилась');
+        $this->assertSame(0, (int) $bankBlocked['resources_purchased']);
+
+        $bankSecond = $this->bankRow($secondResourceId);
+        $this->assertNotNull($bankSecond);
+        $this->assertSame(1, (int) $bankSecond['resources_sold'], 'сосед по циклу не пострадал от чужого сбоя чтения');
+        $this->assertSame(3, (int) $bankSecond['resources_purchased']);
+
+        $db1->transBegin();
+        $db1->table('resources_bank')->where('resource_id', $this->resourceId)->update(['current_quantity' => 9]);
+        $db1->transCommit();
+        $this->assertTrue($db1->transStatus(), 'здоровая транзакция ПОСЛЕ сбойного чтения обязана закоммититься штатно');
+
+        $verify = $db2->table('resources_bank')->where('resource_id', $this->resourceId)->get()->getRowArray();
+        $this->assertNotNull($verify);
+        $this->assertSame(9, (int) $verify['current_quantity'], 'здоровая транзакция после сбоя видна второму соединению');
+    }
+
+    /**
+     * Тест B (acceptance criteria story 39) — падение ЗАПИСИ внутри итерации, тот же
+     * реальный триггер, но лок стоит на другой таблице: `resources_bank`
+     * заблокирована бы `SELECT … FOR UPDATE` (тест A), поэтому чтение банка обязано
+     * пройти штатно, а падать обязана именно запись — `db2` держит `FOR UPDATE` на
+     * строке `resources` того же ресурса, и её ловит `resourceModel->update()`
+     * (`buy_price`/`sell_price`) внутри тела итерации.
+     */
+    public function testProcessLogsAndRecoversWhenWriteInsideIterationFails(): void
+    {
+        $secondResourceId         = $this->insertResourceRow('hotpath write-lock neighbour');
+        $this->extraResourceIds[] = $secondResourceId;
+
+        $this->seedBankRow($this->resourceId, 3, 0, 10);
+        $this->seedBankRow($secondResourceId, 5, 4, 2);
+
+        $db1 = Database::connect('tests');
+        $db2 = Database::connect('tests', false);
+
+        try {
+            $db2->transBegin();
+            $db2->query(
+                'SELECT id FROM ' . $db1->prefixTable('resources') . ' WHERE id = ? FOR UPDATE',
+                [$this->resourceId]
+            );
+
+            $db1->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+            (new ResourceBankUpdateHandler())->process(1);
+        } finally {
+            if ($db2->transDepth > 0) {
+                $db2->transRollback();
+            }
+            $this->restoreLockWaitTimeout($db1);
+        }
+
+        $this->assertSame(0, $db1->transDepth, 'process() обязан закрыть свою транзакцию даже на сбойной итерации записи');
+        $this->assertTrue($db1->transStatus(), 'top-level итерация обязана сбросить липкий флаг перед возвратом из process()');
+
+        $this->assertLogContains(
+            'error',
+            'resource_id=' . $this->resourceId,
+            'сбой записи обязан попасть в лог error с resource_id заблокированного ресурса'
+        );
+
+        $bankBlocked = $this->bankRow($this->resourceId);
+        $this->assertNotNull($bankBlocked);
+        $this->assertSame(10, (int) $bankBlocked['resources_sold'], 'сбойная итерация не применяет частичную запись банка');
+        $this->assertSame(0, (int) $bankBlocked['resources_purchased']);
+
+        $bankSecond = $this->bankRow($secondResourceId);
+        $this->assertNotNull($bankSecond);
+        $this->assertSame(1, (int) $bankSecond['resources_sold'], 'сосед по циклу не пострадал от чужого сбоя записи');
+        $this->assertSame(3, (int) $bankSecond['resources_purchased']);
+
+        $db1->transBegin();
+        $db1->table('resources_bank')->where('resource_id', $this->resourceId)->update(['current_quantity' => 9]);
+        $db1->transCommit();
+        $this->assertTrue($db1->transStatus(), 'здоровая транзакция ПОСЛЕ сбойной записи обязана закоммититься штатно');
+
+        $verify = $db2->table('resources_bank')->where('resource_id', $this->resourceId)->get()->getRowArray();
+        $this->assertNotNull($verify);
+        $this->assertSame(9, (int) $verify['current_quantity'], 'здоровая транзакция после сбоя видна второму соединению');
+    }
+
+    /**
+     * Тест C (acceptance criteria story 39, замена старого неразличающего теста
+     * R5-major 3) — `process()` вызван ВНУТРИ уже открытой транзакции вызывающего, флаг
+     * которой отравлен ДО вызова. R5-major 2: без savepoint'ов в CI4 вложенный
+     * `transRollback()` лишь уменьшает `transDepth`, физически не откатывая уже
+     * выполненные запросы внешней транзакции — поэтому единственный правильный ответ
+     * `process()` на чужую беду это НЕ трогать чужой флаг. Старый тест на этом самом
+     * месте требовал обратного (`assertTrue($db1->transStatus())` после `process()`) и
+     * тем самым закреплял «крон лечит чужой сбой» как эталонное поведение. Реализация
+     * ниже: ни одна итерация не резолвит `topLevelIteration` в `true` (обе вложены в
+     * уже открытую транзакцию `db1`, `transDepth` не `0` ни у одной), единственная
+     * точка проверки после чтения/записи видит флаг уже `false` (унаследован от
+     * отравления ДО `process()`) и бросает для каждой итерации — сами записи
+     * (`resourceModel->update()`/`resourcesBankModel->update()`) при этом физически
+     * выполняются (флаг не блокирует дальнейшие запросы, лишь помечает исход), но
+     * остаются частью ЕДИНОЙ, всё ещё не закоммиченной внешней транзакции `db1` и
+     * стираются финальным РЕАЛЬНЫМ `transRollback()` теста на `transDepth===1` (CI4
+     * коммитит/откатывает физически только на границе глубины 0↔1 — нет
+     * savepoint'ов для промежуточных уровней) — поэтому счётчики банка после теста
+     * равны исходным.
+     */
+    public function testProcessDoesNotClearCallersPoisonedTransStatusWhenNested(): void
+    {
+        $secondResourceId         = $this->insertResourceRow('hotpath nested poisoned');
+        $this->extraResourceIds[] = $secondResourceId;
+
+        $this->seedBankRow($this->resourceId, 3, 0, 10);
+        $this->seedBankRow($secondResourceId, 5, 4, 2);
+
+        $db1 = Database::connect('tests');
+
         $db1->transBegin();
 
         try {
-            // Искусственный сбой запроса ВНУТРИ уже открытой транзакции — ровно механизм
-            // R4-critical (`handleTransStatus()` при `transDepth!==0`).
+            // Отравляем флаг ВНЕШНЕЙ (уже открытой) транзакции ДО вызова process() —
+            // тот же искусственный несуществующий запрос, что и в старом тесте.
             @$db1->query('SELECT 1 FROM exploit_fix_35_table_that_does_not_exist_at_all');
             $this->assertFalse($db1->transStatus(), 'предусловие: искусственный сбой действительно испортил transStatus');
 
             (new ResourceBankUpdateHandler())->process(1);
 
             // process() обязан закрыть КАЖДУЮ свою собственную (вложенную) транзакцию —
-            // после возврата глубина обязана вернуться ровно к уровню, на котором её
-            // оставили мы (1), и липкий флаг обязан быть сброшен изнутри process().
-            $this->assertSame(1, $db1->transDepth, 'process() обязан закрыть каждую свою вложенную транзакцию (транзакции этого теста не считово)');
-            $this->assertTrue($db1->transStatus(), 'липкий флаг обязан быть сброшен process() до возврата из ошибочной итерации');
-
-            $db1->transCommit();
+            // глубина обязана вернуться ровно к уровню, на котором её оставили мы (1).
+            $this->assertSame(1, $db1->transDepth, 'process() обязан закрыть каждую свою вложенную транзакцию');
+            // Внешний отравленный флаг НЕ должен стираться вложенным process() —
+            // R5-major 2, ядро этого теста.
+            $this->assertFalse($db1->transStatus(), 'внешний отравленный флаг обязан остаться отравленным после вложенного process()');
         } finally {
             if ($db1->transDepth > 0) {
                 $db1->transRollback();
@@ -486,39 +678,14 @@ final class ResourceBankHotPathTest extends CIUnitTestCase
         $this->assertSame(0, $db1->transDepth, 'наша собственная транзакция обязана закрыться полностью');
         $this->assertTrue($db1->transStatus());
 
-        $this->assertLogContains(
-            'error',
-            'ResourceBankUpdateHandler: итерация для resource_id=',
-            'ошибка итерации обязана попасть в лог уровня error с resource_id'
-        );
-
-        // Дефолтное состаривание "-1"/"-1" (economy.market.proportional_decay_enabled=false)
-        // — оба ресурса обязаны дойти до состаренного значения: вложенный "rollback" без
-        // savepoint'ов физически не отменяет уже выполненные UPDATE'ы (см. докблок метода).
+        // Ни одна вложенная итерация не top-level — обе видят уже отравленный флаг
+        // сразу после своего SELECT и откатываются, не применив запись.
         $bankFirst = $this->bankRow($this->resourceId);
         $this->assertNotNull($bankFirst);
-        $this->assertSame(9, (int) $bankFirst['resources_sold'], 'первый ресурс обязан дойти до состаренного значения (10-1) независимо от порядка итераций');
-        $this->assertSame(0, (int) $bankFirst['resources_purchased']);
+        $this->assertSame(10, (int) $bankFirst['resources_sold'], 'вложенная итерация не применяет запись под уже отравленным флагом');
 
         $bankSecond = $this->bankRow($secondResourceId);
         $this->assertNotNull($bankSecond);
-        $this->assertSame(1, (int) $bankSecond['resources_sold'], 'второй ресурс обязан дойти до состаренного значения (2-1) независимо от порядка итераций');
-        $this->assertSame(3, (int) $bankSecond['resources_purchased'], '4-1');
-
-        // Следующая, полностью здоровая транзакция того же соединения обязана
-        // закоммититься и быть видна другому соединению — прямое доказательство того, что
-        // отравление не пережило process().
-        $db1->transBegin();
-        $db1->table('resources_bank')->where('resource_id', $this->resourceId)->update(['current_quantity' => 9]);
-        $db1->transCommit();
-        $this->assertTrue($db1->transStatus(), 'здоровая транзакция ПОСЛЕ process() обязана закоммититься штатно');
-
-        $verify = $db2->table('resources_bank')->where('resource_id', $this->resourceId)->get()->getRowArray();
-        $this->assertNotNull($verify);
-        $this->assertSame(
-            9,
-            (int) $verify['current_quantity'],
-            'здоровая транзакция ПОСЛЕ отравленной итерации крона обязана закоммититься и быть видна другому соединению'
-        );
+        $this->assertSame(2, (int) $bankSecond['resources_sold'], 'вложенная итерация не применяет запись под уже отравленным флагом');
     }
 }
