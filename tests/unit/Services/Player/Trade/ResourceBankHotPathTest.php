@@ -197,10 +197,28 @@ final class ResourceBankHotPathTest extends CIUnitTestCase
         // внутри него) оставил открытую транзакцию на общем соединении, следующий тест
         // унаследовал бы и `transDepth>0`, и потенциально липкий `transStatus=false`.
         // Закрываем принудительно, не полагаясь на то, что сам тест успел это сделать.
-        while ($db->transDepth > 0) {
+        //
+        // exploit-fix-39 (R6-major 2) — раньше `while ($db->transDepth > 0)` без верхней
+        // границы: `transRollback()` при глубине >1 лишь декрементирует счётчик
+        // (`BaseConnection::transRollback()` — нет savepoint'ов), но если РЕАЛЬНЫЙ
+        // драйверный откат на глубине 1 (`_transRollback()`) вернёт `false` (обрыв
+        // соединения, etc.) — CI4 не декрементирует `transDepth` вовсе, и цикл крутится
+        // бесконечно, вешая весь прогон. Теперь гард ограничен стартовой глубиной: не
+        // больше `$startDepth` попыток, `resetTransStatus()` всегда после цикла, и если
+        // глубина всё ещё не `0` — тест обязан упасть громко с текстом остатка, а не
+        // молча зависнуть или тихо пропустить незакрытую транзакцию дальше.
+        $startDepth = $db->transDepth;
+        for ($i = 0; $i < $startDepth && $db->transDepth > 0; $i++) {
             $db->transRollback();
         }
         $db->resetTransStatus();
+
+        if ($db->transDepth > 0) {
+            throw new \RuntimeException(
+                'ResourceBankHotPathTest::tearDown(): аварийный гард не смог закрыть транзакцию за '
+                . $startDepth . ' попыт(ку/ки/ок) transRollback() — transDepth=' . $db->transDepth . ' всё ещё > 0'
+            );
+        }
 
         // Точечная чистка своих строк — обязательна ДАЖЕ для таблиц, которые тест не создавал
         // (на смигрированной БД DROP TABLE недопустим, а строка всё равно наша).
