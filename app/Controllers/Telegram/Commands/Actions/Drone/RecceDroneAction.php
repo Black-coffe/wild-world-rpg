@@ -175,7 +175,7 @@ class RecceDroneAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '🚁 Мои дроны', 'callback_data' => 'droneScoutList'],
-                    ['text' => '🗺 Карта',     'callback_data' => 'move'],
+                    ['text' => \App\Services\Telegram\BotMenuService::menuLabel('world'),     'callback_data' => 'move'],
                 ],
             ],
         ];

@@ -181,7 +181,7 @@ class ToggleEquipArmorAction extends BaseAction
                     ['text' => $toggleButtonText, 'callback_data' => $toggleCallback]
                 ],
                 [
-                    ['text' => '⚔️ Экип', 'callback_data' => 'gearArmor']
+                    ['text' => '👕 Броня / Одежда', 'callback_data' => 'gearArmor']
                 ]
             ]
         ];

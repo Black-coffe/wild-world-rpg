@@ -155,7 +155,7 @@ class CaravanBuyAction extends BaseAction
             $rows[] = [['text' => '🚚 Караван', 'callback_data' => 'caravanLook']];
         }
         $rows[] = [
-            ['text' => '🗺 Карта',     'callback_data' => 'move'],
+            ['text' => \App\Services\Telegram\BotMenuService::menuLabel('world'),     'callback_data' => 'move'],
             ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
         ];
         $keyboard = ['inline_keyboard' => $rows];

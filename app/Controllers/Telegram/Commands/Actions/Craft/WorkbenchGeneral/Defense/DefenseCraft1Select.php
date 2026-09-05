@@ -50,7 +50,7 @@ class DefenseCraft1Select extends BaseAction
                     ['text' => '🛡 Метеоритное укрытие', 'callback_data' => 'meteorShelter'],
                 ],
                 [
-                    ['text' => '🌟 Мировые события', 'callback_data' => 'events'],
+                    ['text' => '🎉 События', 'callback_data' => 'events'],
                     ['text' => '📋 Очередь крафта', 'callback_data' => 'craftQueue'],
                 ],
                 [

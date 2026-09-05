@@ -113,7 +113,7 @@ final class CargoDroneAutoSendAction extends BaseAction
                 'parse_mode'   => 'Markdown',
                 'reply_markup' => json_encode(['inline_keyboard' => [[
                     ['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList'],
-                    ['text' => '🗺 Карта',      'callback_data' => 'move'],
+                    ['text' => \App\Services\Telegram\BotMenuService::menuLabel('world'),      'callback_data' => 'move'],
                 ]]]),
             ]);
         }
@@ -283,7 +283,7 @@ final class CargoDroneAutoSendAction extends BaseAction
                     ['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList'],
                 ],
                 [
-                    ['text' => '🗺 Карта', 'callback_data' => 'move'],
+                    ['text' => \App\Services\Telegram\BotMenuService::menuLabel('world'), 'callback_data' => 'move'],
                     ['text' => '🏠 База',  'callback_data' => 'Base'],
                 ],
             ]]),

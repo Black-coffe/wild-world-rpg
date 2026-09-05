@@ -122,16 +122,16 @@ final class HangarAction extends BaseAction
 
         $droneButtons = [];
         if ($service->isEnabled()) {
-            $droneButtons[] = ['text' => '🚁 Разведчик', 'callback_data' => 'droneScoutList'];
+            $droneButtons[] = ['text' => '🚁 Мои дроны', 'callback_data' => 'droneScoutList'];
         }
         if ($service->cargoIsEnabled()) {
-            $droneButtons[] = ['text' => '🚚 Карго', 'callback_data' => 'cargoDroneList'];
+            $droneButtons[] = ['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList'];
         }
         if ($service->repairIsEnabled()) {
             $droneButtons[] = ['text' => '🔧 Ремонтник', 'callback_data' => 'repairDrone'];
         }
         if ($service->combatIsEnabled()) {
-            $droneButtons[] = ['text' => '🛡 Боевой', 'callback_data' => 'combatDroneList'];
+            $droneButtons[] = ['text' => '🛡 Боевой дрон', 'callback_data' => 'combatDroneList'];
         }
         foreach (array_chunk($droneButtons, 2) as $chunk) {
             $rows[] = $chunk;
@@ -141,7 +141,7 @@ final class HangarAction extends BaseAction
         // технику. Кнопка безусловная: при выключенном killswitch'е экран страховки
         // сам объяснит, что агент не работает, а не оставит игрока без двери.
         $rows[] = [
-            ['text' => '🛡 Страховка техники', 'callback_data' => 'craftInsuranceList'],
+            ['text' => '📦 Крафт-страховка', 'callback_data' => 'craftInsuranceList'],
             ['text' => '🏠 База',              'callback_data' => 'Base'],
         ];
 

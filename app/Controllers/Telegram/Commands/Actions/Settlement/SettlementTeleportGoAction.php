@@ -76,7 +76,7 @@ final class SettlementTeleportGoAction extends BaseAction
 
         return $this->screen($text, [
             [['text' => '🏚 Войти в поселение', 'callback_data' => 'settleHub']],
-            [['text' => '🗺 Карта', 'callback_data' => 'move'], ['text' => '🧑‍🌾 Действия', 'callback_data' => 'characterActions']],
+            [['text' => \App\Services\Telegram\BotMenuService::menuLabel('world'), 'callback_data' => 'move'], ['text' => '🧑‍🌾 Действия', 'callback_data' => 'characterActions']],
         ]);
     }
 

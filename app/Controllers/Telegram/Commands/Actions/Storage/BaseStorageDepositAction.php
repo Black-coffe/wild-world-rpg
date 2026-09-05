@@ -296,7 +296,7 @@ final class BaseStorageDepositAction extends BaseAction
             'reply_markup' => json_encode(['inline_keyboard' => [
                 [
                     ['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList'],
-                    ['text' => '🗺 Карта',      'callback_data' => 'move'],
+                    ['text' => \App\Services\Telegram\BotMenuService::menuLabel('world'),      'callback_data' => 'move'],
                 ],
                 [
                     ['text' => '📦 Склад базы', 'callback_data' => 'baseStorageList'],

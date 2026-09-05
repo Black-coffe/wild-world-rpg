@@ -156,7 +156,7 @@ class DroneScoutCraftedListAction extends BaseAction
         }
 
         $rows[] = [
-            ['text' => '🗺 Карта', 'callback_data' => 'move'],
+            ['text' => \App\Services\Telegram\BotMenuService::menuLabel('world'), 'callback_data' => 'move'],
             ['text' => '🏠 База', 'callback_data' => 'Base'],
         ];
 

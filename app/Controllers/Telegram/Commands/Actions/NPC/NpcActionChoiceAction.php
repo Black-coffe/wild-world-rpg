@@ -139,7 +139,7 @@ final class NpcActionChoiceAction extends BaseAction
             $inMarch
                 ? [['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume']]
                 : [
-                    ['text' => '🗺 Карта', 'callback_data' => 'move'],
+                    ['text' => \App\Services\Telegram\BotMenuService::menuLabel('world'), 'callback_data' => 'move'],
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                 ],
         ]];

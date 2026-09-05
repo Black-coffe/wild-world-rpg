@@ -386,7 +386,7 @@ class MoveCharacterToDirectionAction
                         ->where('quantity >', 0)
                         ->first();
                     if ($hasDrone) {
-                        $tail[] = ['text' => '🚁 Дрон', 'callback_data' => 'droneScoutList'];
+                        $tail[] = ['text' => '🚁 Мои дроны', 'callback_data' => 'droneScoutList'];
                     }
                 }
             }

@@ -155,11 +155,11 @@ final class DuelAction extends BaseAction
 
         $row = [
             ['text' => '◀️ Перс', 'callback_data' => 'character'],
-            ['text' => '🗺 Карта', 'callback_data' => 'move'],
+            ['text' => \App\Services\Telegram\BotMenuService::menuLabel('world'), 'callback_data' => 'move'],
         ];
         // W18 (ADR-072): «🏆 Рейтинг» только при активном ладдере (dormant — скрыта).
         if ($this->ladderService->enabled()) {
-            $row[] = ['text' => '🏆 Рейтинг', 'callback_data' => 'pvpLadder'];
+            $row[] = ['text' => '🏆 Рейтинг PvP', 'callback_data' => 'pvpLadder'];
         }
 
         return Request::sendMessage([

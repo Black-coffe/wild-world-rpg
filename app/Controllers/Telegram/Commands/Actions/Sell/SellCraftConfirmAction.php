@@ -60,7 +60,7 @@ class SellCraftConfirmAction extends BaseAction
                 'text'         => "❗ *Не то количество*\n\nУкажи число больше нуля — с таким количеством сделка не пройдёт.",
                 'parse_mode'   => 'Markdown',
                 'reply_markup' => json_encode(['inline_keyboard' => [[
-                    ['text' => '🛒 Продать крафт', 'callback_data' => 'sellCraft'],
+                    ['text' => '💰 Продать крафт', 'callback_data' => 'sellCraft'],
                     ['text' => '🎒 Инвентарь',      'callback_data' => 'inventory'],
                 ]]]),
             ]);
@@ -227,7 +227,7 @@ class SellCraftConfirmAction extends BaseAction
         if ($type !== '') {
             $keyboardButtons[] = ['text' => '⬅️ К списку', 'callback_data' => 'sellCraftList_' . $type];
         }
-        $keyboardButtons[] = ['text' => '🛒 Продать крафт', 'callback_data' => 'sellCraft'];
+        $keyboardButtons[] = ['text' => '💰 Продать крафт', 'callback_data' => 'sellCraft'];
         $keyboardButtons[] = ['text' => '🛍️ Купить крафт', 'callback_data' => 'buyCraft'];
         $keyboardButtons[] = ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'];
         $keyboardButtons[] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];

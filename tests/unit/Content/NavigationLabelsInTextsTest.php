@@ -84,6 +84,88 @@ final class NavigationLabelsInTextsTest extends CIUnitTestCase
     }
 
     /**
+     * Одна дверь — одно имя (аудит подписей 2026-09-05).
+     *
+     * Обратный индекс `callback_data → подписи` по всему `app/` вскрыл 52 двери с разнобоем.
+     * Часть из него законна: «💰 Продать ещё», «🔄 Крафтить ещё», «🧭 Идти дальше» — это одно
+     * действие в разном контексте. Незаконна вторая часть: у ДВЕРИ (кнопки, ведущей на экран
+     * фичи) имя и эмодзи обязаны совпадать везде, иначе игрок ищет глазами и не узнаёт.
+     *
+     * Гейтим поимённо те двери, что уже сведены, — регресс вернёт разнобой молча.
+     *
+     * @return list<array{0:string,1:string}>
+     */
+    public static function unifiedDoors(): array
+    {
+        return [
+            ['events', '🎉 События'],
+            ['baseStorageList', '📦 Склад базы'],
+            ['cargoDroneList', '🚚 Карго-дрон'],
+            ['combatDroneList', '🛡 Боевой дрон'],
+            ['droneScoutList', '🚁 Мои дроны'],
+            ['pvpLadder', '🏆 Рейтинг PvP'],
+            ['repairToolsList', '🪛 Ремонт инструментов'],
+            ['sellCraft', '💰 Продать крафт'],
+            ['PersonalInsurance', '🧍 Страховка'],
+            ['craftInsuranceList', '📦 Крафт-страховка'],
+        ];
+    }
+
+    /**
+     * @dataProvider unifiedDoors
+     */
+    public function testDoorWearsOneNameEverywhere(string $callback, string $canonical): void
+    {
+        $labels = [];
+        foreach ($this->buttonPairs() as [$label, $cb]) {
+            if ($cb !== $callback) {
+                continue;
+            }
+            // Контекстные возвраты («◀️ Назад», «🔄 Обновить») дверью не считаются.
+            if (preg_match('~(Назад|назад|К списку|◀️|⬅️|🔙|Отмена|Обновить|ещё|Ещё)~u', $label) === 1) {
+                continue;
+            }
+            $labels[$label] = true;
+        }
+
+        $this->assertNotSame([], $labels, "Дверь «{$callback}» не нашлась ни на одной кнопке — тест устарел.");
+        $this->assertSame(
+            [$canonical],
+            array_keys($labels),
+            "Дверь «{$callback}» носит разные имена. Канон — «{$canonical}» (имя экрана за кнопкой)."
+        );
+    }
+
+    /**
+     * Все пары «подпись → callback» из `app/`: то же извлечение, что дало индекс живых
+     * кнопок при аудите. Читаем исходники, а не рантайм: кнопки собираются в 300+ местах.
+     *
+     * @return list<array{0:string,1:string}>
+     */
+    private function buttonPairs(): array
+    {
+        $pairs    = [];
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(APPPATH));
+        foreach ($iterator as $file) {
+            if (! $file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+            $source = (string) file_get_contents($file->getPathname());
+            foreach (["'", '"'] as $q) {
+                $re = '~' . $q . 'text' . $q . '\s*=>\s*' . $q . '([^' . $q . ']{1,80})' . $q
+                    . '\s*,\s*' . $q . 'callback_data' . $q . '\s*=>\s*' . $q . '([^' . $q . ']{1,80})' . $q . '~u';
+                if (preg_match_all($re, $source, $m, PREG_SET_ORDER) > 0) {
+                    foreach ($m as $one) {
+                        $pairs[] = [$one[1], $one[2]];
+                    }
+                }
+            }
+        }
+
+        return $pairs;
+    }
+
+    /**
      * Каталоги подсказок и экраны читаем как файлы: подсказка собирается из кусков и
      * плейсхолдеров, поэтому строковый скан ловит призрак там, где его не видно в рантайме.
      */

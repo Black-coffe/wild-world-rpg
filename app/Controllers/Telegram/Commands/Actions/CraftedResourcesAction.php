@@ -277,7 +277,7 @@ class CraftedResourcesAction extends BaseAction
                 $this->transportShowcaseButtonRows($vehicleEnabled),
                 [
                     [
-                        ['text' => '🔧 Ремонт инструментов', 'callback_data' => 'repairToolsList'],
+                        ['text' => '🪛 Ремонт инструментов', 'callback_data' => 'repairToolsList'],
                         ['text' => '🤖 Ангар', 'callback_data' => 'hangar'],
                     ],
                     [

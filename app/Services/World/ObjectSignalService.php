@@ -228,7 +228,7 @@ class ObjectSignalService
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🗺 Карта', 'callback_data' => 'move'],
+                    ['text' => \App\Services\Telegram\BotMenuService::menuLabel('world'), 'callback_data' => 'move'],
                 ],
             ],
         ];

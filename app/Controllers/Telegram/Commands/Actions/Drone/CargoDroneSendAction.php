@@ -255,10 +255,10 @@ class CargoDroneSendAction extends BaseAction
         $keyboard = ['inline_keyboard' => [
             [
                 ['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList'],
-                ['text' => '📦 Склад',      'callback_data' => 'baseStorageList'],
+                ['text' => '📦 Склад базы',      'callback_data' => 'baseStorageList'],
             ],
             [
-                ['text' => '🗺 Карта', 'callback_data' => 'move'],
+                ['text' => \App\Services\Telegram\BotMenuService::menuLabel('world'), 'callback_data' => 'move'],
                 ['text' => '🏠 База',  'callback_data' => 'Base'],
             ],
         ]];

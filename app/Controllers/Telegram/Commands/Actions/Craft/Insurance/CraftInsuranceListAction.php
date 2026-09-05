@@ -109,7 +109,7 @@ class CraftInsuranceListAction extends BaseAction
             . self::renderPolicies($policyRows);
 
         $navButtons = [
-            ['text' => '🛡 Личная страховка', 'callback_data' => 'PersonalInsurance'],
+            ['text' => '🧍 Страховка', 'callback_data' => 'PersonalInsurance'],
             ['text' => '🤖 Ангар',            'callback_data' => 'hangar'],
             ['text' => '🎒 Инвентарь',        'callback_data' => 'inventory'],
         ];

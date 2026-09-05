@@ -133,7 +133,7 @@ class MeteorShelterCraft1Action extends BaseAction
             $keyboard = ['inline_keyboard' => [
                 [
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🌟 Мировые события', 'callback_data' => 'events'],
+                    ['text' => '🎉 События', 'callback_data' => 'events'],
                 ],
                 $backRow,
             ]];

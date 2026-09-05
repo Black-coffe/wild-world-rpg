@@ -76,11 +76,11 @@ final class ArenaAction extends BaseAction
             $text .= "✅ Ты *открыт* для дуэлей — тебя могут вызвать. Закрыться можно в ⚙️ Настройках.";
         } else {
             $text .= "🔒 Ты *закрыт* для дуэлей. Откройся в ⚙️ Настройках — тогда и тебя смогут вызвать на арену.";
-            $rows[] = [['text' => '⚙️ Открыться к дуэлям', 'callback_data' => 'duelsOpenOn']];
+            $rows[] = [['text' => '⚔️ Открыться к дуэлям', 'callback_data' => 'duelsOpenOn']];
         }
 
         $rows[] = [
-            ['text' => '🏆 Рейтинг', 'callback_data' => 'pvpLadder'],
+            ['text' => '🏆 Рейтинг PvP', 'callback_data' => 'pvpLadder'],
             ['text' => '◀️ Перс', 'callback_data' => 'character'],
         ];
 

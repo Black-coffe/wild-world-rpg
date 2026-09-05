@@ -206,7 +206,7 @@ class MoveSurfaceService
                         ->where('quantity >', 0)
                         ->first();
                     if ($hasDrone) {
-                        $worldRow[] = ['text' => '🚁 Дрон', 'callback_data' => 'droneScoutList'];
+                        $worldRow[] = ['text' => '🚁 Мои дроны', 'callback_data' => 'droneScoutList'];
                     }
                 }
             }
@@ -267,7 +267,7 @@ class MoveSurfaceService
                 $north,
                 [
                     ['text' => '⬅️ Запад', 'callback_data' => 'move_dir_west'],
-                    ['text' => '🏕',       'callback_data' => 'Base'],
+                    ['text' => '🏠 База',       'callback_data' => 'Base'],
                     ['text' => BotMenuService::actionLabel('actionsHubCompact'), 'callback_data' => 'characterActions'],
                     ['text' => '➡️ Восток','callback_data' => 'move_dir_east'],
                 ],
@@ -279,7 +279,7 @@ class MoveSurfaceService
             $north,
             [
                 ['text' => '⬅️ Запад', 'callback_data' => 'move_dir_west'],
-                ['text' => '🏕',       'callback_data' => 'Base'],
+                ['text' => '🏠 База',       'callback_data' => 'Base'],
                 ['text' => '➡️ Восток','callback_data' => 'move_dir_east'],
             ],
             $south,

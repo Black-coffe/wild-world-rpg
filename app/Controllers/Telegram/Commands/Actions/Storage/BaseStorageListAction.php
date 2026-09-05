@@ -152,7 +152,7 @@ class BaseStorageListAction extends BaseAction
         } else {
             $text .= "_Склад физически на базе. Вернись на свою клейм-клетку, чтобы забрать или сложить руками — "
                 . "а из поля груз домой носит карго-дрон._";
-            $rows[] = [['text' => '🗺 Карта', 'callback_data' => 'move'], ['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList']];
+            $rows[] = [['text' => \App\Services\Telegram\BotMenuService::menuLabel('world'), 'callback_data' => 'move'], ['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList']];
         }
         $keyboard = ['inline_keyboard' => $rows];
 
