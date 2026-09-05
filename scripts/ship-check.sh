@@ -46,7 +46,7 @@ paperwork_only() { # paperwork_only <root> <from-commit> <to-commit>
   [ -n "$changed" ] || return 0
   while IFS= read -r p; do
     case "$p" in
-      */plan.md|memory/stats/human.jsonl|memory/stats/acceptance.jsonl|memory/stats/ship.jsonl) ;;
+      */plan.md|memory/stats/*|memory/learnings/*) ;;   # ADAPTED: см. docs/vulyk/ADAPTATION.md §7
       *) return 1 ;;
     esac
   done <<EOF

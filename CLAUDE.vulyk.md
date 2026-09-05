@@ -279,6 +279,30 @@ Drop file contents, diffs, command output and scout reports: they are on disk an
 параллельная сессия. Smoke на preprod-testbot зелёный → тег на прод ставится, отдельного
 разрешения на это не требуется.
 
+### Цикл 0.11.0 на нашем релиз-потоке (сверено 2026-09-05)
+
+`/vulyk-ship` и `scripts/ship-check.sh` написаны под поток «ветка → merge в default → publish».
+Наш поток другой в четырёх местах, и вот как они уравнены — читать это ДО того, как гейт скажет
+что-нибудь про `master`:
+
+| Что говорит рамка | Что у нас | Как уравнено |
+|---|---|---|
+| «merge в default branch» | git-дефолт здесь `master`, но он **мёртв** (последний коммит 22.05.2026, develop ушёл на 1340 коммитов) и в релиз-путь не входит вообще | **Default branch рамки = `develop`.** `vulyk/<slug>` ответвляется от `develop` и вливается в `develop`; `master` не трогаем. Строку `ship-check`'а «you are on master» игнорировать — она вычисляет дефолт из `origin/HEAD`, а не из Profile |
+| «релизная бумага = version bump + CHANGELOG» | версии-файла и CHANGELOG'а в репо нет, версия — это сам тег `v0.51.x` | Релизный коммит несёт только записи цикла (`**Shipped:**`, леджеры). Пустой version-bump не выдумывать |
+| «publish жмёт человек» | тег + пуш — outward-facing, но у владельца стоит **постоянное** разрешение: зелёный preprod-смоук = добро | Разрешение действует и здесь: после зелёного смоука тег ставится без отдельного вопроса. Но **состав диффа сверяется до тега** (параллельная сессия), а `--record` получает имя тега в примечании |
+| «стадия 04 — путь клиента» и «стадия 05 — владелец смотрит» | наш Tier-3 смоук в Telegram Web гоняет Claude | Смоук Claude'а — это **04**, не 05. Подпись стадии 05 ставит владелец; `human-check.sh` запускается только ПОСЛЕ его ответа и его словами. Смотреть владельцу — на preprod-testbot'е, не на проде |
+
+Порядок одного круга, целиком: `/vulyk-plan` → одобрение → `/vulyk-build` (ветка `vulyk/<slug>`) →
+`/vulyk-review` (04) → merge в `develop` + push → GitHub Actions катит **preprod** → смоук нужного
+тира → владелец смотрит и говорит слово → `human-check.sh` (05) → `/vulyk-ship`: тег `v0.51.x` на
+`develop` → Actions катит **прод** + сайт → смоук на проде → `ship-check.sh --record`.
+
+**Грязное дерево — своя же бумага.** Гейт требует чистого `git status`, а хуки улья пишут
+`memory/stats/skills.json` и `memory/learnings/*` посреди сессии. Правило: леджеры улья
+коммитятся **до** стадии 05, отдельным коммитом. Чтобы такой коммит не «состаривал» подпись
+владельца, `paperwork_only()` в обоих скриптах расширен на `memory/stats/*` и `memory/learnings/*`
+— правка внутри рамки, `/vulyk-update` её откатит (`docs/vulyk/ADAPTATION.md` §7).
+
 ## Evolution
 
 Run `/vulyk-evolve` weekly. It proposes diffs to this configuration from accumulated learnings and usage stats. Nothing self-applies — every change is a reviewable changeset with a CHANGELOG entry.
