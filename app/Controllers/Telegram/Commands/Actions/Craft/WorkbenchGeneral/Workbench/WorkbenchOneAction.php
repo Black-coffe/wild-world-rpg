@@ -136,7 +136,7 @@ class WorkbenchOneAction extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                        ['text' => '◀️ Я', 'callback_data' => 'character'],
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                     ],
                     [
@@ -155,7 +155,7 @@ class WorkbenchOneAction extends BaseAction
                         ['text' => '🛠️ Крафтить', 'callback_data' => 'genericCraft_WorkbenchOne_1'],
                     ],
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                        ['text' => '◀️ Я', 'callback_data' => 'character'],
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                     ],
                     [
@@ -247,7 +247,7 @@ class WorkbenchOneAction extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                 ],
                 [

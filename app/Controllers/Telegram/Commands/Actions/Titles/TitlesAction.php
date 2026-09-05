@@ -134,7 +134,7 @@ final class TitlesAction extends BaseAction
         for ($i = 0; $i < count($btns); $i += 2) {
             $rows[] = array_slice($btns, $i, 2);
         }
-        $rows[] = [['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character']];
+        $rows[] = [['text' => '◀️ Я', 'callback_data' => 'character']];
 
         return ['inline_keyboard' => $rows];
     }

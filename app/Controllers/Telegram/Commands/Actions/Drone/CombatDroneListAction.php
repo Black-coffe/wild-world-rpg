@@ -89,7 +89,7 @@ final class CombatDroneListAction extends BaseAction
                 'parse_mode' => 'Markdown',
                 'reply_markup' => json_encode(['inline_keyboard' => [[
                     ['text' => '🛠 К крафту', 'callback_data' => 'standardCraft'],
-                    ['text' => '◀️ Перс',    'callback_data' => 'character'],
+                    ['text' => '◀️ Я',    'callback_data' => 'character'],
                 ]]]),
             ]);
         }
@@ -112,7 +112,7 @@ final class CombatDroneListAction extends BaseAction
             $text .= "_В любой входящей атаке защитник получает +{$bonusPercent}% к инициативе. По истечении окна нужна повторная активация (заряженный дрон)._\n";
 
             $keyboard = ['inline_keyboard' => [[
-                ['text' => '◀️ Перс', 'callback_data' => 'character'],
+                ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ['text' => '🏠 База', 'callback_data' => 'Base'],
             ]]];
             return Request::sendMessage([
@@ -150,7 +150,7 @@ final class CombatDroneListAction extends BaseAction
         }
 
         $rows[] = [
-            ['text' => '◀️ Перс', 'callback_data' => 'character'],
+            ['text' => '◀️ Я', 'callback_data' => 'character'],
             ['text' => '🏠 База', 'callback_data' => 'Base'],
         ];
 

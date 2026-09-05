@@ -159,7 +159,7 @@ class ChooseFaction extends BaseAction
                 [
                     ['text' => 'Вступить', 'callback_data' => "chooseFaction_joinFaction_{$faction}"],
                     ['text' => 'Фракции', 'callback_data' => 'chooseFaction_info'],
-                    ['text' => 'Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ],
             ],
         ];
@@ -407,7 +407,7 @@ class ChooseFaction extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                     ['text' => '🧭 Двигаться',  'callback_data' => 'move'],
                 ],
                 [

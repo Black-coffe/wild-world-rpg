@@ -249,7 +249,7 @@ class StartRobotExplorationAction extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                     ['text' => '🤖 Роботы',     'callback_data' => 'AllRobots'],
                     ['text' => '🏠 База',       'callback_data' => 'Base'],
                 ],

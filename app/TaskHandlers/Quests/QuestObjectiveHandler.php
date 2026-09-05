@@ -491,7 +491,7 @@ class QuestObjectiveHandler extends BaseTaskHandler
         $keyboard = [
             'inline_keyboard' => [[
                 ['text' => '🚀 Активные квесты', 'callback_data' => 'activeQuests'],
-                ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ['text' => '◀️ Я', 'callback_data' => 'character'],
             ]],
         ];
 

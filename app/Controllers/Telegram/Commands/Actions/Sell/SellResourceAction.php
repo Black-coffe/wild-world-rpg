@@ -329,7 +329,7 @@ class SellResourceAction extends BaseAction
             ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
         ];
         $rows[] = [
-            ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+            ['text' => '◀️ Я', 'callback_data' => 'character'],
             ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
         ];
         $keyboard = ['inline_keyboard' => $rows];

@@ -63,7 +63,7 @@ final class WhatsNewCatalogAction extends BaseAction
                 'text'       => "📚 *Что нового*\n\n_Пока пусто — раздел наполняется._",
                 'parse_mode' => 'Markdown',
                 'reply_markup' => json_encode(['inline_keyboard' => [[
-                    ['text' => '◀️ Перс', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ]]]),
             ]);
         }
@@ -96,7 +96,7 @@ final class WhatsNewCatalogAction extends BaseAction
         if (! empty($rowPack)) {
             $rows[] = $rowPack;
         }
-        $rows[] = [['text' => '◀️ Перс', 'callback_data' => 'character']];
+        $rows[] = [['text' => '◀️ Я', 'callback_data' => 'character']];
 
         $imageRel = WhatsNewService::imageRelOrFallback('uploads/telegram/character/whatsnew/catalog.jpg');
 

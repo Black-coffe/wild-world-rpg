@@ -129,7 +129,7 @@ class FoldingKnifeCraft1Action extends BaseAction
 
             // Доп. кнопки (Персонаж, Инвентарь, Продать, Купить)
             $quantityRows[] = [
-                ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
             ];
             $quantityRows[] = [

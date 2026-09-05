@@ -163,13 +163,13 @@ class RunAwayAction extends BaseAction
             ? \App\Services\Telegram\NavKeyboards::whatNextWith([
                 [
                     ['text' => '🗺️ Поход',    'callback_data' => 'march'],
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ],
             ])
             : [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                        ['text' => '◀️ Я', 'callback_data' => 'character'],
                         ['text' => '🗺️ Поход', 'callback_data' => 'march'],
                     ],
                     [

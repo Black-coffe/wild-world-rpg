@@ -51,7 +51,7 @@ class BuyCraftConfirmAction extends BaseAction
                 'parse_mode'   => 'Markdown',
                 'reply_markup' => json_encode(['inline_keyboard' => [[
                     ['text' => '🛒 Магазин',   'callback_data' => 'shop'],
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ]]]),
             ]);
         }
@@ -76,7 +76,7 @@ class BuyCraftConfirmAction extends BaseAction
                 'parse_mode'   => 'Markdown',
                 'reply_markup' => json_encode(['inline_keyboard' => [[
                     ['text' => '🛍️ Купить крафт', 'callback_data' => 'buyCraft'],
-                    ['text' => '👨‍🎤 Персонаж',    'callback_data' => 'character'],
+                    ['text' => '◀️ Я',    'callback_data' => 'character'],
                 ]]]),
             ]);
         }
@@ -222,7 +222,7 @@ class BuyCraftConfirmAction extends BaseAction
             $keyboardButtons[] = ['text' => '⬅️ К списку', 'callback_data' => 'buyCraftList_' . $type];
         }
         $keyboardButtons[] = ['text' => '🛍️ Купить крафт', 'callback_data' => 'buyCraft'];
-        $keyboardButtons[] = ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'];
+        $keyboardButtons[] = ['text' => '◀️ Я', 'callback_data' => 'character'];
         $keyboardButtons[] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
         $keyboardButtons[] = ['text' => '🛒 Магазин', 'callback_data' => 'shop'];
 

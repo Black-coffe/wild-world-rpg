@@ -272,7 +272,7 @@ final class NpcDialogueAction extends BaseAction
                 ? [['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume']]
                 : [
                     ['text' => \App\Services\Telegram\BotMenuService::menuLabel('world'), 'callback_data' => 'move'],
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ],
         ]];
 

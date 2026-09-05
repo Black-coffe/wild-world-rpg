@@ -108,6 +108,7 @@ final class NavigationLabelsInTextsTest extends CIUnitTestCase
             ['sellCraft', '💰 Продать крафт'],
             ['PersonalInsurance', '🧍 Страховка'],
             ['craftInsuranceList', '📦 Крафт-страховка'],
+            ['character', '◀️ Я'],
         ];
     }
 
@@ -122,7 +123,7 @@ final class NavigationLabelsInTextsTest extends CIUnitTestCase
                 continue;
             }
             // Контекстные возвраты («◀️ Назад», «🔄 Обновить») дверью не считаются.
-            if (preg_match('~(Назад|назад|К списку|◀️|⬅️|🔙|Отмена|Обновить|ещё|Ещё)~u', $label) === 1) {
+            if (preg_match('~(Назад|назад|К списку|⬅️|🔙|Отмена|Обновить|ещё|Ещё|Завершить игру|Пройти мимо)~u', $label) === 1) {
                 continue;
             }
             $labels[$label] = true;

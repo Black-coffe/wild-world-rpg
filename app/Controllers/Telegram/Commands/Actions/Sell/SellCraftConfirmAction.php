@@ -229,7 +229,7 @@ class SellCraftConfirmAction extends BaseAction
         }
         $keyboardButtons[] = ['text' => '💰 Продать крафт', 'callback_data' => 'sellCraft'];
         $keyboardButtons[] = ['text' => '🛍️ Купить крафт', 'callback_data' => 'buyCraft'];
-        $keyboardButtons[] = ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'];
+        $keyboardButtons[] = ['text' => '◀️ Я', 'callback_data' => 'character'];
         $keyboardButtons[] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
 
         // Раскладка без «одиночек» в ряду: 5 кнопок → 3+2, 4 кнопки → 2+2.

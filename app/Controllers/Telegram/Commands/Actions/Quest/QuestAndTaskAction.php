@@ -114,7 +114,7 @@ class QuestAndTaskAction extends BaseAction
         ];
 
         $rows[] = [
-            ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+            ['text' => '◀️ Я', 'callback_data' => 'character'],
         ];
 
         return ['inline_keyboard' => $rows];

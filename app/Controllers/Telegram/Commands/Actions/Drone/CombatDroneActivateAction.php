@@ -133,7 +133,7 @@ final class CombatDroneActivateAction extends BaseAction
         }
 
         $keyboard = ['inline_keyboard' => [[
-            ['text' => '◀️ Перс', 'callback_data' => 'character'],
+            ['text' => '◀️ Я', 'callback_data' => 'character'],
             ['text' => '🏠 База', 'callback_data' => 'Base'],
         ]]];
 

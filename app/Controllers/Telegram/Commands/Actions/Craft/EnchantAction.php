@@ -48,7 +48,7 @@ final class EnchantAction extends BaseAction
         }
         if (! $this->modifiers->enabled()) {
             return $this->editText($chatId, "🔧 *Модернизация временно недоступна*\n\n_Раздел отключён администрацией._", [
-                [['text' => '◀️ Перс', 'callback_data' => 'character']],
+                [['text' => '◀️ Я', 'callback_data' => 'character']],
             ]);
         }
 
@@ -77,7 +77,7 @@ final class EnchantAction extends BaseAction
 
         if (empty($items)) {
             $text .= "У тебя нет экипированного оружия или брони. Надень снаряжение в разделе персонажа, чтобы усилить его.";
-            return $this->editText($chatId, $text, [[['text' => '◀️ Перс', 'callback_data' => 'character']]]);
+            return $this->editText($chatId, $text, [[['text' => '◀️ Я', 'callback_data' => 'character']]]);
         }
 
         $cap = $this->modifiers->effectiveCap($level);
@@ -96,7 +96,7 @@ final class EnchantAction extends BaseAction
             $itemButtons[] = ['text' => $label, 'callback_data' => "enchantSel_{$it['type']}_{$it['id']}"];
         }
         $rows = ButtonPacker::pack($itemButtons);
-        $rows[] = [['text' => '◀️ Перс', 'callback_data' => 'character']];
+        $rows[] = [['text' => '◀️ Я', 'callback_data' => 'character']];
 
         return $this->editText($chatId, $text, $rows);
     }
@@ -125,7 +125,7 @@ final class EnchantAction extends BaseAction
             $text .= "\n✅ Достигнут максимальный тир (+{$p['current']}%). Дальше усиливать нельзя.";
             return $this->editText($chatId, $text, [
                 [['text' => '◀️ К списку', 'callback_data' => 'enchant']],
-                [['text' => '◀️ Перс', 'callback_data' => 'character']],
+                [['text' => '◀️ Я', 'callback_data' => 'character']],
             ]);
         }
 
@@ -177,7 +177,7 @@ final class EnchantAction extends BaseAction
 
         return $this->editText($chatId, $text, [
             [['text' => '🔧 К списку', 'callback_data' => 'enchant']],
-            [['text' => '◀️ Перс', 'callback_data' => 'character']],
+            [['text' => '◀️ Я', 'callback_data' => 'character']],
         ]);
     }
 

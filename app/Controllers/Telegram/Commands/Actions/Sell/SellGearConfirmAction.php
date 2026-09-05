@@ -237,7 +237,7 @@ class SellGearConfirmAction extends BaseAction
         $buttons = [
             ['text' => '⬅️ К списку',      'callback_data' => $backCb],
             ['text' => '🛒 Магазин',        'callback_data' => 'shop'],
-            ['text' => '👨‍🎤 Персонаж',      'callback_data' => 'character'],
+            ['text' => '◀️ Я',      'callback_data' => 'character'],
             ['text' => '🎒 Инвентарь',      'callback_data' => 'inventory'],
         ];
         $keyboard = array_chunk($buttons, 2);

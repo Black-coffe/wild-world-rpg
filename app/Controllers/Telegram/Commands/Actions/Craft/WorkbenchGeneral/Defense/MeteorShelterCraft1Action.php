@@ -132,7 +132,7 @@ class MeteorShelterCraft1Action extends BaseAction
                 . ($levelRequired - $charLevel) . " ур.__";
             $keyboard = ['inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                     ['text' => '🎉 События', 'callback_data' => 'events'],
                 ],
                 $backRow,
@@ -141,7 +141,7 @@ class MeteorShelterCraft1Action extends BaseAction
             $text .= "__Недостаточно ресурсов, чтобы создать даже 1 шт.__";
             $keyboard = ['inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                 ],
                 [
@@ -156,7 +156,7 @@ class MeteorShelterCraft1Action extends BaseAction
         } else {
             $rows = array_chunk($this->getAvailableQuantityButtons($maxCraftableItems), 3);
             $rows[] = [
-                ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
             ];
             $rows[] = $backRow;

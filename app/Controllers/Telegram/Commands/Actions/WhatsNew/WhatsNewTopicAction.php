@@ -80,7 +80,7 @@ final class WhatsNewTopicAction extends BaseAction
 
         $keyboard = ['inline_keyboard' => [[
             ['text' => '◀️ К каталогу', 'callback_data' => 'whatsNewCatalog'],
-            ['text' => '👤 Перс',       'callback_data' => 'character'],
+            ['text' => '◀️ Я',       'callback_data' => 'character'],
         ]]];
 
         return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [

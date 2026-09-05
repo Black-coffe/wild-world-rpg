@@ -81,7 +81,7 @@ final class BaseDevelopmentAction extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => [
                 [['text' => '🏗 К базе', 'callback_data' => 'construction']],
-                [['text' => '◀️ Перс', 'callback_data' => 'character']],
+                [['text' => '◀️ Я', 'callback_data' => 'character']],
             ]]) ?: '{}',
         ]);
     }

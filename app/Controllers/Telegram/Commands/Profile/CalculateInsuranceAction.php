@@ -70,7 +70,7 @@ class CalculateInsuranceAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '🧍 Страховка', 'callback_data' => 'PersonalInsurance'],
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ],
             ],
         ];

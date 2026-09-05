@@ -104,7 +104,7 @@ final class PvpLadderAction extends BaseAction
         // E25 (ADR-124) — вход на «🏟 Арену» прямо из рейтинга (climb-the-ladder discoverability).
         $rowsKb[] = [
             ['text' => '🏟 Арена', 'callback_data' => 'arena'],
-            ['text' => '◀️ Перс', 'callback_data' => 'character'],
+            ['text' => '◀️ Я', 'callback_data' => 'character'],
         ];
 
         return MediaSender::editTextOrSend($this->navTarget() + [

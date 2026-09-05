@@ -191,7 +191,7 @@ class OnboardingChainCatalog
                     'reply_markup' => json_encode([
                         'inline_keyboard' => [[
                             ['text' => '🚀 Активные квесты', 'callback_data' => 'activeQuests'],
-                            ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                            ['text' => '◀️ Я', 'callback_data' => 'character'],
                         ]],
                     ], JSON_THROW_ON_ERROR),
                 ];

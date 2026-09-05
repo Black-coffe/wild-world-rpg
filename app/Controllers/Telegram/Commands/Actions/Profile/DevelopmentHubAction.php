@@ -48,7 +48,7 @@ final class DevelopmentHubAction extends BaseAction
                 $rows[] = array_slice($buttons, $i, 2);
             }
         }
-        $rows[] = [['text' => '◀️ Перс', 'callback_data' => 'character']];
+        $rows[] = [['text' => '◀️ Я', 'callback_data' => 'character']];
 
         return MediaSender::editTextOrSend($this->navTarget() + [
             'chat_id'      => $chatId,

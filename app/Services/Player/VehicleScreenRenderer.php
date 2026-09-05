@@ -50,7 +50,7 @@ final class VehicleScreenRenderer
             $name  = $item['name'];
             $buttons[] = ['text' => trim("▶️ {$icon} {$name}"), 'callback_data' => "vehicleActivate_{$logId}"];
         }
-        $buttons[] = ['text' => '👤 Персонаж', 'callback_data' => 'character'];
+        $buttons[] = ['text' => '◀️ Я', 'callback_data' => 'character'];
 
         return ['text' => $text, 'buttons' => self::packButtons($buttons)];
     }
@@ -69,7 +69,7 @@ final class VehicleScreenRenderer
 
         $buttons = [
             ['text' => '🚚 Мой транспорт', 'callback_data' => 'vehicleScreen'],
-            ['text' => '👤 Персонаж', 'callback_data' => 'character'],
+            ['text' => '◀️ Я', 'callback_data' => 'character'],
         ];
 
         return ['text' => $text, 'buttons' => self::packButtons($buttons)];

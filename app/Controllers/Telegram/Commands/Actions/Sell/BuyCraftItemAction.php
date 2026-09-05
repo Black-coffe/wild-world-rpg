@@ -45,7 +45,7 @@ class BuyCraftItemAction extends BaseAction
                 'parse_mode'   => 'Markdown',
                 'reply_markup' => json_encode(['inline_keyboard' => [[
                     ['text' => '🛒 Магазин',   'callback_data' => 'shop'],
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ]]]),
             ]);
         }

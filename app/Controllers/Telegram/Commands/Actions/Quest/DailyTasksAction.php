@@ -134,7 +134,7 @@ final class DailyTasksAction extends BaseAction
                 ],
                 [
                     ['text' => '🚀 Активные квесты', 'callback_data' => 'activeQuests'],
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ],
             ],
         ];

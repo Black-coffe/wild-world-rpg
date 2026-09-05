@@ -348,7 +348,7 @@ class WeaponPipeGun2Action extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь',  'callback_data' => 'inventory']
                 ]
             ]

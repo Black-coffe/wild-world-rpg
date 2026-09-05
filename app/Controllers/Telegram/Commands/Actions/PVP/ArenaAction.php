@@ -81,7 +81,7 @@ final class ArenaAction extends BaseAction
 
         $rows[] = [
             ['text' => '🏆 Рейтинг PvP', 'callback_data' => 'pvpLadder'],
-            ['text' => '◀️ Перс', 'callback_data' => 'character'],
+            ['text' => '◀️ Я', 'callback_data' => 'character'],
         ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);

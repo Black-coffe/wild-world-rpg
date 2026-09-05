@@ -85,7 +85,7 @@ class SellCraftAction extends BaseAction
                     'inline_keyboard' => [
                         [
                             ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                            ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                            ['text' => '◀️ Я', 'callback_data' => 'character'],
                         ],
                     ],
                 ]),
@@ -108,7 +108,7 @@ class SellCraftAction extends BaseAction
         }
 
         // Добавим кнопки персонаж / инвентарь
-        $keyboardButtons[] = ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'];
+        $keyboardButtons[] = ['text' => '◀️ Я', 'callback_data' => 'character'];
         $keyboardButtons[] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
 
         $keyboard = array_chunk($keyboardButtons, 2);

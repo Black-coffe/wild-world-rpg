@@ -110,7 +110,7 @@ class BasicMedKitCraft1Action extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                        ['text' => '◀️ Я', 'callback_data' => 'character'],
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                     ],
                     [
@@ -133,7 +133,7 @@ class BasicMedKitCraft1Action extends BaseAction
 
             // Добавим финальный ряд (Персонаж, Инвентарь, и т.д.)
             $quantityRows[] = [
-                ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
             ];
             $quantityRows[] = [

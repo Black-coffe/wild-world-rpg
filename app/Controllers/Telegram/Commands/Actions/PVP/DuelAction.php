@@ -154,7 +154,7 @@ final class DuelAction extends BaseAction
         $this->notifyDefender($defender, $text);
 
         $row = [
-            ['text' => '◀️ Перс', 'callback_data' => 'character'],
+            ['text' => '◀️ Я', 'callback_data' => 'character'],
             ['text' => \App\Services\Telegram\BotMenuService::menuLabel('world'), 'callback_data' => 'move'],
         ];
         // W18 (ADR-072): «🏆 Рейтинг» только при активном ладдере (dormant — скрыта).

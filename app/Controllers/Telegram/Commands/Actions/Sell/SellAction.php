@@ -68,7 +68,7 @@ class SellAction extends BaseAction
             ],
             [
                 ['text' => '🔟 редкость', 'callback_data' => 'sellResource_rarity_10'],
-                ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
             ],
         ];

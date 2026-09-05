@@ -103,7 +103,7 @@ class PainReliefPowerCraft1Action extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                        ['text' => '◀️ Я', 'callback_data' => 'character'],
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                     ],
                     [
@@ -127,7 +127,7 @@ class PainReliefPowerCraft1Action extends BaseAction
 
             // Добавляем стандартные кнопки (Инвентарь, Продать, Купить)
             $quantityRows[] = [
-                ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
             ];
             $quantityRows[] = [

@@ -182,7 +182,7 @@ class ReferralService
         $reply = json_encode([
             'inline_keyboard' => [
                 [['text' => '📤 Поделиться ссылкой', 'url' => $shareUrl]],
-                [['text' => '⬅️ К персонажу', 'callback_data' => 'character']],
+                [['text' => '◀️ Я', 'callback_data' => 'character']],
             ],
         ]);
 

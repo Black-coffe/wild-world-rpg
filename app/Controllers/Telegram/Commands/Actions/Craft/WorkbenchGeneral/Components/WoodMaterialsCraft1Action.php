@@ -109,7 +109,7 @@ class WoodMaterialsCraft1Action extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж',  'callback_data' => 'character'],
+                        ['text' => '◀️ Я',  'callback_data' => 'character'],
                         ['text' => '🎒 Инвентарь',  'callback_data' => 'inventory'],
                     ],
                     [
@@ -127,7 +127,7 @@ class WoodMaterialsCraft1Action extends BaseAction
         } else {
             // Добавим «служебные» кнопки ниже основных
             $keyboardButtons[] = [
-                ['text' => '👨‍🎤 Персонаж',  'callback_data' => 'character'],
+                ['text' => '◀️ Я',  'callback_data' => 'character'],
                 ['text' => '🎒 Инвентарь',  'callback_data' => 'inventory'],
             ];
             $keyboardButtons[] = [['text' => '⬅️ Назад', 'callback_data' => 'componentsCraft']];

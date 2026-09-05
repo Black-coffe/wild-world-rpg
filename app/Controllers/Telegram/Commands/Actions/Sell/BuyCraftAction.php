@@ -37,7 +37,7 @@ class BuyCraftAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ],
             ],
         ]);
@@ -94,7 +94,7 @@ class BuyCraftAction extends BaseAction
         }
 
         // Дополнительные кнопки
-        $keyboardButtons[] = ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'];
+        $keyboardButtons[] = ['text' => '◀️ Я', 'callback_data' => 'character'];
         $keyboardButtons[] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
 
         $keyboard = array_chunk($keyboardButtons, 2);

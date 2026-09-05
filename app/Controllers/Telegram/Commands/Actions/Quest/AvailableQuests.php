@@ -165,7 +165,7 @@ class AvailableQuests extends BaseAction
         // Add standard buttons
         $keyboard['inline_keyboard'][] = [
             ['text' => '📜 Квесты и задания', 'callback_data' => 'questAndTask'],
-            ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+            ['text' => '◀️ Я', 'callback_data' => 'character'],
         ];
 
         return $keyboard;

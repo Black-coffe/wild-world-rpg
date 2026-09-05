@@ -212,13 +212,13 @@ class WorkbenchProfessionalAction extends BaseAction
             ? [
                 [['text' => '🛠️ Крафтить', 'callback_data' => 'genericCraft_ProfessionalWorkbench_1']],
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь',   'callback_data' => 'inventory'],
                 ],
             ]
             : [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь',   'callback_data' => 'inventory'],
                 ],
                 [
@@ -277,7 +277,7 @@ class WorkbenchProfessionalAction extends BaseAction
                     ['text' => '📋 Очередь крафта', 'callback_data' => 'craftQueue'],
                 ],
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь',  'callback_data' => 'inventory'],
                 ],
             ],

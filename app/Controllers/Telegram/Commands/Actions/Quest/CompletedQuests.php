@@ -54,7 +54,7 @@ class CompletedQuests extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '📜 Квесты и задания', 'callback_data' => 'questAndTask'],
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ]
             ]
         ];

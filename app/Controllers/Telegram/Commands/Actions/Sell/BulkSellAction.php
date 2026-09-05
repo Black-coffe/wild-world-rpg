@@ -175,7 +175,7 @@ class BulkSellAction extends BaseAction
                 ['text' => '🛍️ Купить',      'callback_data' => 'buy'],
             ],
             [
-                ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ['text' => '◀️ Я', 'callback_data' => 'character'],
                 ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
             ],
         ]);
