@@ -39,7 +39,10 @@ handoff-документа, и — главное — та же директор
 **Апгрейд 0.11.0 (2026-09-05):** сценарий повторился ровно как описано — `handoff.py` и `handoff.sh`
 вернулись (в `settings.json` при этом не прописались), удалены снова; `.claude/commands/vulyk-handoff.md`
 поставка перезаписала своей версией (`bash .claude/hooks/handoff.sh dump`) — восстановлена наша.
-Ничего, кроме этих трёх файлов и двух абзацев конституции (§6), доводить руками не пришлось.
+Кроме них откатились блоки «Project path binding» в `.claude/agents/lead-architect.md` и
+`drone-docs.md` — восстановлены (первый прогон их пропустил: `git log` по этим путям показывает
+только установочный коммит, потому что правка была сделана в нём же; проверять надо grep'ом из
+таблицы §6, а не историей). Остальное — §9 и §10.
 
 > Правка внутри рамки: `.claude/commands/vulyk-handoff.md`.
 
@@ -160,6 +163,7 @@ git check-ignore -v .claude/admin-credentials.local.md .claude/settings.local.js
 | `.claude/commands/vulyk-handoff.md` | вызов глобального `context_guard.py` вместо удалённого `handoff.sh` | `grep -L context_guard .claude/commands/vulyk-handoff.md` |
 | `.claude/agents/lead-architect.md` | блок «Project path binding» — ADR пишутся в `mmorpg-vault/decisions/` | `grep -L "Project path binding" .claude/agents/lead-architect.md` |
 | `.claude/agents/drone-docs.md` | блок «Project path binding» — ноты пишутся в `mmorpg-vault/tech-writing/` | `grep -L "Project path binding" .claude/agents/drone-docs.md` |
+| `scripts/ship-check.sh`, `scripts/human-check.sh` | `paperwork_only()` знает про леджеры улья (§10) | `grep -c "memory/learnings" scripts/*-check.sh` |
 
 Одной командой — что откатилось:
 
@@ -168,6 +172,7 @@ grep -L "Project path binding" .claude/agents/lead-architect.md .claude/agents/d
 grep -L "context_guard"       .claude/commands/vulyk-handoff.md
 ls .claude/hooks/handoff.*        # должно быть пусто
 grep -c "handoff.sh" .claude/settings.json   # должно быть 0
+grep -c "memory/learnings" scripts/ship-check.sh scripts/human-check.sh   # по 1 в каждом
 ```
 
 Пустой вывод первых двух и отсутствие `handoff.*` = апгрейд ничего не сломал.
@@ -211,7 +216,7 @@ ls .claude/rules/example-api.md                   # должно отсутст�
 
 ---
 
-## 6. Что доведено руками в апгрейде 0.11.0
+## 9. Что доведено руками в апгрейде 0.11.0
 
 Релиз 0.11.0 достроил цикл до шести стадий (`spec → plan → code → tests → **human** → **ship**`):
 появились `/vulyk-ship`, `scripts/ship-check.sh`, `scripts/human-check.sh`, ветка `vulyk/<slug>`
@@ -236,7 +241,7 @@ ls .claude/rules/example-api.md                   # должно отсутст�
 
 ---
 
-## 7. `paperwork_only()` в гейтах цикла знает про леджеры улья
+## 10. `paperwork_only()` в гейтах цикла знает про леджеры улья
 
 **Что.** В `scripts/ship-check.sh` и `scripts/human-check.sh` одна и та же функция
 `paperwork_only()` перечисляет пути, изменение которых **не** считается изменением софта.

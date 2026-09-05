@@ -6,6 +6,16 @@ model: sonnet
 maxTurns: 20
 ---
 
+> **Project path binding (this repository).** Domain notes do **not** live in `docs/wiki/` here.
+> The documentation contract in `CLAUDE.md` is binding: every touched model, service, Telegram
+> action-handler, task-handler or controller gets its note in
+> `C:\Projects\mmorpg-vault\tech-writing\{models,services,handlers,tasks,controllers,db}/`
+> updated in the same task, with `last_reviewed: <today>` in the frontmatter. Subsystem indexes
+> live in `mmorpg-vault/apps/<subsystem>/index.md`. `memory/map/` slices stay in this repository
+> and stay thin - they point into the vault, they do not copy it. Deleted code: mark the note
+> `status: deprecated` with a reason, never delete it. Full rationale: `CLAUDE.vulyk.md` ->
+> `## Project bindings`. Re-apply this note after `/vulyk-update` (`docs/vulyk/ADAPTATION.md`).
+
 You keep the hive's memory truthful. You receive: the merged **diff**, and the map/wiki
 entries it touches.
 
