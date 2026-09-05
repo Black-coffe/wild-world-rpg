@@ -326,10 +326,10 @@ class CharacterService
         // «⚙️ Развитие» (специализация/проект фракции/дрон/модернизация). Каждый — только если
         // в группе есть включённые фичи.
         if (\App\Services\Player\ProfileHubService::progressButtons() !== []) {
-            $tailFlat[] = ['text' => '📊 Прогресс', 'callback_data' => 'progressHub'];
+            $tailFlat[] = ['text' => \App\Services\Player\ProfileHubService::HUB_PROGRESS_LABEL, 'callback_data' => 'progressHub'];
         }
         if (\App\Services\Player\ProfileHubService::developmentButtons($charId, $level) !== []) {
-            $tailFlat[] = ['text' => '⚙️ Развитие', 'callback_data' => 'developmentHub'];
+            $tailFlat[] = ['text' => \App\Services\Player\ProfileHubService::HUB_DEVELOPMENT_LABEL, 'callback_data' => 'developmentHub'];
         }
 
         // ADR-135 — «⚖️ Трофейная подать»: вход виден ТОЛЬКО когда механика включена И у игрока

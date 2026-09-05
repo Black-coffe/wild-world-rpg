@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Services\Player\Progression;
 
+use App\Services\Player\ProfileHubService;
 use App\Services\Player\Progression\LevelUnlockService;
 use CodeIgniter\Test\CIUnitTestCase;
 
@@ -68,6 +69,30 @@ final class LevelUnlockServiceTest extends CIUnitTestCase
             '🎁 *На 5-м уровне:* 16 рецептов, выбор специализации крафта',
             $svc->summaryFor(5)
         );
+    }
+
+    /**
+     * Инцидент 2026-09-05: веха обещала «выбор специализации крафта», не сказав, куда нажимать,
+     * а кнопка живёт внутри хаба «⚙️ Развитие». Гейтим сам факт адреса и то, что метка хаба
+     * берётся из единого источника (иначе следующая перекладка карточки снова разведёт текст
+     * с интерфейсом молча).
+     */
+    public function testSpecializationGateCarriesItsUiPath(): void
+    {
+        $svc    = new FakeLevelUnlockService();
+        $suffix = $svc->exposeGatePathSuffix('specialization.min_level');
+
+        $this->assertStringContainsString(ProfileHubService::HUB_DEVELOPMENT_LABEL, $suffix);
+        $this->assertStringContainsString('→', $suffix);
+        $this->assertStringStartsWith(' (', $suffix);
+    }
+
+    public function testGatesWithoutKnownPathStayBare(): void
+    {
+        $svc = new FakeLevelUnlockService();
+
+        $this->assertSame('', $svc->exposeGatePathSuffix('oracle.min_level'));
+        $this->assertSame('', $svc->exposeGatePathSuffix('collections.min_level'));
     }
 
     public function testEmptyLevelSaysNothingInsteadOfInventingReward(): void
@@ -148,5 +173,11 @@ final class FakeLevelUnlockService extends LevelUnlockService
     protected function systemGatesFor(int $level): array
     {
         return $this->gates;
+    }
+
+    /** Пробрасываем protected-хелпер: адрес вехи в интерфейсе проверяется напрямую. */
+    public function exposeGatePathSuffix(string $key): string
+    {
+        return $this->gatePathSuffix($key);
     }
 }

@@ -6,6 +6,7 @@ namespace Tests\Unit\Services\Onboarding;
 
 use App\Services\Onboarding\GuideCatalog;
 use App\Services\Onboarding\GuideService;
+use App\Services\Player\ProfileHubService;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
@@ -52,6 +53,19 @@ final class GuideCatalogTest extends CIUnitTestCase
                 'Раздел справочника должен содержать только текстовые поля — никаких наград/выдачи.'
             );
         }
+    }
+
+    /**
+     * Инцидент 2026-09-05: справочник не имел раздела про специализацию вовсе, а совет звал
+     * по пути без хаба «⚙️ Развитие». Гейтим и наличие раздела, и то, что путь в нём назван
+     * живой меткой хаба, а не хардкодом.
+     */
+    public function testSpecializationSectionNamesItsHubPath(): void
+    {
+        $sections = array_column(GuideCatalog::sections(), 'body', 'key');
+
+        $this->assertArrayHasKey('spec', $sections, 'В справочнике обязан быть раздел про специализацию крафта.');
+        $this->assertStringContainsString(ProfileHubService::HUB_DEVELOPMENT_LABEL, $sections['spec']);
     }
 
     public function testSectionKeysAreUnique(): void

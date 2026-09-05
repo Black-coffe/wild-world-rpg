@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services\Player\Progression;
 
 use App\Services\Buildings\BuildingGateService;
+use App\Services\Player\ProfileHubService;
+use App\Services\Telegram\BotMenuService;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use CodeIgniter\Database\ResultInterface;
 use Config\Database;
@@ -195,7 +197,7 @@ class LevelUnlockService
         $labels = [];
         foreach (self::SYSTEM_GATES as $key => [$label, $default]) {
             if ($this->gsInt($key, $default) === $level) {
-                $labels[] = $label;
+                $labels[] = $label . $this->gatePathSuffix($key);
             }
         }
 
@@ -207,6 +209,31 @@ class LevelUnlockService
 
         return $labels;
     }
+
+    /**
+     * Адрес вехи в интерфейсе — « (путь)» или пустая строка.
+     *
+     * Зачем (инцидент 2026-09-05): строка левелапа честно обещала «выбор специализации
+     * крафта», но НЕ говорила, куда нажимать, а кнопка живёт на два тапа вглубь — внутри
+     * хаба «⚙️ Развитие» карточки Перса. Игрок L5+ дорос до вехи, прочитал обещание и
+     * пришёл спрашивать в чат; на проде 55 персонажей из 78 уровня 5+ ветку так и не
+     * выбрали. Обещание без пути — то же самое, что невидимая фича (memory
+     * feedback_announcement_explain_how_to_reach).
+     *
+     * Метки берём из живых источников ({@see BotMenuService::menuLabel()},
+     * {@see ProfileHubService::HUB_DEVELOPMENT_LABEL}), а не хардкодим: каркас меню
+     * меняется килсвитчами, и захардкоженный путь превращается в ложь молча.
+     */
+    protected function gatePathSuffix(string $key): string
+    {
+        $path = match ($key) {
+            'specialization.min_level' => BotMenuService::menuLabel('me') . ' → ' . ProfileHubService::HUB_DEVELOPMENT_LABEL,
+            default                    => '',
+        };
+
+        return $path === '' ? '' : ' (' . $path . ')';
+    }
+
 
     /** Сбрасывает процесс-кеш (нужен тестам и админ-правкам порогов в одном процессе). */
     public static function resetCache(): void
