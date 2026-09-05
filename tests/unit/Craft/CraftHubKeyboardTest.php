@@ -87,6 +87,9 @@ final class CraftHubKeyboardTest extends CIUnitTestCase
         // Перекладка рядов не имеет права терять кнопки: пропавшая дверь — это
         // невидимая фича, а не косметика раскладки.
         $this->assertContains('🔨 Общий крафт', $labels);
+        // Полка уже скрафченного: до 2026-09-05 входа из Крафта не было вовсе,
+        // и хинт про транспорт звал в несуществующую дверь.
+        $this->assertContains('🔨 Крафтовые ресурсы', $labels);
         $this->assertContains('🔬 Верстаки', $labels);
         $this->assertContains(
             $workbench ? '🛠️ Профессиональный крафт' : '🔒 Проф. крафт',

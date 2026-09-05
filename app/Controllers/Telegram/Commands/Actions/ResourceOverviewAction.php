@@ -74,7 +74,7 @@ final class ResourceOverviewAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '🎒 Добытые ресурсы', 'callback_data' => 'resourcesGathered'],
-                    ['text' => '🔨 Крафтовые', 'callback_data' => 'resourcesCrafting'],
+                    ['text' => '🔨 Крафтовые ресурсы', 'callback_data' => 'resourcesCrafting'],
                 ],
                 [
                     ['text' => '📦 Склад базы', 'callback_data' => 'baseStorageList'],

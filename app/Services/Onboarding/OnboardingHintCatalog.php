@@ -337,7 +337,7 @@ class OnboardingHintCatalog
                     . "*«🚚 Мой транспорт»*.",
                 'reply_markup' => json_encode([
                     'inline_keyboard' => [[
-                        ['text' => '🚚 Транспорт', 'callback_data' => 'resourcesCrafting'],
+                        ['text' => '🔨 Крафтовые ресурсы', 'callback_data' => 'resourcesCrafting'],
                     ]],
                 ], JSON_THROW_ON_ERROR),
             ],
