@@ -92,10 +92,10 @@ final class ProfileHubService
         }
         if ((new FactionProjectService())->enabled()) {
             if (self::hasChosenFaction($characterId)) {
-                $b[] = ['text' => '🤝 Проект фракции', 'callback_data' => 'factionProject'];
+                $b[] = ['text' => FactionProjectService::BUTTON_LABEL, 'callback_data' => 'factionProject'];
             } else {
                 $lockHint = $level >= 10 ? 'выбери фракцию' : 'с lvl 10';
-                $b[] = ['text' => "🔒 Проект фракции ({$lockHint})", 'callback_data' => 'factionProjectLocked'];
+                $b[] = ['text' => "🔒 " . FactionProjectService::BUTTON_LABEL . " ({$lockHint})", 'callback_data' => 'factionProjectLocked'];
             }
         }
         if ((new DroneService())->combatIsEnabled()) {

@@ -205,7 +205,7 @@ class MoreSurfaceService
 
         if ($s['factionChosen']) {
             $buttons[] = $s['factionProject']
-                ? ['text' => '💎 Проект фракции', 'callback_data' => 'factionProject']
+                ? ['text' => \App\Services\Player\FactionProjectService::BUTTON_LABEL, 'callback_data' => 'factionProject']
                 : ['text' => '⚑ Моя фракция', 'callback_data' => 'chooseFaction_info'];
         } elseif ($s['level'] >= 10) {
             $buttons[] = ['text' => '⚑ Выбрать фракцию', 'callback_data' => 'chooseFaction_info'];

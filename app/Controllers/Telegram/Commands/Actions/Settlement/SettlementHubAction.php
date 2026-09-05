@@ -41,7 +41,7 @@ final class SettlementHubAction extends BaseAction
         'repair'      => ['🔧 Ремонт', 'repairToolsList'],
         'blackmarket' => ['🖤 Чёрный рынок', 'sell'],          // Фаза 2 — Логово (тёмная торговля)
         'casino'      => ['🎰 Казино', 'entertainment'],       // Фаза 2 — Логово (азартные игры)
-        'project'     => ['💎 Проект фракции', 'factionProject'], // Фаза 3 — оплот (factionProject сам гейтит)
+        'project'     => [\App\Services\Player\FactionProjectService::BUTTON_LABEL, 'factionProject'], // Фаза 3 — оплот (factionProject сам гейтит)
         'ruinloot'    => ['💀 Обыскать руины', 'ruinLoot'],     // Фаза 4 — руины (повторяемый лут по кулдауну)
         'anomalyloot' => ['🔬 Исследовать аномалию', 'anomalyLoot'], // E16 Ф2 — поясная аномалия (лут по кулдауну)
     ];

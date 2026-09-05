@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Content;
 
 use App\Services\Onboarding\GuideCatalog;
+use App\Services\Player\FactionProjectService;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
@@ -32,7 +33,41 @@ final class NavigationLabelsInTextsTest extends CIUnitTestCase
         '🚁 Ангар'            => 'живая кнопка — «🤖 Ангар»',
         '🏭 Ангар'            => 'живая кнопка — «🤖 Ангар»',
         '🛠 Крафт'            => 'нижняя кнопка — «🔨 Крафт» (брать из BotMenuService::menuLabel)',
+        '💎 Проект фракции'   => 'канон — «🤝 Проект фракции» (FactionProjectService::BUTTON_LABEL)',
+        '🏗 Проект фракции'   => 'канон — «🤝 Проект фракции» (FactionProjectService::BUTTON_LABEL)',
     ];
+
+    /**
+     * Одна дверь — одна подпись. У проекта фракции их было четыре («🤝» в хабе Развития и в
+     * шапке экрана, «💎» в «⚙️ Ещё» и в оплоте, «🏗» в /guide): игрок ищет кнопку глазами по
+     * эмодзи, поэтому разнобой читается как разные фичи. Гейтим то, что все живые точки входа
+     * берут подпись из одной константы, а сама она совпадает с шапкой экрана за кнопкой.
+     */
+    public function testFactionProjectDoorHasOneLabelEverywhere(): void
+    {
+        $label = FactionProjectService::BUTTON_LABEL;
+        $this->assertStringStartsWith('🤝', $label, 'Канон подписи — «🤝»: как у шапки экрана проекта.');
+
+        $renderers = [
+            APPPATH . 'Services/Player/ProfileHubService.php',
+            APPPATH . 'Services/More/MoreSurfaceService.php',
+            APPPATH . 'Controllers/Telegram/Commands/Actions/Settlement/SettlementHubAction.php',
+        ];
+
+        foreach ($renderers as $file) {
+            $source = (string) file_get_contents($file);
+            $this->assertStringContainsString(
+                'FactionProjectService::BUTTON_LABEL',
+                $source,
+                basename($file) . ' обязан брать подпись проекта фракции из константы, а не хардкодить эмодзи.'
+            );
+            $this->assertStringNotContainsString(
+                "'💎 Проект фракции'",
+                $source,
+                basename($file) . ' всё ещё несёт хардкод «💎 Проект фракции».'
+            );
+        }
+    }
 
     public function testGuideCatalogNamesOnlyLivingButtons(): void
     {
