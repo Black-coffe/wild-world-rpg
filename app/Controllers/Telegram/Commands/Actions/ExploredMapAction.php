@@ -73,7 +73,7 @@ final class ExploredMapAction extends BaseAction
                 ['text' => '🗺 Обзор', 'callback_data' => 'mapOverview'],
             ],
             [
-                ['text' => '🚁 Мои дроны', 'callback_data' => 'droneScoutList'],
+                ['text' => '🚁 Дроны', 'callback_data' => 'droneScoutList'],
             ],
         ]]);
 

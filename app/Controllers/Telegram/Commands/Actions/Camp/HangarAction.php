@@ -122,7 +122,7 @@ final class HangarAction extends BaseAction
 
         $droneButtons = [];
         if ($service->isEnabled()) {
-            $droneButtons[] = ['text' => '🚁 Мои дроны', 'callback_data' => 'droneScoutList'];
+            $droneButtons[] = ['text' => '🚁 Дроны', 'callback_data' => 'droneScoutList'];
         }
         if ($service->cargoIsEnabled()) {
             $droneButtons[] = ['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList'];

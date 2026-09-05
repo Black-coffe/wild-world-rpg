@@ -177,7 +177,7 @@ final class DroneDoorOnCompassTest extends CIUnitTestCase
         $button = $this->findDroneButton($rows);
         $this->assertNotNull($button);
         $this->assertSame('droneScoutList', $button['callback_data']);
-        $this->assertSame('🚁 Дрон', $button['text']);
+        $this->assertSame('🚁 Дроны', $button['text']);
     }
 
     public function testKillswitchOnDroneQuantityZeroNoButton(): void

@@ -206,7 +206,7 @@ class MoveSurfaceService
                         ->where('quantity >', 0)
                         ->first();
                     if ($hasDrone) {
-                        $worldRow[] = ['text' => '🚁 Мои дроны', 'callback_data' => 'droneScoutList'];
+                        $worldRow[] = ['text' => '🚁 Дроны', 'callback_data' => 'droneScoutList'];
                     }
                 }
             }

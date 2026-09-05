@@ -102,7 +102,7 @@ final class NavigationLabelsInTextsTest extends CIUnitTestCase
             ['baseStorageList', '📦 Склад базы'],
             ['cargoDroneList', '🚚 Карго-дрон'],
             ['combatDroneList', '🛡 Боевой дрон'],
-            ['droneScoutList', '🚁 Мои дроны'],
+            ['droneScoutList', '🚁 Дроны'],
             ['pvpLadder', '🏆 Рейтинг PvP'],
             ['repairToolsList', '🪛 Ремонт инструментов'],
             ['sellCraft', '💰 Продать крафт'],
