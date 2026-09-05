@@ -1,7 +1,7 @@
 {
   "vulyk-plan": {
-    "count": 1,
-    "last_used": "2026-08-19"
+    "count": 2,
+    "last_used": "2026-09-02"
   },
   "google-mcp-browser": {
     "count": 2,
@@ -12,7 +12,15 @@
     "last_used": "2026-08-19"
   },
   "handoff": {
+    "count": 3,
+    "last_used": "2026-09-04"
+  },
+  "vulyk-build": {
     "count": 1,
-    "last_used": "2026-08-26"
+    "last_used": "2026-09-02"
+  },
+  "vulyk-review": {
+    "count": 1,
+    "last_used": "2026-09-02"
   }
 }
