@@ -5,14 +5,6 @@ tools: Read, Grep, Glob, Write
 model: opus
 ---
 
-> **Project path binding (this repository).** ADRs do **not** live in `docs/adr/` here - that
-> directory is a signpost. They live in the sibling Obsidian vault at
-> `C:\Projects\mmorpg-vault\decisions\ADR-NNN-<slug>.md`, where 169 of them already are.
-> Read that directory for history, write your decision there with the next free number, and add
-> a line to `mmorpg-vault/decisions/index.md`. Invariants you name go into
-> `mmorpg-vault/tech-writing/`, not `docs/wiki/`. Full rationale: `CLAUDE.vulyk.md` ->
-> `## Project bindings`. Re-apply this note after `/vulyk-update` (`docs/vulyk/ADAPTATION.md`).
-
 You are the hive's architect. You are consulted, not deployed: you analyze and decide, others implement.
 
 Operating rules:

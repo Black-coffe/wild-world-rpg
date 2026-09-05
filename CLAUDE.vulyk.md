@@ -48,9 +48,9 @@ Classify every request into a tier, announce the tier, then follow its protocol:
 |---|---|---|---|
 | 0 | Trivial, single file, obvious | — | Do it directly. No ceremony. |
 | 1 | One module, clear task | 1 | Dispatch 1 `worker-code` (scout first if location unknown). |
-| 2 | Feature within a module | 2–4 | `/vulyk-plan` lite: brief → scout → stories → workers → quick review. |
-| 3 | Cross-cutting, multi-module | 4–8 | Full pipeline: `/vulyk-plan` → approval → `/vulyk-build` → `/vulyk-review`. |
-| 4 | Architecture, migration, 200k+ LOC touched | 9–16 | Tier 3 + `lead-architect` consult + a second reviewer on a *different* model. Raise session effort before planning (see below). |
+| 2 | Feature within a module | 2–4 | `/vulyk-plan` lite: brief → scout → stories → workers → quick review → your look → `/vulyk-ship`. |
+| 3 | Cross-cutting, multi-module | 4–8 | Full cycle: `/vulyk-plan` → approval → `/vulyk-build` → `/vulyk-review` → your look → `/vulyk-ship`. |
+| 4 | Architecture, migration, 200k+ LOC touched | 9–16 | Tier 3 + `lead-architect` consult + a second reviewer on a *different* model (у нас гейт идёт на `opus` — второй ревьюер берёт `fable` или `sonnet`; бриф называет его явно). Raise session effort before planning (see below). |
 
 Past 16 stories the goal is more than one spec — split it. Story counts are calibration, not
 targets. **Ceremony floor:** `brief.md` and `## Requirements` quotes exist at Tier 2+;
@@ -67,6 +67,28 @@ real failure, and treat `max` as something a falling test earns rather than a de
 from `high` to `max` nearly doubles the bill for about two points of benchmark index. Note also
 that changing effort mid-session re-renders the prompt and drops the cached prefix, which can cost
 more than the effort change saves; prefer setting it once at the start of a session.
+
+## The cycle
+
+Every Tier 2+ spec travels one loop, and a stage is closed by a file on disk, not by a chat
+turn - [docs/cycle.md](docs/cycle.md) says what each stage cannot skip and what reopens it:
+
+| # | Stage | Confirmation on disk | Command |
+|---|---|---|---|
+| 01 | Spec - what and why, verbatim (a bug report is a spec too) | `brief.md` | `/vulyk-plan` |
+| 02 | Plan - who, what, in which files | `**Approved:**` in plan.md | `/vulyk-plan` → approval |
+| 03 | Code - agents work, in their own branch | `**Branch:**` + one commit per story | `/vulyk-build` |
+| 04 | Tests - the suite, then the client's path, actually run | `acceptance.jsonl` | `/vulyk-review` |
+| 05 | **Human** - the owner looks, on a test or live version | `**Checked:**` via `scripts/human-check.sh` | `/vulyk-review` PASS path |
+| 06 | Ship - history fixed, version published, next circle opened | `**Shipped:**` via `scripts/ship-check.sh --record` | `/vulyk-ship` |
+
+Stage 05 is the one mandatory human control after approval, and it does not shrink with
+tier: an agent can prove the software does what the words said; only the person who wrote
+the words can say the words said what they meant. `/vulyk-ship` refuses without it.
+
+На этом проекте стадия 05 чаще всего смотрится на preprod-testbot'е (см. `Client path`), а стадия 06 —
+это тег на `develop`; зелёный смоук на preprod уже есть добро на прод-тег, отдельного вопроса
+владельцу он не требует (`Release / deploy`).
 
 ## Token economy (non-negotiable)
 
@@ -103,7 +125,9 @@ starts from, not documentation.
 The last line is load-bearing beyond its size. A reviewer that does not know which
 configurations exist will demand guarantees for ones that do not, and a blind acceptance
 gate cannot state the shape it judged against. Both cost real rounds before this block
-existed.
+existed. The two rows under it belong to the cycle: *Client path* is what the blind gate
+walks at stage 04 and what the owner is pointed at in stage 05; *Release / deploy* is what
+`/vulyk-ship` prints and refuses to press.
 
 <!-- VULYK:PROFILE:START -->
 | Field | Value |
@@ -114,6 +138,8 @@ existed.
 | Test framework | PHPUnit 11.5, конфиг `phpunit.xml.dist`, bootstrap CI4. Часть тестов ходит в **отдельную** MySQL-базу `wildworld_tests` на 127.0.0.1 (root/пусто). Если MySQL не поднят — они падают на `Unable to connect to the database`, и это состояние машины, а не регресс. |
 | Commit convention | Conventional Commits с русским текстом сообщения: `feat(дрон): заряжается и в поле`, `fix(раны): источник ран не видел биом`. Ветка работы — `develop`, `master` — прод. |
 | **Configurations that exist today** | Три живых окружения. **Локальное**: Laragon, MySQL должен быть запущен. **Preprod-testbot**: SSH-доступ (`~/.ssh/wildworld_deploy`), разрешены любые `UPDATE` и ad-hoc `php spark`. **Прод `wildworld.fun`**: живые игроки, деструктивные смоки запрещены, INFO не логируется — мониторинг через `action_log`. Деплой — GitHub Actions: тег на `develop` → rsync релиза → `deploy/post-deploy.sh` применяет миграции. Один узел приложения и одна БД; очереди/воркер-пула **нет** — фоновая обработка идёт через cron → `Controllers/Worker.php` → `app/TaskHandlers/`. Контейнеров, staging-кластера и blue-green нет и не планируется. |
+| Client path | Три двери, и почти всегда нужна первая. **Игрок** — Telegram-бот `@wildworldrpg_bot` (прод) и его близнец на preprod-testbot; живой проход — MCP Chrome + Telegram Web со **второго** аккаунта, тест-чар на testbot `telegram_user_id=25`. Автономная альтернатива, когда браузер не нужен: POST игрового апдейта прямо на вебхук testbot'а с секрет-заголовком (`reference_autonomous_webhook_tier3_smoke`). **Публичный сайт** — https://wildworld.fun, тихая проверка маршрута: `curl -sS -o /dev/null -w '%{http_code}' <route>`. **Админка** — `/admin/*` через MCP Chrome под аккаунтом владельца (пароль — `writable/secrets/`, в переписку не попадает). На проде живой проход по игроцкой двери не делаем — там живые игроки. |
+| Release / deploy | Работа идёт в `develop`, `master` — прод-ветка, но релиз едет **не** через неё: версия публикуется **тегом на `develop`**, GitHub Actions гонит rsync релиза и `deploy/post-deploy.sh` применяет миграции. Порядок: коммиты в `develop` → деплой на preprod-testbot → смоук нужного тира → зелено → тег на прод → смоук на проде. Тег и пуш — outward-facing, но у владельца есть постоянное разрешение: **зелёный смоук на preprod = добро на прод-тег без отдельного вопроса** (`feedback_preprod_ok_means_prod_auto`). Перед тегом обязательно сверить состав диффа — в репозитории бывает параллельная сессия. Версия — сам тег (`v0.51.x`, инкремент патча), отдельного файла-стампа и CHANGELOG'а в репо нет; сообщение релизного коммита — по русской Conventional-конвенции выше. |
 <!-- VULYK:PROFILE:END -->
 
 ## Commands
@@ -132,6 +158,7 @@ Quiet variants only: everything these print is resent on every subsequent turn. 
 | View render smoke | `curl -sS -o /dev/null -w '%{http_code}' <route>` |
 | Scope gate, per story | `bash scripts/scope-check.sh <story-file>` |
 | Story gate, per spec | `bash scripts/wave-check.sh docs/specs/<slug>` |
+| Ship gate, per spec | `bash scripts/ship-check.sh docs/specs/<slug>` |
 
 Почему именно эти формы, а не то, что написано в README:
 
@@ -169,7 +196,7 @@ Drop file contents, diffs, command output and scout reports: they are on disk an
 
 - Path-scoped rules: `.claude/rules/` (loaded only where relevant — keep this file lean).
 - Plans & stories: `docs/specs/` · Decisions: `docs/adr/` · Domain knowledge: `docs/wiki/`.
-- Codebase map: `memory/map/` · Session learnings: `memory/learnings/` · Stats series: `memory/stats/` (`scope.jsonl`, `acceptance.jsonl`, `skills.json`).
+- Codebase map: `memory/map/` · Session learnings: `memory/learnings/` · Stats series: `memory/stats/` (`scope.jsonl`, `acceptance.jsonl`, `human.jsonl`, `ship.jsonl`, `skills.json`).
 
 ## Project bindings
 

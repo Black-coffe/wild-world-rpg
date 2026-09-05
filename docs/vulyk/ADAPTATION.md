@@ -1,6 +1,6 @@
 # VULYK: чем эта установка отличается от ванильной
 
-Установлено 2026-08-19, обновлено 2026-09-04 до версии **0.10.0**, источник —
+Установлено 2026-08-19, обновлено 2026-09-05 до версии **0.11.0**, источник —
 `https://github.com/Black-coffe/vulyk`. Штамп версии — `.claude/vulyk-version`.
 Обоснование решения — `mmorpg-vault/decisions/ADR-170`.
 
@@ -35,6 +35,11 @@ handoff-документа, и — главное — та же директор
 **После апгрейда.** Оба файла вернутся, а `wire_session_hook` может дописать их в
 `.claude/settings.json`. Удалить снова, из `SessionStart` вычистить. Проверка: в
 `.claude/settings.json` не должно быть ни одного вхождения `handoff.sh`.
+
+**Апгрейд 0.11.0 (2026-09-05):** сценарий повторился ровно как описано — `handoff.py` и `handoff.sh`
+вернулись (в `settings.json` при этом не прописались), удалены снова; `.claude/commands/vulyk-handoff.md`
+поставка перезаписала своей версией (`bash .claude/hooks/handoff.sh dump`) — восстановлена наша.
+Ничего, кроме этих трёх файлов и двух абзацев конституции (§6), доводить руками не пришлось.
 
 > Правка внутри рамки: `.claude/commands/vulyk-handoff.md`.
 
@@ -203,3 +208,28 @@ ls .claude/rules/example-api.md                   # должно отсутст�
   но заготовки попадают в git. Если начнут копиться пустыми — резать хук, а не чистить руками.
 - **Индекс решений в vault'е отстаёт:** ADR-168 и ADR-169 существуют, но строк в
   `mmorpg-vault/decisions/index.md` не имеют. К установке отношения не имеет, замечено попутно.
+
+---
+
+## 6. Что доведено руками в апгрейде 0.11.0
+
+Релиз 0.11.0 достроил цикл до шести стадий (`spec → plan → code → tests → **human** → **ship**`):
+появились `/vulyk-ship`, `scripts/ship-check.sh`, `scripts/human-check.sh`, ветка `vulyk/<slug>`
+на стадии build и «путь клиента» у `drone-acceptance`. Установщик конституцию не трогает, поэтому
+в `CLAUDE.vulyk.md` вручную доведено:
+
+- **Две новые строки `## Profile`** — `Client path` (Telegram-бот `@wildworldrpg_bot` + близнец на
+  preprod-testbot, тест-чар `telegram_user_id=25`, сайт `wildworld.fun`, админка `/admin/*`) и
+  `Release / deploy` (тег на `develop` → GitHub Actions → `post-deploy.sh`; зелёный preprod-смоук
+  уже есть добро на прод-тег). Их читают `/vulyk-build`, `/vulyk-ship` и `drone-acceptance`.
+- **Раздел `## The cycle`** с таблицей шести стадий и проектным абзацем: стадия 05 смотрится на
+  preprod-testbot'е, стадия 06 — тег на `develop`.
+- Колонка Protocol в таблице тиров (Tier 2–3 доведены до `your look → /vulyk-ship`), строка
+  `Ship gate, per spec` в `## Commands`, `human.jsonl` / `ship.jsonl` в списке `memory/stats/`.
+- Второй ревьюер Tier 4: у нас гейт идёт на `opus`, значит второй — `fable` или `sonnet`.
+
+Пин `TOP_MODEL = opus` **не** взят из поставки: ванильная 0.11.0 ставит `auto`, который на Max
+решает в пользу Fable. Наш пин остаётся, обоснование — в `CLAUDE.md`.
+
+Удалён `.claude/rules/example-api.md` — ванильный пример под `src/api/**`, каталога такого в
+проекте нет, а `README` правил прямо запрещает generic-правила.
