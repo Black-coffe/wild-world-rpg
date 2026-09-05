@@ -13,6 +13,7 @@ use App\Models\CraftedItemsModel;
 use App\Models\TaskModel;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\DroneService;
+use App\Services\Telegram\BotMenuService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -212,7 +213,11 @@ final class HangarAction extends BaseAction
         }
 
         if ($lines === []) {
-            $lines[] = "  _Роботов нет. Крафт: 🛠 Крафт → Стандартный верстак → Роботы._";
+            // Путь называем ЖИВЫМИ подписями кнопок: нижнее меню отдаёт метку через
+            // menuLabel(), а раздел крафта подписан «🔧 Стандартный крафт» — кнопки
+            // «Стандартный верстак» в интерфейсе нет вовсе (это имя верстака-предмета).
+            $lines[] = "  _Роботов нет. Крафт: " . BotMenuService::menuLabel('craft')
+                . " → 🔧 Стандартный крафт → 🤖 Роботы._";
         }
 
         foreach ($this->activeRobotTasks($charId) as $taskLine) {
@@ -315,7 +320,7 @@ final class HangarAction extends BaseAction
                 $bar     = $this->chargeBar($pct);
                 $lines[] = "  {$type['icon']} {$type['label']} — {$bar} `{$charge}/{$max}`";
             } elseif ($workshopLevel >= $type['gate']) {
-                $lines[] = "  {$type['icon']} {$type['label']} — _не скрафчен (доступен: Стандартный верстак)_";
+                $lines[] = "  {$type['icon']} {$type['label']} — _не скрафчен (раздел «🔧 Стандартный крафт»)_";
             } else {
                 $lines[] = "  {$type['icon']} {$type['label']} — 🔒 _нужна Мастерская ур. {$type['gate']}_";
             }
