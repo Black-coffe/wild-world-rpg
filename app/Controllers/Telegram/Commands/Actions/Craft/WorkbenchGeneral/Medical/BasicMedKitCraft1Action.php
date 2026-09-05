@@ -9,6 +9,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\ResourceModel;
 use App\Services\Craft\CraftCardHelper;
+use App\Services\Player\Trade\CraftTypeLabels;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -94,9 +95,10 @@ class BasicMedKitCraft1Action extends BaseAction
         }
         foreach ($requiredResources['crafted_items'] as $itemNameEng => $reqAmount) {
             $have      = $resourcesAvailable[$itemNameEng]['quantity'] ?? 0;
-            $itemType  = $resourcesAvailable[$itemNameEng]['type'] ?? 'неизвестно';
+            $itemType  = $resourcesAvailable[$itemNameEng]['type'] ?? '';
             $dispName  = $resourcesAvailable[$itemNameEng]['display_name'] ?? $itemNameEng;
-            $text     .= ResourceIconHelper::for($dispName) . " {$dispName} - {$reqAmount} шт. (в наличии {$have} шт., тип: {$itemType})\n";
+            $typeNote  = $itemType !== '' ? ', ' . CraftTypeLabels::rus((string) $itemType) : '';
+            $text     .= ResourceIconHelper::for($dispName) . " {$dispName} - {$reqAmount} шт. (в наличии {$have} шт.{$typeNote})\n";
         }
 
         $text .= "\n*Стоимость на рынке:* _100_ 💰\n"
@@ -165,8 +167,7 @@ class BasicMedKitCraft1Action extends BaseAction
      */
     private function getCraftedItemQuantity(int $characterId, string $itemNameEng): int
     {
-        $row = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
-        return $row ? (int) $row['quantity'] : 0;
+        return $this->craftedItemsLogModel->ownedQuantityByNameEng($itemNameEng, $characterId);
     }
 
     /**
@@ -185,23 +186,31 @@ class BasicMedKitCraft1Action extends BaseAction
             ];
         }
 
-        // Крафтовые предметы (через crafted_items_log)
+        // Крафтовые предметы. Русское имя и категория живут в `crafted_items`, а НЕ в
+        // `crafted_items_log` — таких колонок в логе нет вовсе, поэтому прежний
+        // `$logRow['name_rus'] ?? $itemNameEng` ВСЕГДА падал в англ. `name_eng`
+        // и игрок читал «📦 Bandage … тип: drug».
         foreach ($requiredResources['crafted_items'] as $itemNameEng => $amount) {
-            $logRow = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
+            // Свежая модель на каждой итерации: builder-state у CI4-модели переживает first().
+            $itemRow = (new CraftedItemsModel())->where('name_eng', $itemNameEng)->first();
 
-            if ($logRow) {
-                $results[$itemNameEng] = [
-                    'quantity'     => $logRow['quantity'],
-                    'type'         => $logRow['type'] ?? 'crafted',
-                    'display_name' => $logRow['name_rus'] ?? $itemNameEng,
-                ];
-            } else {
-                $results[$itemNameEng] = [
-                    'quantity'     => 0,
-                    'type'         => 'crafted',
-                    'display_name' => $itemNameEng
-                ];
+            $rusName = $itemNameEng;
+            $type    = '';
+            if (is_array($itemRow)) {
+                if (isset($itemRow['name_rus']) && is_string($itemRow['name_rus']) && $itemRow['name_rus'] !== '') {
+                    $rusName = $itemRow['name_rus'];
+                }
+                if (isset($itemRow['type']) && is_string($itemRow['type'])) {
+                    $type = $itemRow['type'];
+                }
             }
+
+            $results[$itemNameEng] = [
+                // Сумма по всем строкам лога: first() занижает наличие при множественности строк.
+                'quantity'     => $this->craftedItemsLogModel->ownedQuantityByNameEng($itemNameEng, $characterId),
+                'type'         => $type,
+                'display_name' => $rusName,
+            ];
         }
 
         return $results;

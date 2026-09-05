@@ -9,6 +9,7 @@ use App\Models\CharacterModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\ResourceModel;
 use App\Services\Player\CraftInsuranceService;
+use App\Services\Player\Trade\CraftTypeLabels;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -74,7 +75,10 @@ class CraftInsureItemAction extends BaseAction
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         $text  = "🛡 *Страховой полис: {$ctx['name_rus']}*\n\n";
-        $text .= "Количество: *×{$ctx['qty']}* ({$ctx['type']})\n";
+        // Категория — человекочитаемой подписью, а не сырым ключом `crafted_items.type`:
+        // игрок читал «(transport)» / «(drug)». Словарь один на все экраны лавки.
+        $typeRus = CraftTypeLabels::rus((string) $ctx['type']);
+        $text .= "Количество: *×{$ctx['qty']}* ({$typeRus})\n";
         $text .= "Тип полиса: *вечный* (до продажи/потери)\n\n";
         $text .= "*Цена:* `{$gold}` 🪙\n";
         $text .= "*В наличии:* `{$haveGold}` 🪙\n\n";
