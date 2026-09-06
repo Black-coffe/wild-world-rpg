@@ -8,6 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
+use App\Services\Craft\CraftCardHelper;
 use App\Services\GameSettings\GameSettingsService;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\CallbackQuery;
@@ -119,7 +120,16 @@ class UtilityRecipePreviewT3Action extends BaseAction
             }
         }
 
+        // Gold (F3.B8 в GenericCraftActionStart умножает gold_required на quantity — у T3
+        // ценник 5000-6000/шт, в отличие от обычных карточек без золота вовсе, поэтому
+        // ступень, недоступную по золоту, показывать нельзя).
+        $maxAffordable = PHP_INT_MAX;
+        if ($goldNeed > 0) {
+            $maxAffordable = (int) floor($goldHave / $goldNeed);
+        }
+
         // Resources.
+
         $resourcesRaw = $recipe['resources'] ?? [];
         $resources = is_array($resourcesRaw) ? $resourcesRaw : [];
         $resourceLines = [];
@@ -131,6 +141,9 @@ class UtilityRecipePreviewT3Action extends BaseAction
             $marker  = $have >= $qtyNeed ? '✅' : '❌';
             if ($have < $qtyNeed) {
                 $insufficient[] = "{$resNameStr}: нужно {$qtyNeed}, есть {$have}";
+            }
+            if ($qtyNeed > 0) {
+                $maxAffordable = min($maxAffordable, (int) floor($have / $qtyNeed));
             }
             $resourceLines[] = "{$marker} {$resNameStr} — {$have} / {$qtyNeed}";
         }
@@ -158,7 +171,13 @@ class UtilityRecipePreviewT3Action extends BaseAction
             if ($have < $qtyNeed) {
                 $insufficient[] = "{$rusName}: нужно {$qtyNeed}, есть {$have}";
             }
+            if ($qtyNeed > 0) {
+                $maxAffordable = min($maxAffordable, (int) floor($have / $qtyNeed));
+            }
             $componentLines[] = "{$marker} {$rusName} — {$have} / {$qtyNeed}";
+        }
+        if ($maxAffordable === PHP_INT_MAX) {
+            $maxAffordable = 0;
         }
 
         // Tool stats: durability (uses) + gather boost.
@@ -221,7 +240,7 @@ class UtilityRecipePreviewT3Action extends BaseAction
 
         $rows = [];
         if ($canCraft) {
-            $rows[] = [['text' => '🛠 Скрафтить 1 шт', 'callback_data' => 'genericCraft_' . $recipeKey . '_1']];
+            $rows = (new CraftCardHelper())->quantityRows($recipeKey, $maxAffordable);
         }
         $rows[] = [
             ['text' => '⬅️ Назад к утилитам', 'callback_data' => 'craftUtilityT3Select'],
