@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-03
+last-verified: 2026-09-06
 
 # Scout report: Крафт, ремонт, экономика предметов
 
@@ -11,6 +11,9 @@ last-verified: 2026-09-03
 
 ## Entry points
 - `app/Services/Player/CraftService.php` — оркестрация крафта; `Player/Craft/` — подпроцессы.
+- `app/Services/Craft/CraftCardHelper.php` — единственное место, считающее доступность сырья
+  (пул рюкзак+склад, ADR-171) и строящее ряды кнопок количества (`STEPS = [1,5,10,25,50,100]`,
+  `quantityRows()`) для карточек крафта; `fallbackButton()` — выход из тупика «нельзя ни одной».
 - `app/Services/Craft/CraftDurationService.php` + `CraftDurationBreakdown.php` — время.
 - `app/Services/Craft/CraftShortageService.php` — чего не хватает.
 - `app/Services/Craft/ItemModifierService.php`, `ConsumableExpiryService.php` (просрочка → heal ×50%).
@@ -45,6 +48,18 @@ outbound: ресурсы персонажа, `GameSettings`, `Images`.
 - **(2026-09, ADR-181) Списание ресурсов** — `CharacterResourceModel::decreaseResources()` удалено
   (читало-считало-писало, при нехватке удаляло строку и рапортовало успех); заменено
   `decrementIfAtLeast()` через `ConditionalWriteService` во всех семи бывших вызывающих.
+- **(2026-09, craft-quantity-parity) `craft_again_callback` НЕ рисует кнопку «Крафтить ещё».**
+  Кнопку строит `GenericCraftCompletionHandler` из ключа рецепта. Поле рецепта в
+  `Config\CraftRecipes` служит источником `RecipeKey` для
+  `CraftShortageService::shortfallRecipeKey()` (регулярка `^genericCraft_(.+)_\d+$`) — смена его
+  формы (`genericCraft_<Key>_<qty>`) молча убивает кнопку докупки при нехватке для этого рецепта.
+  Гейт по ВСЕМ рецептам конфига — `CraftRecipesTest::testCraftAgainCallbackResolvesForEveryRecipeConfigured`.
+  Контракт зафиксирован: `mmorpg-vault/decisions/ADR-182-Craft-again-callback-is-the-recipe-key-contract.md`.
+- **(2026-09, craft-quantity-parity) Доступность сырья на карточке крафта — только через
+  `CraftCardHelper::available()`** (пул рюкзак+склад), не через `CharacterResourceModel` напрямую
+  — иначе экран расходится с гейтом старта `GenericCraftActionStart::checkResources()`. T3-утилиты
+  (`UtilityRecipePreviewT3Action`) получили паритет с обычными карточками — ряд кнопок количества
+  вместо зашитой единственной «1 шт.».
 
 ## Vault
 `mmorpg-vault/tech-writing/craft/` · `mmorpg-vault/apps/player/index.md`
