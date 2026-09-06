@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
+use App\Services\Craft\CraftCardHelper;
 use App\Services\GameSettings\GameSettingsService;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\CallbackQuery;
@@ -24,10 +24,10 @@ use App\Services\Telegram\Request;
  */
 class UtilityRecipePreviewT3Action extends BaseAction
 {
-    private CharacterResourceModel $characterResourceModel;
     private CraftedItemsModel      $craftedItemsModel;
     private CraftedItemsLogModel   $craftedItemsLogModel;
     private GameSettingsService    $gameSettings;
+    private CraftCardHelper        $craftCardHelper;
 
     /** Статичные описания добычи (resource-set из ToolManager). */
     private const BOOST_DESC = [
@@ -39,10 +39,10 @@ class UtilityRecipePreviewT3Action extends BaseAction
     public function __construct(CallbackQuery $callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->characterResourceModel = new CharacterResourceModel();
         $this->craftedItemsModel      = new CraftedItemsModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
         $this->gameSettings           = new GameSettingsService();
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -119,18 +119,39 @@ class UtilityRecipePreviewT3Action extends BaseAction
             }
         }
 
-        // Resources.
+        // Gold (F3.B8 в GenericCraftActionStart умножает gold_required на quantity — у T3
+        // ценник 5000-6000/шт, в отличие от обычных карточек без золота вовсе, поэтому
+        // ступень, недоступную по золоту, показывать нельзя).
+        $maxAffordable = PHP_INT_MAX;
+        if ($goldNeed > 0) {
+            $maxAffordable = (int) floor($goldHave / $goldNeed);
+        }
+
         $resourcesRaw = $recipe['resources'] ?? [];
         $resources = is_array($resourcesRaw) ? $resourcesRaw : [];
+
+        // ADR-171: доступность считает CraftCardHelper — тот же ResourcePoolService
+        // (рюкзак + склад базы), что и GenericCraftActionStart::checkResources().
+        $requiredResources = [];
+        foreach ($resources as $resName => $qtyNeedRaw) {
+            $requiredResources[is_string($resName) ? $resName : (string) $resName] = $this->intFromMixed($qtyNeedRaw);
+        }
+        $availableByName = [];
+        foreach ($this->craftCardHelper->available($characterId, $requiredResources) as $row) {
+            $availableByName[$row['name']] = $row['quantity'];
+        }
+
         $resourceLines = [];
         foreach ($resources as $resName => $qtyNeedRaw) {
             $resNameStr = is_string($resName) ? $resName : (string) $resName;
             $qtyNeed = $this->intFromMixed($qtyNeedRaw);
-            $charRes = $this->characterResourceModel->getResourceByNameAndCharacterId($resNameStr, $characterId);
-            $have    = is_array($charRes) ? $this->intFromMixed($charRes['quantity'] ?? 0) : 0;
+            $have    = $availableByName[$resNameStr] ?? 0;
             $marker  = $have >= $qtyNeed ? '✅' : '❌';
             if ($have < $qtyNeed) {
                 $insufficient[] = "{$resNameStr}: нужно {$qtyNeed}, есть {$have}";
+            }
+            if ($qtyNeed > 0) {
+                $maxAffordable = min($maxAffordable, (int) floor($have / $qtyNeed));
             }
             $resourceLines[] = "{$marker} {$resNameStr} — {$have} / {$qtyNeed}";
         }
@@ -158,7 +179,13 @@ class UtilityRecipePreviewT3Action extends BaseAction
             if ($have < $qtyNeed) {
                 $insufficient[] = "{$rusName}: нужно {$qtyNeed}, есть {$have}";
             }
+            if ($qtyNeed > 0) {
+                $maxAffordable = min($maxAffordable, (int) floor($have / $qtyNeed));
+            }
             $componentLines[] = "{$marker} {$rusName} — {$have} / {$qtyNeed}";
+        }
+        if ($maxAffordable === PHP_INT_MAX) {
+            $maxAffordable = 0;
         }
 
         // Tool stats: durability (uses) + gather boost.
@@ -221,7 +248,7 @@ class UtilityRecipePreviewT3Action extends BaseAction
 
         $rows = [];
         if ($canCraft) {
-            $rows[] = [['text' => '🛠 Скрафтить 1 шт', 'callback_data' => 'genericCraft_' . $recipeKey . '_1']];
+            $rows = $this->craftCardHelper->quantityRows($recipeKey, $maxAffordable);
         }
         $rows[] = [
             ['text' => '⬅️ Назад к утилитам', 'callback_data' => 'craftUtilityT3Select'],

@@ -2,9 +2,11 @@
 
 namespace Tests\Unit\Config;
 
+use App\Services\Craft\CraftShortageService;
 use CodeIgniter\Test\CIUnitTestCase;
 use Config\CraftRecipes;
 use Config\Database;
+use ReflectionMethod;
 
 /**
  * F2.2 — unit-тесты на recipe-config CraftRecipes.php.
@@ -620,5 +622,57 @@ final class CraftRecipesTest extends CIUnitTestCase
         );
         $this->assertSame(12500, $recipe['gold_required']);
         $this->assertSame('craftTeleportBeaconBasic', $recipe['task_name']);
+    }
+
+    /**
+     * Story craft-quantity-parity-07 — дыра в покрытии, из-за которой T3-утилиты
+     * сломали `craft_again_callback` и кнопка докупки молча пропала: прежние
+     * тесты этого поля проверяли конвенцию только на ЗАРАНЕЕ ПЕРЕЧИСЛЕННЫХ
+     * списках рецептов (`testAllMedicalRecipesPresentWithFullSchema`,
+     * `testLegacyShortfallBuyRecipesResolve`), а T3-утилиты (`DiamondPickaxe`,
+     * `SapperShovel`, `GoldenHoe`) и любой БУДУЩИЙ рецепт ни в один из списков
+     * не попадали — тест был зелёным вне зависимости от их состояния.
+     *
+     * Этот тест идёт по `Config\CraftRecipes::keys()` целиком — то есть по
+     * ВСЕМ рецептам, включая ещё не написанные — и резолвит
+     * `craft_again_callback` ТОЙ ЖЕ приватной регуляркой, что и
+     * `CraftShortageService::shortfallRecipeKey()` (вызов через reflection,
+     * не копия паттерна: разойдись оригинал с копией — тест продолжал бы
+     * врать). Регрессия формы поля (`genericCraft_<Key>_x1`, отсутствие `_1`
+     * на конце, другой ключ вместо `<Key>` и т.п.) обязана провалить и
+     * резолв в `null`, и/или несовпадение с ключом самого рецепта.
+     */
+    public function testCraftAgainCallbackResolvesForEveryRecipeConfigured(): void
+    {
+        $shortage = new CraftShortageService();
+        $resolver = new ReflectionMethod(CraftShortageService::class, 'shortfallRecipeKey');
+        $resolver->setAccessible(true);
+
+        $checked = 0;
+        foreach ($this->cfg->keys() as $recipeKey) {
+            $recipe = $this->cfg->get($recipeKey);
+            $this->assertIsArray($recipe, "{$recipeKey}: get() обязан вернуть массив для собственного ключа");
+
+            if (! array_key_exists('craft_again_callback', $recipe)) {
+                // Поле необязательно (см. `knownToHandler`/`shortfallUnknownRecipeText`
+                // в CraftShortageService) — но если оно есть, обязано резолвиться.
+                continue;
+            }
+
+            $resolved = $resolver->invoke($shortage, $recipe);
+
+            $this->assertSame(
+                $recipeKey,
+                $resolved,
+                "{$recipeKey}: craft_again_callback='{$recipe['craft_again_callback']}' обязан резолвиться " .
+                "в собственный ключ рецепта через CraftShortageService::shortfallRecipeKey() — иначе кнопка " .
+                'докупки при нехватке молча исчезает для этого рецепта',
+            );
+            ++$checked;
+        }
+
+        // Страховка от пустого прогона: если конфиг вдруг опустеет или поле
+        // переименуют массово, тест не должен молча «пройти», не проверив ничего.
+        $this->assertGreaterThan(50, $checked, 'ожидалось проверить десятки рецептов с craft_again_callback');
     }
 }

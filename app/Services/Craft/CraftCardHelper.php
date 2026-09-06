@@ -6,6 +6,7 @@ namespace App\Services\Craft;
 
 use App\Models\ResourceModel;
 use App\Services\Player\ResourcePoolService;
+use App\Services\Telegram\ButtonPacker;
 
 /**
  * ADR-171 — единственное место, где карточка крафта считает доступное
@@ -26,6 +27,14 @@ use App\Services\Player\ResourcePoolService;
  */
 class CraftCardHelper
 {
+    /**
+     * Ступени количества — паритет с обычными карточками крафта
+     * (`CampfireCookingSelect::QUANTITY_STEPS`, `BasicMedKitCraft1Action`).
+     * Story craft-quantity-parity-01: владелец выбрал ту же лесенку для T3,
+     * своей отдельной не заводим.
+     */
+    public const STEPS = [1, 5, 10, 25, 50, 100];
+
     private ResourcePoolService $resourcePool;
     private ResourceModel $resourceModel;
 
@@ -85,5 +94,30 @@ class CraftCardHelper
             'text'          => '🛒 Чего не хватает?',
             'callback_data' => 'genericCraft_' . $recipeKey . '_1',
         ];
+    }
+
+    /**
+     * Готовые ряды кнопок количества `genericCraft_<recipeKey>_<qty>` по
+     * {@see STEPS}, отфильтрованным по тому, сколько игрок реально может
+     * себе позволить — тот же генератор, что у обычных карточек крафта
+     * (story craft-quantity-parity-01: T3-инструменты получают паритет с
+     * обычными рецептами вместо зашитой единственной кнопки «1 шт.»).
+     *
+     * Ступень `1` присутствует всегда, если `$maxAffordable >= 1`. Ряды
+     * упакованы через {@see ButtonPacker} — 2-3 кнопки в ряд, ноль одиночек.
+     *
+     * @return list<list<array{text:string,callback_data:string}>>
+     */
+    public function quantityRows(string $recipeKey, int $maxAffordable): array
+    {
+        $buttons = [];
+        foreach (self::STEPS as $qty) {
+            if ($qty > $maxAffordable) {
+                break;
+            }
+            $buttons[] = ['text' => "🛠️ Крафт {$qty}шт", 'callback_data' => 'genericCraft_' . $recipeKey . '_' . $qty];
+        }
+
+        return ButtonPacker::pack($buttons);
     }
 }
