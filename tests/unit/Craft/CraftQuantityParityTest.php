@@ -8,8 +8,10 @@ use App\Models\CharacterModel;
 use App\Models\CharacterTaskModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
+use App\Models\ResourceModel;
 use App\Models\TelegramUserModel;
 use App\Services\Craft\CraftCardHelper;
+use App\Services\Player\ResourcePoolService;
 use App\TaskHandlers\Craft\GenericCraftCompletionHandler;
 use CodeIgniter\Test\CIUnitTestCase;
 use ReflectionProperty;
@@ -60,7 +62,9 @@ final class CraftQuantityParityTest extends CIUnitTestCase
         $flat = array_merge(...$rows);
 
         $this->assertCount(1, $flat, 'maxAffordable=1 обязан дать ровно одну ступень');
-        $this->assertSame('1 шт.', $flat[0]['text']);
+        // Story craft-quantity-parity-06: подпись приведена к виду обычных карточек
+        // крафта (`BasicMedKitCraft1Action.php:256`) — паритет из брифа, не регрессия.
+        $this->assertSame('🛠️ Крафт 1шт', $flat[0]['text']);
         $this->assertSame('genericCraft_SapperShovel_1', $flat[0]['callback_data']);
     }
 
@@ -91,8 +95,9 @@ final class CraftQuantityParityTest extends CIUnitTestCase
         $rows = $helper->quantityRows('DiamondPickaxe', 9999);
         $flat = array_merge(...$rows);
 
+        // Story craft-quantity-parity-06: подпись «🛠️ Крафт {N}шт» вместо «{N} шт.».
         $this->assertSame(CraftCardHelper::STEPS, array_map(
-            static fn (array $b): int => (int) str_replace(' шт.', '', $b['text']),
+            static fn (array $b): int => (int) preg_replace('/\D+/', '', $b['text']),
             $flat,
         ));
         $this->assertSame(
@@ -397,5 +402,117 @@ final class CraftQuantityParityTest extends CIUnitTestCase
         $rp = new ReflectionProperty($obj, $prop);
         $rp->setAccessible(true);
         $rp->setValue($obj, $value);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 3. CraftCardHelper::available() — ADR-171: пул (рюкзак+склад на базе),
+    //    не голый рюкзак. Story craft-quantity-parity-07.
+    //
+    //    Регрессия: если `available()` снова начнёт считать только рюкзак,
+    //    у персонажа на базе с пустым рюкзаком, но полным складом ступени
+    //    количества обрежутся до нуля — сюда же ловим случай выключенного
+    //    пула, где обрезание до рюкзака как раз ПРАВИЛЬНО.
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * На базе, пул включён, рюкзак пуст — склад тоже виден. `available()`
+     * обязан вернуть количество со склада, а не 0 (голый рюкзак бы дал 0).
+     */
+    public function testAvailableCountsStorageWhenPooledOnBase(): void
+    {
+        $pool = $this->resourcePoolDouble(backpack: 0, storage: 40, pooled: true);
+        $helper = new CraftCardHelper($pool, $this->resourceModelDouble('Редкие металлы', rarity: 2));
+
+        $result = $helper->available(5, ['Редкие металлы' => 12]);
+
+        $this->assertSame(
+            [['name' => 'Редкие металлы', 'quantity' => 40, 'rarity' => 2]],
+            $result,
+            'на базе с пулом склад обязан учитываться, иначе ступени количества обрежутся до нуля вопреки складу',
+        );
+    }
+
+    /**
+     * Пул выключен (killswitch `storage.pool_enabled=false` либо игрок не на
+     * базе) — рюкзак пуст, склад полон, но склад НЕ виден. `available()`
+     * обязан вернуть 0, то есть сегодняшнее поведение до ADR-171.
+     */
+    public function testAvailableIgnoresStorageWhenPoolDisabled(): void
+    {
+        $pool = $this->resourcePoolDouble(backpack: 0, storage: 40, pooled: false);
+        $helper = new CraftCardHelper($pool, $this->resourceModelDouble('Редкие металлы', rarity: 2));
+
+        $result = $helper->available(5, ['Редкие металлы' => 12]);
+
+        $this->assertSame(
+            [['name' => 'Редкие металлы', 'quantity' => 0, 'rarity' => 2]],
+            $result,
+            'без пула склад не обязан учитываться — ступени количества режутся по одному рюкзаку',
+        );
+    }
+
+    /**
+     * Рюкзак и склад складываются, когда пул включён — не «либо/либо».
+     */
+    public function testAvailableSumsBackpackAndStorageWhenPooled(): void
+    {
+        $pool = $this->resourcePoolDouble(backpack: 7, storage: 40, pooled: true);
+        $helper = new CraftCardHelper($pool, $this->resourceModelDouble('Редкие металлы', rarity: 2));
+
+        $result = $helper->available(5, ['Редкие металлы' => 12]);
+
+        $this->assertSame(47, $result[0]['quantity']);
+    }
+
+    /**
+     * `ResourcePoolService` — двойник ТОЛЬКО на уровне leaf-чтений
+     * (рюкзак/склад/pooled-флаг), которые в проде читают БД. Сложение
+     * `backpack + (pooled ? storage : 0)` в `available()`/`availableByName()`
+     * — настоящий код `ResourcePoolService`, не подделан.
+     */
+    private function resourcePoolDouble(int $backpack, int $storage, bool $pooled): ResourcePoolService
+    {
+        return new class ($backpack, $storage, $pooled) extends ResourcePoolService {
+            public function __construct(
+                private int $backpack,
+                private int $storage,
+                private bool $pooled,
+            ) {
+            }
+
+            protected function backpackQuantity(int $characterId, int $resourceId): int
+            {
+                return $this->backpack;
+            }
+
+            protected function storageQuantity(int $characterId, int $resourceId): int
+            {
+                return $this->storage;
+            }
+
+            protected function isPooled(int $characterId): bool
+            {
+                return $this->pooled;
+            }
+
+            protected function resolveResourceId(string $resourceName): ?int
+            {
+                return 1; // единственный ресурс, участвующий в этих тестах
+            }
+        };
+    }
+
+    private function resourceModelDouble(string $name, int $rarity): ResourceModel
+    {
+        return new class ($name, $rarity) extends ResourceModel {
+            public function __construct(private string $name, private int $rarity)
+            {
+            }
+
+            public function getResourceByName($name)
+            {
+                return $name === $this->name ? ['id' => 1, 'rarity' => $this->rarity] : null;
+            }
+        };
     }
 }
