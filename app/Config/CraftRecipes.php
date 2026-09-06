@@ -2219,7 +2219,7 @@ class CraftRecipes extends BaseConfig
             'agility_bonus'                 => 0.03,
             'intellect_bonus'               => 0.02,
             'image_completed'               => 'uploads/telegram/craft/professional/diamond_pickaxe.jpg',
-            'craft_again_callback'          => 'genericCraft_DiamondPickaxe_1',
+            'craft_again_callback'          => 'craftPreviewT3Utility_DiamondPickaxe',
         ],
 
         'SapperShovel' => [
@@ -2248,7 +2248,7 @@ class CraftRecipes extends BaseConfig
             'agility_bonus'                 => 0.02,
             'intellect_bonus'               => 0.02,
             'image_completed'               => 'uploads/telegram/craft/professional/sapper_shovel.jpg',
-            'craft_again_callback'          => 'genericCraft_SapperShovel_1',
+            'craft_again_callback'          => 'craftPreviewT3Utility_SapperShovel',
         ],
 
         'GoldenHoe' => [
@@ -2277,7 +2277,7 @@ class CraftRecipes extends BaseConfig
             'agility_bonus'                 => 0.02,
             'intellect_bonus'               => 0.02,
             'image_completed'               => 'uploads/telegram/craft/professional/golden_hoe.jpg',
-            'craft_again_callback'          => 'genericCraft_GoldenHoe_1',
+            'craft_again_callback'          => 'craftPreviewT3Utility_GoldenHoe',
         ],
 
         // === S28 (ADR-032) — Зимний сезонный pilot (5 warming consumables) ===

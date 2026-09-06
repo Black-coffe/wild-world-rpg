@@ -1,7 +1,7 @@
 ---
 story: craft-quantity-parity-02
 spec: craft-quantity-parity
-status: todo
+status: done
 tier: 1
 worker: worker-code
 tracer: false
@@ -41,5 +41,11 @@ blocked_by: []
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `app/Config/CraftRecipes.php`: `craft_again_callback` для `DiamondPickaxe`, `SapperShovel`, `GoldenHoe`
+  сменён с `genericCraft_<Key>_1` на `craftPreviewT3Utility_<Key>`.
+- Формат сверен по факту: `prefixRoutes['craftPreviewT3Utility']` в `CallbackRoutes.php` (строка 545) →
+  `UtilityRecipePreviewT3Action`, чей `extractRecipeKey()` парсит префикс `craftPreviewT3Utility_` (строки 269-273).
+  Тот же формат уже использует соседнее поле `info_callback` этих же трёх рецептов — совпало.
+- Другие рецепты в файле не тронуты (diff — ровно 3 строки).
 
 ## Findings
