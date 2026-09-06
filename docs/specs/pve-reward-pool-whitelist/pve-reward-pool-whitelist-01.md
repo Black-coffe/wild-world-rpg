@@ -1,7 +1,7 @@
 ---
 story: pve-reward-pool-whitelist-01
 spec: pve-reward-pool-whitelist
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false

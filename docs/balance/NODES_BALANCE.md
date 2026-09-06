@@ -107,5 +107,5 @@
 
 ## 8. Связанное
 
-- Роудмеп [[../../mmorpg-vault/reference/ROADMAP-WORLD-BOSSES.md]] (WB15) · ADR-137 · tech-writing `BossEncounterService`/`NodeLevelCurve`/`NodeHealthRegenHandler`/`BossLootService`.
+- Роудмеп (закрыт и удалён, история в git vault'а) (WB15) · ADR-137 · tech-writing `BossEncounterService`/`NodeLevelCurve`/`NodeHealthRegenHandler`/`BossLootService`.
 - Метод среза населения — read-only прод-SQL (характеристики/оружие/сид узлов), без PII.

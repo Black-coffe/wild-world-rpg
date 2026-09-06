@@ -1,7 +1,7 @@
 ---
 story: storage-craft-insurance-07
 spec: storage-craft-insurance
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false

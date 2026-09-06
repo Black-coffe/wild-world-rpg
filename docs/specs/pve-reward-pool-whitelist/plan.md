@@ -2,7 +2,7 @@
 spec: pve-reward-pool-whitelist
 tier: 2
 date: 2026-08-19
-status: awaiting-approval
+status: done
 ---
 
 # План: белый список типов PvE-наград
