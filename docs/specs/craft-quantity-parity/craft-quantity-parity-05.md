@@ -1,7 +1,7 @@
 ---
 story: craft-quantity-parity-05
 spec: craft-quantity-parity
-status: todo
+status: done
 tier: 1
 worker: worker-code
 tracer: false
@@ -44,5 +44,12 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Config/CraftRecipesTest.php`
 
 ## Implementation notes
+- `app/Config/CraftRecipes.php`: вернул `craft_again_callback` у `DiamondPickaxe`, `SapperShovel`,
+  `GoldenHoe` к `genericCraft_<Key>_1` (было `craftPreviewT3Utility_<Key>`). `info_callback` у этих
+  трёх записей не трогал — он живёт отдельно и подавал признаки жизни превью-экрана, не докупки.
+- Подтвердил вызовом (временный PHPUnit-тест, удалён после проверки): `CraftShortageService::
+  shortfallRecipeKey()` через reflection на всех трёх рецептах возвращает точный `RecipeKey`
+  (`DiamondPickaxe`/`SapperShovel`/`GoldenHoe`), а не `null`.
+- `vendor/bin/phpunit ... CraftRecipesTest.php`: 35 tests / 610 assertions, OK.
 
 ## Findings
