@@ -1,7 +1,7 @@
 ---
 story: craft-quantity-parity-06
 spec: craft-quantity-parity
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -47,5 +47,21 @@ blocked_by: []
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `UtilityRecipePreviewT3Action`: доступность ресурсов теперь считает
+  `CraftCardHelper::available()` (ADR-171 пул рюкзак+склад) вместо
+  `CharacterResourceModel::getResourceByNameAndCharacterId()` (только рюкзак). Убрал теперь
+  неиспользуемый `CharacterResourceModel` (поле + инстанс). `CraftCardHelper` заведён в
+  конструкторе как поле, вызов `quantityRows()` идёт через него же — не создаётся второй
+  экземпляр на каждый рендер.
+- Убран артефакт: задвоенный комментарий `// Resources.` и пустая строка перед блоком.
+- Кнопки количества (`CraftCardHelper::quantityRows()`) — единственный источник этого текста
+  (других вызовов в коде нет), текст сведён к `🛠️ Крафт {N}шт` — паритет с
+  `BasicMedKitCraft1Action`.
+- Компоненты (`crafted_items`) уже считались тем же источником, что и гейт старта: экран читает
+  `CraftedItemsLogModel::where(...)->first()`, `GenericCraftActionStart::checkCraftedItems()` —
+  `getItemByCraftedItemIdAndCharacterId()` того же модели; обе идут напрямую в лог без пула
+  склада (у `crafted_items` его и нет). Правка не потребовалась.
+- Tips/guide-вердикт: это фикс точности существующего экрана (не новая механика, кнопка/путь не
+  менялись) — совет/раздел `/guide` не добавляю.
 
 ## Findings

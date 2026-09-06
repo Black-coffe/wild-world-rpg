@@ -115,7 +115,7 @@ class CraftCardHelper
             if ($qty > $maxAffordable) {
                 break;
             }
-            $buttons[] = ['text' => "{$qty} шт.", 'callback_data' => 'genericCraft_' . $recipeKey . '_' . $qty];
+            $buttons[] = ['text' => "🛠️ Крафт {$qty}шт", 'callback_data' => 'genericCraft_' . $recipeKey . '_' . $qty];
         }
 
         return ButtonPacker::pack($buttons);
