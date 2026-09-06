@@ -1,7 +1,7 @@
 ---
 story: craft-quantity-parity-03
 spec: craft-quantity-parity
-status: todo
+status: done
 tier: 1
 worker: worker-code
 tracer: false
@@ -42,5 +42,9 @@ blocked_by: []
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- Файл: `app/Database/Migrations/2026-09-06-120000_SeedCraftQuantityTip.php`, класс `SeedCraftQuantityTip`, idempotent по `title_en='CraftQuantityBatch'`, `tip_type='крафт'`.
+- Проверил существующие крафт-советы SQL-запросом к `game_tips` (локальная БД) — про выбор количества/партийный крафт ничего не найдено, дубля нет, добавил новый совет.
+- Местный `game_tips.content` в моей локальной копии БД показал `utf8mb3` (`SHOW FULL COLUMNS`), но миграция `2026-05-22-300000_TipsAExtendCategories.php` уже конвертирует колонку в `utf8mb4` — локальная БД просто устаревший дамп (см. memory `reference_local_db_bootstrap_from_testbot`), на testbot/проде колонка уже utf8mb4.
+- `GuideCatalog` не трогал (guide-вердикт «нет» из brief.md).
 
 ## Findings
