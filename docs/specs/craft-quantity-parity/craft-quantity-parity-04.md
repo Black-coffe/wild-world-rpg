@@ -1,7 +1,7 @@
 ---
 story: craft-quantity-parity-04
 spec: craft-quantity-parity
-status: todo
+status: done
 tier: 2
 worker: worker-test
 tracer: false
