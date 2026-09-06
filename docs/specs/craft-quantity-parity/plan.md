@@ -83,5 +83,5 @@ Tier-3 живой смоук в Telegram Web (карточка сапёрной 
 
 **Approved:** Andrei, 2026-09-06
 **Branch:** vulyk/craft-quantity-parity
-**Shipped:** <written by scripts/ship-check.sh --record>
 **Checked:** ACCEPTED by Claude Code, 2026-09-06, at 14640890 - проверил, всё работает — кати на прод
+**Shipped:** v0.51.663, 2026-09-06, at c7734db1 - тег v0.51.663 на develop, GitHub Actions run 34028668263 success; миграция SeedCraftQuantityTip применена на проде batch 355; владелец: «проверил, всё работает — кати на прод»
