@@ -96,3 +96,6 @@
 {"ts":"2026-09-06T10:22:03Z","story":"craft-quantity-parity-02","declared":1,"changed":1,"out_of_scope":0}
 {"ts":"2026-09-06T10:22:03Z","story":"craft-quantity-parity-03","declared":1,"changed":1,"out_of_scope":0}
 {"ts":"2026-09-06T10:22:03Z","story":"craft-quantity-parity-04","declared":1,"changed":1,"out_of_scope":0}
+{"ts":"2026-09-06T10:32:07Z","story":"craft-quantity-parity-05","declared":1,"changed":3,"out_of_scope":2}
+{"ts":"2026-09-06T10:33:06Z","story":"craft-quantity-parity-06","declared":2,"changed":3,"out_of_scope":1}
+{"ts":"2026-09-06T10:37:41Z","story":"craft-quantity-parity-07","declared":2,"changed":3,"out_of_scope":1}
