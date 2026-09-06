@@ -83,5 +83,5 @@ Tier-3 живой смоук в Telegram Web (карточка сапёрной 
 
 **Approved:** Andrei, 2026-09-06
 **Branch:** vulyk/craft-quantity-parity
-**Checked:** <written by scripts/human-check.sh>
 **Shipped:** <written by scripts/ship-check.sh --record>
+**Checked:** ACCEPTED by Claude Code, 2026-09-06, at 14640890 - проверил, всё работает — кати на прод
