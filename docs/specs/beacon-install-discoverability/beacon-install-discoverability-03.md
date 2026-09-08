@@ -1,7 +1,7 @@
 ---
 story: beacon-install-discoverability-03
 spec: beacon-install-discoverability
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -59,5 +59,15 @@ JIT-хинт `beacon_crafted` и раздел `teleport` в `/guide` обеща�
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/Onboarding/GuideCatalogTest.php tests/unit/Services/Onboarding/OnboardingHintServiceTest.php`
 
 ## Implementation notes
+- `OnboardingHintCatalog.php`: убрана оговорка «(та же кнопка есть на экране «{$me}»)» из шага 2️⃣
+  `BEACON_CRAFTED`; заодно убрана строка `$me = ...menuLabel('me')`, ставшая неиспользуемой
+  (единственный вызов был в этой оговорке).
+- `GuideCatalog.php`: та же оговорка убрана из раздела `teleport`; `$me` в этом файле используется
+  ещё в нескольких других разделах, переменную не трогал.
+- Решил не добавлять новую фразу про «дверь работает и вдали от базы» — story 01 идёт параллельно,
+  и утверждать неподтверждённую механику запрещено брифом; текст просто перестал врать, шаги
+  1️⃣-3️⃣ и путь `«{$base}» → «📡 Маяки»` сохранены как есть.
+- Тестовые файлы из `## Files` (`GuideCatalogTest.php`, `OnboardingHintServiceTest.php`) не
+  потребовали правок — оба уже прошли зелёными на изменённых текстах.
 
 ## Findings
