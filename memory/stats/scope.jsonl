@@ -99,3 +99,9 @@
 {"ts":"2026-09-06T10:32:07Z","story":"craft-quantity-parity-05","declared":1,"changed":3,"out_of_scope":2}
 {"ts":"2026-09-06T10:33:06Z","story":"craft-quantity-parity-06","declared":2,"changed":3,"out_of_scope":1}
 {"ts":"2026-09-06T10:37:41Z","story":"craft-quantity-parity-07","declared":2,"changed":3,"out_of_scope":1}
+{"ts":"2026-09-08T14:23:59Z","story":"beacon-install-discoverability-01","declared":2,"changed":8,"out_of_scope":6}
+{"ts":"2026-09-08T14:24:32Z","story":"beacon-install-discoverability-03","declared":4,"changed":7,"out_of_scope":5}
+{"ts":"2026-09-08T14:32:27Z","story":"beacon-install-discoverability-02","declared":2,"changed":6,"out_of_scope":4}
+{"ts":"2026-09-08T14:37:35Z","story":"beacon-install-discoverability-01","declared":2,"changed":4,"out_of_scope":4}
+{"ts":"2026-09-08T14:37:35Z","story":"beacon-install-discoverability-02","declared":2,"changed":4,"out_of_scope":4}
+{"ts":"2026-09-08T14:37:36Z","story":"beacon-install-discoverability-03","declared":4,"changed":4,"out_of_scope":4}
