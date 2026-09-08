@@ -119,6 +119,7 @@ final class BaseServiceMessageFormatter
                 [
                     ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
                     ['text' => '🧭 Двигаться', 'callback_data' => 'move'],
+                    ['text' => '📡 Маяки',     'callback_data' => 'teleportBeacon'],
                 ],
             ],
         ];

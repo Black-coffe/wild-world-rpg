@@ -82,10 +82,13 @@ class TeleportBeacon
             ->first();
 
         if (!$hasTeleportCenter) {
-            // Нет центра телепортации
+            // Нет центра телепортации — отказ, но не тупик: даём путь на стройку и назад.
             $errorText = "Для установки телепорт-маяков нужно здание *Центр телепортации*.\n"
                 . "Построй его, а потом возвращайся!";
-            return $this->sendError($chatId, $errorText);
+            $keyboardJson = json_encode($this->noTeleportCenterKeyboard());
+            // json_encode() отдаёт string|false: если кодирование по какой-то причине не удалось,
+            // игрок всё равно получает текст отказа — без клавиатуры, но не пустоту и не исключение.
+            return $this->sendError($chatId, $errorText, $keyboardJson !== false ? $keyboardJson : null);
         }
 
         // -- Достаём уровень здания (в character_buildings.level),
@@ -280,12 +283,36 @@ class TeleportBeacon
         return is_numeric($value) ? (int) $value : 0;
     }
 
-    private function sendError(int $chatId, string $message): ServerResponse
+    /**
+     * Клавиатура отказа «нет Центра телепортации»: путь на стройку и назад на базу,
+     * чтобы экран не оставался тупиком.
+     *
+     * @return array{inline_keyboard: array<int, array<int, array{text: string, callback_data: string}>>}
+     */
+    private function noTeleportCenterKeyboard(): array
     {
-        return Request::sendMessage([
+        return [
+            'inline_keyboard' => [
+                [
+                    ['text' => '🏗 Строить', 'callback_data' => 'Build'],
+                    ['text' => '🏠 База',    'callback_data' => 'Base'],
+                ],
+            ],
+        ];
+    }
+
+    private function sendError(int $chatId, string $message, ?string $replyMarkup = null): ServerResponse
+    {
+        $params = [
             'chat_id'    => $chatId,
             'text'       => $message,
             'parse_mode' => 'Markdown',
-        ]);
+        ];
+
+        if ($replyMarkup !== null) {
+            $params['reply_markup'] = $replyMarkup;
+        }
+
+        return Request::sendMessage($params);
     }
 }
