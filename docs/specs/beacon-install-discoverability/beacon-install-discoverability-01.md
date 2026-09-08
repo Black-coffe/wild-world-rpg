@@ -1,7 +1,7 @@
 ---
 story: beacon-install-discoverability-01
 spec: beacon-install-discoverability
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: true
@@ -60,5 +60,15 @@ blocked_by: []
 сообщить в `## Findings` до того, как story 02 и 03 будут считаться нужными в текущем виде.
 
 ## Implementation notes
+- `notOnBasePhysically()` (`app/Services/Bases/BaseServiceMessageFormatter.php:118-124`): добавлена кнопка
+  `['text' => '📡 Маяки', 'callback_data' => 'teleportBeacon']` в существующий ряд с «📡 Телепорт»/«🧭 Двигаться»
+  (3 кнопки в одном ряду) — так избегается одиночный ряд без добавления нового.
+- Новый тест `tests/unit/TeleportBeacon/NotOnBaseBeaconDoorTest.php`: 4 теста — наличие кнопки+подпись,
+  сохранность прежних кнопок, «ноль одиночек в ряду», форма возвращаемого массива.
 
 ## Findings
+Tracer подтверждён: `notOnBasePhysically()` — единственное место рендера этой заглушки
+(вызывается из `BaseService.php:241`, дальше по стеку клавиатура не переписывается). Маршрут
+`teleportBeacon` уже резолвится в `CallbackRoutes.php:494` на живой экран `TeleportBeacon`.
+Никакой дополнительный слой чинить не нужно — story 02/03 (если они про другие двери в тот же
+экран) остаются в силе на своих основаниях, а не из-за проблемы в этом слое.
