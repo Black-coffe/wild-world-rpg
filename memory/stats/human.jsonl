@@ -1,1 +1,2 @@
 {"ts":"2026-09-06T10:52:29Z","spec":"craft-quantity-parity","verdict":"ACCEPTED","by":"Claude Code","head":"14640890","pack":"03e222dba882","note":"проверил, всё работает — кати на прод"}
+{"ts":"2026-09-08T17:50:30Z","spec":"beacon-install-discoverability","verdict":"ACCEPTED","by":"Claude Code","head":"1af4afa6","pack":"a3fa9451e72c","note":"закрой обе находки и катани на прод — владелец авторизовал выкат после PASS ревью и ACCEPTED приёмки, отдельного визуального осмотра preprod не заявлял"}

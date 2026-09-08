@@ -109,5 +109,5 @@ Telegram Web со второго аккаунта на testbot, тест-чар 
 
 **Approved:** Andrei, 2026-09-08
 **Branch:** `vulyk/beacon-install-discoverability`
-**Checked:** <written by scripts/human-check.sh>
 **Shipped:** <written by scripts/ship-check.sh --record>
+**Checked:** ACCEPTED by Claude Code, 2026-09-08, at 1af4afa6 - закрой обе находки и катани на прод — владелец авторизовал выкат после PASS ревью и ACCEPTED приёмки, отдельного визуального осмотра preprod не заявлял
