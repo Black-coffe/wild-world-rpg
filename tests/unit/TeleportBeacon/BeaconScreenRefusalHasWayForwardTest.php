@@ -33,6 +33,20 @@ final class BeaconScreenRefusalHasWayForwardTest extends CIUnitTestCase
         return $method->invoke($instance);
     }
 
+    /**
+     * @return array{chat_id:int, text:string, parse_mode:string, reply_markup?:string}
+     */
+    private function buildSendErrorParams(?string $replyMarkup): array
+    {
+        $reflection = new ReflectionClass(TeleportBeacon::class);
+        $method     = $reflection->getMethod('buildSendErrorParams');
+        $method->setAccessible(true);
+
+        $instance = $reflection->newInstanceWithoutConstructor();
+
+        return $method->invoke($instance, 123, 'текст отказа', $replyMarkup);
+    }
+
     public function testKeyboardIsPresent(): void
     {
         $keyboard = $this->keyboard();
@@ -77,6 +91,11 @@ final class BeaconScreenRefusalHasWayForwardTest extends CIUnitTestCase
      * Регресс-гвард: если клавиатуру уберут из ветки отказа (перестанут звать
      * `noTeleportCenterKeyboard()` и передавать её в `sendError()`), сообщение снова
      * станет тупиком без единой кнопки.
+     *
+     * Регэксп нарочно не пинит конкретную форму тернарника (`!== false ? … : null`
+     * vs `?: null`) — эквивалентный рефакторинг не должен красить этот тест
+     * (см. `testBuildSendErrorParamsCarriesReplyMarkupWhenGiven` ниже — она же ловит
+     * реальную потерю `reply_markup`, минуя форму исходника).
      */
     public function testRefusalBranchStillPassesKeyboardToSendError(): void
     {
@@ -91,9 +110,39 @@ final class BeaconScreenRefusalHasWayForwardTest extends CIUnitTestCase
         );
 
         $this->assertMatchesRegularExpression(
-            '/hasTeleportCenter\).*?\$keyboardJson = json_encode\(\$this->noTeleportCenterKeyboard\(\)\);.*?sendError\(\$chatId, \$errorText, \$keyboardJson !== false \? \$keyboardJson : null\);/s',
+            '/hasTeleportCenter\).*?\$keyboardJson\s*=\s*json_encode\(\$this->noTeleportCenterKeyboard\(\)\);.*?sendError\(\$chatId,\s*\$errorText,\s*\$keyboardJson\b/s',
             $screen,
             'Клавиатура обязана передаваться именно в sendError() ветки «нет Центра телепортации».'
+        );
+    }
+
+    /**
+     * Утверждение по ПОВЕДЕНИЮ, а не по форме исходника: `buildSendErrorParams()` —
+     * место, куда стекаются параметры отправки отказа перед `Request::sendMessage()`.
+     * Если условие «класть reply_markup, только если он не null» сломать (например,
+     * подменить на `if (false)`), reply_markup молча пропадёт из параметров отправки —
+     * ровно то, что регэксп по тексту метода поймать не может.
+     */
+    public function testBuildSendErrorParamsCarriesReplyMarkupWhenGiven(): void
+    {
+        $params = $this->buildSendErrorParams('{"inline_keyboard":[]}');
+
+        $this->assertArrayHasKey(
+            'reply_markup',
+            $params,
+            'Параметры отправки отказа обязаны нести reply_markup, когда он передан.'
+        );
+        $this->assertSame('{"inline_keyboard":[]}', $params['reply_markup']);
+    }
+
+    public function testBuildSendErrorParamsOmitsReplyMarkupWhenNull(): void
+    {
+        $params = $this->buildSendErrorParams(null);
+
+        $this->assertArrayNotHasKey(
+            'reply_markup',
+            $params,
+            'Без клавиатуры reply_markup не должен появляться в параметрах (например, если json_encode() провалился).'
         );
     }
 

@@ -303,6 +303,20 @@ class TeleportBeacon
 
     private function sendError(int $chatId, string $message, ?string $replyMarkup = null): ServerResponse
     {
+        return Request::sendMessage($this->buildSendErrorParams($chatId, $message, $replyMarkup));
+    }
+
+    /**
+     * Собирает параметры отправки отказа отдельно от вызова Request::sendMessage() —
+     * чтобы тест мог наблюдать построенный массив параметров напрямую (есть ли в нём
+     * `reply_markup`), не поднимая живой CallbackQuery/модели БД и не уходя в сеть
+     * (урок «Скан исходника ≠ покрытие»: регэксп по тексту метода не ловит подмену
+     * условия, а этот массив — ловит).
+     *
+     * @return array{chat_id:int, text:string, parse_mode:string, reply_markup?:string}
+     */
+    private function buildSendErrorParams(int $chatId, string $message, ?string $replyMarkup): array
+    {
         $params = [
             'chat_id'    => $chatId,
             'text'       => $message,
@@ -313,6 +327,6 @@ class TeleportBeacon
             $params['reply_markup'] = $replyMarkup;
         }
 
-        return Request::sendMessage($params);
+        return $params;
     }
 }
