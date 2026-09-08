@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-03
+last-verified: 2026-09-08
 
 # Scout report: Базы, лагерь, постройки
 
@@ -47,6 +47,13 @@ outbound: ресурсы, `GameSettings`, `Services/Coverage`.
   прочитанным до транзакции (два параллельных вылета делили один заряд); `RepairBuildingAction`
   при отказе на одной строке плана коммитил уже списанные другие строки. Оба — через
   `decrementIfAtLeast()`/условный откат внутри транзакции.
+- **Экран «📡 Маяки» — две двери, обе в `BaseServiceMessageFormatter`** (сверено 2026-09-08,
+  merge `53470325`): `baseBuildings()` (happy-path, на базе/под вышкой) и `notOnBasePhysically()`
+  (заглушка «база в другой ячейке», `BaseService.php:241`). Маяк ставится в клетке игрока —
+  т.е. вне базы; до `db372815`/`bd2c0fce` вне базы двери не было (с 09.07.2026 её нет и на
+  карточке персонажа, ADR-150 финал). Отказ «нет Центра телепортации» в
+  `TeleportBeacon::handle()` больше не тупик — под текстом «🏗 Строить»/«🏠 База».
+  См. `mmorpg-vault/tech-writing/handlers/buildings/TeleportBeaconScreen.md`.
 
 ## Vault
 `mmorpg-vault/apps/bases/index.md`
