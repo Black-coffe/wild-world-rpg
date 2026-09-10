@@ -240,12 +240,20 @@ class GenericBuildingAction extends BaseAction
             ? $this->characterBuildingModel->where('character_id', $character['id'])->where('building_id', $bldId)->countAllResults()
             : 0;
         if ($alreadyOwned > 0) {
-            $text .= \App\Services\Buildings\BuildingCopyNotice::duplicateWarningFitting(
-                $text,
+            // Круг 4 (ревью, вёрстка): оговорка — отдельная мысль, не продолжение абзаца про
+            // сроки, нужна пустая строка перед ней. Перевод строки — здесь, а НЕ внутри
+            // `duplicateWarning()`/`duplicateWarningShort()`: тот же текст клеится и в превью,
+            // где бюджет байтов на пределе (см. круг 2/3) — там лишний байт может стоить показа.
+            $textWithBreak = $text . "\n";
+            $notice        = \App\Services\Buildings\BuildingCopyNotice::duplicateWarningFitting(
+                $textWithBreak,
                 $recipe['emoji'],
                 $recipe['name_rus'],
                 $stacksDefense
             );
+            if ($notice !== '') {
+                $text = $textWithBreak . $notice;
+            }
         }
 
         return \App\Services\Notifications\MediaSender::sendPhotoOrText([
