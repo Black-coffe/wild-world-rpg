@@ -268,6 +268,10 @@ class WipeManifest extends BaseConfig
         'has_renamed'               => 0,
         'last_name_change'          => null,
         'low_health_notified_at'    => null,
+        'low_health_warn_streak'    => 0,    // health-warning-backoff-01 — прогресс затухания → 0 после вайпа.
+        'low_health_last_band'      => null, // health-warning-backoff-01 — граница последнего предупреждения → null после вайпа.
+        'low_health_warns_today'    => 0,    // health-warning-backoff-01 — суточный счётчик → 0 после вайпа.
+        'low_health_warns_day'      => null, // health-warning-backoff-01 — дата суточного счётчика → null после вайпа.
         'last_message_id'           => null,
         'endgame_state'             => 'active',
         'endgame_lock_at'           => null,

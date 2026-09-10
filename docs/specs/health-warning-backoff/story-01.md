@@ -1,7 +1,7 @@
 ---
 story: health-warning-backoff-01
 spec: health-warning-backoff
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: true
@@ -20,7 +20,7 @@ blocked_by: []
 > если человек на одно, два, три сообщения не реагирует, то просто забить нужно, на это не напрягать спамом
 
 ## Files
-- app/Database/Migrations/2026-09-14-100000_HealthWarnBackoffColumns.php
+- app/Database/Migrations/2026-09-14-101500_HealthWarnBackoffColumns.php
 - app/Database/Migrations/2026-09-14-110000_HealthWarnBackoffSettings.php
 - app/Models/CharacterModel.php
 

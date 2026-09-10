@@ -63,6 +63,11 @@ class CharacterModel extends Model
         'active_title_id',        // E11 (ADR-112) — экипированный титул
         'node_announce_enabled',  // WB11 (ADR-137) — opt-out «Сводки с пустоши» (default 1)
         'active_vehicle_log_id',  // transport-03 (ADR-174) — указатель на активную строку crafted_items_log
+        'low_health_warn_streak', // health-warning-backoff-01 — подряд проигнорированных предупреждений о здоровье
+        'low_health_last_band',   // health-warning-backoff-01 — граница полосы последнего предупреждения
+        'low_health_warns_today', // health-warning-backoff-01 — счётчик предупреждений за сутки
+        'low_health_warns_day',   // health-warning-backoff-01 — за какие сутки считается low_health_warns_today
+        'health_warnings_enabled', // health-warning-backoff-03 — opt-out тумблер (default 1, как daily_tips_enabled)
     ];
 
     protected $useTimestamps = true;
