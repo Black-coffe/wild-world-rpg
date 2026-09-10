@@ -16045,38 +16045,8 @@ parameters:
 			path: app/TaskHandlers/HealthRegenerationHandler.php
 
 		-
-			message: '#^Cannot access offset ''health'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/LowHealthWarningHandler.php
-
-		-
-			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/LowHealthWarningHandler.php
-
-		-
-			message: '#^Cannot access offset ''telegram_id'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/LowHealthWarningHandler.php
-
-		-
 			message: '#^Parameter \#1 \$datetime of function strtotime expects string, mixed given\.$#'
 			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/LowHealthWarningHandler.php
-
-		-
-			message: '#^Parameter \#1 \$id of method CodeIgniter\\BaseModel\:\:find\(\) expects int\|list\<int\|string\>\|string\|null, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/LowHealthWarningHandler.php
-
-		-
-			message: '#^Part \$playerName \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
 			count: 1
 			path: app/TaskHandlers/LowHealthWarningHandler.php
 
