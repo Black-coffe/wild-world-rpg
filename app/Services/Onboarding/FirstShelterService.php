@@ -67,6 +67,47 @@ class FirstShelterService
         return ! $this->hasAnyBuildingOrInflight($charId);
     }
 
+    /** Причина отказа `leanToGateReason()` — Навес отработал (постройка/стройка уже была). */
+    public const REASON_ALREADY_USED = 'already_used';
+
+    /** Причина отказа — персонаж уже не «новичок» по уровню (или ниже 1 — вырожденный случай). */
+    public const REASON_OUTGREW = 'outgrew';
+
+    /** Причина отказа — killswitch выключен (Навес сейчас не предлагается никому). */
+    public const REASON_DISABLED = 'disabled';
+
+    /**
+     * building-bonus-absorption story-02, круг 2 — тот же вопрос, что задаёт {@see shouldOffer()},
+     * но с точки зрения экрана конкретного здания и с ПРИЧИНОЙ, а не только да/нет: «это ключ
+     * Навеса, и если гейт не пропускает — почему конкретно». Раньше гейт стоял ТОЛЬКО на
+     * видимости кнопки в {@see \App\Controllers\Telegram\Commands\Actions\Camp\BuildListAction} —
+     * старая кнопка `genericBuildInfo_LeanTo`/`genericStartBuild_LeanTo` из истории чата проходила
+     * мимо («два источника правды у гейта»). Одно généric «недоступно» для ВСЕХ причин отказа было
+     * бы новой неправдой: ветерану 10 уровня, который Навес никогда не строил, нельзя говорить
+     * «ты уже поставил его раньше». Условия и их порядок — точная копия {@see shouldOffer()}
+     * (её саму не трогаем — она уже живёт на проде), различие только в том, ЧТО возвращается
+     * вместо `false`.
+     *
+     * @return string|null null — не гейтит (эквивалент `shouldOffer()===true`), иначе одна из REASON_*
+     */
+    public function leanToGateReason(string $buildingKey, int $charId, int $level): ?string
+    {
+        if ($buildingKey !== self::BUILDING_KEY) {
+            return null;
+        }
+        if (! $this->enabled()) {
+            return self::REASON_DISABLED;
+        }
+        if ($level < 1 || $level > $this->maxLevel()) {
+            return self::REASON_OUTGREW;
+        }
+        if ($charId <= 0) {
+            return self::REASON_DISABLED;
+        }
+
+        return $this->hasAnyBuildingOrInflight($charId) ? self::REASON_ALREADY_USED : null;
+    }
+
     /**
      * Запись кнопки «Навес» для списка построек (формат массива $buildingsInfo в BuildListAction).
      * Налог 0 — новичка не нагружаем. callback_data ловит generic prefix-dispatch

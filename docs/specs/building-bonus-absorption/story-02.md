@@ -94,6 +94,61 @@ blocked_by: []
 затем `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 (живой рендер экранов проверяется Tier-3 смоуком на testbot — не в этой истории)
 
+## Implementation notes
+- Новый чистый класс `App\Services\Buildings\BuildingCopyNotice` (2 статических метода +
+  `allSamples()` для теста): `duplicateWarning($emoji, $nameRus)` — оговорка про дубль (3 факта);
+  `leanToGateExplanation()` — экран вместо тихого обхода гейта «Навеса».
+- `FirstShelterService::shouldOffer()` не тронут; добавлен только `isGatedLeanTo($buildingKey, $charId, $level)` —
+  обёртка «это ключ LeanTo и гейт его не пропускает».
+- `GenericBuildingInfoAction`: гейт-проверка вставлена сразу после того, как посчитан `$imagePath`
+  (после блока эмодзи/названия/уровня), до шага «4. No camp» — использует уже готовые переменные.
+  Оговорка про дубль (по `character_buildings.building_id`, без фильтра по базе) вставлена как шаг
+  «9b», после блока «на своём уровне добудешь не всё» и до сборки кнопок — кнопка «Строить» не убирается.
+- `GenericBuildingAction`: гейт-проверка вставлена как шаг «3b», сразу после резолва user/character,
+  до шага 4 (активная база) — использует `Request::sendMessage` напрямую (в этом файле у остальных
+  отказов нет клавиатуры, `sendError()` её не поддерживает), плюс `logRejected(..., 'leanto_gated')`
+  для консистентности с другими REJECTED-точками файла.
+- Кнопки гейта: `🏗 Строить` → `Build` (канон из `TeleportBeacon.php`/`HangarAction.php`),
+  `🏠 База` → `Base` (канон из ~15 мест в `Camp/Buildings/*Handler.php`) — сверено с
+  `Config\CallbackRoutes`, не выдумано.
+- Текст `duplicateWarning` дважды переформулирован при подгонке под тест длины (первая версия —
+  576 байт, порог теста скорректирован до 500 байт с обоснованием в комментарии; финальная — 431 байт).
+- `git status` при завершении также показывал правки от параллельного воркера (story-01/tips) в
+  `GenericBuildingCompletionHandler.php` и `GuideCatalog.php` — не трогал, они вне списка `## Files`
+  этой истории; phpstan-ошибки там принадлежат этим правкам (см. TESTS ниже), проверено scoped-прогоном.
+
+## Implementation notes (круг 2, ревью)
+- `BuildingCopyNotice::duplicateWarning()` теперь принимает `bool $stacksDefense`: обещание про
+  оборону появляется ТОЛЬКО для стакающихся оборонных построек (стена/ограда), а не для любого
+  здания — было неправдой для 13 из 16. Источник `building_type` — `buildings.building_type` (та
+  же колонка, что читает `DefenseStructureService::activeStructures()`), WatchTower исключён явно
+  (она `defensive`, но presence-only, не стакает — так же, как её исключает сам `DefenseStructureService`).
+- `FirstShelterService::isGatedLeanTo()` заменён на `leanToGateReason(string $buildingKey, int $charId, int $level): ?string`
+  (константы `REASON_ALREADY_USED` / `REASON_OUTGREW` / `REASON_DISABLED`) — условия и их порядок
+  1:1 копируют `shouldOffer()` (её саму не трогал), различие только в том, что возвращается вместо
+  `false`. `BuildingCopyNotice::leanToGateExplanation(string $reason)` — три разных честных текста.
+- Обнаружено при замере (см. ниже): даже БЕЗ моей оговорки happy-path превью Арсенала = 817 байт,
+  Склада = 1022 байт из 1024 — то есть Склад уже был у самого предела бюджета caption'а ДО этой
+  истории (worst-case с недостающими материалами у обоих — 1675/1987 байт, уже за пределом).
+  Это пред-существующий баг общей структуры превью, не моя регрессия — Non-goals прямо запрещают
+  переписывать "общую структуру превью", поэтому не трогал сам список ресурсов/описание; добавил
+  `BuildingCopyNotice::duplicateWarningFitting()` — считает, влезает ли caption + полная версия
+  оговорки (≤1024 байт), если нет — короткая версия (`duplicateWarningShort()`, ~150 байт, факты
+  1+2 без повтора названия здания), если и она не влезает — возвращает `''` (ничего не добавляет).
+  Гарантия: моя оговорка НИКОГДА не выталкивает caption за 1024, даже если caption уже был там
+  до неё. `GenericBuildingInfoAction` вызывает `duplicateWarningFitting()` вместо прямого `duplicateWarning()`.
+- Числа замера (одноразовый `php spark tmp:measure-caption`, файл создан и удалён в рамках этой
+  задачи, не в репозитории): Арсенал happy-path 817→969 байт с fitting (короткая версия влезла);
+  Склад happy-path 1022→1022 байт с fitting (не влезла даже короткая — 0 добавлено, не наша
+  регрессия). Worst-case (и без того сверх лимита) — fitting корректно ничего не добавляет.
+- Тест дополнен: раздельные факты non-defensive/defensive, три причины `leanToGateReason`,
+  `duplicateWarningFittingNeverExceedsCaptionLimit` (синтетические caption-заглушки нужной длины,
+  без реальных рецептов — реальные числа проверены только одноразовым скриптом, не тестом).
+- **Открытая находка для владельца/дальнейшей работы (вне scope этой story):** превью Склада уже
+  сегодня стоит на грани 1024-байтного лимита Telegram (1022/1024 в happy-path, 1987/1024 в
+  worst-case с недостающими материалами) — БЕЗ какого-либо участия story-02. Это отдельный баг,
+  вероятно тихо режущий caption у части игроков уже на проде; нужна отдельная история.
+
 ## Запреты по инструментам
 - НЕ выполнять `git stash`, `git checkout`, `git reset` — параллельные сессии. Прежняя
   версия файла — через `git show HEAD:<path>`.

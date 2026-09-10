@@ -92,6 +92,27 @@ class GenericBuildingAction extends BaseAction
             return $this->sendError('Персонаж не найден. Попробуйте /start.');
         }
 
+        // 3b. building-bonus-absorption story-02: гейт «Навеса» держит и на старте, не
+        // только на кнопке списка/превью — старая ссылка `genericStartBuild_LeanTo` из
+        // истории чата раньше проходила мимо {@see \App\Services\Onboarding\FirstShelterService}.
+        // Круг 2: причина отказа разная — говорим правду по каждой, а не «недоступно» на все.
+        $shelterSvc    = new \App\Services\Onboarding\FirstShelterService();
+        $leanToGateWhy = $shelterSvc->leanToGateReason($buildingKey, (int) $character['id'], (int) $character['level']);
+        if ($leanToGateWhy !== null) {
+            $this->logRejected($character['id'], "BUILD_{$buildingKey}", 'leanto_gated', ['reason' => $leanToGateWhy]);
+            return Request::sendMessage([
+                'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'         => \App\Services\Buildings\BuildingCopyNotice::leanToGateExplanation($leanToGateWhy),
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [[
+                        ['text' => '🏗 Строить', 'callback_data' => 'Build'],
+                        ['text' => '🏠 База', 'callback_data' => 'Base'],
+                    ]],
+                ]),
+            ]);
+        }
+
         // 4. ADR-095 Фаза 1b: «активная база» — строить можно только стоя на своей базе
         // (на той, которую и застраиваешь). Чинит мульти-бэйс (раньше сверялись с первой
         // базой) и закрывает постройку «в чистом поле». GenericBuildingInfoAction уже

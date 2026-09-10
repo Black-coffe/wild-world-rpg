@@ -107,6 +107,27 @@ class GenericBuildingInfoAction extends BaseAction
         $minLevel   = $recipe['level_required'];
         $imagePath  = base_url($recipe['image_in_progress']);
 
+        // 3b. building-bonus-absorption story-02: гейт «Навеса» держит на превью, не только
+        // на кнопке списка — старая ссылка `genericBuildInfo_LeanTo` из истории чата раньше
+        // проходила мимо {@see \App\Services\Onboarding\FirstShelterService}. Круг 2: причина
+        // отказа разная (уже поставил / перерос уровень / killswitch выключен) — говорим правду
+        // по каждой, а не одно общее «недоступно».
+        $shelterSvc    = new \App\Services\Onboarding\FirstShelterService();
+        $leanToGateWhy = $shelterSvc->leanToGateReason($buildingKey, (int) $character['id'], (int) $character['level']);
+        if ($leanToGateWhy !== null) {
+            return MediaSender::editOrSend($this->navTarget() + [
+                'photo'        => Request::encodeFile($imagePath),
+                'caption'      => \App\Services\Buildings\BuildingCopyNotice::leanToGateExplanation($leanToGateWhy),
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [[
+                        ['text' => '🏗 Строить', 'callback_data' => 'Build'],
+                        ['text' => '🏠 База', 'callback_data' => 'Base'],
+                    ]],
+                ]),
+            ]);
+        }
+
         // 4. No camp
         $claimedCells = $this->claimedCellModel->where('character_id', $character['id'])->findAll();
         if (empty($claimedCells)) {
@@ -234,6 +255,38 @@ class GenericBuildingInfoAction extends BaseAction
                 }
                 $caption .= "\n⚠️ *На своём уровне добудешь не всё:* " . implode(', ', $parts)
                     . '. ' . ucfirst(implode('; ', $ways)) . ".\n";
+            }
+        }
+
+        // 9b. building-bonus-absorption story-02: у персонажа уже есть здание этого типа
+        // (на любой своей базе) — оговорка про поглощение бонуса, налог за каждое и оборону.
+        // Кнопку «Строить» не убираем — дубли не запрещены, только честно объяснены.
+        $bldRow = $this->rowToArr($this->buildingModel->where('name_en', $buildingKey)->first());
+        $bldId  = isset($bldRow['id']) && is_numeric($bldRow['id']) ? (int) $bldRow['id'] : 0;
+        if ($bldId > 0) {
+            $alreadyOwned = $this->characterBuildingModel
+                ->where('character_id', $character['id'])
+                ->where('building_id', $bldId)
+                ->countAllResults();
+            if ($alreadyOwned > 0) {
+                // Круг 2 (ревью): обещание про оборону верно ТОЛЬКО у стакающихся defensive-
+                // построек (стена/ограда) — {@see \App\Services\PVE\DefenseStructureService}
+                // читает бонус лишь у `building_type='defensive'`. Вышка тоже 'defensive', но
+                // presence-only (не стакает по количеству) — исключена явно, а не по списку имён.
+                $buildingType  = isset($bldRow['building_type']) && is_string($bldRow['building_type'])
+                    ? $bldRow['building_type']
+                    : '';
+                $stacksDefense = $buildingType === 'defensive' && $buildingKey !== 'WatchTower';
+                // Круг 2 (ревью, п.3): полная оговорка добавляет ~330-430 байт, а у тяжёлых
+                // рецептов (Арсенал, Склад) caption сам по себе уже близко к пределу 1024 —
+                // fitting-версия берёт полный текст, короткий, либо ничего, но НИКОГДА не
+                // выталкивает caption за предел тем, чего там не было до нашей оговорки.
+                $caption .= \App\Services\Buildings\BuildingCopyNotice::duplicateWarningFitting(
+                    $caption,
+                    $emoji,
+                    $nameRus,
+                    $stacksDefense
+                );
             }
         }
 
