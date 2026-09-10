@@ -23,6 +23,8 @@ blocked_by: []
 - app/Database/Migrations/2026-09-14-101500_HealthWarnBackoffColumns.php
 - app/Database/Migrations/2026-09-14-110000_HealthWarnBackoffSettings.php
 - app/Models/CharacterModel.php
+- app/Config/WipeManifest.php
+- tests/unit/Services/Admin/WipeServiceCharacterResetTest.php
 
 ## Что сделать
 
