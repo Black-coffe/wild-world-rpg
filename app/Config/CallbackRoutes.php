@@ -118,6 +118,9 @@ class CallbackRoutes extends BaseConfig
         // ADR-038 Фаза C — тумблер «Совет дня»
         'dailyTipsOn'                     => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         'dailyTipsOff'                    => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
+        // health-warning-backoff-03 — тумблер предупреждений о низком здоровье.
+        'healthWarnOn'                    => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
+        'healthWarnOff'                   => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         // W27 (ADR-082) — переключатель языка интерфейса (ru/en).
         'localeRu'                        => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         'localeEn'                        => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,

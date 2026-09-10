@@ -72,6 +72,20 @@ class SettingsAction extends BaseAction
             $toast = ($enabled === 1)
                 ? '📌 Совет дня включён — Роби будет писать раз в сутки'
                 : '🔕 Совет дня отключён';
+        } elseif ($data === 'healthWarnOn' || $data === 'healthWarnOff') {
+            // health-warning-backoff-03 (owner: спам предупреждений напрягает) — opt-out тумблер.
+            // Выключает ВСЕ предупреждения о низком здоровье, включая критические.
+            $enabled = ($data === 'healthWarnOn') ? 1 : 0;
+            if (self::healthWarnFlag($character) !== $enabled) {
+                $this->characterModel->update($character->id, ['health_warnings_enabled' => $enabled]);
+                $reloaded = $this->characterModel->find($character->id);
+                if ($reloaded instanceof CharacterEntity) {
+                    $character = $reloaded;
+                }
+            }
+            $toast = ($enabled === 1)
+                ? '⚠️ Предупреждения о здоровье включены'
+                : '🔕 Предупреждения о здоровье отключены — даже критические';
         } elseif ($data === 'duelsOpenOn' || $data === 'duelsOpenOff') {
             // W17 (ADR-071) — тумблер «открыт к дуэлям» (opt-in честный PvP).
             $open = ($data === 'duelsOpenOn') ? 1 : 0;
@@ -200,6 +214,25 @@ class SettingsAction extends BaseAction
             $raw = $character['daily_tips_enabled'] ?? 1;
         } elseif (is_array($character)) {
             $raw = $character['daily_tips_enabled'] ?? 1;
+        }
+
+        return is_numeric($raw) ? (int) $raw : 1;
+    }
+
+    /**
+     * health-warning-backoff-03 — извлекает `health_warnings_enabled` (0/1). 1 — дефолт
+     * (opt-out, как «Совет дня»). 0 = {@see \App\TaskHandlers\LowHealthWarningHandler} не
+     * шлёт этому персонажу НИЧЕГО, включая критические предупреждения.
+     *
+     * @param array<int|string,mixed>|object|null $character
+     */
+    public static function healthWarnFlag($character): int
+    {
+        $raw = 1;
+        if ($character instanceof ArrayAccess) {
+            $raw = $character['health_warnings_enabled'] ?? 1;
+        } elseif (is_array($character)) {
+            $raw = $character['health_warnings_enabled'] ?? 1;
         }
 
         return is_numeric($raw) ? (int) $raw : 1;
@@ -339,14 +372,24 @@ class SettingsAction extends BaseAction
             ? '✅ *включён* — Роби пишет совет раз в сутки'
             : '🔕 *отключён*';
 
+        $warnOn    = self::healthWarnFlag($character) === 1;
+        $warnState = $warnOn
+            ? '⚠️ *включены*'
+            : '🔕 *отключены*';
+
         $text = "⚙️ *Настройки*\n\n"
             . "🖼️ Картинки в сообщениях: {$state}\n\n"
             . "📌 Совет дня: {$tipsState}\n\n"
+            . "⚠️ Предупреждения о здоровье: {$warnState}\n\n"
             . "_Если у тебя медленный интернет или ты предпочитаешь чистый текст — отключи картинки. "
             . "Содержание и кнопки сообщений не изменятся, только пропадут изображения. "
             . "Карта мира текстовая всегда — на неё это не влияет._\n\n"
             . "_«Совет дня» — раз в сутки Роби сам пришлёт случайный игровой совет с микро-прокачкой. "
-            . "Не нужно — отключи; вызвать совет вручную всегда можно командой /tips._";
+            . "Не нужно — отключи; вызвать совет вручную всегда можно командой /tips._\n\n"
+            . "_Роби пишет, когда твоё здоровье падает низко, и повторяет реже, если ты не реагируешь. "
+            . "Отключив это, ты перестанешь получать ВСЕ такие сообщения — в том числе критические, "
+            . "которые приходят, когда до смерти персонажа остаются считанные минуты. Отключай, только "
+            . "если готов следить за здоровьем сам._";
 
         $toggleButton = $disabled
             ? ['text' => '🖼️ Включить картинки',  'callback_data' => 'mediaOn']
@@ -356,7 +399,11 @@ class SettingsAction extends BaseAction
             ? ['text' => '🔕 Отключить совет дня', 'callback_data' => 'dailyTipsOff']
             : ['text' => '📌 Включить совет дня',  'callback_data' => 'dailyTipsOn'];
 
-        $rows = [[$toggleButton], [$tipsButton]];
+        $warnButton = $warnOn
+            ? ['text' => '🔕 Отключить предупреждения о здоровье', 'callback_data' => 'healthWarnOff']
+            : ['text' => '⚠️ Включить предупреждения о здоровье', 'callback_data' => 'healthWarnOn'];
+
+        $rows = [[$toggleButton], [$tipsButton], [$warnButton]];
 
         // Тип карты мира (2026-07-22) — раньше менялся только текстовыми командами
         // `accurate_map`/`beautiful_map`, о которых игрок узнавал единственный раз: на экране
