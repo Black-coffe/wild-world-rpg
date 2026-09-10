@@ -1,2 +1,3 @@
 {"ts":"2026-09-06T10:58:42Z","spec":"craft-quantity-parity","version":"v0.51.663","head":"c7734db1","pack":"03e222dba882","note":"тег v0.51.663 на develop, GitHub Actions run 34028668263 success; миграция SeedCraftQuantityTip применена на проде batch 355; владелец: «проверил, всё работает — кати на прод»"}
 {"ts":"2026-09-08T17:56:27Z","spec":"beacon-install-discoverability","version":"v0.51.664","head":"da541280","pack":"a3fa9451e72c","note":""}
+{"ts":"2026-09-10T20:30:29Z","spec":"building-bonus-absorption","version":"v0.51.665","head":"37d62742","pack":"0086ef8a0910","note":"тег на develop; прод задеплоен (run 34526165559), миграция совета применилась — game_tips id 145; новых ошибок в проде нет"}
