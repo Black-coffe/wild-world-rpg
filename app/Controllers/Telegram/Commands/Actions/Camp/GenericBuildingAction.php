@@ -227,6 +227,27 @@ class GenericBuildingAction extends BaseAction
             . "Длительность: ~{$minutes} мин.\n"
             . "По завершении здание будет добавлено на базу.";
 
+        // 10b. building-bonus-absorption story-02, круг 3: живой смоук показал, что оговорка
+        // про дубль в превью почти НИКОГДА не влезает (превью само занимает 820-950 из 1024
+        // байт, см. Implementation notes) — переносим её ДОПОЛНИТЕЛЬНО сюда, на экран решения:
+        // это сообщение старта, а не превью, и весит всего ~350-370 байт (замерено
+        // `php spark tmp:measure-start`, удалён после замера), места хватает почти всегда.
+        // Превью НЕ трогаем — там оговорка остаётся, показывается, где влезает.
+        $bldRow        = $this->buildingModel->where('name_en', $buildingKey)->first();
+        $bldId         = is_array($bldRow) && isset($bldRow['id']) && is_numeric($bldRow['id']) ? (int) $bldRow['id'] : 0;
+        $stacksDefense = is_array($bldRow) && ($bldRow['building_type'] ?? '') === 'defensive' && $buildingKey !== 'WatchTower';
+        $alreadyOwned  = $bldId > 0
+            ? $this->characterBuildingModel->where('character_id', $character['id'])->where('building_id', $bldId)->countAllResults()
+            : 0;
+        if ($alreadyOwned > 0) {
+            $text .= \App\Services\Buildings\BuildingCopyNotice::duplicateWarningFitting(
+                $text,
+                $recipe['emoji'],
+                $recipe['name_rus'],
+                $stacksDefense
+            );
+        }
+
         return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'      => Request::encodeFile(base_url($recipe['image_in_progress'])),
