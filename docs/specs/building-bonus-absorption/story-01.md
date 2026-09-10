@@ -1,7 +1,7 @@
 ---
 story: building-bonus-absorption-01
 spec: building-bonus-absorption
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: true
