@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\TaskHandlers\Built;
 
 use App\Attributes\HandlerKey;
+use App\Models\ActionLogModel;
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\CharacterFactionModel;
@@ -27,7 +28,11 @@ use Config\Buildings;
  *      F0.3 atomic-claim, повтор — no-op).
  *   2. find `buildings.name_en` row.
  *   3. insert/update `character_buildings` (amount++ если уже есть).
- *   4. bump character agility/intellect через `updateAgilityAndIntellect()`.
+ *   4. bump character agility/intellect через `updateAgilityAndIntellect()` —
+ *      ТОЛЬКО за первый экземпляр здания этого типа у персонажа (ADR
+ *      building-bonus-absorption): вторая и любая следующая копия, на любой
+ *      базе, бонус не даёт — он поглощается. Признак «первый» считается ДО
+ *      записи шага 3, без фильтра по `map_cell_id`.
  *   5. send Telegram уведомление с photo + caption (Markdown).
  *
  * Recipe-поля из Buildings.php (добавлены в B4):
@@ -106,33 +111,61 @@ class GenericBuildingCompletionHandler extends BaseTaskHandler
             return;
         }
 
-        // 5. character_buildings insert/update
-        $this->updateCharacterBuildings($task, $buildingRow, $recipe);
+        // 5. character_buildings insert/update. Возвращает признак «это первый
+        //    экземпляр здания этого типа у персонажа» (любая база) — посчитан
+        //    ДО записи, используется на шаге 6 для поглощения бонуса дублей.
+        $isFirstOfType = $this->updateCharacterBuildings($task, $buildingRow, $recipe);
 
         // 6. Stats бонусы (character_id из raw task — mixed; нарроуим в int через is_numeric,
-        //    чтобы не было краша «string given» при завершении постройки и cast-from-mixed)
+        //    чтобы не было краша «string given» при завершении постройки и cast-from-mixed).
+        //    Начисляем ТОЛЬКО за первый экземпляр типа — дубль (любая база) бонус поглощает.
         $cidRaw      = $task['character_id'] ?? null;
         $characterId = is_numeric($cidRaw) ? (int) $cidRaw : 0;
-        $this->characterModel->updateAgilityAndIntellect(
-            $characterId,
-            (float) ($recipe['completion_bonus_agility']  ?? 0.0),
-            (float) ($recipe['completion_bonus_intellect'] ?? 0.0)
-        );
+        $absorbedBuildingKey = null;
+        if ($isFirstOfType) {
+            $this->characterModel->updateAgilityAndIntellect(
+                $characterId,
+                (float) ($recipe['completion_bonus_agility']  ?? 0.0),
+                (float) ($recipe['completion_bonus_intellect'] ?? 0.0)
+            );
+        } else {
+            $absorbedBuildingKey = is_string($buildingKey) ? $buildingKey : 'unknown';
+            log_message('info', "[GenericBuildingCompletion] бонус поглощён дублем: character_id={$characterId}, building={$absorbedBuildingKey}");
+        }
 
-        // 7. Notify
+        // 7. Notify. На проде INFO выше не пишется (memory
+        //    reference_prod_info_not_logged_monitor_via_markers) — если бонус поглощён,
+        //    notifyUser() дополнительно оставит след в action_log (единственный дешёвый
+        //    способ увидеть на проде, что ветка сработала).
         $this->notifyUser(
             (int) $task['telegram_user_id'],
             (string) ($recipe['completion_text']  ?? ''),
-            (string) ($recipe['completion_image'] ?? '')
+            (string) ($recipe['completion_image'] ?? ''),
+            $absorbedBuildingKey,
+            $characterId
         );
     }
 
-    private function updateCharacterBuildings(array $task, array $buildingRow, array $recipe): void
+    /**
+     * @return bool true, если у персонажа ДО этого вызова не было ни одной строки
+     *              `character_buildings` с этим `building_id` (на любой базе) —
+     *              т.е. это первый экземпляр здания этого типа (building-bonus-absorption).
+     */
+    private function updateCharacterBuildings(array $task, array $buildingRow, array $recipe): bool
     {
+        // Признак «первый экземпляр этого типа у персонажа» — считаем ДО insert/update,
+        // без фильтра по map_cell_id (любая база считается тем же типом здания).
+        $isFirstOfType = $this->characterBuildingModel
+            ->where('character_id', $task['character_id'])
+            ->where('building_id', $buildingRow['id'])
+            ->countAllResults() === 0;
+
         $charRow = $this->characterModel->find($task['character_id']);
         if (!$charRow) {
             log_message('error', "[GenericBuildingCompletion] character not found: " . $task['character_id']);
-            return;
+            // Запись character_buildings не состоялась — бонуса за несостоявшуюся
+            // постройку быть не должно, каким бы ни был признак «первый экземпляр».
+            return false;
         }
 
         // ADR-102: постройка привязывается к КОНКРЕТНОЙ базе (map_cell_id), а не
@@ -153,7 +186,7 @@ class GenericBuildingCompletionHandler extends BaseTaskHandler
             $this->characterBuildingModel->update($existing['id'], [
                 'amount' => $existing['amount'] + 1,
             ]);
-            return;
+            return $isFirstOfType;
         }
 
         // Новое здание этого типа на этой базе → отдельная строка.
@@ -180,6 +213,8 @@ class GenericBuildingCompletionHandler extends BaseTaskHandler
             'tax'                                => $buildingRow['tax'],
             'usage'                              => $buildingRow['usage'],
         ]);
+
+        return $isFirstOfType;
     }
 
     /**
@@ -264,17 +299,78 @@ class GenericBuildingCompletionHandler extends BaseTaskHandler
         return 0;
     }
 
-    private function notifyUser(int $telegramUserId, string $caption, string $imageRelPath): void
+    /**
+     * building-bonus-absorption — след поглощения бонуса в `action_log` (мониторинг на
+     * проде идёт по этой таблице, не по INFO-логам, см. `notifyUser()`). Паттерн insert —
+     * как `TaxCollectionHandler::logTaxEvent()`: try/catch, сбой форензики не блокирует
+     * основной поток.
+     *
+     * `action_name` — СОБСТВЕННОЕ имя события `BONUS_ABSORBED_<Key>`, а не `BUILD_<Key>`
+     * (ревью §3, круг 3): `BUILD_<Key>` уже пишется на КАЖДОЙ обычной постройке
+     * (`GenericBuildingAction::logRejected()`), и если использовать то же имя тут — счёт
+     * срабатываний ветки поглощения по `action_log` стал бы неотличим от обычных построек
+     * (а `description` для подсчёта не годится — свободный varchar). Самый длинный ключ
+     * здания (`TeleportationCenter`, 19 символов) + префикс — 34 символа, `action_name`
+     * `VARCHAR(255)` (см. `2024-03-18-134951_CreateActionLogTable.php`) — с запасом.
+     *
+     * `action_status='Completed'` — сверено с ENUM колонки по миграциям (не по коду):
+     * `2024-03-18-134951_CreateActionLogTable.php` даёt `('Pending','Completed','Skipped')`,
+     * `2026-07-07-100000_ExtendActionLogStatusEnum.php` добавляет `'REJECTED'`. Итоговый
+     * набор — `Pending|Completed|Skipped|REJECTED`; событие успешное (постройка состоялась,
+     * бонус лишь не начислен) — `Completed` подходит, `REJECTED` здесь не про то (постройка
+     * не отклонена).
+     *
+     * `$chatId` берётся уже разрешённым из `notifyUser()` (та же переменная, что уходит в
+     * `safeSendPhoto`) — здесь НЕ повторяем доступ к `$tgUser['telegram_id']` (баланс с
+     * baseline-счётчиком phpstan для этого файла).
+     *
+     * @param int|string $chatId такой же тип, каким его принимает `safeSendPhoto()`.
+     */
+    private function logBonusAbsorbed(int $characterId, $chatId, string $buildingKey): void
     {
+        try {
+            (new ActionLogModel())->save([
+                'character_id'  => $characterId,
+                'chat_id'       => $chatId,
+                'action_name'   => "BONUS_ABSORBED_{$buildingKey}",
+                'action_status' => 'Completed',
+                'description'   => 'Бонус поглощён — у персонажа уже есть здание этого типа (дубль, любая база)',
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[GenericBuildingCompletion::logBonusAbsorbed] insert failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * @param string|null $absorbedBuildingKey building-bonus-absorption — если бонус за
+     *                                          эту постройку поглощён дублем, сюда передан
+     *                                          её ключ, и notifyUser() рядом с обычной
+     *                                          отправкой оставляет след в `action_log`
+     *                                          (единственный дешёвый способ увидеть
+     *                                          срабатывание ветки на проде).
+     */
+    private function notifyUser(
+        int $telegramUserId,
+        string $caption,
+        string $imageRelPath,
+        ?string $absorbedBuildingKey = null,
+        int $characterId = 0
+    ): void {
         $tgUser = $this->telegramUserModel->find($telegramUserId);
         if (!$tgUser) {
             log_message('error', "[GenericBuildingCompletion] telegram_user not found: {$telegramUserId}");
             return;
         }
 
+        $chatId = $tgUser['telegram_id'];
+
+        if ($absorbedBuildingKey !== null) {
+            $this->logBonusAbsorbed($characterId, $chatId, $absorbedBuildingKey);
+        }
+
         $imagePath = base_url($imageRelPath);
         $this->safeSendPhoto(
-            $tgUser['telegram_id'],
+            $chatId,
             $imagePath,
             $caption,
             ['parse_mode' => 'Markdown']
