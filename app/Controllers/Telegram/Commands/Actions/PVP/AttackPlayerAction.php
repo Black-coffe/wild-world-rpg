@@ -138,42 +138,46 @@ class AttackPlayerAction extends BaseAction
             return $this->sendError("Нельзя атаковать самого себя!");
         }
 
-        // ADR-186 (pvp-detection-clarity-08) — гейт окна противостояния стоит
-        // ДО записи анти-спам-кулдауна: отбитый повторный тап по замороженной
-        // цели не должен стоить атакующему 30 секунд (Инвариант 6). Чисто
-        // DB-логика вынесена в resolveStandoffOutcome() — тестируется Reflection'ом
-        // без Telegram-сети, тем же приёмом, что isCellsCloseEnough().
+        // ADR-186 (pvp-detection-clarity-13, BLOCK критично #1) — Фаза 1 читает
+        // ТОЛЬКО уже существующее окно (контратака / собственная заморозка этой
+        // пары): ни строка `pvp_standoffs`, ни алерт защитнику здесь не создаются,
+        // поэтому безопасно раньше гейтов смежности/PvP-ограничений. Открытие
+        // НОВОГО окна вынесено в resolveStandoffOpen() ниже и вызывается только
+        // ПОСЛЕ них — иначе тревогу можно поднять с любого конца карты любым
+        // уровнем (ровно то, что нашла находка #1).
         $standoffService = new PvpStandoffService();
-        $standoffOutcome = $this->resolveStandoffOutcome($standoffService, $attacker, $defender);
+        $standoffPreGate = $this->resolveStandoffPreGate($standoffService, $attacker, $defender);
 
-        if (is_array($standoffOutcome['justOpened'])) {
-            (new StandoffNotifier())->alertDefender($standoffOutcome['justOpened']);
-        }
-        if ($standoffOutcome['block']) {
-            // resolveStandoffOutcome() всегда несёт строку вместе с block=true —
+        if ($standoffPreGate['block']) {
+            // resolveStandoffPreGate() всегда несёт строку вместе с block=true —
             // is_array() здесь для phpstan, а не альтернативная ветка поведения.
-            return is_array($standoffOutcome['waitStandoff'])
-                ? $this->sendStandoffWaitScreen($standoffOutcome['waitStandoff'])
+            return is_array($standoffPreGate['waitStandoff'])
+                ? $this->sendStandoffWaitScreen($standoffPreGate['waitStandoff'])
                 : $this->sendError('Окно противостояния не удалось прочитать. Попробуйте ещё раз.');
         }
 
-        // v0.51.44 — anti-spam cooldown (Security-telegram §7).
+        // v0.51.44 — anti-spam cooldown (Security-telegram §7), ЧТЕНИЕ.
         // Cache-based gate per attacker. Раннє повернення до DB queries
         // (PvPRestriction, MapModel, BiomeModel, simulateFight) — зменшує
         // навантаження від spammers, які жмуть кнопку 2-3× за секунду.
         // ADR-186 §3/Инвариант 7: тап защитника по «⚔️ Ударить первым» — не
         // спам, а разовое право ответа из живого окна; свой кулдаун атакующего
         // (тут — базы) на этот тап не распространяется.
-        if (! $standoffOutcome['isCounterAttack']) {
-            $cooldownSec    = $this->cfg->pvpAttackCooldownSec;
-            $cacheKey       = "pvp_attack_cd_{$attacker['id']}";
-            $cache          = \Config\Services::cache();
+        //
+        // pvp-detection-clarity-13: САМА ЗАПИСЬ кулдауна (`$cache->save()`) сдвинута
+        // ниже, за resolveStandoffOpen() — тап, который лишь открывает окно/натыкается
+        // на чужое окно (`block=true`), не платит кулдаун, ровно как раньше отбитый
+        // тап никогда не доходил до `$cache->save()` вовсе (Инвариант 6). Платит
+        // только тап, что реально доходит до боя.
+        $cooldownSec = $this->cfg->pvpAttackCooldownSec;
+        $cacheKey    = "pvp_attack_cd_{$attacker['id']}";
+        $cache       = \Config\Services::cache();
+        if (! $standoffPreGate['isCounterAttack']) {
             $lastAttackTime = $cache->get($cacheKey);
             if (is_int($lastAttackTime) && time() - $lastAttackTime < $cooldownSec) {
                 $remaining = $cooldownSec - (time() - $lastAttackTime);
                 return $this->sendError("Подождите {$remaining} сек. перед следующей атакой!");
             }
-            $cache->save($cacheKey, time(), $cooldownSec);
         }
 
         if (!$this->isCellsCloseEnough($attacker, $defender)) {
@@ -187,6 +191,35 @@ class AttackPlayerAction extends BaseAction
             // PlayerDetectionService, тот же callback_data) объясняет условие,
             // а не отказывает «⚠️ Ошибка» (pvp-detection-clarity-08, находка -07).
             return $this->sendRestrictionExplanation($check);
+        }
+
+        // ADR-186 (pvp-detection-clarity-13) — Фаза 2: гейты выше пройдены,
+        // теперь безопасно открыть НОВОЕ окно (пишет `pvp_standoffs` + алерт
+        // защитнику) или подтвердить надбавку «укрыться». Контратака сюда не
+        // заходит вовсе — она уже полностью решена в Фазе 1.
+        $standoffOutcome = $this->resolveStandoffOpen($standoffService, $attacker, $defender, $standoffPreGate);
+
+        if (is_array($standoffOutcome['justOpened'])) {
+            (new StandoffNotifier())->alertDefender($standoffOutcome['justOpened']);
+        }
+        if ($standoffOutcome['block']) {
+            // BLOCK major #5 — окно, открытое кем-то другим против той же цели:
+            // кнопки «⏳ Проверить»/«🚶 Уйти» ведут туда, где владение проверяется
+            // по attacker_id, и чужому атакующему вернут «Это не твоё
+            // противостояние». Честный экран без кнопок вместо этого.
+            if (is_array($standoffOutcome['foreignStandoff'])) {
+                return $this->sendForeignStandoffScreen($standoffOutcome['foreignStandoff']);
+            }
+
+            return is_array($standoffOutcome['waitStandoff'])
+                ? $this->sendStandoffWaitScreen($standoffOutcome['waitStandoff'])
+                : $this->sendError('Окно противостояния не удалось прочитать. Попробуйте ещё раз.');
+        }
+
+        // Тап дошёл до реального боя (или до штатного продолжения без окна) —
+        // только теперь фиксируем анти-спам кулдаун (см. комментарий выше).
+        if (! $standoffPreGate['isCounterAttack']) {
+            $cache->save($cacheKey, time(), $cooldownSec);
         }
 
         $mapRowAttacker = $this->mapModel->where('cell_number', $attacker['cell_number'])->first();
@@ -212,7 +245,7 @@ class AttackPlayerAction extends BaseAction
         // ADR-186 §3/Инвариант 7: при контратаке из окна («⚔️ Ударить первым»)
         // роли в этом вызове развёрнуты — базой владеет тот, кто СЕЙЧАС в слоте
         // $attacker, поэтому профиль резолвится по baseOwnerId/baseOwnerCell
-        // из resolveStandoffOutcome(), а не всегда по $defender.
+        // из resolveStandoffPreGate()/resolveStandoffOpen(), а не всегда по $defender.
         $defenseService = new DefenseStructureService();
         $defenseProfile = $defenseService->getDefenseProfile(
             $standoffOutcome['baseOwnerId'],
@@ -452,23 +485,21 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * ADR-186 (pvp-detection-clarity-08) — весь гейт окна противостояния в одной
-     * точке, ДО записи анти-спам-кулдауна и ДО симуляции боя. Чисто DB-чтения и
-     * условные переходы через `PvpStandoffService` (сам сервис — `ConditionalWriteService`
-     * внутри, гонки исключены на уровне БД); отправка Telegram-сообщений — забота
-     * вызывающего `handle()`, поэтому метод тестируется Reflection'ом без сети
-     * (тот же приём, что {@see isCellsCloseEnough()}).
+     * ADR-186 (pvp-detection-clarity-13, BLOCK критично #1) — Фаза 1 гейта окна:
+     * читает ТОЛЬКО уже существующее состояние (контратака / собственная
+     * заморозка этой пары), ничего не пишет в `pvp_standoffs` и не шлёт алерт
+     * защитнику — поэтому безопасна раньше смежности/`checkPvPAllowed`.
+     * Открытие НОВОГО окна вынесено в {@see resolveStandoffOpen()}, вызывается
+     * только после гейтов (иначе тревогу поднимал бы любой тап с любого конца
+     * карты любым уровнем — сама находка).
      *
-     * Три исхода:
+     * Два исхода:
      *  - `isCounterAttack=true` — цель этого тапа сама держит открытое окно против
      *    кликающего («⚔️ Ударить первым» защитника): роли развёрнуты, базой
      *    владеет кликающий (`baseOwnerId`), кулдаун и обычный гейт окна не
      *    применяются (ADR-186 §3, Инвариант 7).
-     *  - `block=true` — атака по ЭТОЙ цели отбивается (либо уже была заморожена,
-     *    либо только что открылась): `waitStandoff` — строка для экрана ожидания.
-     *  - иначе — бой идёт обычным путём; если самая свежая строка окна для этой
-     *    пары закрыта как `held`, `holdBonusPercent` несёт добавку к снижению
-     *    урона (Инвариант 8, складывается вызывающим под общим потолком).
+     *  - `block=true` — эта пара уже заморожена прошлым тапом: `waitStandoff` —
+     *    строка для того же экрана ожидания, без гейтов и без кулдауна.
      *
      * @param array<string,mixed>|\App\Entities\CharacterEntity $attacker
      * @param array<string,mixed>|\App\Entities\CharacterEntity $defender
@@ -476,15 +507,13 @@ class AttackPlayerAction extends BaseAction
      *     enabled: bool,
      *     block: bool,
      *     waitStandoff: array<string,mixed>|null,
-     *     justOpened: array<string,mixed>|null,
      *     isCounterAttack: bool,
      *     counterStandoffId: int|null,
      *     baseOwnerId: int,
      *     baseOwnerCell: int,
-     *     holdBonusPercent: int,
      * }
      */
-    private function resolveStandoffOutcome(
+    private function resolveStandoffPreGate(
         PvpStandoffService $standoffService,
         array|\App\Entities\CharacterEntity $attacker,
         array|\App\Entities\CharacterEntity $defender
@@ -498,12 +527,10 @@ class AttackPlayerAction extends BaseAction
             'enabled'           => $standoffService->isEnabled(),
             'block'             => false,
             'waitStandoff'      => null,
-            'justOpened'        => null,
             'isCounterAttack'   => false,
             'counterStandoffId' => null,
             'baseOwnerId'       => $defenderId,
             'baseOwnerCell'     => $defenderCell,
-            'holdBonusPercent'  => 0,
         ];
 
         if (! $outcome['enabled']) {
@@ -528,18 +555,95 @@ class AttackPlayerAction extends BaseAction
         if ($frozen !== null) {
             $outcome['block']        = true;
             $outcome['waitStandoff'] = $frozen;
+        }
 
+        return $outcome;
+    }
+
+    /**
+     * ADR-186 (pvp-detection-clarity-13) — Фаза 2 гейта окна: вызывается ТОЛЬКО
+     * после того, как смежность (`isCellsCloseEnough`) и `checkPvPAllowed` уже
+     * пройдены — единственное место, где строка `pvp_standoffs` пишется и алерт
+     * уходит защитнику. Для `isCounterAttack` не делает ничего (уже полностью
+     * решено в {@see resolveStandoffPreGate()}), контратака сюда не заходит.
+     *
+     * Исходы, помимо `isCounterAttack`:
+     *  - `block=true`, `justOpened` не пусто — окно только что открылось этим
+     *    тапом.
+     *  - `block=true`, `waitStandoff` не пусто, `foreignStandoff` пусто — гонка:
+     *    окно уже открыто ЭТИМ ЖЕ атакующим (та же пара) между гейтами выше.
+     *  - `block=true`, `foreignStandoff` не пусто (BLOCK major #5) — окно уже
+     *    открыто ДРУГИМ атакующим против той же цели: `standoffCheck_<id>`/
+     *    `standoffLeave_<id>` этой строки атакующему не принадлежат, вызывающий
+     *    обязан показать честный экран без них, а не `waitScreen()`.
+     *  - иначе — бой идёт обычным путём; если самая свежая строка окна для этой
+     *    пары закрыта как `held`, `holdBonusPercent` несёт добавку к снижению
+     *    урона (Инвариант 8, складывается вызывающим под общим потолком).
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $attacker
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $defender
+     * @param array{enabled: bool, isCounterAttack: bool, counterStandoffId: int|null, baseOwnerId: int, baseOwnerCell: int} $preGate
+     * @return array{
+     *     block: bool,
+     *     waitStandoff: array<string,mixed>|null,
+     *     justOpened: array<string,mixed>|null,
+     *     foreignStandoff: array<string,mixed>|null,
+     *     isCounterAttack: bool,
+     *     counterStandoffId: int|null,
+     *     baseOwnerId: int,
+     *     baseOwnerCell: int,
+     *     holdBonusPercent: int,
+     * }
+     */
+    private function resolveStandoffOpen(
+        PvpStandoffService $standoffService,
+        array|\App\Entities\CharacterEntity $attacker,
+        array|\App\Entities\CharacterEntity $defender,
+        array $preGate
+    ): array {
+        $attackerId   = is_numeric($attacker['id'] ?? null) ? (int) $attacker['id'] : 0;
+        $defenderId   = is_numeric($defender['id'] ?? null) ? (int) $defender['id'] : 0;
+        $defenderCell = is_numeric($defender['cell_number'] ?? null) ? (int) $defender['cell_number'] : 0;
+
+        $outcome = [
+            'block'             => false,
+            'waitStandoff'      => null,
+            'justOpened'        => null,
+            'foreignStandoff'   => null,
+            'isCounterAttack'   => $preGate['isCounterAttack'],
+            'counterStandoffId' => $preGate['counterStandoffId'],
+            'baseOwnerId'       => $preGate['baseOwnerId'],
+            'baseOwnerCell'     => $preGate['baseOwnerCell'],
+            'holdBonusPercent'  => 0,
+        ];
+
+        if (! $preGate['enabled'] || $preGate['isCounterAttack']) {
             return $outcome;
         }
 
         // Первая попытка против защитника с живой обороной — открыть окно.
         if ($standoffService->shouldOpen($defenderId, $defenderCell)) {
             $opened = $standoffService->open($attackerId, $defenderId, $defenderCell);
-            $active = $opened ?? $standoffService->activeAgainst($defenderId);
-            if ($active !== null) {
+            if ($opened !== null) {
                 $outcome['block']        = true;
-                $outcome['waitStandoff'] = $active;
+                $outcome['waitStandoff'] = $opened;
                 $outcome['justOpened']   = $opened;
+
+                return $outcome;
+            }
+
+            // `open()` вернул null — дубль: пока гейты выше проверялись, окно уже
+            // открылось. Читаем, чьё оно — чужому атакующему нужен честный экран
+            // без чужих кнопок владения (BLOCK major #5), не `waitScreen()`.
+            $active = $standoffService->activeAgainst($defenderId);
+            if ($active !== null) {
+                $outcome['block']         = true;
+                $activeAttackerId         = is_numeric($active['attacker_id'] ?? null) ? (int) $active['attacker_id'] : 0;
+                if ($activeAttackerId === $attackerId) {
+                    $outcome['waitStandoff'] = $active;
+                } else {
+                    $outcome['foreignStandoff'] = $active;
+                }
 
                 return $outcome;
             }
@@ -606,25 +710,34 @@ class AttackPlayerAction extends BaseAction
      * существующий `damage_reduction`. Вынесено отдельно от `handle()`, чтобы
      * потолок проверялся тестом Reflection'ом без симуляции боя.
      *
+     * 🟡 Хвост #18 (ADR-030, pvp-detection-clarity-13): `null` — защитник вообще
+     * без единой живой постройки на клетке — раньше подменялся синтезированным
+     * профилем (`damage_reduction` от нуля), т.е. отбитая атака без единой стены
+     * ВСЁ РАВНО снижала урон. «Укрыться» усиливает уже существующую защиту, а не
+     * создаёт её из ничего — `null` остаётся `null`.
+     *
      * @param array{owner_id:int,damage_reduction:float,fence_damage:int,initiative_bonus:float,structure_ids:list<int>}|null $defenseProfile
-     * @return array{owner_id:int,damage_reduction:float,fence_damage:int,initiative_bonus:float,structure_ids:list<int>}
+     * @return array{owner_id:int,damage_reduction:float,fence_damage:int,initiative_bonus:float,structure_ids:list<int>}|null
      */
     private function applyHoldBonus(
         ?array $defenseProfile,
         DefenseStructureService $defenseService,
         int $baseOwnerId,
         int $holdBonusPercent
-    ): array {
-        $capPercent     = $defenseService->totalReductionCapPercent();
-        $currentPercent = $defenseProfile !== null ? $defenseProfile['damage_reduction'] * 100 : 0.0;
-        $newPercent     = min($capPercent, $currentPercent + $holdBonusPercent);
+    ): ?array {
+        if ($defenseProfile === null) {
+            return null;
+        }
+
+        $capPercent = $defenseService->totalReductionCapPercent();
+        $newPercent = min($capPercent, $defenseProfile['damage_reduction'] * 100 + $holdBonusPercent);
 
         return [
             'owner_id'         => $baseOwnerId,
             'damage_reduction' => $newPercent / 100.0,
-            'fence_damage'     => $defenseProfile['fence_damage'] ?? 0,
-            'initiative_bonus' => $defenseProfile['initiative_bonus'] ?? 0.0,
-            'structure_ids'    => $defenseProfile['structure_ids'] ?? [],
+            'fence_damage'     => $defenseProfile['fence_damage'],
+            'initiative_bonus' => $defenseProfile['initiative_bonus'],
+            'structure_ids'    => $defenseProfile['structure_ids'],
         ];
     }
 
@@ -674,6 +787,36 @@ class AttackPlayerAction extends BaseAction
             'text'         => $screen['text'],
             'parse_mode'   => 'HTML',
             'reply_markup' => json_encode($screen['keyboard']) ?: '{}',
+        ]);
+    }
+
+    /**
+     * BLOCK major #5 (ADR-186 §5, pvp-detection-clarity-13) — атакующий попал на
+     * окно, открытое ПРОТИВ той же цели ДРУГИМ игроком. У него нет своей строки
+     * `pvp_standoffs`, поэтому `standoffCheck_<id>`/`standoffLeave_<id>` этого
+     * окна ему не принадлежат — не показываем их вовсе, только честный текст:
+     * кто держит тревогу первым и сколько осталось. Секунды читаются готовой
+     * формулой `PvpStandoffService::secondsLeft()`, не дублируются здесь.
+     *
+     * @param array<string,mixed> $standoff чужая строка pvp_standoffs
+     */
+    private function sendForeignStandoffScreen(array $standoff): ServerResponse
+    {
+        $seconds     = (new PvpStandoffService())->secondsLeft($standoff);
+        $secondsText = sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60);
+
+        $text = "🛡 Эта цель уже под чужой тревогой — атаковать пока нельзя.\n\n"
+            . "Другой игрок поднял тревогу на этой базе первым. Осталось {$secondsText}: "
+            . 'если его окно закроется без боя, атаковать снова станет можно обычным путём.';
+
+        Request::answerCallbackQuery([
+            'callback_query_id' => $this->callbackQuery->getId(),
+        ]);
+
+        return Request::sendMessage([
+            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'       => $text,
+            'parse_mode' => 'HTML',
         ]);
     }
 

@@ -50,14 +50,21 @@ use ReflectionMethod;
  * Хвост из `plan.md` (`## Assumptions`): у `battle_logs` нет собственной
  * `createTable`-миграции — схема хендролится, как в `AttackPlayerActionFixtureFenceTest`.
  *
- * Гейт окна (`resolveStandoffOutcome()`/`applyHoldBonus()`) — приватные методы,
- * тестируются Reflection'ом без Telegram-сети, тем же приёмом, что
- * `isCellsCloseEnough()`/`toCharacterArray()` в существующих тестах. Путь «от
+ * Гейт окна (`resolveStandoffPreGate()`/`resolveStandoffOpen()`/`applyHoldBonus()`) —
+ * приватные методы, тестируются Reflection'ом без Telegram-сети, тем же приёмом,
+ * что `isCellsCloseEnough()`/`toCharacterArray()` в существующих тестах. Путь «от
  * кнопки до боя» (killswitch OFF / истечение по времени / контратака) проверяется
  * реальным `handle()` через настоящий `CallbackQuery` — оба бойца получают
  * искусственно огромное здоровье, чтобы бой гарантированно завершился `exhausted`
  * (150 раундов без смерти) и не заходил в `DeathService`/лут/ладдер/трофеи —
  * это отдельная, намного более тяжёлая поверхность соседних story.
+ *
+ * pvp-detection-clarity-13 (BLOCK критично #1 / major #5 / хвост #18) — гейт
+ * пересобран на два хода: `resolveStandoffPreGate()` читает контратаку/заморозку
+ * БЕЗ письма и алерта, `resolveStandoffOpen()` (пишет строку + шлёт алерт) —
+ * только после того, как `handle()` проверил смежность и `checkPvPAllowed()`.
+ * Плюс честный экран для атакующего, попавшего на ЧУЖОЕ открытое окно, и
+ * `applyHoldBonus()` больше не синтезирует профиль обороны из `null` (ADR-030).
  *
  * @internal
  */
@@ -361,14 +368,23 @@ final class StandoffAttackGateTest extends CIUnitTestCase
         $second = (new StandoffLeaveAction($this->callbackQuery($attacker['tgId'], "standoffLeave_{$standoffId}")))->handle();
         $this->assertStringContainsString('уже отреагировал', $this->responseText($second));
 
-        // Атака после «Уйти» идёт обычным путём (окно закрыто, не открывается заново —
-        // защитник ещё на кулдауне после закрытия, но это не блокирует АТАКУЮЩЕГО).
+        // Атака после «Уйти» идёт обычным путём гейта окна: `cancelled` не армирует
+        // кулдаун защитника ({@see \App\Services\PVE\PvpStandoffService::COOLDOWN_ARMING_STATUSES}),
+        // поэтому повторный тап того же атакующего снова открывает окно (новая
+        // строка), а не бьёт мимо гейта прямо в бой — сам гейт (не PvpStandoffService,
+        // его контракт этой story не тронут) обязан пройти смежность/ограничения
+        // заново, не сорвавшись на кулдауне анти-спама (он не был потрачен —
+        // предыдущий тап отбился на самом же гейте окна, до записи в кэш).
         $this->conn->table('characters')->where('id', $attacker['id'])->update(['health' => 99999]);
         $this->conn->table('characters')->where('id', $defender['id'])->update(['health' => 99999]);
-        $battlesBefore = $this->conn->table('battle_logs')->countAllResults();
-        $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
-        $battlesAfter = $this->conn->table('battle_logs')->countAllResults();
-        $this->assertSame($battlesBefore + 1, $battlesAfter, 'атака после «Уйти» обязана дойти до боя');
+        $again     = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+        $againText = $this->responseText($again);
+
+        $this->assertStringNotContainsString('Подождите', $againText, 'предыдущий отбитый тап не должен был потратить анти-спам кулдаун');
+        $this->assertStringContainsString('Осталось', $againText, 'новое окно открывается заново — отменённое не кулдаунит защитника');
+
+        $rows = $this->conn->table('pvp_standoffs')->where('attacker_id', $attacker['id'])->where('defender_id', $defender['id'])->countAllResults();
+        $this->assertSame(2, $rows, 'вторая попытка — отдельная новая строка окна, не бой мимо гейта');
     }
 
     public function testCounterAttackReachesCombatBypassingFreezeAndDefenderOwnCooldown(): void
@@ -419,24 +435,101 @@ final class StandoffAttackGateTest extends CIUnitTestCase
         $this->assertStringContainsString('качай уровень', $text);
     }
 
-    // ---------------------------------------------------------------- Reflection: resolveStandoffOutcome()/applyHoldBonus()
+    // ---------------------------------------------------------------- pvp-detection-clarity-13 (BLOCK #1 / major #5)
 
-    public function testResolveStandoffOutcomeDisabledReturnsNoopDefaults(): void
+    public function testFarCellDoesNotOpenStandoffOrAlertDefender(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+
+        $farCell  = $this->createSelfConsistentCell();
+        $nearCell = $this->createDistantCell(500, 500);
+        $defender = $this->insertCharacter($farCell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $attacker = $this->insertCharacter($nearCell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $this->placeWoodenWall($defender['id'], $farCell);
+
+        $response = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+        $text     = $this->responseText($response);
+
+        $this->assertStringContainsString('далеко', $text, 'BLOCK #1: смежность обязана быть проверена ДО открытия окна');
+        $this->assertStringNotContainsString('Осталось', $text);
+
+        $rows = $this->conn->table('pvp_standoffs')->where('attacker_id', $attacker['id'])->where('defender_id', $defender['id'])->countAllResults();
+        $this->assertSame(0, $rows, 'далёкая цель не должна открывать окно и поднимать тревогу защитнику');
+    }
+
+    public function testRestrictedPairDoesNotOpenStandoff(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+
+        $cell     = $this->createSelfConsistentCell();
+        $defender = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        // Уровень 1 < min_level по умолчанию (5) — checkPvPAllowed() обязан отбить тап
+        // раньше, чем resolveStandoffOpen() успеет открыть окно и позвать защитника.
+        $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)], level: 1);
+        $this->placeWoodenWall($defender['id'], $cell);
+
+        $response = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+        $text     = $this->responseText($response);
+
+        $this->assertStringContainsString('🔒', $text);
+        $this->assertStringNotContainsString('Осталось', $text);
+
+        $rows = $this->conn->table('pvp_standoffs')->where('attacker_id', $attacker['id'])->where('defender_id', $defender['id'])->countAllResults();
+        $this->assertSame(0, $rows, 'запрещённая PvP-пара (уровень ниже порога) не должна открывать окно');
+    }
+
+    public function testAttackerHittingForeignOpenWindowSeesNoOwnershipTrapButtons(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+
+        $cell      = $this->createSelfConsistentCell();
+        $defender  = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $attacker1 = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $attacker2 = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $this->placeWoodenWall($defender['id'], $cell);
+
+        $this->invokeAttack($attacker1['tgId'], $attacker1['id'], $defender['id']);
+        $ownStandoffId = $this->currentStandoffId($attacker1['id'], $defender['id']);
+        $this->assertGreaterThan(0, $ownStandoffId);
+
+        $response = $this->invokeAttack($attacker2['tgId'], $attacker2['id'], $defender['id']);
+        $text     = $this->responseText($response);
+
+        // BLOCK major #5: второй атакующий не должен получить чужие кнопки
+        // владения (`standoffCheck_<id>`/`standoffLeave_<id>` первого атакующего) —
+        // либо кнопки его собственные, либо их нет вовсе.
+        $buttons = $this->flattenButtons($response);
+        foreach ($buttons as $button) {
+            $callback = (string) $button['callback_data'];
+            $this->assertStringNotContainsString((string) $ownStandoffId, $callback, 'чужой standoffId не должен попадать в кнопки второго атакующего');
+        }
+        $this->assertStringNotContainsString('не твоё', $text, 'экран не должен содержать ловушку владения');
+        $this->assertStringContainsString('чужой тревогой', $text, 'текст обязан честно объяснить причину отказа');
+
+        $rows = $this->conn->table('pvp_standoffs')->where('defender_id', $defender['id'])->countAllResults();
+        $this->assertSame(1, $rows, 'второй тап не должен открывать второе окно на того же защитника');
+    }
+
+    // ---------------------------------------------------------------- Reflection: resolveStandoffPreGate()/resolveStandoffOpen()/applyHoldBonus()
+
+    public function testResolveStandoffPreGateDisabledReturnsNoopDefaults(): void
     {
         $this->setBoolSetting('pvp.standoff.enabled', false);
         $svc = new PvpStandoffService();
 
-        $outcome = $this->resolveOutcome($svc, ['id' => 1, 'cell_number' => 100], ['id' => 2, 'cell_number' => 100]);
+        $preGate = $this->resolvePreGate($svc, ['id' => 1, 'cell_number' => 100], ['id' => 2, 'cell_number' => 100]);
 
-        $this->assertFalse($outcome['enabled']);
-        $this->assertFalse($outcome['block']);
-        $this->assertFalse($outcome['isCounterAttack']);
-        $this->assertSame(2, $outcome['baseOwnerId']);
-        $this->assertSame(100, $outcome['baseOwnerCell']);
-        $this->assertSame(0, $outcome['holdBonusPercent']);
+        $this->assertFalse($preGate['enabled']);
+        $this->assertFalse($preGate['block']);
+        $this->assertFalse($preGate['isCounterAttack']);
+        $this->assertSame(2, $preGate['baseOwnerId']);
+        $this->assertSame(100, $preGate['baseOwnerCell']);
+
+        $outcome = $this->resolveOpen($svc, ['id' => 1, 'cell_number' => 100], ['id' => 2, 'cell_number' => 100], $preGate);
+        $this->assertSame(0, $outcome['holdBonusPercent'], 'killswitch OFF: resolveStandoffOpen() не открывает окно и не считает бонус');
     }
 
-    public function testResolveStandoffOutcomeDetectsCounterAttackAndSwapsBaseOwner(): void
+    public function testResolveStandoffPreGateDetectsCounterAttackAndSwapsBaseOwner(): void
     {
         $this->setBoolSetting('pvp.standoff.enabled', true);
 
@@ -448,19 +541,31 @@ final class StandoffAttackGateTest extends CIUnitTestCase
         $svc = new PvpStandoffService();
         // Базовладелец жмёт «⚔️ Ударить первым»: локально он в слоте $attacker, а
         // цель ($defender) — исходный нападавший.
-        $outcome = $this->resolveOutcome(
+        $preGate = $this->resolvePreGate(
             $svc,
             ['id' => $baseOwner['id'], 'cell_number' => $cell],
             ['id' => $fieldGuy['id'], 'cell_number' => $cell]
         );
 
+        $this->assertTrue($preGate['isCounterAttack']);
+        $this->assertSame($standoffId, $preGate['counterStandoffId']);
+        $this->assertSame($baseOwner['id'], $preGate['baseOwnerId'], 'профиль обороны обязан резолвиться для владельца базы, а не для того, кто локально в слоте $defender');
+        $this->assertSame($cell, $preGate['baseOwnerCell']);
+
+        // resolveStandoffOpen() для контратаки — no-op: она уже полностью решена
+        // в Фазе 1 и не должна пытаться открыть новое окно.
+        $outcome = $this->resolveOpen(
+            $svc,
+            ['id' => $baseOwner['id'], 'cell_number' => $cell],
+            ['id' => $fieldGuy['id'], 'cell_number' => $cell],
+            $preGate
+        );
+        $this->assertFalse($outcome['block']);
         $this->assertTrue($outcome['isCounterAttack']);
         $this->assertSame($standoffId, $outcome['counterStandoffId']);
-        $this->assertSame($baseOwner['id'], $outcome['baseOwnerId'], 'профиль обороны обязан резолвиться для владельца базы, а не для того, кто локально в слоте $defender');
-        $this->assertSame($cell, $outcome['baseOwnerCell']);
     }
 
-    public function testResolveStandoffOutcomeReadsMostRecentHeldRowForHoldBonus(): void
+    public function testResolveStandoffOpenReadsMostRecentHeldRowForHoldBonus(): void
     {
         $this->setBoolSetting('pvp.standoff.enabled', true);
         $this->setIntSetting('pvp.standoff.hold_damage_reduction_percent', 15);
@@ -470,19 +575,18 @@ final class StandoffAttackGateTest extends CIUnitTestCase
         $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
         $this->insertStandoffRow($attacker['id'], $defender['id'], $cell, 'held', -300);
 
-        $svc = new PvpStandoffService();
-        $outcome = $this->resolveOutcome(
-            $svc,
-            ['id' => $attacker['id'], 'cell_number' => $cell],
-            ['id' => $defender['id'], 'cell_number' => $cell]
-        );
+        $svc          = new PvpStandoffService();
+        $attackerData = ['id' => $attacker['id'], 'cell_number' => $cell];
+        $defenderData = ['id' => $defender['id'], 'cell_number' => $cell];
+        $preGate      = $this->resolvePreGate($svc, $attackerData, $defenderData);
+        $outcome      = $this->resolveOpen($svc, $attackerData, $defenderData, $preGate);
 
         $this->assertFalse($outcome['block']);
         $this->assertFalse($outcome['isCounterAttack']);
         $this->assertSame(15, $outcome['holdBonusPercent']);
     }
 
-    public function testResolveStandoffOutcomeSkipsHoldBonusOnceHeldRowIsOlderThanCooldown(): void
+    public function testResolveStandoffOpenSkipsHoldBonusOnceHeldRowIsOlderThanCooldown(): void
     {
         $this->setBoolSetting('pvp.standoff.enabled', true);
         $this->setIntSetting('pvp.standoff.cooldown_sec', 900);
@@ -497,17 +601,16 @@ final class StandoffAttackGateTest extends CIUnitTestCase
         // Время — часами БД (NOW() - INTERVAL), не PHP date().
         $this->conn->query('UPDATE pvp_standoffs SET updated_at = (NOW() - INTERVAL 1000 SECOND) WHERE id = ?', [$standoffId]);
 
-        $svc     = new PvpStandoffService();
-        $outcome = $this->resolveOutcome(
-            $svc,
-            ['id' => $attacker['id'], 'cell_number' => $cell],
-            ['id' => $defender['id'], 'cell_number' => $cell]
-        );
+        $svc          = new PvpStandoffService();
+        $attackerData = ['id' => $attacker['id'], 'cell_number' => $cell];
+        $defenderData = ['id' => $defender['id'], 'cell_number' => $cell];
+        $preGate      = $this->resolvePreGate($svc, $attackerData, $defenderData);
+        $outcome      = $this->resolveOpen($svc, $attackerData, $defenderData, $preGate);
 
         $this->assertSame(0, $outcome['holdBonusPercent'], 'held-строка старше cooldown_sec — бонус утекал бы бессрочно, если база исчезла, а не только кулдаунит');
     }
 
-    public function testResolveStandoffOutcomeDisablesHoldBonusWhenCooldownSecIsZero(): void
+    public function testResolveStandoffOpenDisablesHoldBonusWhenCooldownSecIsZero(): void
     {
         $this->setBoolSetting('pvp.standoff.enabled', true);
         $this->setIntSetting('pvp.standoff.cooldown_sec', 0);
@@ -518,17 +621,16 @@ final class StandoffAttackGateTest extends CIUnitTestCase
         $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
         $this->insertStandoffRow($attacker['id'], $defender['id'], $cell, 'held', -300);
 
-        $svc     = new PvpStandoffService();
-        $outcome = $this->resolveOutcome(
-            $svc,
-            ['id' => $attacker['id'], 'cell_number' => $cell],
-            ['id' => $defender['id'], 'cell_number' => $cell]
-        );
+        $svc          = new PvpStandoffService();
+        $attackerData = ['id' => $attacker['id'], 'cell_number' => $cell];
+        $defenderData = ['id' => $defender['id'], 'cell_number' => $cell];
+        $preGate      = $this->resolvePreGate($svc, $attackerData, $defenderData);
+        $outcome      = $this->resolveOpen($svc, $attackerData, $defenderData, $preGate);
 
         $this->assertSame(0, $outcome['holdBonusPercent'], 'cooldown_sec=0 отключает бонус вовсе — иначе граница пропадает');
     }
 
-    public function testResolveStandoffOutcomeIgnoresHeldRowIfSupersededByLaterStatus(): void
+    public function testResolveStandoffOpenIgnoresHeldRowIfSupersededByLaterStatus(): void
     {
         $this->setBoolSetting('pvp.standoff.enabled', true);
 
@@ -538,12 +640,11 @@ final class StandoffAttackGateTest extends CIUnitTestCase
         $this->insertStandoffRow($attacker['id'], $defender['id'], $cell, 'held', -600);
         $this->insertStandoffRow($attacker['id'], $defender['id'], $cell, 'fled', -300);
 
-        $svc = new PvpStandoffService();
-        $outcome = $this->resolveOutcome(
-            $svc,
-            ['id' => $attacker['id'], 'cell_number' => $cell],
-            ['id' => $defender['id'], 'cell_number' => $cell]
-        );
+        $svc          = new PvpStandoffService();
+        $attackerData = ['id' => $attacker['id'], 'cell_number' => $cell];
+        $defenderData = ['id' => $defender['id'], 'cell_number' => $cell];
+        $preGate      = $this->resolvePreGate($svc, $attackerData, $defenderData);
+        $outcome      = $this->resolveOpen($svc, $attackerData, $defenderData, $preGate);
 
         $this->assertSame(0, $outcome['holdBonusPercent'], 'самая свежая строка ("fled") перекрывает старую "held"');
     }
@@ -564,19 +665,21 @@ final class StandoffAttackGateTest extends CIUnitTestCase
 
         $result = $this->applyHoldBonus($profile, $defense, 5, 30);
 
+        $this->assertIsArray($result);
         $this->assertSame($cap / 100.0, $result['damage_reduction'], 'потолок defense.total_damage_reduction_max_percent не пробивается надбавкой');
         $this->assertSame(5, $result['owner_id']);
         $this->assertSame([11], $result['structure_ids']);
     }
 
-    public function testApplyHoldBonusOnNullProfileStartsFromZero(): void
+    public function testApplyHoldBonusReturnsNullWhenNoDefenseProfile(): void
     {
+        // 🟡 Хвост #18 (ADR-030, pvp-detection-clarity-13): защитник без единой
+        // живой постройки не получает синтезированный профиль обороны — «укрыться»
+        // усиливает существующую защиту, а не создаёт её из ничего.
         $defense = new DefenseStructureService();
         $result  = $this->applyHoldBonus(null, $defense, 7, 10);
 
-        $this->assertSame(7, $result['owner_id']);
-        $this->assertSame(10 / 100.0, $result['damage_reduction']);
-        $this->assertSame([], $result['structure_ids']);
+        $this->assertNull($result);
     }
 
     // ---------------------------------------------------------------- helpers
@@ -591,19 +694,33 @@ final class StandoffAttackGateTest extends CIUnitTestCase
      * @param array<string,mixed> $defender
      * @return array<string,mixed>
      */
-    private function resolveOutcome(PvpStandoffService $svc, array $attacker, array $defender): array
+    private function resolvePreGate(PvpStandoffService $svc, array $attacker, array $defender): array
     {
-        $m = new ReflectionMethod(AttackPlayerAction::class, 'resolveStandoffOutcome');
+        $m = new ReflectionMethod(AttackPlayerAction::class, 'resolveStandoffPreGate');
         $m->setAccessible(true);
 
         return $m->invoke($this->action(), $svc, $attacker, $defender);
     }
 
     /**
-     * @param array<string,mixed>|null $profile
+     * @param array<string,mixed> $attacker
+     * @param array<string,mixed> $defender
+     * @param array<string,mixed> $preGate
      * @return array<string,mixed>
      */
-    private function applyHoldBonus(?array $profile, DefenseStructureService $defense, int $ownerId, int $bonus): array
+    private function resolveOpen(PvpStandoffService $svc, array $attacker, array $defender, array $preGate): array
+    {
+        $m = new ReflectionMethod(AttackPlayerAction::class, 'resolveStandoffOpen');
+        $m->setAccessible(true);
+
+        return $m->invoke($this->action(), $svc, $attacker, $defender, $preGate);
+    }
+
+    /**
+     * @param array<string,mixed>|null $profile
+     * @return array<string,mixed>|null
+     */
+    private function applyHoldBonus(?array $profile, DefenseStructureService $defense, int $ownerId, int $bonus): ?array
     {
         $m = new ReflectionMethod(AttackPlayerAction::class, 'applyHoldBonus');
         $m->setAccessible(true);
@@ -764,6 +881,26 @@ final class StandoffAttackGateTest extends CIUnitTestCase
             'cell_number'  => 0,
             'coordinate_x' => 0,
             'coordinate_y' => 100,
+            'biome_id'     => $this->biomeId,
+        ]);
+        $id = (int) $this->conn->insertID();
+        $this->conn->table('map')->where('id', $id)->update(['cell_number' => $id]);
+        $this->mapIds[] = $id;
+
+        return $id;
+    }
+
+    /**
+     * Клетка вдали от {@see createSelfConsistentCell()} (dx/dy > 1 — за пределами
+     * `isCellsCloseEnough()`), но всё ещё ниже `pvp.restriction.safe_zone_min_y`
+     * (900 по умолчанию), чтобы тест ловил именно смежность, а не южную зону.
+     */
+    private function createDistantCell(int $x, int $y): int
+    {
+        $this->conn->table('map')->insert([
+            'cell_number'  => 0,
+            'coordinate_x' => $x,
+            'coordinate_y' => $y,
             'biome_id'     => $this->biomeId,
         ]);
         $id = (int) $this->conn->insertID();
