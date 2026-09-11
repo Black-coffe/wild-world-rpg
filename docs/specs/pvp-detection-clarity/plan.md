@@ -209,6 +209,6 @@ Queen-written, from a worker's RETURN REPORT. Stories born after approval quote 
 -->
 
 **Approved:** Andrei Andrievskii, 2026-09-11 — «одобряю» (стадия 02). Одобрено вместе с четырьмя решениями редколлегии и вердиктом гриля об отказе от авто-очистки, записанными в `## Assumptions`.
-**Branch:** <written by /vulyk-build before wave 1 - stage 03: the branch every story commit lives on>
+**Branch:** `vulyk/pvp-detection-clarity` (ответвлена от `develop` 2026-09-11; `master` в релиз-путь не входит)
 **Checked:** <written by scripts/human-check.sh after the owner has looked - stage 05. /vulyk-ship refuses without it.>
 **Shipped:** <written by scripts/ship-check.sh --record - stage 06: the published version, and where>
