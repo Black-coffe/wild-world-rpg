@@ -1,7 +1,7 @@
 ---
 story: pvp-detection-clarity-09
 spec: pvp-detection-clarity
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -63,4 +63,38 @@ ADR-186 §3 (три хода и почему «укрыться» именно �
 
 ## Implementation notes
 
+- `StandoffHoldAction.php` (новый) — «🛡 Укрыться»: находит строку по `standoffHold_<id>`,
+  проверяет `defender_id === текущий персонаж`, зовёт `PvpStandoffService::close($id, 'held')`.
+  На успехе — подтверждение защитнику + попытка немедленно уведомить атакующего (best-effort,
+  `try/catch TelegramException`, как `StandoffLeaveAction::notifyDefenderAttackerLeft()`). На
+  отказе (`close()===false`) — «Ты уже отреагировал», не exception. Чужой defender_id — «Это не
+  твоя тревога», тоже без exception.
+- `RunAwayAction.php` — после обновления `cell_number` (сама механика побега не тронута —
+  Non-goal) читает `PvpStandoffService::activeAgainst($character['id'])`; если окно живо —
+  `close($id, 'fled')` + best-effort пинг атакующему («цель ушла»). Вне окна — `activeAgainst()`
+  возвращает `null`, поведение байт-в-байт как раньше.
+- `CallbackRoutes.php` — добавлена ровно одна строка `'standoffHold' => StandoffHoldAction::class`
+  рядом с `standoffCheck`/`standoffLeave` (владеет `-08`), обновлён комментарий (снята пометка
+  «регистрирует story `-09`» как выполненная).
+- Обе новые уведомительные надписи атакующему написаны в present tense («остаётся», «убегает»),
+  а не past tense («осталась»/«убежала») — сознательно: past tense в русском требует
+  грамматического рода, а имя персонажа с другой стороны экрана рода не даёт (тот же приём,
+  что уже в `buildAlertText()`/`waitScreen()` у `StandoffNotifier`, «стоит», не «пришёл/пришла»).
+- **Кнопки и их поток PHPUnit не проверяет** — только состояние БД, аудит-код и текст,
+  возвращённый `handle()` тому, кто нажал. Доставка сообщения ДРУГОМУ участнику
+  (`notifyAttackerDefenderHeld`/`notifyAttackerTargetFled`) в тестах не перехватывается (нет
+  общего спая исходящих `Request::sendMessage`, как у `StandoffLeaveAction`/`StandoffCheckAction`
+  из `-08`) — реальная доставка и рендер обоим участникам проверяются только Tier-3
+  (MCP Chrome + Telegram Web, два аккаунта).
+- Тест собирал схему из настоящих классов миграций на изолированной локальной БД
+  (`wildworld_ci_pvp09`, создана и удалена этой сессией) — общий `wildworld_tests` не трогался.
+- Дистанция побега в тесте сделана детерминированной без правки прод-кода: у персонажа с
+  `level=1, health=1, tired=1` формула `RunAwayAction` даёт `distancePossible < 10`, что
+  клампится ровно к `10` (`distanceMin`), поэтому `rand(10, 10) === 10` — заранее готовятся
+  клетки на дистанции 10 во всех 8 направлениях.
+
 ## Findings
+
+Не найдено ничего, что потребовало бы отклонения от контракта плана или `## Files`. Единственная
+неочевидная вещь — гендерная нейтральность текста уведомлений атакующему (см. заметку выше);
+решена present tense без правки чужих файлов (`StandoffNotifier` вне `## Files` этой story).
