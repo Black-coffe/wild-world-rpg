@@ -95,18 +95,22 @@ class StandoffNotifier
      * читает вызывающий крон-хендлер `-10`) — иначе единственный способ узнать про
      * конец окна — долбить «⏳ Проверить».
      *
+     * pvp-detection-clarity-27 — возвращает булев результат отправки: вызывающий
+     * (`StandoffExpiryHandler`) сжигает одноразовый флаг `notified_expired` только
+     * при успехе, чтобы провал доставки не терял окно навсегда.
+     *
      * @param array<string,mixed> $standoff
      */
-    public function notifyAttackerExpired(array $standoff): void
+    public function notifyAttackerExpired(array $standoff): bool
     {
         $attackerId = $this->intField($standoff, 'attacker_id');
         if ($attackerId <= 0) {
-            return;
+            return false;
         }
 
         $chatId = $this->chatIdFor($attackerId);
         if ($chatId === null) {
-            return;
+            return false;
         }
 
         $defenderName = $this->nameFor($this->intField($standoff, 'defender_id'));
@@ -115,7 +119,7 @@ class StandoffNotifier
         $text = "⏰ Окно закрылось — можно атаковать.\n\n"
             . "Время вышло, {$nameTag} больше не может остановить атаку одним касанием — нажми «⚔️ Атаковать» ещё раз.";
 
-        $this->sendExpiredPing($chatId, $text);
+        return $this->sendExpiredPing($chatId, $text);
     }
 
     /**
@@ -134,7 +138,7 @@ class StandoffNotifier
             . "ему, а если удар придёт скоро — твоя защита будет выше именно против него.\n"
             . "🏃 <b>Убежать</b> — прыжок 10–50 клеток (1000 золота, −50% здоровья, −90% выносливости); "
             . "атакующий сразу разморожен, окно закрывается.\n"
-            . '⚔️ <b>Ударить первым</b> — атаковать в ответ, пока инициатива у тебя.';
+            . '⚔️ <b>Ударить первым</b> — начать бой самому, не дожидаясь удара; защита твоей базы остаётся при тебе.';
     }
 
     /**

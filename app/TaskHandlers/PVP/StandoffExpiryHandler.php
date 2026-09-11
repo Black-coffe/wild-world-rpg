@@ -34,6 +34,22 @@ use App\TaskHandlers\BaseTaskHandler;
 )]
 class StandoffExpiryHandler extends BaseTaskHandler
 {
+    /**
+     * pvp-detection-clarity-27 — горизонт РЕТРАЯ провалившегося пинга, не длительность
+     * самого окна противостояния (то `expires_at`, свой параметр). Пинг «окно истекло —
+     * атакуй» ценен только пока атакующий ещё может тут же ударить: реакция защитника
+     * (`alertDefender()`) даёт ему три хода прямо сейчас, а не через час. Без горизонта
+     * повторная попытка держала бы строку в наборе на каждом тике сколь угодно долго —
+     * это бьёт по двум сценариям: (1) ключ `notify_attacker_on_expiry` выключили на время
+     * и включили обратно — первый тик после включения разослал бы пинги про окна давней
+     * давности живым игрокам ровно в момент, когда владелец включает фичу и смотрит на
+     * неё; (2) атакующий заблокировал бота — его строка перевыбиралась бы вечно. 10 минут
+     * взяты по аналогии с `pvp.standoff.cooldown_sec` (дефолт 900 сек, ADR-186 §5) —
+     * тот же порядок величины «скоро неактуально», но короче: там кулдаун защитника,
+     * здесь окно, где пинг ещё что-то меняет для атакующего.
+     */
+    private const RETRY_HORIZON_SEC = 600;
+
     private PvpStandoffModel $model;
     private PvpStandoffService $service;
     private StandoffNotifier $notifier;
@@ -65,15 +81,50 @@ class StandoffExpiryHandler extends BaseTaskHandler
         // Подстановка строки из date() развела бы источники правды при дрейфе/разнице
         // таймзон между приложением и MySQL: крон закрыл бы окно, которое сервис ещё
         // считает открытым, или наоборот.
-        $rows = $this->model
-            ->where('status', 'open')
-            ->where('expires_at <= NOW()', null, false)
-            ->findAll();
+        //
+        // pvp-detection-clarity-27 — вторая группа условий добирает строки, которые уже
+        // закрыты (`expired`), но пинг по ним провалился и `notified_expired` остался 0:
+        // без неё провалившийся пинг терял окно навсегда, потому что `close()` меняет
+        // `status` на `expired` и первая группа (`status = 'open'`) её больше не видит.
+        // Гейтим её тем же флагом, что и саму отправку: при выключенном
+        // `notify_attacker_on_expiry` `notified_expired` никогда не станет 1 (пинг не
+        // шлём), и без гейта запрос перечитывал бы РАСТУЩИЙ набор всех expired-строк
+        // за всё время на каждом тике — а не только те, что реально ждут повторной
+        // попытки доставки. Второе ограничение — RETRY_HORIZON_SEC: без него та же
+        // группа собрала бы недельной давности строки в момент, когда ключ выключили
+        // и снова включили (мусорная рассылка живым игрокам), и держала бы вечно
+        // строку с постоянно падающей отправкой (например, атакующий заблокировал бота).
+        $notifyOnExpiry = (bool) $this->settings->get('pvp.standoff.notify_attacker_on_expiry', true);
+
+        $builder = $this->model->groupStart()
+                ->where('status', 'open')
+                ->where('expires_at <= NOW()', null, false)
+            ->groupEnd();
+        if ($notifyOnExpiry) {
+            $builder = $builder->orGroupStart()
+                    ->where('status', 'expired')
+                    ->where('notified_expired', 0)
+                    ->where(
+                        'expires_at > NOW() - INTERVAL ' . self::RETRY_HORIZON_SEC . ' SECOND',
+                        null,
+                        false
+                    )
+                ->groupEnd();
+        }
+        $rows = $builder->findAll();
         if ($rows === []) {
             return;
         }
 
-        $notifyOnExpiry = (bool) $this->settings->get('pvp.standoff.notify_attacker_on_expiry', true);
+        // pvp-detection-clarity-27 — этот handler исполняется в CLI-процессе
+        // `spark tasks:run`, где Telegram-мост никем не инициализирован. Соседние
+        // крон-хендлеры (DailyTipBroadcastHandler и т.п.) идут через
+        // safeSendMessage(), который сам зовёт telegram() лениво; StandoffNotifier —
+        // сервис общего назначения (его зовут ещё и из webhook, где мост уже готов),
+        // поэтому инициализацию делаем здесь, один раз на прогон, до первой отправки.
+        if ($notifyOnExpiry) {
+            $this->telegram();
+        }
 
         foreach ($rows as $row) {
             if (! is_array($row)) {
@@ -85,21 +136,33 @@ class StandoffExpiryHandler extends BaseTaskHandler
                 continue;
             }
 
-            // transitionIfCurrent() внутри close() — единственная точка правды перехода:
-            // если другой тик крона (или сам защитник) уже отреагировал, close() вернёт
-            // false и этот ряд просто пропускается без побочных эффектов.
-            if (! $this->service->close($id, 'expired')) {
-                continue;
+            $statusRaw = $row['status'] ?? '';
+            $status    = is_string($statusRaw) ? $statusRaw : '';
+
+            // pvp-detection-clarity-27 — строка попадает сюда либо ещё открытой
+            // (нужно закрыть), либо уже `expired` из прошлого тика, у которого пинг
+            // провалился (закрывать второй раз не нужно, close() всё равно бы вернул
+            // false — transitionIfCurrent() ждёт старое значение 'open').
+            if ($status === 'open') {
+                // transitionIfCurrent() внутри close() — единственная точка правды
+                // перехода: если другой тик крона (или сам защитник) уже отреагировал,
+                // close() вернёт false и этот ряд просто пропускается без побочных эффектов.
+                if (! $this->service->close($id, 'expired')) {
+                    continue;
+                }
             }
 
             if (! $notifyOnExpiry) {
                 continue;
             }
 
-            // markExpiryNotified() — свой условный переход (0→1), не завязан на close():
-            // именно он делает пинг одноразовым, а не факт закрытия окна.
-            if ($this->service->markExpiryNotified($id)) {
-                $this->notifier->notifyAttackerExpired($this->normalizeRow($row));
+            // pvp-detection-clarity-27 — порядок перевёрнут: раньше флаг сжигался ДО
+            // отправки, и провалившийся пинг терял окно навсегда (следующий тик его
+            // уже не брал). Теперь markExpiryNotified() (свой условный переход 0→1)
+            // ставится только когда notifier реально сообщил об успехе — провал
+            // оставляет строку доступной следующему тику.
+            if ($this->notifier->notifyAttackerExpired($this->normalizeRow($row))) {
+                $this->service->markExpiryNotified($id);
             }
         }
     }

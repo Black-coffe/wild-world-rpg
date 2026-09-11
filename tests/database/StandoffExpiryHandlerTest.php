@@ -192,6 +192,68 @@ final class StandoffExpiryHandlerTest extends CIUnitTestCase
         $this->assertSame([], $notifier->calls, 'при выключенном килсвитче пинг не уходит');
     }
 
+    /**
+     * pvp-detection-clarity-27 — twin-урок `feedback_transport_double_hides_dead_send_path`:
+     * прогон целиком через `handle()`, а не прямой вызов `notifyAttackerExpired()`, иначе
+     * несожжённый флаг остался бы незамеченным.
+     */
+    public function testFailedPingKeepsFlagUnsetAndRetriesNextTick(): void
+    {
+        $defender = $this->insertCharacter();
+        $attacker = $this->insertCharacter();
+        $cell     = 900_000_005;
+        $id       = $this->insertStandoffRow($attacker, $defender, $cell, 'open', -60);
+
+        $notifier = $this->failingNotifier();
+        $handler  = $this->makeHandler($notifier);
+
+        $handler->handle();
+
+        $row = $this->conn->table('pvp_standoffs')->where('id', $id)->get()->getRowArray();
+        $this->assertIsArray($row);
+        $this->assertSame('expired', $row['status'], 'окно закрывается независимо от исхода отправки');
+        $this->assertSame(0, (int) $row['notified_expired'], 'провал отправки не должен сжигать одноразовый флаг');
+        $this->assertCount(1, $notifier->calls, 'первая попытка отправки состоялась');
+
+        // Следующий тик крона обязан попробовать снова — строка уже `expired`, но
+        // `notified_expired=0` держит её доступной именно для повторной попытки.
+        $handler->handle();
+
+        $rowAfter = $this->conn->table('pvp_standoffs')->where('id', $id)->get()->getRowArray();
+        $this->assertIsArray($rowAfter);
+        $this->assertSame('expired', $rowAfter['status']);
+        $this->assertSame(0, (int) $rowAfter['notified_expired'], 'вторая попытка тоже провалилась — флаг всё ещё 0');
+        $this->assertCount(2, $notifier->calls, 'следующий тик пробует отправить снова, а не пропускает строку');
+    }
+
+    /**
+     * pvp-detection-clarity-27 — RETRY_HORIZON_SEC (600 сек, см. комментарий у константы).
+     * Без него флип `notify_attacker_on_expiry` off→on или стабильно падающая отправка
+     * (заблокировавший бота игрок) собирали бы недельной давности строки и рассылали бы
+     * их живым игрокам на первом же тике после включения.
+     */
+    public function testStaleExpiredRowOutsideRetryHorizonIsNotPickedUp(): void
+    {
+        $defender = $this->insertCharacter();
+        $attacker = $this->insertCharacter();
+        $cell     = 900_000_006;
+        // Уже закрыта (`expired`), пинг ни разу не ушёл (`notified_expired=0`), но
+        // истекла за пределами 600-секундного горизонта ретрая.
+        $id = $this->insertStandoffRow($attacker, $defender, $cell, 'expired', -700);
+
+        $notifier = $this->failingNotifier();
+        $handler  = $this->makeHandler($notifier);
+
+        $handler->handle();
+
+        $this->assertSame([], $notifier->calls, 'строка старше горизонта ретрая не должна порождать попытку отправки');
+
+        $row = $this->conn->table('pvp_standoffs')->where('id', $id)->get()->getRowArray();
+        $this->assertIsArray($row);
+        $this->assertSame('expired', $row['status'], 'статус не трогается — строка уже была закрыта');
+        $this->assertSame(0, (int) $row['notified_expired'], 'флаг остаётся 0 — пинг про неё больше не пробуем слать');
+    }
+
     public function testNotifyAttackerOnExpiryOffTransitionsStatusButSendsNoPing(): void
     {
         $this->setBoolSetting('pvp.standoff.notify_attacker_on_expiry', false);
@@ -227,6 +289,23 @@ final class StandoffExpiryHandlerTest extends CIUnitTestCase
             {
                 $this->calls[] = $chatId;
                 return true;
+            }
+        };
+    }
+
+    /**
+     * @return object{calls: list<int>}&StandoffNotifier
+     */
+    private function failingNotifier(): object
+    {
+        return new class () extends StandoffNotifier {
+            /** @var list<int> */
+            public array $calls = [];
+
+            protected function sendExpiredPing(int $chatId, string $text): bool
+            {
+                $this->calls[] = $chatId;
+                return false;
             }
         };
     }

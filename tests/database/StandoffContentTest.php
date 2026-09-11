@@ -8,10 +8,12 @@ use App\Database\Migrations\Adr186SeedStandoffTip;
 use App\Database\Migrations\CreateGameTipsTable;
 use App\Database\Migrations\TipsAExtendCategories;
 use App\Services\Onboarding\GuideCatalog;
+use App\Services\PVE\StandoffNotifier;
 use CodeIgniter\Database\Forge;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use ReflectionMethod;
 
 /**
  * ADR-186 (pvp-detection-clarity-11) — GUIDE-coverage (раздел «standoff») и
@@ -132,6 +134,64 @@ final class StandoffContentTest extends CIUnitTestCase
         $text = $section['title'] . $section['body'];
 
         $this->assertSame(0, substr_count($text, '*') % 2, 'Несбалансированные «*» в разделе «Нападение на базу».');
+    }
+
+    // ── pvp-detection-clarity-28: «Ударить первым» больше не обещает инициативу ──
+
+    public function testGuideStrikeFirstBulletDoesNotPromiseInitiativeOrder(): void
+    {
+        $section = GuideCatalog::find('standoff');
+        $this->assertNotNull($section);
+
+        $marker = 'Ударить первым';
+        $pos    = mb_strpos($section['body'], $marker);
+        $this->assertIsInt($pos, 'Раздел обязан называть ход «Ударить первым».');
+
+        // Пункт про этот ход — от маркера до конца абзаца (следующий "\n\n").
+        $paragraphEnd = mb_strpos($section['body'], "\n\n", $pos);
+        $bullet       = $paragraphEnd !== false
+            ? mb_substr($section['body'], $pos, $paragraphEnd - $pos)
+            : mb_substr($section['body'], $pos);
+
+        $this->assertStringNotContainsStringIgnoringCase(
+            'инициатив',
+            $bullet,
+            'Пункт «Ударить первым» не должен обещать инициативу — первый удар решают характеристики.'
+        );
+
+        // Соседний пункт «Укрыться» верно говорит про инициативу нападавшего — его не трогаем.
+        $this->assertStringContainsString('инициатива', $section['body'], 'Пункт «Укрыться» обязан остаться как есть.');
+    }
+
+    public function testAlertStrikeFirstMoveDoesNotPromiseInitiativeOrder(): void
+    {
+        $notifier = new StandoffNotifier();
+        $method   = new ReflectionMethod(StandoffNotifier::class, 'buildAlertText');
+        $method->setAccessible(true);
+
+        $standoff = ['expires_at' => date('Y-m-d H:i:s', time() + 30)];
+        /** @var string $text */
+        $text = $method->invoke($notifier, $standoff, 0);
+
+        $this->assertStringContainsString('Ударить первым', $text, 'Тревога обязана называть ход «Ударить первым».');
+
+        $marker = '<b>Ударить первым</b>';
+        $pos    = mb_strpos($text, $marker);
+        $this->assertIsInt($pos, 'Маркер хода не найден в тексте тревоги.');
+        $bullet = mb_substr($text, $pos);
+
+        $this->assertStringNotContainsStringIgnoringCase(
+            'инициатив',
+            $bullet,
+            'Ход «Ударить первым» не должен обещать инициативу — реальный порядок ударов решают характеристики.'
+        );
+        $this->assertStringContainsString(
+            'не дожидаясь удара',
+            $bullet,
+            'Текст обязан честно описывать, что даёт кнопка: защитник сам начинает бой, не дожидаясь удара.'
+        );
+
+        $this->assertSame(substr_count($text, '<b>'), substr_count($text, '</b>'), 'HTML-тэги в тревоге обязаны быть парными.');
     }
 
     // ── TIPS-coverage ───────────────────────────────────────────────────────
