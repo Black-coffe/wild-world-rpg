@@ -34,7 +34,7 @@ class AutoGenerateNameAction extends BaseAction
         }
 
         $currentName = $character['name'];
-        if (empty($currentName) || in_array($currentName, ['Unknown Hero', 'NAN', null], true)) {
+        if (self::isUnnamed($currentName)) {
             // Получение случайного доступного имени
             $newNameRow = $this->characterNamesModel->where('status', 'free')->orderBy('RAND()')->first();
 
@@ -80,5 +80,21 @@ class AutoGenerateNameAction extends BaseAction
             'disable_web_page_preview' => true,
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * pvp-detection-clarity-17: единственное место, узнающее «персонаж ещё не назван».
+     *
+     * Заменило разбросанные `in_array($name, ['Unknown Hero', ...])`. `StartCommand::mintDistinctName()`
+     * (pvp-detection-clarity-07) чеканит машинную заглушку `Путник-{characters.id}` для игроков без
+     * `@username` — она попадала в `name`, но сюда, в проверку «безымянный», не была добавлена, из-за
+     * чего такие игроки навсегда лишались автогенерации настоящего имени. Старые литералы `Unknown
+     * Hero`/`NAN` оставлены — они могут ещё встречаться в существующих строках `characters.name`.
+     */
+    private static function isUnnamed(?string $name): bool
+    {
+        return empty($name)
+            || in_array($name, ['Unknown Hero', 'NAN'], true)
+            || (bool) preg_match('/^Путник-\d+$/u', $name);
     }
 }

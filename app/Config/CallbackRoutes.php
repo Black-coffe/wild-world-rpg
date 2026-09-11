@@ -467,6 +467,12 @@ class CallbackRoutes extends BaseConfig
         // === PvP ===
         'runAway'                         => \App\Controllers\Telegram\Commands\Actions\PVP\RunAwayAction::class,
         'attackPlayer'                    => \App\Controllers\Telegram\Commands\Actions\PVP\AttackPlayerAction::class,
+        // ADR-186 (pvp-detection-clarity-08/-09) — экран ожидания атакующего и ходы
+        // защитника под окном противостояния. `standoffCheck_<id>` / `standoffLeave_<id>`
+        // (атакующий) и `standoffHold_<id>` (защитник, «🛡 Укрыться»).
+        'standoffCheck'                   => \App\Controllers\Telegram\Commands\Actions\PVP\StandoffCheckAction::class,
+        'standoffLeave'                   => \App\Controllers\Telegram\Commands\Actions\PVP\StandoffLeaveAction::class,
+        'standoffHold'                    => \App\Controllers\Telegram\Commands\Actions\PVP\StandoffHoldAction::class,
         // W17 (ADR-071) — PvP-дуэль (opt-in честный бой). Callback `duel_<defenderId>` (первый сегмент `duel`).
         'duel'                            => \App\Controllers\Telegram\Commands\Actions\PVP\DuelAction::class,
         // E25 (ADR-124) — «🏟 Арена»: ростер opt-in бойцов (`arena`) + вызов с арены

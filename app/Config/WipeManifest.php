@@ -153,6 +153,7 @@ class WipeManifest extends BaseConfig
         'player_action_log'      => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Firehose всех прямых действий игрока (ADR-148): callback/текст/reply/forceReply/slash. Append-only телеметрия — при вайпе чистится как прогресс игрока'],
         'base_storage'           => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Хранилище базы'],
         'battle_logs'            => ['strategy' => self::PLAYER_DATA, 'link' => ['player1_id', 'player2_id'], 'by' => 'character', 'note' => 'Логи боёв PvP'],
+        'pvp_standoffs'          => ['strategy' => self::PLAYER_DATA, 'link' => ['attacker_id', 'defender_id'], 'by' => 'character', 'note' => 'Окно противостояния перед полевым PvP у базы (ADR-186) — снимок открытых/закрытых окон между парой игроков'],
         'character_tributes'     => ['strategy' => self::PLAYER_DATA, 'link' => ['master_id', 'vassal_id'], 'by' => 'character', 'note' => 'Трофейная подать PvP (ADR-135) — активные/исторические отношения дани между игроками'],
         'bounty_claims'          => ['strategy' => self::PLAYER_DATA, 'link' => ['hunter_id', 'target_id'], 'by' => 'character', 'note' => 'Трофеи охотника (ADR-135 Ф3b) — журнал клеймов bounty на доминаторов (престиж, новый сезон = с нуля)'],
         'character_achievements' => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Разблокированные достижения'],

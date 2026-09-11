@@ -7,6 +7,7 @@ use App\Models\CharacterModel;
 use App\Models\MapModel;
 use App\Models\TelegramUserModel;
 use App\Services\Player\PlayerDetectionService;
+use App\Services\PVE\PvpStandoffService;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Exception\TelegramException;
 use App\Services\Telegram\Request;
@@ -148,6 +149,24 @@ class RunAwayAction extends BaseAction
             'cell_number'=> $targetCell['cell_number'],
         ]);
 
+        // ADR-186 §3 (pvp-detection-clarity-09): побег под живой тревогой закрывает
+        // окно как `fled` — второй ход подряд («убежал»+«укрылся») получит от
+        // PvpStandoffService::close() честное «уже отреагировал», не второй переход.
+        // Вне окна (activeAgainst() === null) — побег работает ровно как раньше.
+        $standoffService = new PvpStandoffService();
+        $activeStandoff  = $standoffService->activeAgainst((int) $character['id']);
+        if ($activeStandoff !== null) {
+            $standoffIdRaw = $activeStandoff['id'] ?? 0;
+            $standoffId    = is_numeric($standoffIdRaw) ? (int) $standoffIdRaw : 0;
+            if ($standoffId > 0 && $standoffService->close($standoffId, 'fled')) {
+                $attackerIdRaw = $activeStandoff['attacker_id'] ?? 0;
+                $this->notifyAttackerTargetFled(
+                    is_numeric($attackerIdRaw) ? (int) $attackerIdRaw : 0,
+                    (string) $character['name']
+                );
+            }
+        }
+
         // 7. Формируем итоговое сообщение
         $text = "🏃 <b>Вы решили бежать!</b>\n\n"
             . "🌍 <b>Перемещение завершено</b> на дистанцию <b>{$distanceInt}</b> ячеек.\n"
@@ -197,6 +216,42 @@ class RunAwayAction extends BaseAction
         }
 
         return $response;
+    }
+
+    /**
+     * ADR-186 §4 — нападавший узнаёт «цель ушла» сразу, а не следующим тапом:
+     * его следующая атака по этому персонажу и так отобьётся проверкой
+     * смежности (цели больше нет на клетке), но без пинга он не понял бы, почему.
+     * Media-off (ADR-020): текст самодостаточен, имя защитника экранируется
+     * (на проде есть персонажи с пустым/чужим контролируемым именем, ADR-186 §8).
+     * Present tense — без гендерного согласования глагола с чужим именем.
+     */
+    private function notifyAttackerTargetFled(int $attackerId, string $defenderName): void
+    {
+        if ($attackerId <= 0) {
+            return;
+        }
+
+        try {
+            $attacker = $this->characterModel->find($attackerId);
+            if (!$attacker) {
+                return;
+            }
+            $attUser = $this->telegramUserModel->find($attacker['telegram_user_id']);
+            if (!$attUser || empty($attUser['telegram_id'])) {
+                return;
+            }
+
+            $nameTag = $defenderName !== '' ? '<b>' . esc($defenderName, 'html') . '</b>' : 'Цель';
+
+            Request::sendMessage([
+                'chat_id'    => $attUser['telegram_id'],
+                'text'       => "🏃 {$nameTag} убегает — цель покинула клетку, атаковать её здесь больше нельзя.",
+                'parse_mode' => 'HTML',
+            ]);
+        } catch (TelegramException $e) {
+            log_message('error', '[RunAwayAction] notifyAttackerTargetFled error: ' . $e->getMessage());
+        }
     }
 
     /**

@@ -13,6 +13,7 @@ use App\Services\GameSettings\GameSettingsService;
 use App\Services\Player\PlayerDetectionService;
 use App\Services\Player\Progression\EarlyProgressionService;
 use App\Services\Player\VehicleActivationService;
+use App\Services\PVE\TowerAlertService;
 use App\Services\World\MarchPaceService;
 use App\Services\World\TextMapService;
 use App\Services\World\VehicleEffectsService;
@@ -44,6 +45,7 @@ class MoveCharacterToDirectionAction
     protected $biomeModel;
 
     protected $playerDetectionService;
+    protected TowerAlertService $towerAlertService;
 
     /**
      * Границы карты — плотная сетка координат 0..999 × 0..999 (1 000 000 клеток).
@@ -76,6 +78,7 @@ class MoveCharacterToDirectionAction
         $this->exploredCellsModel     = new ExploredCellsModel();
         $this->biomeModel             = new BiomeModel();
         $this->playerDetectionService = new PlayerDetectionService();
+        $this->towerAlertService      = new TowerAlertService();
     }
 
     public function handle(): ServerResponse
@@ -450,6 +453,17 @@ class MoveCharacterToDirectionAction
                     $this->telegramUserModel->update($user['id'], ['last_map_message_id' => $targetMsgId]);
                 }
                 $this->playerDetectionService->detectNearbyPlayers($character['id']);
+                // pvp-detection-clarity-04 — вышка молчала на обычном шаге (звала её раньше
+                // только MarchingTaskHandler, Поход). try/catch — переход не падает.
+                try {
+                    $this->towerAlertService->notifyTowersNear(
+                        $character['id'],
+                        (int) $targetCell['coordinate_x'],
+                        (int) $targetCell['coordinate_y']
+                    );
+                } catch (\Throwable $e) {
+                    log_message('error', '[MoveCharacterToDirectionAction] towerAlerts: ' . $e->getMessage());
+                }
                 // ADR-103 Часть B Слой 1 — one-shot подсказка «первая база» новичку без базы.
                 $hintSvc = new \App\Services\Onboarding\OnboardingHintService();
                 $hintSvc->maybeSendFirstBaseTip($character, $chatId);
@@ -491,6 +505,16 @@ class MoveCharacterToDirectionAction
         }
 
         $this->playerDetectionService->detectNearbyPlayers($character['id']);
+        // pvp-detection-clarity-04 — та же вышка-подсказка на fallback-пути (sendMessage вместо edit).
+        try {
+            $this->towerAlertService->notifyTowersNear(
+                $character['id'],
+                (int) $targetCell['coordinate_x'],
+                (int) $targetCell['coordinate_y']
+            );
+        } catch (\Throwable $e) {
+            log_message('error', '[MoveCharacterToDirectionAction] towerAlerts: ' . $e->getMessage());
+        }
         // ADR-103 Часть B Слой 1 — one-shot подсказка «первая база» новичку без базы.
         $hintSvc = new \App\Services\Onboarding\OnboardingHintService();
         $hintSvc->maybeSendFirstBaseTip($character, $chatId);

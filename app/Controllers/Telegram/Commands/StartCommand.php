@@ -90,7 +90,18 @@ class StartCommand extends UserCommand
         if (!$existingCharacter) {
             $createdCharacterId = $characterModel->insert([
                 'telegram_user_id' => $createdUserId,
-                'name'        => $username ?: 'Unknown Hero',
+                // pvp-detection-clarity-07: литерал 'Unknown Hero' штамповался ОДИНАКОВО
+                // на 24 разных персонажа в одном списке обнаружения — неотличимы друг от
+                // друга. `name` персонажа виден ДРУГИМ игрокам (список обнаружения, Арена,
+                // рейтинг PvP, лог боя, публичная страница достижений) — ставить туда
+                // `telegram_id` было бы утечкой приватного идентификатора аккаунта Telegram
+                // (веб-тир: приватные поля только своему персонажу). Поэтому здесь — временная
+                // пустая строка, ниже она заменяется на `Путник-{characters.id}`: `id` уже
+                // публичен (собственный fallback `№{id}` в PlayerDetectionService), уникален
+                // и ничего не раскрывает про аккаунт. `id` появляется только после `insert()`,
+                // поэтому имя ставится вторым шагом. Существующие 68 строк не переименовываются
+                // (WipeManifest KEEP — имя = идентичность).
+                'name'        => $username ?: '',
                 'level'       => 1,
                 'experience'  => 0.01,
                 'health'      => 100,
@@ -101,6 +112,11 @@ class StartCommand extends UserCommand
                 'gold'        => 1000,
                 'cell_number' => null,
             ], true);
+
+            if (! $username) {
+                $characterIdInt = (int) $createdCharacterId;
+                $characterModel->update($characterIdInt, ['name' => self::mintDistinctName($characterIdInt)]);
+            }
 
             // S8 (ADR-146): записать реферальное ребро — first-touch, ТОЛЬКО для нового TG-аккаунта
             // (existingUser отсутствовал). Идемпотентно + анти-self + cap внутри сервиса; при OFF
@@ -373,5 +389,20 @@ class StartCommand extends UserCommand
         }
 
         return mb_substr($clean, 0, 191);
+    }
+
+    /**
+     * pvp-detection-clarity-07 (доводка): имя нового персонажа без `@username` в Telegram.
+     *
+     * `characters.name` публичен — виден другим игрокам (список обнаружения, Арена, рейтинг
+     * PvP, лог боя, публичная страница достижений). Сигнатура сознательно берёт ТОЛЬКО
+     * `characters.id` (сам по себе уже публичный — см. fallback `№{id}` в
+     * `PlayerDetectionService::renderDetectionMessage()`) — никакого доступа к `telegram_id`
+     * или другим приватным полям аккаунта здесь нет, поэтому утечка невозможна by construction,
+     * а не по осторожности в вызывающем коде.
+     */
+    public static function mintDistinctName(int $characterId): string
+    {
+        return 'Путник-' . $characterId;
     }
 }

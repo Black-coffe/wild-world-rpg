@@ -354,6 +354,13 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\PVP\TributeExpiryHandler())->handle())
             ->hourly()->singleInstance()->named('tribute.expiry');
 
+        // ADR-186 §1/§4 (pvp-detection-clarity-10) — ленивое истечение окна противостояния:
+        // открытость окна вычисляется по expires_at в момент чтения (PvpStandoffService),
+        // этот handler только постфактум переводит просроченные open→expired и один раз
+        // пингует атакующего. Killswitch pvp.standoff.enabled → dormant = no-op.
+        $schedule->call(static fn() => (new \App\TaskHandlers\PVP\StandoffExpiryHandler())->handle())
+            ->everyMinute()->singleInstance()->named('pvp-standoff.expiry');
+
         // E4 (ROADMAP-100) — авто-эскалация онбординга «застрял»: новичку с висящим
         // онбординг-шагом (> stuck_minutes) и активному сейчас (last_seen) шлёт ОДНУ
         // контекстную подсказку. everyMinute + killswitch onboarding.auto_escalation.enabled

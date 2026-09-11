@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\PVE;
 
+use App\Models\ActionLogModel;
 use App\Services\GameSettings\GameSettingsService;
 use Config\Database;
 use Longman\TelegramBot\Exception\TelegramException;
@@ -14,12 +15,14 @@ use Throwable;
 /**
  * S26b (ADR-031) — alert-range detection вышки (WatchTower).
  *
- * Когда любой игрок завершает шаг марша, MarchingTaskHandler зовёт
- * notifyTowersNear(). Сервис ищет active WatchTower'ы (hp>0) ДРУГИХ игроков в
- * радиусе defense.tower.alert_range_cells (Евклидова метрика — как
- * PlayerDetectionService, ADR-007 deviation) от новой позиции игрока и шлёт
+ * Зовётся из ДВУХ мест: MarchingTaskHandler (шаг Похода) и
+ * MoveCharacterToDirectionAction (обычный одноклеточный шаг) — pvp-detection-clarity-04,
+ * т.к. раньше вышка молчала на обычном перемещении. Сервис ищет active WatchTower'ы
+ * (hp>0) ДРУГИХ игроков в радиусе defense.tower.alert_range_cells (Евклидова метрика —
+ * как PlayerDetectionService, ADR-007 deviation) от новой позиции игрока и шлёт
  * владельцу базы Telegram-пинг «к тебе приближается X». Анти-спам: cache-кулдаун
- * по паре (owner, mover) на defense.tower.alert_cooldown_sec.
+ * по паре (owner, mover) на defense.tower.alert_cooldown_sec — единый для обоих
+ * вызывающих, поэтому срабатывание обоих путей за один шаг не дублирует оповещение.
  *
  * Сам пинг боевого эффекта НЕ даёт (только информация). Combat-эффект вышки
  * (initiative) — в DefenseStructureService. Всё в try/catch — поход не падает.
@@ -154,8 +157,11 @@ class TowerAlertService
     }
 
     /**
-     * Шлёт владельцу вышки Telegram-пинг. true — если отправлено.
-     * protected — тесты подменяют доставку (как StubDetector для PlayerDetection).
+     * Шлёт владельцу вышки Telegram-пинг и пишет audit-строку `tower_alert_sent`
+     * при успехе. true — если отправлено.
+     * protected — тесты (7 существующих) подменяют доставку целиком (как StubDetector
+     * для PlayerDetection); новые тесты на HTML-экранирование и аудит подменяют только
+     * deliverAlertMessage(), чтобы реальный ownerChatId()+logAlertSent() отработали.
      */
     protected function sendAlert(int $ownerId, string $moverName, int $dist, int $x, int $y): bool
     {
@@ -164,21 +170,61 @@ class TowerAlertService
             return false;
         }
 
-        $nameTag = $moverName !== '' ? "*{$moverName}*" : 'кто-то';
-        $message = "🗼 *Дозорная вышка!*\n\n"
-            . "Засекла игрока {$nameTag} в {$dist} " . $this->plural($dist, 'клетке', 'клетках', 'клетках') . " от твоей базы (X={$x}, Y={$y}).\n"
-            . '_Возможно, стоит вернуться к защите._';
+        $ok = $this->deliverAlertMessage($chatId, $moverName, $dist, $x, $y);
+        if ($ok) {
+            $this->logAlertSent($ownerId, $dist);
+        }
+        return $ok;
+    }
 
+    /**
+     * Собственно отправка Telegram-сообщения. parse_mode = HTML (ADR-186 §8): имя
+     * чужого персонажа экранируется esc(...,'html'), поэтому `*`/`_` в имени больше не
+     * дают 400 и тихий no-send (легаси-Markdown-баг — раньше имя шло сырым `*{$moverName}*`).
+     */
+    protected function deliverAlertMessage(int $chatId, string $moverName, int $dist, int $x, int $y): bool
+    {
         try {
             $resp = Request::sendMessage([
                 'chat_id'    => $chatId,
-                'text'       => $message,
-                'parse_mode' => 'Markdown',
+                'text'       => $this->buildAlertMessage($moverName, $dist, $x, $y),
+                'parse_mode' => 'HTML',
             ]);
             return $resp->isOk();
         } catch (Throwable $e) {
             log_message('error', '[TowerAlertService] sendAlert failed: ' . $e->getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Текст самодостаточен (media-off, ADR-020): кто, где, на каком расстоянии —
+     * без опоры на картинку (её у этого сообщения и нет).
+     */
+    protected function buildAlertMessage(string $moverName, int $dist, int $x, int $y): string
+    {
+        $nameTag = $moverName !== '' ? '<b>' . esc($moverName, 'html') . '</b>' : 'кто-то';
+        return "🗼 <b>Дозорная вышка!</b>\n\n"
+            . "Засекла игрока {$nameTag} в {$dist} " . $this->plural($dist, 'клетке', 'клетках', 'клетках') . " от твоей базы (X={$x}, Y={$y}).\n"
+            . '<i>Возможно, стоит вернуться к защите.</i>';
+    }
+
+    /**
+     * ADR-186 §8 / pvp-detection-clarity-04 — иначе измерить постфактум, работала ли
+     * вышка, по-прежнему нечем.
+     */
+    private function logAlertSent(int $ownerId, int $dist): void
+    {
+        try {
+            (new ActionLogModel())->insert([
+                'character_id'  => $ownerId,
+                'chat_id'       => 0,
+                'action_name'   => 'tower_alert_sent',
+                'action_status' => 'Completed',
+                'description'   => "Дозорная вышка: оповещение отправлено, дистанция {$dist}",
+            ]);
+        } catch (Throwable $e) {
+            log_message('error', '[TowerAlertService] logAlertSent failed: ' . $e->getMessage());
         }
     }
 
