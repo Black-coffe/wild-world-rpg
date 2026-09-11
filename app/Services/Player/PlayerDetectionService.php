@@ -150,12 +150,11 @@ class PlayerDetectionService
                         'distance'    => $distance,
                     ];
 
-                    // Сохраняем запись в историю обнаружений
-                    $this->detectionHistoryModel->insert([
-                        'detector_player_id' => $characterId,
-                        'detected_player_id' => $detectedPid,
-                        'detected_at' => date('Y-m-d H:i:s'),
-                    ]);
+                    // pvp-detection-clarity-18 (BLOCK #8): запись в player_detection_history
+                    // ставится ТОЛЬКО после того, как renderDetectionMessage() решит, кто из
+                    // кандидатов реально попал в отправленный текст (ниже, по shown_ids) — не
+                    // здесь, до обрезки. Иначе непоказанный сосед глохнет по кулдауну пары, так
+                    // и не увидев себя в сообщении.
                 }
             }
         }
@@ -192,6 +191,16 @@ class PlayerDetectionService
 
             $rendered = $this->renderDetectionMessage($character, $detectedPlayers, $maxListed, $inactiveDays, $showInactiveSummary);
 
+            // pvp-detection-clarity-18 (BLOCK #8): историю пишем только за тех, кто реально
+            // попал в отправленный текст (`$rendered['shown_ids']`) — не за всех кандидатов.
+            foreach ($rendered['shown_ids'] as $shownId) {
+                $this->detectionHistoryModel->insert([
+                    'detector_player_id' => $characterId,
+                    'detected_player_id' => $shownId,
+                    'detected_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+
             // Отправляем сообщение через Telegram
             try {
                 Request::sendMessage([
@@ -224,11 +233,15 @@ class PlayerDetectionService
      *    «⚔️ Атаковать» — «🔒 <причина>» на том же `callback_data`: тап уходит в существующий
      *    `AttackPlayerAction`, который сам вызывает `checkPvPAllowed()` и отвечает игроку
      *    текстом причины (а не общей ошибкой) — story не имеет права трогать `AttackPlayerAction`
-     *    (не в `## Files`), поэтому лок переиспользует уже работающий путь вместо нового.
+     *    (не в `## Files`), поэтому лок переиспользует уже работающий путь вместо нового;
+     *  - pvp-detection-clarity-18 (BLOCK #11): метка каждой кнопки атаки/замка несёт имя
+     *    соседа (`buttonName()` — очищено от переводов строк, обрезано до
+     *    `MAX_BUTTON_NAME_CHARS`), поэтому соответствие «кнопка → строка списка» не зависит
+     *    от того, как `ButtonPacker` упаковал ряды и куда попали «🤺 Дуэль»/«🏃 Бежать».
      *
      * @param array<string,mixed>                                                                                       $attacker         персонаж-детектор (id/level/cell_number/created_at)
      * @param list<array{id:int,name:string,level:int,created_at:mixed,cell_number:mixed,distance:int,last_active_at:mixed}> $detectedPlayers все обнаруженные (без ограничения — кап применяется здесь)
-     * @return array{text:string,keyboard:array{inline_keyboard:list<list<array<string,string>>>}}
+     * @return array{text:string,keyboard:array{inline_keyboard:list<list<array<string,string>>>},shown_ids:list<int>}
      */
     public function renderDetectionMessage(
         array $attacker,
@@ -287,6 +300,7 @@ class PlayerDetectionService
         $lines        = [];
         $flatButtons  = [];
         $shown        = 0;
+        $shownIds     = [];
 
         foreach ($candidate as $neighbor) {
             $safeName     = $neighbor['name'] !== '' ? esc((string) $neighbor['name'], 'html') : ('№' . $neighbor['id']);
@@ -302,19 +316,22 @@ class PlayerDetectionService
             $lines[]  = $line;
             $bodyLen += $lineLen;
             $shown++;
+            $shownIds[] = (int) $neighbor['id'];
+
+            $buttonName = $this->buttonName((string) $neighbor['name'], (int) $neighbor['id']);
 
             $check = $this->restriction->checkPvPAllowed($attacker, $neighbor);
             if ($check['allowed']) {
-                $flatButtons[] = ['text' => '⚔️ Атаковать', 'callback_data' => 'attackPlayer_' . $neighbor['id']];
+                $flatButtons[] = ['text' => '⚔️ Атаковать: ' . $buttonName, 'callback_data' => 'attackPlayer_' . $neighbor['id']];
             } else {
                 $flatButtons[] = [
-                    'text'          => '🔒 ' . $this->lockLabel((string) ($check['reason_code'] ?? '')),
+                    'text'          => '🔒 ' . $this->lockLabel((string) ($check['reason_code'] ?? '')) . ': ' . $buttonName,
                     'callback_data' => 'attackPlayer_' . $neighbor['id'],
                 ];
             }
 
             if ($this->duelsEnabledAndOpen((int) $neighbor['id'])) {
-                $flatButtons[] = ['text' => '🤺 Дуэль', 'callback_data' => 'duel_' . $neighbor['id']];
+                $flatButtons[] = ['text' => '🤺 Дуэль: ' . $buttonName, 'callback_data' => 'duel_' . $neighbor['id']];
             }
         }
 
@@ -331,13 +348,17 @@ class PlayerDetectionService
         $text .= $footer;
 
         return [
-            'text'     => $text,
-            'keyboard' => ['inline_keyboard' => ButtonPacker::pack($flatButtons)],
+            'text'      => $text,
+            'keyboard'  => ['inline_keyboard' => ButtonPacker::pack($flatButtons)],
+            'shown_ids' => $shownIds,
         ];
     }
 
     /** Запас под лимит Telegram (4096): жёсткая граница `renderDetectionMessage()`. */
     private const MAX_TEXT_CHARS = 3800;
+
+    /** Длина имени соседа в метке кнопки — не про баланс, про читаемость клавиатуры. */
+    private const MAX_BUTTON_NAME_CHARS = 20;
 
     private function lockLabel(string $reasonCode): string
     {
@@ -347,6 +368,29 @@ class PlayerDetectionService
             'account_age'  => 'Молодой аккаунт',
             default        => 'Недоступно',
         };
+    }
+
+    /**
+     * pvp-detection-clarity-18 (BLOCK #11): метка кнопки атаки/замка/дуэли обязана нести имя
+     * соседа, независимо от того, как `ButtonPacker` расставил ряды и куда сдвинулись
+     * «🤺 Дуэль»/«🏃 Бежать» — иначе тап по одинаковой «⚔️ Атаковать» бьёт не по тому, кого
+     * игрок видел в списке. Переводы строк/табы вычищены (кнопка — однострочный виджет),
+     * длинное имя обрезано с многоточием, чтобы не растягивать клавиатуру.
+     */
+    private function buttonName(string $rawName, int $id): string
+    {
+        $name = preg_replace('/[\r\n\t]+/u', ' ', $rawName);
+        $name = trim($name ?? $rawName);
+
+        if ($name === '') {
+            return '№' . $id;
+        }
+
+        if (mb_strlen($name) > self::MAX_BUTTON_NAME_CHARS) {
+            $name = mb_substr($name, 0, self::MAX_BUTTON_NAME_CHARS - 1) . '…';
+        }
+
+        return $name;
     }
 
     /**

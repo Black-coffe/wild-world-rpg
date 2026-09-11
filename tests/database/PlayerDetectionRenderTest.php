@@ -286,6 +286,7 @@ final class PlayerDetectionRenderTest extends CIUnitTestCase
         $this->assertStringStartsWith('🔒', $lockButton['text']);
         $this->assertStringContainsString('Уровень', $lockButton['text']);
         $this->assertStringNotContainsString('⚔️ Атаковать', $lockButton['text']);
+        $this->assertStringContainsString('Новичок', $lockButton['text'], 'BLOCK #11: замок обязан нести имя соседа, а не только причину');
     }
 
     public function testAllowedNeighborGetsAttackButtonNotLock(): void
@@ -310,7 +311,7 @@ final class PlayerDetectionRenderTest extends CIUnitTestCase
         }
 
         $this->assertNotNull($found);
-        $this->assertSame('⚔️ Атаковать', $found['text']);
+        $this->assertSame('⚔️ Атаковать: РавныйПротивник', $found['text'], 'BLOCK #11: метка обязана нести имя соседа, а не быть одинаковой на всех кнопках');
     }
 
     /**
@@ -344,5 +345,84 @@ final class PlayerDetectionRenderTest extends CIUnitTestCase
             }
         }
         $this->assertSame(1, $runAwayCount, '«🏃 Бежать» обязана быть одна на всё сообщение');
+    }
+
+    /**
+     * BLOCK #8: обнаружено больше, чем влезает в max_listed — истории обязана коснуться
+     * только показанная часть, непоказанный сосед не должен глохнуть по кулдауну пары
+     * на следующем шаге, ни разу не будучи показанным игроку.
+     */
+    public function testShownIdsCoverOnlyRenderedNeighborsNotAllCandidates(): void
+    {
+        $attackerCell = $this->uniqueCell();
+        $this->insertMapCell($attackerCell);
+        $attacker = $this->makeAttacker($attackerCell);
+
+        $neighbors = [];
+        for ($i = 1; $i <= 123; $i++) {
+            $cell = $this->uniqueCell();
+            $this->insertMapCell($cell);
+            $neighbors[] = $this->makeNeighbor(800 + $i, $cell, $i, "Сосед{$i}");
+        }
+
+        $service  = new PlayerDetectionService();
+        $rendered = $service->renderDetectionMessage($attacker, $neighbors, 12, 14, true);
+
+        $this->assertCount(12, $rendered['shown_ids'], 'shown_ids обязан содержать ровно столько id, сколько строк реально показано');
+
+        $shownSet = array_flip($rendered['shown_ids']);
+        foreach (array_slice($neighbors, 0, 12) as $expectedShown) {
+            $this->assertArrayHasKey($expectedShown['id'], $shownSet, 'первые max_listed соседей (после сортировки — все одинаково активны, порядок по расстоянию) обязаны попасть в shown_ids');
+        }
+        foreach (array_slice($neighbors, 12) as $expectedHidden) {
+            $this->assertArrayNotHasKey($expectedHidden['id'], $shownSet, 'непоказанный сосед не должен попасть в shown_ids — иначе история глушит его по кулдауну, хотя он не был показан');
+        }
+    }
+
+    /**
+     * BLOCK #11: длинное имя не должно ломать клавиатуру (одиночные строки, разрыв упаковки) —
+     * метка обрезается с многоточием, но остаётся привязанной к своему соседу.
+     */
+    public function testButtonLabelTruncatesLongNameAndKeepsPackingIntact(): void
+    {
+        $attackerCell = $this->uniqueCell();
+        $this->insertMapCell($attackerCell);
+        $attacker = $this->makeAttacker($attackerCell);
+
+        $longName  = str_repeat('Оченьдлинноеимясоседа', 3); // ~63 символа
+        $shortCell = $this->uniqueCell();
+        $longCell  = $this->uniqueCell();
+        $this->insertMapCell($shortCell);
+        $this->insertMapCell($longCell);
+
+        $short = $this->makeNeighbor(901, $shortCell, 1, 'Крош');
+        $long  = $this->makeNeighbor(902, $longCell, 2, $longName);
+
+        $service  = new PlayerDetectionService();
+        $rendered = $service->renderDetectionMessage($attacker, [$short, $long], 12, 14, true);
+
+        $buttons = $this->flattenButtons($rendered['keyboard']);
+
+        $shortBtn = null;
+        $longBtn  = null;
+        foreach ($buttons as $btn) {
+            if (($btn['callback_data'] ?? '') === 'attackPlayer_901') {
+                $shortBtn = $btn;
+            }
+            if (($btn['callback_data'] ?? '') === 'attackPlayer_902') {
+                $longBtn = $btn;
+            }
+        }
+
+        $this->assertNotNull($shortBtn);
+        $this->assertNotNull($longBtn);
+        $this->assertStringContainsString('Крош', $shortBtn['text']);
+        $this->assertLessThanOrEqual(40, mb_strlen($longBtn['text']), 'метка с длинным именем обязана быть обрезана, а не растягивать клавиатуру');
+        $this->assertStringContainsString('…', $longBtn['text'], 'обрезанное имя несёт многоточие как сигнал усечения');
+        $this->assertNotSame($shortBtn['text'], $longBtn['text'], 'метки разных соседей не должны совпадать');
+
+        foreach ($rendered['keyboard']['inline_keyboard'] as $row) {
+            $this->assertGreaterThanOrEqual(2, count($row), 'ни одна строка клавиатуры не может нести единственную кнопку');
+        }
     }
 }
