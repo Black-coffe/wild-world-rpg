@@ -15,6 +15,7 @@ use App\Database\Migrations\CreateGameSettingsTable;
 use App\Database\Migrations\CreateMapTable;
 use App\Database\Migrations\CreateTelegramUsersTable;
 use App\Database\Migrations\W5AddCharacterCombatDroneActiveUntil;
+use App\Controllers\Telegram\Commands\Actions\PVP\StandoffLeaveAction;
 use App\Services\PVE\DefenseStructureService;
 use App\Services\PVE\PvpStandoffService;
 use App\Services\PVE\StandoffNotifier;
@@ -22,6 +23,9 @@ use CodeIgniter\Database\Forge;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Longman\TelegramBot\Entities\CallbackQuery;
+use Longman\TelegramBot\Entities\ServerResponse;
+use Longman\TelegramBot\Telegram;
 
 /**
  * pvp-detection-clarity-06 — `PvpStandoffService`/`StandoffNotifier`/признак базы.
@@ -358,6 +362,40 @@ final class PvpStandoffServiceTest extends CIUnitTestCase
         $this->assertIsArray($reopened, 'ровно та тройка тапов из находки: атака после ухода обязана снова открыть окно');
     }
 
+    /**
+     * BLOCK-2 minor #H: `cancelled` обязан быть достижим ТОЛЬКО действием самого
+     * нападавшего — владение проверяется в `StandoffLeaveAction:42` ДО вызова
+     * `PvpStandoffService::close()` (Non-goal этой story запрещает переносить
+     * проверку в сам сервис). Гоняем настоящий `handle()` с реальным `CallbackQuery`
+     * (тот же приём, что `StandoffAttackGateTest::callbackQuery()`), а не Reflection
+     * по сервису — иначе тест был бы неотличим по сигнатуре вызова `close()` что от
+     * атакующего, что от защитника, и не поймал бы находку вовсе.
+     */
+    public function testStandoffLeaveActionRefusesCancelForDefenderAndStrangerAndCooldownStaysUnarmed(): void
+    {
+        $cell     = $this->createCell();
+        $defender = $this->insertCharacter();
+        $attacker = $this->insertCharacter();
+        $stranger = $this->insertCharacter();
+        $this->placeWoodenWall($defender, $cell);
+        $this->setIntSetting('pvp.standoff.cooldown_sec', 900);
+
+        $service    = new PvpStandoffService();
+        $opened     = $service->open($attacker, $defender, $cell);
+        $this->assertIsArray($opened);
+        $standoffId = (int) $opened['id'];
+
+        $fromDefender = (new StandoffLeaveAction($this->callbackQuery($this->telegramIdFor($defender), "standoffLeave_{$standoffId}")))->handle();
+        $this->assertStringContainsString('не твоё', $this->responseText($fromDefender), 'защитник не может закрыть чужое окно тапом «Уйти»');
+
+        $fromStranger = (new StandoffLeaveAction($this->callbackQuery($this->telegramIdFor($stranger), "standoffLeave_{$standoffId}")))->handle();
+        $this->assertStringContainsString('не твоё', $this->responseText($fromStranger), 'посторонний не может закрыть чужое окно тапом «Уйти»');
+
+        $row = $this->conn->table('pvp_standoffs')->where('id', $standoffId)->get()->getRowArray();
+        $this->assertIsArray($row);
+        $this->assertSame('open', $row['status'], 'ни защитник, ни посторонний не должны были достичь close() — иначе `cancelled` появился бы не от атакующего и тихо снял бы кулдаун защитника');
+    }
+
     public function testEachReactiveClosingStatusStillArmsDefenderCooldown(): void
     {
         // Симметричная проверка: `held`/`fled`/`countered` (защитник отреагировал)
@@ -530,6 +568,49 @@ final class PvpStandoffServiceTest extends CIUnitTestCase
         $id                    = (int) $this->conn->insertID();
         $this->characterIds[]  = $id;
         return $id;
+    }
+
+    /** `characters.telegram_user_id` → `telegram_users.telegram_id` — то, с чем шлёт вебхук. */
+    private function telegramIdFor(int $characterId): int
+    {
+        $character = $this->conn->table('characters')->where('id', $characterId)->get()->getRowArray();
+        $this->assertIsArray($character);
+        $telegramUser = $this->conn->table('telegram_users')->where('id', $character['telegram_user_id'])->get()->getRowArray();
+        $this->assertIsArray($telegramUser);
+
+        return (int) $telegramUser['telegram_id'];
+    }
+
+    /** Настоящий CallbackQuery — как из реального вебхука клика по кнопке (тот же приём, что `StandoffAttackGateTest`). */
+    private function callbackQuery(int $tgId, string $data): CallbackQuery
+    {
+        if (! defined('PHPUNIT_TESTSUITE')) {
+            define('PHPUNIT_TESTSUITE', true);
+        }
+        new Telegram('123456:TEST-fake-token-for-tests', 'test_bot');
+
+        return new CallbackQuery([
+            'id'      => 'cbq_' . random_int(1, PHP_INT_MAX),
+            'from'    => ['id' => $tgId, 'is_bot' => false, 'first_name' => 'Тест'],
+            'message' => [
+                'message_id' => 1,
+                'date'       => time(),
+                'chat'       => ['id' => $tgId, 'type' => 'private'],
+                'text'       => 'placeholder',
+            ],
+            'chat_instance' => 'ci_1',
+            'data'          => $data,
+        ]);
+    }
+
+    private function responseText(ServerResponse $response): string
+    {
+        $result = $response->getResult();
+        if (! is_object($result) || ! method_exists($result, 'getText')) {
+            return '';
+        }
+
+        return (string) ($result->getText() ?? '');
     }
 
     private function placeWoodenWall(int $characterId, int $cellNumber): void

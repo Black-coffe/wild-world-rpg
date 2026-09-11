@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Database;
 
+use App\Database\Migrations\CreateActionLogTable;
+use App\Database\Migrations\CreateCharactersTable;
 use App\Database\Migrations\CreateMapTable;
+use App\Database\Migrations\CreatePlayerDetectionHistoryTable;
+use App\Database\Migrations\CreateTelegramUsersTable;
 use App\Services\Player\PlayerDetectionService;
 use CodeIgniter\Database\Forge;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -33,10 +37,18 @@ final class PlayerDetectionRenderTest extends CIUnitTestCase
     protected $migrate = false;
 
     private \CodeIgniter\Database\BaseConnection $conn;
-    private bool $createdMap = false;
+    private bool $createdMap                   = false;
+    private bool $createdTelegramUsers          = false;
+    private bool $createdCharacters             = false;
+    private bool $createdActionLog              = false;
+    private bool $createdPlayerDetectionHistory = false;
 
     /** @var list<int> */
     private array $mapIds = [];
+    /** @var list<int> */
+    private array $characterIds = [];
+    /** @var list<int> */
+    private array $telegramUserIds = [];
 
     protected function setUp(): void
     {
@@ -52,6 +64,39 @@ final class PlayerDetectionRenderTest extends CIUnitTestCase
             $this->conn->resetDataCache();
             $this->createdMap = true;
         }
+
+        // pvp-detection-clarity-22 (minor #G): эта тройка нужна только тесту на
+        // `detectNearbyPlayers()` (реальный путь записи истории), остальные тесты
+        // файла собирают `renderDetectionMessage()` напрямую и её не трогают —
+        // но `createIfMissing`-приём тот же, что у `PvpStandoffServiceTest`.
+        if (! $this->conn->tableExists('telegram_users')) {
+            $this->requireMigration('CreateTelegramUsersTable', '2024-03-20-153728_CreateTelegramUsersTable.php');
+            $forge = Database::forge('tests');
+            (new CreateTelegramUsersTable($forge instanceof Forge ? $forge : null))->up();
+            $this->conn->resetDataCache();
+            $this->createdTelegramUsers = true;
+        }
+        if (! $this->conn->tableExists('characters')) {
+            $this->requireMigration('CreateCharactersTable', '2024-03-20-154155_CreateCharactersTable.php');
+            $forge = Database::forge('tests');
+            (new CreateCharactersTable($forge instanceof Forge ? $forge : null))->up();
+            $this->conn->resetDataCache();
+            $this->createdCharacters = true;
+        }
+        if (! $this->conn->tableExists('action_log')) {
+            $this->requireMigration('CreateActionLogTable', '2024-03-18-134951_CreateActionLogTable.php');
+            $forge = Database::forge('tests');
+            (new CreateActionLogTable($forge instanceof Forge ? $forge : null))->up();
+            $this->conn->resetDataCache();
+            $this->createdActionLog = true;
+        }
+        if (! $this->conn->tableExists('player_detection_history')) {
+            $this->requireMigration('CreatePlayerDetectionHistoryTable', '2024-09-26-083705_CreatePlayerDetectionHistoryTable.php');
+            $forge = Database::forge('tests');
+            (new CreatePlayerDetectionHistoryTable($forge instanceof Forge ? $forge : null))->up();
+            $this->conn->resetDataCache();
+            $this->createdPlayerDetectionHistory = true;
+        }
     }
 
     protected function tearDown(): void
@@ -59,7 +104,35 @@ final class PlayerDetectionRenderTest extends CIUnitTestCase
         foreach ($this->mapIds as $id) {
             $this->conn->table('map')->where('id', $id)->delete();
         }
+        foreach ($this->characterIds as $id) {
+            $this->conn->table('player_detection_history')->where('detector_player_id', $id)->orWhere('detected_player_id', $id)->delete();
+            $this->conn->table('action_log')->where('character_id', $id)->delete();
+            $this->conn->table('characters')->where('id', $id)->delete();
+        }
+        foreach ($this->telegramUserIds as $id) {
+            $this->conn->table('telegram_users')->where('id', $id)->delete();
+        }
 
+        if ($this->createdPlayerDetectionHistory) {
+            $this->requireMigration('CreatePlayerDetectionHistoryTable', '2024-09-26-083705_CreatePlayerDetectionHistoryTable.php');
+            $forge = Database::forge('tests');
+            (new CreatePlayerDetectionHistoryTable($forge instanceof Forge ? $forge : null))->down();
+        }
+        if ($this->createdActionLog) {
+            $this->requireMigration('CreateActionLogTable', '2024-03-18-134951_CreateActionLogTable.php');
+            $forge = Database::forge('tests');
+            (new CreateActionLogTable($forge instanceof Forge ? $forge : null))->down();
+        }
+        if ($this->createdCharacters) {
+            $this->requireMigration('CreateCharactersTable', '2024-03-20-154155_CreateCharactersTable.php');
+            $forge = Database::forge('tests');
+            (new CreateCharactersTable($forge instanceof Forge ? $forge : null))->down();
+        }
+        if ($this->createdTelegramUsers) {
+            $this->requireMigration('CreateTelegramUsersTable', '2024-03-20-153728_CreateTelegramUsersTable.php');
+            $forge = Database::forge('tests');
+            (new CreateTelegramUsersTable($forge instanceof Forge ? $forge : null))->down();
+        }
         if ($this->createdMap) {
             $this->requireMigration('CreateMapTable', '2024-03-18-105708_CreateMapTable.php');
             $forge = Database::forge('tests');
@@ -90,6 +163,33 @@ final class PlayerDetectionRenderTest extends CIUnitTestCase
             'coordinate_y' => $coordinateY,
         ]);
         $this->mapIds[] = (int) $this->conn->insertID();
+    }
+
+    /**
+     * Настоящая строка `characters` (+ `telegram_users`) — нужна только тесту на
+     * `detectNearbyPlayers()`: он идёт реальным SQL-путём (join по `cell_number`),
+     * а не собирает `renderDetectionMessage()` из синтетического массива.
+     */
+    private function insertRealCharacter(int $cellNumber, string $name, int $level = 50): int
+    {
+        $this->conn->table('telegram_users')->insert([
+            'telegram_id' => random_int(100_000_000, 999_999_999),
+        ]);
+        $telegramUserId          = (int) $this->conn->insertID();
+        $this->telegramUserIds[] = $telegramUserId;
+
+        $this->conn->table('characters')->insert([
+            'name'             => $name,
+            'level'            => $level,
+            'cell_number'      => (string) $cellNumber,
+            'telegram_user_id' => $telegramUserId,
+            'created_at'       => date('Y-m-d H:i:s', strtotime('-400 days')),
+            'updated_at'       => date('Y-m-d H:i:s'),
+        ]);
+        $id                   = (int) $this->conn->insertID();
+        $this->characterIds[] = $id;
+
+        return $id;
     }
 
     /**
@@ -380,6 +480,59 @@ final class PlayerDetectionRenderTest extends CIUnitTestCase
     }
 
     /**
+     * BLOCK-2 minor #G: `-18` закрывает `shown_ids` только на уровне `renderDetectionMessage()` —
+     * само место записи в `player_detection_history` внутри `detectNearbyPlayers()` (реальный
+     * SQL-join + цикл сбора кандидатов) ничем не покрыто: если кто-то вернёт `insert()` в цикл
+     * сбора (до того, как рендер решит, кто реально попал в текст), тесты на уровне рендера
+     * останутся зелёными, а история продолжит писаться на всех кандидатов. Гоняем настоящий
+     * `detectNearbyPlayers()`, а не `renderDetectionMessage()` напрямую.
+     */
+    public function testDetectNearbyPlayersWritesHistoryOnlyForShownNeighbors(): void
+    {
+        // Request::send() в Longman-библиотеке отдаёт фейковый ServerResponse вместо
+        // реального похода в Telegram API, когда эта константа определена (тот же
+        // приём, что `StandoffAttackGateTest::callbackQuery()`) — insert в историю
+        // происходит ДО попытки отправки, но без этого тест бил бы по сети.
+        if (! defined('PHPUNIT_TESTSUITE')) {
+            define('PHPUNIT_TESTSUITE', true);
+        }
+
+        $attackerCell = $this->uniqueCell();
+        $this->insertMapCell($attackerCell);
+        $attackerId = $this->insertRealCharacter($attackerCell, 'Детектор', 50);
+
+        // Все 15 соседей — на ТОЙ ЖЕ клетке (distance=0, уровень 50 → радиус детекта 2,
+        // 0<=радиус — все в зоне обнаружения). `game_settings` в этом файле не заведена
+        // (GameSettingsService деградирует на default), поэтому max_listed=12 —
+        // ровно потолок, использованный `testShownIdsCoverOnlyRenderedNeighborsNotAllCandidates`
+        // выше. Ни у кого нет action_log — last_active равны (null у всех), distance
+        // равен (0 у всех) — сортировка renderDetectionMessage() стабильно падает на id
+        // по возрастанию, значит именно 12 МЕНЬШИХ id обязаны попасть в shown.
+        $neighborIds = [];
+        for ($i = 1; $i <= 15; $i++) {
+            $neighborIds[] = $this->insertRealCharacter($attackerCell, "Сосед{$i}", 50);
+        }
+        sort($neighborIds);
+
+        (new PlayerDetectionService())->detectNearbyPlayers($attackerId);
+
+        $historyRows = $this->conn->table('player_detection_history')
+            ->where('detector_player_id', $attackerId)
+            ->get()->getResultArray();
+        $historyIds  = array_map(static fn (array $r): int => (int) $r['detected_player_id'], $historyRows);
+        sort($historyIds);
+
+        $expectedShown  = array_slice($neighborIds, 0, 12);
+        $expectedHidden = array_slice($neighborIds, 12);
+
+        $this->assertCount(12, $historyIds, 'история обязана нести ровно столько строк, сколько реально показано (max_listed=12), а не всех 15 кандидатов');
+        $this->assertSame($expectedShown, $historyIds, 'история обязана нести именно показанных (по сортировке рендера) соседей');
+        foreach ($expectedHidden as $hiddenId) {
+            $this->assertNotContains($hiddenId, $historyIds, 'непоказанный сосед не должен попасть в историю прямо из цикла сбора кандидатов');
+        }
+    }
+
+    /**
      * BLOCK #11: длинное имя не должно ломать клавиатуру (одиночные строки, разрыв упаковки) —
      * метка обрезается с многоточием, но остаётся привязанной к своему соседу.
      */
@@ -424,5 +577,53 @@ final class PlayerDetectionRenderTest extends CIUnitTestCase
         foreach ($rendered['keyboard']['inline_keyboard'] as $row) {
             $this->assertGreaterThanOrEqual(2, count($row), 'ни одна строка клавиатуры не может нести единственную кнопку');
         }
+    }
+
+    /**
+     * BLOCK-2 minor #K: обрезка одним многоточием не гарантирует различимость — два соседа
+     * с совпадающими первыми 19 символами имени получали бы буквально одинаковую метку
+     * (остаток дыры major #11). `buttonName()` теперь несёт хвост `№<id>` при обрезке —
+     * id уникален по конструкции, поэтому различимость держится даже на полной коллизии
+     * видимой части имени.
+     */
+    public function testTwoNeighborsWithNamesMatchingFirstNineteenCharsGetDistinctButtonLabels(): void
+    {
+        $attackerCell = $this->uniqueCell();
+        $this->insertMapCell($attackerCell);
+        $attacker = $this->makeAttacker($attackerCell);
+
+        $shared = str_repeat('Б', 19); // первые 19 символов совпадают у обоих соседей
+        $nameA  = $shared . 'ПерваяХвост';
+        $nameB  = $shared . 'ВтораяХвост';
+        $this->assertSame(mb_substr($nameA, 0, 19), mb_substr($nameB, 0, 19), 'предпосылка теста: первые 19 символов обязаны совпадать');
+
+        $cellA = $this->uniqueCell();
+        $cellB = $this->uniqueCell();
+        $this->insertMapCell($cellA);
+        $this->insertMapCell($cellB);
+
+        $neighborA = $this->makeNeighbor(950, $cellA, 1, $nameA);
+        $neighborB = $this->makeNeighbor(951, $cellB, 2, $nameB);
+
+        $service  = new PlayerDetectionService();
+        $rendered = $service->renderDetectionMessage($attacker, [$neighborA, $neighborB], 12, 14, true);
+
+        $buttons = $this->flattenButtons($rendered['keyboard']);
+        $btnA    = null;
+        $btnB    = null;
+        foreach ($buttons as $btn) {
+            if (($btn['callback_data'] ?? '') === 'attackPlayer_950') {
+                $btnA = $btn;
+            }
+            if (($btn['callback_data'] ?? '') === 'attackPlayer_951') {
+                $btnB = $btn;
+            }
+        }
+
+        $this->assertNotNull($btnA);
+        $this->assertNotNull($btnB);
+        $this->assertNotSame($btnA['text'], $btnB['text'], 'соседи с совпадающими первыми 19 символами имени обязаны получить различимые метки кнопок');
+        $this->assertStringContainsString('950', $btnA['text'], 'различимость обязана держаться на id, раз видимая часть имени совпала целиком');
+        $this->assertStringContainsString('951', $btnB['text']);
     }
 }

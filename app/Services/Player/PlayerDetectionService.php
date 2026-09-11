@@ -75,6 +75,15 @@ class PlayerDetectionService
             log_message('error', "Персонаж с ID {$characterId} не найден.");
             return false;
         }
+        // pvp-detection-clarity-22: `CharacterModel::find()` отдаёт `CharacterEntity`
+        // (ArrayAccess — `$character['cell_number']` ниже работает и на объекте), но
+        // `renderDetectionMessage()` типизирует `$attacker` жёстко как `array` — без
+        // приведения здесь реальный вызов падал бы `TypeError` на каждом детекте,
+        // это вскрылось только когда тест на #G впервые прогнал настоящий
+        // `detectNearbyPlayers()` вместо `renderDetectionMessage()` напрямую.
+        if (!is_array($character)) {
+            $character = $character->toArray();
+        }
 
         // Проверяем наличие номера ячейки
         if (!isset($character['cell_number']) || !$character['cell_number']) {
@@ -376,6 +385,11 @@ class PlayerDetectionService
      * «🤺 Дуэль»/«🏃 Бежать» — иначе тап по одинаковой «⚔️ Атаковать» бьёт не по тому, кого
      * игрок видел в списке. Переводы строк/табы вычищены (кнопка — однострочный виджет),
      * длинное имя обрезано с многоточием, чтобы не растягивать клавиатуру.
+     *
+     * pvp-detection-clarity-22 (BLOCK-2 minor #K): просто «…» после обрезки не гарантирует
+     * различимость — два соседа с совпадающими первыми 19 символами получали бы буквально
+     * одинаковую метку (остаток дыры major #11). Обрезка длинных имён несёт хвост `№<id>`
+     * (id персонажа уникален по конструкции — PK), короткие имена формат не меняют вовсе.
      */
     private function buttonName(string $rawName, int $id): string
     {
@@ -387,7 +401,9 @@ class PlayerDetectionService
         }
 
         if (mb_strlen($name) > self::MAX_BUTTON_NAME_CHARS) {
-            $name = mb_substr($name, 0, self::MAX_BUTTON_NAME_CHARS - 1) . '…';
+            $suffix  = '…№' . $id;
+            $headLen = max(1, self::MAX_BUTTON_NAME_CHARS - mb_strlen($suffix));
+            $name    = mb_substr($name, 0, $headLen) . $suffix;
         }
 
         return $name;

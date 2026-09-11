@@ -67,6 +67,28 @@ final class RelocateAbandonedCharactersTest extends CIUnitTestCase
         $this->conn = Database::connect();
         $this->conn->resetDataCache();
 
+        // pvp-detection-clarity-22 (minor #I): если что-то из этого посередине бросит
+        // исключение (FK-конфликт с несовместимой преднесённой таблицей — ровно то, что
+        // воспроизвёл ревьюер), PHPUnit не позовёт tearDown() вовсе, и всё, что успело
+        // создаться до броска, осталось бы мусором в базе. Ловим здесь и подчищаем ровно
+        // то, что отмечено в `$this->created`, прежде чем перебросить исключение дальше —
+        // тот же приём, что и в штатном тесте, только раньше по конвейеру.
+        try {
+            $this->buildSchema();
+            $this->ensureOriginCells();
+        } catch (\Throwable $e) {
+            $this->dropTrackedTables();
+            throw $e;
+        }
+    }
+
+    private function buildSchema(): void
+    {
+        // Между двумя вызовами `buildSchema()` в одном тесте (minor #I) схема меняется
+        // руками (raw DDL) — `tableExists()` кеширует список таблиц на соединении,
+        // без сброса он соврёт про уже пересозданную/снесённую таблицу.
+        $this->conn->resetDataCache();
+
         $this->requireMigrationClasses();
         $forge = Database::forge();
         $forge = $forge instanceof Forge ? $forge : null;
@@ -91,8 +113,6 @@ final class RelocateAbandonedCharactersTest extends CIUnitTestCase
         if ($this->created['action_log']) {
             (new CreateActionLogTable($forge))->up();
         }
-
-        $this->ensureOriginCells();
     }
 
     protected function tearDown(): void
@@ -112,30 +132,44 @@ final class RelocateAbandonedCharactersTest extends CIUnitTestCase
         $this->characterIds    = [];
         $this->telegramUserIds = [];
 
+        $this->dropTrackedTables();
+
+        parent::tearDown();
+    }
+
+    /**
+     * Обратный FK-порядок: action_log → claimed_cells → characters → map →
+     * telegram_users. Дропает только то, что отмечено в `$this->created` — иначе
+     * унесёт таблицу, которую уже нёс стенд до запуска (pvp-detection-clarity-15).
+     * `tableExists()` перед каждым `down()` — на пути отказа из `setUp()`
+     * (minor #I) флаг может стоять `true`, а самой таблицы физически ещё нет:
+     * `CreateClaimedCellsTable::up()` создаёт таблицу и FK одним атомарным
+     * `CREATE TABLE`, и при конфликте типов с чужой `map` она не появляется вовсе —
+     * безусловный `down()` в этом случае сам бы бросил «таблица не существует».
+     */
+    private function dropTrackedTables(): void
+    {
+        $this->conn->resetDataCache();
+
         $forge = Database::forge();
         $forge = $forge instanceof Forge ? $forge : null;
 
-        // Обратный FK-порядок: action_log → claimed_cells → characters → map →
-        // telegram_users. Дропаем только то, что создал сам этот тест — иначе
-        // унесём таблицу, которую уже нёс стенд до запуска (pvp-detection-clarity-15).
-        if (! empty($this->created['action_log'])) {
-            (new CreateActionLogTable($forge))->down();
-        }
-        if (! empty($this->created['claimed_cells'])) {
-            (new CreateClaimedCellsTable($forge))->down();
-        }
-        if (! empty($this->created['characters'])) {
-            (new CreateCharactersTable($forge))->down();
-        }
-        if (! empty($this->created['map'])) {
-            (new CreateMapTable($forge))->down();
-        }
-        if (! empty($this->created['telegram_users'])) {
-            (new CreateTelegramUsersTable($forge))->down();
-        }
-        $this->created = [];
+        $order = [
+            ['action_log', CreateActionLogTable::class],
+            ['claimed_cells', CreateClaimedCellsTable::class],
+            ['characters', CreateCharactersTable::class],
+            ['map', CreateMapTable::class],
+            ['telegram_users', CreateTelegramUsersTable::class],
+        ];
 
-        parent::tearDown();
+        foreach ($order as [$table, $class]) {
+            if (! empty($this->created[$table]) && $this->conn->tableExists($table)) {
+                (new $class($forge))->down();
+            }
+        }
+
+        $this->created = [];
+        $this->conn->resetDataCache();
     }
 
     public function testDryRunFindsOnlyAbandonedAndWritesNothing(): void
@@ -226,6 +260,47 @@ final class RelocateAbandonedCharactersTest extends CIUnitTestCase
 
         static::assertSame(1, $first['moved']);
         static::assertSame(0, $second['candidates'], 'после переезда персонаж больше не стоит на 1/1002 — второй прогон не находит кандидатов');
+    }
+
+    /**
+     * pvp-detection-clarity-22 (minor #I): воспроизводит именно то падение, что нашёл
+     * ревьюер — несовместимая преднесённая `map` рвёт `CreateClaimedCellsTable::up()`
+     * на FK-конфликте (`map.id` не INT), и `setUp()` обрывается посередине, успев
+     * создать `telegram_users`/`characters`. Доказывает, что после этого в базе не
+     * остаётся ни одной из пяти таблиц — не только тех, что действительно возникли.
+     */
+    public function testSetUpCleansUpPartiallyCreatedTablesWhenItFailsMidway(): void
+    {
+        // Штатный setUp() этого теста уже отработал и создал всю пятёрку — сносим её,
+        // чтобы повторить `buildSchema()` на пустой (но испорченной) базе, ровно как
+        // это будет у следующего теста в наборе, если предыдущий прогон не подчистил
+        // за собой мусор.
+        $this->dropTrackedTables();
+
+        $this->conn->query('CREATE TABLE map (id VARCHAR(10) NOT NULL PRIMARY KEY)');
+        $this->conn->resetDataCache();
+
+        $threw = false;
+
+        try {
+            $this->buildSchema();
+            $this->ensureOriginCells();
+        } catch (\Throwable $e) {
+            $this->dropTrackedTables();
+            $threw = true;
+        }
+
+        $this->assertTrue($threw, 'предпосылка теста: несовместимая map обязана ронять создание схемы на FK claimed_cells.map_cell_id');
+        $this->assertFalse($this->conn->tableExists('telegram_users'), 'мусор от упавшего посередине setUp() не должен остаться в базе');
+        $this->assertFalse($this->conn->tableExists('characters'), 'мусор от упавшего посередине setUp() не должен остаться в базе');
+        $this->assertFalse($this->conn->tableExists('claimed_cells'), 'FK-провал не должен оставить недо-таблицу');
+        $this->assertFalse($this->conn->tableExists('action_log'), 'до action_log в этом прогоне дело не дошло, но проверяем и его');
+
+        // Возвращаем консистентную схему — иначе настоящий tearDown() этого теста
+        // унаследует несовместимую map и упадёт сам, забрав с собой остальной набор.
+        $this->conn->query('DROP TABLE IF EXISTS map');
+        $this->buildSchema();
+        $this->ensureOriginCells();
     }
 
     private function command(): RelocateAbandonedCharacters
