@@ -157,12 +157,18 @@ final class PlayerDetectionRenderTest extends CIUnitTestCase
 
     private function insertMapCell(int $cellNumber, int $coordinateY = 100): void
     {
+        // pvp-detection-clarity CI-fix: id ЯВНО = cell_number (инвариант map.id == map.cell_number,
+        // см. TowerAlertService::towersInBox()). `insertID()` на схеме без AUTO_INCREMENT (её
+        // создаёт другой тест раньше в общем прогоне — DashboardAnalyticsServiceTest) возвращает 0
+        // при каждой вставке без явного id, что валит вторую вставку дублем PRIMARY '0'.
+        // `$cellNumber` здесь всегда `uniqueCell()` (900_000_000..999_999_999) — безопасен как id.
         $this->conn->table('map')->insert([
+            'id'           => $cellNumber,
             'cell_number'  => $cellNumber,
             'coordinate_x' => 0,
             'coordinate_y' => $coordinateY,
         ]);
-        $this->mapIds[] = (int) $this->conn->insertID();
+        $this->mapIds[] = $cellNumber;
     }
 
     /**

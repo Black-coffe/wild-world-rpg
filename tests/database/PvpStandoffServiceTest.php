@@ -671,15 +671,19 @@ final class PvpStandoffServiceTest extends CIUnitTestCase
      */
     private function createCell(): int
     {
+        // pvp-detection-clarity CI-fix: id ЯВНО = cell_number вместо insertID() — на схеме
+        // без AUTO_INCREMENT (создаёт другой тест раньше в общем прогоне) insertID() возвращает
+        // 0 при каждой вставке, вторая валится дублем PRIMARY '0'. random_int здесь уже уникален
+        // на весь прогон, годится как id так же, как и как cell_number.
         $cellNumber = random_int(900_000_000, 999_999_999);
         $this->conn->table('map')->insert([
+            'id'           => $cellNumber,
             'cell_number'  => $cellNumber,
             'coordinate_x' => 0,
             'coordinate_y' => 100,
         ]);
-        $id             = (int) $this->conn->insertID();
-        $this->mapIds[] = $id;
-        return $id;
+        $this->mapIds[] = $cellNumber;
+        return $cellNumber;
     }
 
     private function setStandoffSetting(string $key, bool $value): void

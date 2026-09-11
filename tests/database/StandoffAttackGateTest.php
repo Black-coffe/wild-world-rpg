@@ -1059,14 +1059,19 @@ final class StandoffAttackGateTest extends CIUnitTestCase
      */
     private function createSelfConsistentCell(): int
     {
+        // pvp-detection-clarity CI-fix: явный id вместо insertID()-после-вставки. На схеме без
+        // AUTO_INCREMENT (её создаёт другой тест раньше в общем прогоне — DashboardAnalyticsServiceTest)
+        // insertID() возвращает 0 при КАЖДОЙ вставке без явного id — вторая клетка валится дублем
+        // PRIMARY '0' ещё до того, как успевает дойти до update(). random_int уникален на весь
+        // прогон, инвариант id==cell_number соблюдён вставкой сразу, без промежуточного update.
+        $id = random_int(900_000_000, 999_999_999);
         $this->conn->table('map')->insert([
-            'cell_number'  => 0,
+            'id'           => $id,
+            'cell_number'  => $id,
             'coordinate_x' => 0,
             'coordinate_y' => 100,
             'biome_id'     => $this->biomeId,
         ]);
-        $id = (int) $this->conn->insertID();
-        $this->conn->table('map')->where('id', $id)->update(['cell_number' => $id]);
         $this->mapIds[] = $id;
 
         return $id;
@@ -1079,14 +1084,16 @@ final class StandoffAttackGateTest extends CIUnitTestCase
      */
     private function createDistantCell(int $x, int $y): int
     {
+        // pvp-detection-clarity CI-fix: тот же приём, что и createSelfConsistentCell() выше —
+        // явный id вместо insertID()-после-вставки, инвариант id==cell_number сразу в insert().
+        $id = random_int(900_000_000, 999_999_999);
         $this->conn->table('map')->insert([
-            'cell_number'  => 0,
+            'id'           => $id,
+            'cell_number'  => $id,
             'coordinate_x' => $x,
             'coordinate_y' => $y,
             'biome_id'     => $this->biomeId,
         ]);
-        $id = (int) $this->conn->insertID();
-        $this->conn->table('map')->where('id', $id)->update(['cell_number' => $id]);
         $this->mapIds[] = $id;
 
         return $id;
