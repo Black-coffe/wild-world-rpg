@@ -533,6 +533,48 @@ final class PlayerDetectionRenderTest extends CIUnitTestCase
     }
 
     /**
+     * pvp-detection-clarity-25 (BLOCK-3 minor 5): остаток #8, сдвинутый на шаг — запись в
+     * `player_detection_history` стояла ДО `Request::sendMessage()`, поэтому неудачная отправка
+     * (исключение или `ok=false`) всё равно закрывала пару на кулдаун, хотя сосед не был
+     * доставлен вовсе. Фейковый `ServerResponse` под `PHPUNIT_TESTSUITE` всегда `ok=true`
+     * ({@see \Longman\TelegramBot\Request::generateGeneralFakeServerResponse}), поэтому
+     * неудачу симулируем через `sendDetectionNotification()`, специально вынесенный protected
+     * ради этого теста, — анонимный наследник форсит `false` вместо настоящего похода в API.
+     */
+    public function testFailedDeliveryDoesNotArmCooldownAndNeighborStaysDetectable(): void
+    {
+        $attackerCell = $this->uniqueCell();
+        $this->insertMapCell($attackerCell);
+        $attackerId = $this->insertRealCharacter($attackerCell, 'Детектор', 50);
+        $neighborId = $this->insertRealCharacter($attackerCell, 'Сосед', 50);
+
+        $service = new class () extends PlayerDetectionService {
+            protected function sendDetectionNotification(int|string $chatId, array $rendered): bool
+            {
+                // Симулирует недоставленное сообщение (транспорт бросил исключение
+                // или Telegram ответил ok=false) — реального похода в API нет.
+                return false;
+            }
+        };
+
+        $result = $service->detectNearbyPlayers($attackerId);
+
+        $this->assertTrue($result, 'сосед в радиусе всё ещё считается обнаруженным, даже если сообщение не доставлено');
+
+        $historyRows = $this->conn->table('player_detection_history')
+            ->where('detector_player_id', $attackerId)
+            ->where('detected_player_id', $neighborId)
+            ->get()->getResultArray();
+
+        $this->assertCount(0, $historyRows, 'неудачная отправка не должна армировать кулдаун пары — сосед не был показан');
+
+        // Кулдаун не взведён → повторный детект той же пары снова находит соседа (доказывает,
+        // что он придёт на следующем шаге, а не сгинул на 6 часов кулдауна пары).
+        $secondResult = $service->detectNearbyPlayers($attackerId);
+        $this->assertTrue($secondResult, 'без записи в истории кулдаун пары не взведён — сосед обнаруживается повторно');
+    }
+
+    /**
      * BLOCK #11: длинное имя не должно ломать клавиатуру (одиночные строки, разрыв упаковки) —
      * метка обрезается с многоточием, но остаётся привязанной к своему соседу.
      */

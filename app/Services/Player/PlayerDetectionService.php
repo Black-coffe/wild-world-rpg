@@ -200,30 +200,61 @@ class PlayerDetectionService
 
             $rendered = $this->renderDetectionMessage($character, $detectedPlayers, $maxListed, $inactiveDays, $showInactiveSummary);
 
-            // pvp-detection-clarity-18 (BLOCK #8): историю пишем только за тех, кто реально
-            // попал в отправленный текст (`$rendered['shown_ids']`) — не за всех кандидатов.
-            foreach ($rendered['shown_ids'] as $shownId) {
-                $this->detectionHistoryModel->insert([
-                    'detector_player_id' => $characterId,
-                    'detected_player_id' => $shownId,
-                    'detected_at' => date('Y-m-d H:i:s'),
-                ]);
-            }
+            // pvp-detection-clarity-25 (BLOCK-3 minor 5): история пишется по факту ДОСТАВКИ,
+            // а не по факту намерения отправить — `-18` уже сдвигала эту запись с «до обрезки
+            // списка» на «после рендера», но она всё ещё стояла до `sendDetectionNotification()`.
+            // Неудачная отправка (исключение транспорта или `ok=false`) больше не армирует
+            // кулдаун пары — непоказанный сосед придёт на следующем шаге, а не сгинет.
+            $delivered = $this->sendDetectionNotification($chatId, $rendered);
 
-            // Отправляем сообщение через Telegram
-            try {
-                Request::sendMessage([
-                    'chat_id' => $chatId,
-                    'text' => $rendered['text'],
-                    'parse_mode' => 'HTML',
-                    'reply_markup' => json_encode($rendered['keyboard']),
-                ]);
-            } catch (TelegramException $e) {
-                log_message('error', 'Ошибка отправки сообщения в Telegram: ' . $e->getMessage());
+            if ($delivered) {
+                // pvp-detection-clarity-18 (BLOCK #8): историю пишем только за тех, кто реально
+                // попал в отправленный текст (`$rendered['shown_ids']`) — не за всех кандидатов.
+                foreach ($rendered['shown_ids'] as $shownId) {
+                    $this->detectionHistoryModel->insert([
+                        'detector_player_id' => $characterId,
+                        'detected_player_id' => $shownId,
+                        'detected_at' => date('Y-m-d H:i:s'),
+                    ]);
+                }
             }
         }
 
         return !empty($detectedPlayers);
+    }
+
+    /**
+     * Отправляет собранное сообщение обнаружения и возвращает факт доставки — единственная
+     * точка похода в Telegram API из `detectNearbyPlayers()`, вынесена protected, чтобы тест
+     * мог подменить её в анонимном наследнике и честно смоделировать неудачную отправку
+     * (исключение транспорта или `ok=false`): фейковый `ServerResponse`, который
+     * `Request::send()` отдаёт под `PHPUNIT_TESTSUITE`, всегда `ok=true` и такой путь не
+     * покрывает (pvp-detection-clarity-25, BLOCK-3 minor 5).
+     *
+     * @param array{text:string,keyboard:array{inline_keyboard:list<list<array<string,string>>>},shown_ids:list<int>} $rendered
+     */
+    protected function sendDetectionNotification(int|string $chatId, array $rendered): bool
+    {
+        try {
+            $response = Request::sendMessage([
+                'chat_id' => $chatId,
+                'text' => $rendered['text'],
+                'parse_mode' => 'HTML',
+                'reply_markup' => json_encode($rendered['keyboard']),
+            ]);
+        } catch (TelegramException $e) {
+            log_message('error', 'Ошибка отправки сообщения в Telegram: ' . $e->getMessage());
+
+            return false;
+        }
+
+        if (!$response->isOk()) {
+            log_message('error', 'Сообщение обнаружения не доставлено (ok=false): ' . $response->getDescription());
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
