@@ -1,7 +1,7 @@
 ---
 story: pvp-detection-clarity-02
 spec: pvp-detection-clarity
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -54,5 +54,41 @@ ADR-186 §6 (последний абзац) и `## Contracts` плана (име
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+
+- `PvPRestrictionService::checkPvPAllowed()` читает три порога через `GameSettingsService::get()`.
+  **Ремонт после ревью главной сессии (11.09):** первая редакция вызывала `get($key)` вовсе без
+  третьего аргумента — при непримененной миграции/недоступной таблице это молча давало
+  `(int) null = 0` и тихо снимало все три гейта (`min_level=0` пускает уровень 1, `safe_zone_min_y=0`
+  делает `coordinate_y >= 0` истинным всегда, `min_account_age_days=0` снимает возрастной ценз) без
+  единой ошибки в логе — находка сформулирована самим владельцем через ревьюера, не мной. Починено
+  добавлением safety-net третьим аргументом (`get($key, 5|900|10)`, тот же приём, что `world.move.*`
+  в `MoveCharacterToDirectionAction`) с комментарием в файле, отличающим safety net (число-страховка
+  на случай отсутствия строки) от «литерала правила» (сравнение `< $minLevel` и т.п. нигде не
+  содержит числа напрямую) — критерий приёмки про grep остаётся выполненным по этому различию.
+  Добавлен тест `testGatesFallBackToPriorHardcodeWhenSettingsRowsAreMissing`, который физически
+  удаляет все три строки `pvp.restriction.*` и доказывает: гейты остаются включёнными по прежним
+  хардкод-значениям, а не отключаются.
+- Возврат расширен полями `reason_code` (`level`/`safe_zone`/`account_age`/`map_missing`/`''`) и
+  `message` (дубль `reason`); ключ `reason` не убран — единственный нынешний вызывающий,
+  `AttackPlayerAction.php:156-157`, продолжает читать `$check['allowed']`/`$check['reason']` без правок.
+  Список вызывающих получен `Bash`-грепом `grep -rn 'checkPvPAllowed' app/ tests/` — вызывающий
+  ровно один. Test-спаев `PvPRestrictionService` в репозитории не найдено.
+- Миграция `Adr186SeedPvpRestrictionSettings` сеет три ключа категории `combat`, идемпотентна по
+  `setting_key` (паттерн `SeedWorldMoveGameSettings`), дефолты байт-в-байт равны прежнему хардкоду
+  (5/900/10), `rationale_text` каждого явно называет заморозку ручки до снятия замера окна (ADR-186 §6).
+  Новых таблиц/player-колонок не создаёт — `game_settings` уже `KEEP` в `WipeManifest`, запись не нужна.
+- Тест `tests/database/PvPRestrictionServiceTest.php` строит схему (`telegram_users` → `characters` →
+  `map` → `game_settings`) исполнением реальных классов миграций, только если таблицы отсутствуют —
+  проверено на одноразовых пустых БД (`ww_probe_pvp02`, `ww_probe_pvp02b` — обе созданы и удалены
+  этими прогонами) и на персистентной локальной `wildworld_tests`, все прогоны зелёные, 7/7 после
+  добавления safety-net-теста. На персистентном стенде тест
+  не трогает чужие строки (собственные `characters`/`map`-строки — с cell_number в диапазоне
+  900 000 000–999 999 999, удаляются по id в `tearDown`); таблицы, которых не существовало, дропаются
+  обратно. Один тест (`testLevelThresholdIsActuallyReadFromGameSettingsNotHardcoded`) временно
+  поднимает `pvp.restriction.min_level` до 50 и возвращает обратно в этом же прогоне, доказывая, что
+  число реально приезжает из `GameSettings`, а не осталось в коде.
+- `RelocateAbandonedCharacters.php`/`RelocateAbandonedCharactersTest.php` в `git status` — чужие
+  untracked-файлы story `-03`, эта story их не касалась; phpstan-ошибки в них не относятся к `## Files`
+  этой story (файлы этой story проверены отдельно — 0 ошибок).
 
 ## Findings
