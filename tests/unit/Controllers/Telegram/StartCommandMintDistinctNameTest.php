@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Controllers\Telegram;
 
+use App\Controllers\Telegram\Commands\Actions\StartGame\AutoGenerateNameAction;
 use App\Controllers\Telegram\Commands\StartCommand;
 use CodeIgniter\Test\CIUnitTestCase;
 
@@ -58,5 +59,38 @@ final class StartCommandMintDistinctNameTest extends CIUnitTestCase
 
         $this->assertCount(1, $params, 'единственный параметр — characters.id, для telegram_id места нет');
         $this->assertSame('characterId', $params[0]->getName());
+    }
+
+    /**
+     * pvp-detection-clarity-17: `AutoGenerateNameAction` обязан узнавать машинную заглушку
+     * `StartCommand::mintDistinctName()` как «персонаж ещё не назван» — иначе игрок без
+     * `@username` навсегда остаётся с `Путник-<id>` вместо шага автогенерации имени.
+     */
+    public function testMintedPlaceholderIsRecognisedAsUnnamed(): void
+    {
+        $placeholder = StartCommand::mintDistinctName(42);
+
+        $this->assertTrue($this->invokeIsUnnamed($placeholder));
+    }
+
+    public function testChosenNameIsNotRecognisedAsUnnamed(): void
+    {
+        $this->assertFalse($this->invokeIsUnnamed('Ветеран Пустошей'));
+    }
+
+    public function testLegacyLiteralsAreStillRecognisedAsUnnamed(): void
+    {
+        $this->assertTrue($this->invokeIsUnnamed('Unknown Hero'));
+        $this->assertTrue($this->invokeIsUnnamed('NAN'));
+        $this->assertTrue($this->invokeIsUnnamed(null));
+        $this->assertTrue($this->invokeIsUnnamed(''));
+    }
+
+    private function invokeIsUnnamed(?string $name): bool
+    {
+        $reflection = new \ReflectionMethod(AutoGenerateNameAction::class, 'isUnnamed');
+        $reflection->setAccessible(true);
+
+        return $reflection->invoke(null, $name);
     }
 }
