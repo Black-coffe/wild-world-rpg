@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services\PVE;
 
-use App\Services\GameSettings\GameSettingsService;
 use App\Services\Telegram\Request;
 use Config\Database;
 use Throwable;
@@ -27,13 +26,6 @@ use Throwable;
  */
 class StandoffNotifier
 {
-    private GameSettingsService $settings;
-
-    public function __construct(?GameSettingsService $settings = null)
-    {
-        $this->settings = $settings ?? new GameSettingsService();
-    }
-
     /**
      * Тревога защитнику — РОВНО три хода (дословное требование владельца:
      * «укрыться, убежать, первым атаковать»), ни одна из трёх не выводится из
@@ -121,7 +113,7 @@ class StandoffNotifier
         $nameTag      = $defenderName !== '' ? '<b>' . esc($defenderName, 'html') . '</b>' : 'Цель';
 
         $text = "⏰ Окно закрылось — можно атаковать.\n\n"
-            . "Пять минут прошли, {$nameTag} больше не может остановить атаку одним касанием — нажми «⚔️ Атаковать» ещё раз.";
+            . "Время вышло, {$nameTag} больше не может остановить атаку одним касанием — нажми «⚔️ Атаковать» ещё раз.";
 
         $this->sendExpiredPing($chatId, $text);
     }
@@ -134,12 +126,12 @@ class StandoffNotifier
         $attackerName = $this->nameFor($attackerId);
         $nameTag      = $attackerName !== '' ? '<b>' . esc($attackerName, 'html') . '</b>' : 'Игрок';
         $secondsText  = $this->secondsLeftText($standoff);
-        $holdBonus    = (int) $this->settings->get('pvp.standoff.hold_damage_reduction_percent', 10);
 
         return "🛡 Тревога! Твоя база под атакой.\n\n"
             . "{$nameTag} стоит рядом с твоей базой. У тебя есть {$secondsText}, чтобы отреагировать — "
             . "пока ты не выберешь ход или время не выйдет, атака не начнётся.\n\n"
-            . "🛡 <b>Укрыться</b> — остаться и сразу принять бой с добавкой к защите (+{$holdBonus}% снижения урона).\n"
+            . "🛡 <b>Укрыться</b> — остаться на месте и разморозить {$nameTag}: атаковать снова придётся "
+            . "ему, а если удар придёт скоро — твоя защита будет выше именно против него.\n"
             . "🏃 <b>Убежать</b> — прыжок 10–50 клеток (1000 золота, −50% здоровья, −90% выносливости); "
             . "атакующий сразу разморожен, окно закрывается.\n"
             . '⚔️ <b>Ударить первым</b> — атаковать в ответ, пока инициатива у тебя.';

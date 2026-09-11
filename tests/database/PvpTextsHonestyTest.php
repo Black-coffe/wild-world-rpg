@@ -6,9 +6,12 @@ namespace Tests\Database;
 
 use App\Database\Migrations\Adr164SeedFieldPvpTip;
 use App\Database\Migrations\Adr186FixFieldPvpTip;
+use App\Database\Migrations\CreateCharactersTable;
 use App\Database\Migrations\CreateGameTipsTable;
+use App\Database\Migrations\CreateTelegramUsersTable;
 use App\Database\Migrations\TipsAExtendCategories;
 use App\Services\Onboarding\GuideCatalog;
+use App\Services\PVE\StandoffNotifier;
 use CodeIgniter\Database\Forge;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -41,6 +44,16 @@ final class PvpTextsHonestyTest extends CIUnitTestCase
     private bool $createdGameTips = false;
     private bool $seededOriginalTip = false;
 
+    private bool $createdTelegramUsers = false;
+    private bool $createdCharacters    = false;
+
+    /** @var list<int> */
+    private array $characterIds = [];
+    /** @var list<int> */
+    private array $telegramUserIds = [];
+    /** @var array<int,int> character_id => telegram_id, чтобы проверить адресата */
+    private array $telegramIdByCharacter = [];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -69,10 +82,34 @@ final class PvpTextsHonestyTest extends CIUnitTestCase
             (new Adr164SeedFieldPvpTip($forge instanceof Forge ? $forge : null))->up();
             $this->seededOriginalTip = true;
         }
+
+        // pvp-detection-clarity-16 — StandoffNotifier читает characters/telegram_users
+        // (chatIdFor/nameFor), те же таблицы, что StandoffExpiryHandlerTest.
+        if (! $this->conn->tableExists('telegram_users')) {
+            $this->requireMigration('CreateTelegramUsersTable', '2024-03-20-153728_CreateTelegramUsersTable.php');
+            $forge = Database::forge('tests');
+            (new CreateTelegramUsersTable($forge instanceof Forge ? $forge : null))->up();
+            $this->conn->resetDataCache();
+            $this->createdTelegramUsers = true;
+        }
+        if (! $this->conn->tableExists('characters')) {
+            $this->requireMigration('CreateCharactersTable', '2024-03-20-154155_CreateCharactersTable.php');
+            $forge = Database::forge('tests');
+            (new CreateCharactersTable($forge instanceof Forge ? $forge : null))->up();
+            $this->conn->resetDataCache();
+            $this->createdCharacters = true;
+        }
     }
 
     protected function tearDown(): void
     {
+        foreach ($this->characterIds as $id) {
+            $this->conn->table('characters')->where('id', $id)->delete();
+        }
+        foreach ($this->telegramUserIds as $id) {
+            $this->conn->table('telegram_users')->where('id', $id)->delete();
+        }
+
         if ($this->seededOriginalTip) {
             $this->conn->table('game_tips')->where('title_en', 'FieldPvpAndArena')->delete();
         }
@@ -85,6 +122,17 @@ final class PvpTextsHonestyTest extends CIUnitTestCase
             $this->requireMigration('CreateGameTipsTable', '2024-04-22-133908_CreateGameTipsTable.php');
             $forge = Database::forge('tests');
             (new CreateGameTipsTable($forge instanceof Forge ? $forge : null))->down();
+        }
+
+        if ($this->createdCharacters) {
+            $this->requireMigration('CreateCharactersTable', '2024-03-20-154155_CreateCharactersTable.php');
+            $forge = Database::forge('tests');
+            (new CreateCharactersTable($forge instanceof Forge ? $forge : null))->down();
+        }
+        if ($this->createdTelegramUsers) {
+            $this->requireMigration('CreateTelegramUsersTable', '2024-03-20-153728_CreateTelegramUsersTable.php');
+            $forge = Database::forge('tests');
+            (new CreateTelegramUsersTable($forge instanceof Forge ? $forge : null))->down();
         }
 
         parent::tearDown();
@@ -194,5 +242,153 @@ final class PvpTextsHonestyTest extends CIUnitTestCase
 
         $this->assertCount(1, $secondRun, 'Повторный прогон миграции не должен плодить строки.');
         $this->assertSame($contentAfterFirst, $secondRun[0]['content']);
+    }
+
+    // ── StandoffNotifier: тексты не обещают того, чего код не делает (-16) ──
+
+    /**
+     * BLOCK major #4: «Укрыться» больше не обещает «сразу принять бой» —
+     * `StandoffHoldAction` только переводит статус и размораживает нападавшего,
+     * бой сам собой не начинается (второй тап по «⚔️ Атаковать» обязателен).
+     */
+    public function testAlertTextDoesNotPromiseImmediateCombatOnHold(): void
+    {
+        $defender = $this->insertCharacter();
+        $attacker = $this->insertCharacter();
+
+        $notifier = $this->capturingNotifier();
+        $notifier->alertDefender([
+            'id'          => 1,
+            'defender_id' => $defender,
+            'attacker_id' => $attacker,
+            'expires_at'  => date('Y-m-d H:i:s', time() + 120),
+        ]);
+
+        $this->assertCount(1, $notifier->calls);
+        $text = $notifier->calls[0]['text'];
+
+        $this->assertStringNotContainsString(
+            'сразу принять бой',
+            $text,
+            'Укрыться не начинает бой сразу — StandoffHoldAction только размораживает нападавшего.'
+        );
+        $this->assertStringContainsString(
+            'разморозить',
+            $text,
+            'Текст обязан честно сказать, что «Укрыться» размораживает нападавшего, а не запускает бой.'
+        );
+    }
+
+    /**
+     * BLOCK major #10: надбавка достаётся только тому нападавшему, от которого
+     * защитник укрылся, и только пока свежо (`cooldown_sec`) — текст не должен
+     * обещать её безусловно, любому и навсегда.
+     */
+    public function testAlertTextScopesDefenseBonusToThatAttackerAndNotForever(): void
+    {
+        $defender = $this->insertCharacter();
+        $attacker = $this->insertCharacter();
+
+        $notifier = $this->capturingNotifier();
+        $notifier->alertDefender([
+            'id'          => 2,
+            'defender_id' => $defender,
+            'attacker_id' => $attacker,
+            'expires_at'  => date('Y-m-d H:i:s', time() + 120),
+        ]);
+
+        $text = $notifier->calls[0]['text'];
+
+        $this->assertStringContainsString(
+            'против него',
+            $text,
+            'Надбавка должна быть явно привязана к конкретному нападавшему, а не обещана вообще.'
+        );
+        $this->assertStringNotContainsString(
+            'с добавкой к защите',
+            $text,
+            'Старая безусловная формулировка надбавки не должна вернуться.'
+        );
+    }
+
+    /**
+     * BLOCK major #9: пинг об истечении не хардкодит «Пять минут» — окно
+     * admin-tunable (`pvp.standoff.window_sec`, hard 30–1800), число могут открутить.
+     */
+    public function testExpiredPingDoesNotNameHardcodedWindowDuration(): void
+    {
+        $defender = $this->insertCharacter();
+        $attacker = $this->insertCharacter();
+
+        $notifier = $this->capturingNotifier();
+        $notifier->notifyAttackerExpired([
+            'attacker_id' => $attacker,
+            'defender_id' => $defender,
+        ]);
+
+        $this->assertCount(1, $notifier->calls);
+        $text = $notifier->calls[0]['text'];
+
+        $this->assertStringNotContainsString(
+            'Пять минут',
+            $text,
+            'Пинг не должен называть хардкоженную длительность окна — она admin-tunable.'
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/\d+\s*(секунд|минут)/u',
+            $text,
+            'Пинг не должен называть числовую длительность окна словами вообще.'
+        );
+        $this->assertStringContainsString(
+            'Окно закрылось',
+            $text,
+            'Пинг обязан честно сообщить, что окно закрылось, не называя его длительность.'
+        );
+    }
+
+    /**
+     * @return object{calls: list<array{chat_id:int,text:string}>}&StandoffNotifier
+     */
+    private function capturingNotifier(): object
+    {
+        return new class () extends StandoffNotifier {
+            /** @var list<array{chat_id:int,text:string}> */
+            public array $calls = [];
+
+            protected function sendDefenderAlert(int $chatId, string $text, array $keyboard): bool
+            {
+                $this->calls[] = ['chat_id' => $chatId, 'text' => $text];
+                return true;
+            }
+
+            protected function sendExpiredPing(int $chatId, string $text): bool
+            {
+                $this->calls[] = ['chat_id' => $chatId, 'text' => $text];
+                return true;
+            }
+        };
+    }
+
+    private function insertCharacter(): int
+    {
+        $telegramId = random_int(100_000_000, 999_999_999);
+        $this->conn->table('telegram_users')->insert([
+            'telegram_id' => $telegramId,
+        ]);
+        $telegramUserId          = (int) $this->conn->insertID();
+        $this->telegramUserIds[] = $telegramUserId;
+
+        $this->conn->table('characters')->insert([
+            'name'             => 'T' . random_int(100000, 999999),
+            'level'            => 10,
+            'cell_number'      => '1',
+            'telegram_user_id' => $telegramUserId,
+            'created_at'       => date('Y-m-d H:i:s'),
+            'updated_at'       => date('Y-m-d H:i:s'),
+        ]);
+        $id                                = (int) $this->conn->insertID();
+        $this->characterIds[]              = $id;
+        $this->telegramIdByCharacter[$id]  = $telegramId;
+        return $id;
     }
 }
