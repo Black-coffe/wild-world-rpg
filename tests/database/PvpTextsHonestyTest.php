@@ -6,6 +6,7 @@ namespace Tests\Database;
 
 use App\Database\Migrations\Adr164SeedFieldPvpTip;
 use App\Database\Migrations\Adr186FixFieldPvpTip;
+use App\Database\Migrations\Adr186SeedStandoffTip;
 use App\Database\Migrations\CreateCharactersTable;
 use App\Database\Migrations\CreateGameTipsTable;
 use App\Database\Migrations\CreateTelegramUsersTable;
@@ -43,6 +44,7 @@ final class PvpTextsHonestyTest extends CIUnitTestCase
 
     private bool $createdGameTips = false;
     private bool $seededOriginalTip = false;
+    private bool $seededStandoffTip = false;
 
     private bool $createdTelegramUsers = false;
     private bool $createdCharacters    = false;
@@ -112,6 +114,9 @@ final class PvpTextsHonestyTest extends CIUnitTestCase
 
         if ($this->seededOriginalTip) {
             $this->conn->table('game_tips')->where('title_en', 'FieldPvpAndArena')->delete();
+        }
+        if ($this->seededStandoffTip) {
+            $this->conn->table('game_tips')->where('title_en', 'BaseStandoffAlert')->delete();
         }
 
         if ($this->createdGameTips) {
@@ -193,6 +198,36 @@ final class PvpTextsHonestyTest extends CIUnitTestCase
             'Полевой бой тумблером не отключается',
             $arena['body'],
             'Раздел arena обязан оставаться честным про то, что тумблер полевой бой не отключает.'
+        );
+    }
+
+    /**
+     * BLOCK-2 minor #J, третье место — раздел `standoff` не должен обещать, что тревога
+     * замораживает «атаку именно по тебе» (любую атаку от любого нападавшего): код
+     * замораживает конкретную пару нападавший/защитник, второй нападающий, для которого
+     * `shouldOpen()` вернёт `false`, идёт в бой мимо тревоги.
+     */
+    public function testStandoffSectionDoesNotPromiseFreezingAnyAttackAgainstDefender(): void
+    {
+        $sections = GuideCatalog::sections();
+        $standoff = null;
+        foreach ($sections as $section) {
+            if ($section['key'] === 'standoff') {
+                $standoff = $section;
+                break;
+            }
+        }
+
+        $this->assertNotNull($standoff, 'Раздел standoff обязан существовать в каталоге.');
+        $this->assertStringNotContainsString(
+            'замораживает атаку именно по тебе',
+            $standoff['body'],
+            'Раздел standoff не должен обещать заморозку любой атаки по защитнику — код морозит только конкретного нападавшего.'
+        );
+        $this->assertStringContainsString(
+            'замораживает именно этого нападавшего',
+            $standoff['body'],
+            'Раздел standoff обязан сузить обещание до конкретного нападавшего, поднявшего тревогу.'
         );
     }
 
@@ -344,6 +379,87 @@ final class PvpTextsHonestyTest extends CIUnitTestCase
             $text,
             'Пинг обязан честно сообщить, что окно закрылось, не называя его длительность.'
         );
+    }
+
+    /**
+     * BLOCK-2 minor #J: тревога заморожена только для того, кто её поднял —
+     * `shouldOpen()` может вернуть `false` для второго нападающего (например,
+     * оборона снесена уже после открытия окна), и он пройдёт мимо. Текст не
+     * должен обещать, что «атака не начнётся» вообще ни от кого.
+     */
+    public function testAlertTextDoesNotPromiseAttackWillNotStartAtAllFromAnyone(): void
+    {
+        $defender = $this->insertCharacter();
+        $attacker = $this->insertCharacter();
+
+        $notifier = $this->capturingNotifier();
+        $notifier->alertDefender([
+            'id'          => 3,
+            'defender_id' => $defender,
+            'attacker_id' => $attacker,
+            'expires_at'  => date('Y-m-d H:i:s', time() + 120),
+        ]);
+
+        $text = $notifier->calls[0]['text'];
+
+        $this->assertStringNotContainsString(
+            'атака не начнётся',
+            $text,
+            'Тревога не должна обещать, что атака не начнётся вообще ни от кого — заморожен только тот, кто её поднял.'
+        );
+        $this->assertStringContainsString(
+            'ударить не сможет',
+            $text,
+            'Текст обязан сузить обещание до конкретного нападавшего, поднявшего тревогу.'
+        );
+    }
+
+    /**
+     * BLOCK-2 minor #E: совет `BaseStandoffAlert` не должен обещать бонус за
+     * «Укрыться» безусловно — тот же класс находки, что `-16` уже починила в
+     * самой тревоге (major #10): бонус привязан к конкретному нападавшему и
+     * ограничен по времени.
+     */
+    public function testStandoffTipDoesNotPromiseDefenseBonusUnconditionally(): void
+    {
+        $this->requireMigration('Adr186SeedStandoffTip', '2026-09-12-000000_Adr186SeedStandoffTip.php');
+        $forge = Database::forge('tests');
+        (new Adr186SeedStandoffTip($forge instanceof Forge ? $forge : null))->up();
+        $this->seededStandoffTip = true;
+
+        $row = $this->conn->table('game_tips')->where('title_en', 'BaseStandoffAlert')->get()->getRowArray();
+        $this->assertIsArray($row, 'Совет BaseStandoffAlert обязан быть посеян.');
+
+        $this->assertStringNotContainsString(
+            'разморозить нападавшего и получить бонус к защите)',
+            $row['content'],
+            'Старая безусловная формулировка бонуса не должна вернуться.'
+        );
+        $this->assertStringContainsString(
+            'против него',
+            $row['content'],
+            'Совет обязан привязать бонус к конкретному нападавшему.'
+        );
+        $this->assertSame(0, substr_count($row['content'], '*') % 2, 'Markdown «*» в content обязан быть парным.');
+    }
+
+    public function testStandoffTipMigrationIsIdempotentOnRepeatedRun(): void
+    {
+        $this->requireMigration('Adr186SeedStandoffTip', '2026-09-12-000000_Adr186SeedStandoffTip.php');
+        $forge = Database::forge('tests');
+        (new Adr186SeedStandoffTip($forge instanceof Forge ? $forge : null))->up();
+        $this->seededStandoffTip = true;
+
+        $firstRun = $this->conn->table('game_tips')->where('title_en', 'BaseStandoffAlert')->get()->getResultArray();
+        $this->assertCount(1, $firstRun);
+        $contentAfterFirst = $firstRun[0]['content'];
+
+        $forge = Database::forge('tests');
+        (new Adr186SeedStandoffTip($forge instanceof Forge ? $forge : null))->up();
+
+        $secondRun = $this->conn->table('game_tips')->where('title_en', 'BaseStandoffAlert')->get()->getResultArray();
+        $this->assertCount(1, $secondRun, 'Повторный прогон миграции не должен плодить строки.');
+        $this->assertSame($contentAfterFirst, $secondRun[0]['content']);
     }
 
     /**
