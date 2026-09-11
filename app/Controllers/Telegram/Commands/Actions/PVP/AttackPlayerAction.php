@@ -164,7 +164,12 @@ class AttackPlayerAction extends BaseAction
         // ADR-186 §3/Инвариант 7: тап защитника по «⚔️ Ударить первым» — не
         // спам, а разовое право ответа из живого окна; свой кулдаун атакующего
         // (тут — базы) на этот тап не распространяется.
-        $cooldownSec = $this->cfg->pvpAttackCooldownSec;
+        // pvp-detection-clarity-26 (ADMIN-TUNABLE BALANCE) — `pvpAttackCooldownSec`
+        // читается двумя потребителями (здесь и DuelAction), поднимать его ради
+        // тревог нельзя: замедлится весь PvP, включая дуэли. `$this->cfg->…` —
+        // страховочный дефолт третьим аргументом на случай пустой `game_settings`
+        // (как уже сделано для `world.move.*`), источник истины — `GameSettings`.
+        $cooldownSec = max(0, (int) (new GameSettingsService())->get('pvp.attack_cooldown_sec', $this->cfg->pvpAttackCooldownSec));
         $cacheKey    = "pvp_attack_cd_{$attacker['id']}";
         $cache       = \Config\Services::cache();
         if (! $standoffPreGate['isCounterAttack']) {
@@ -225,7 +230,21 @@ class AttackPlayerAction extends BaseAction
         $standoffOutcome = $this->resolveStandoffOpen($standoffService, $attacker, $defender, $standoffPreGate);
 
         if (is_array($standoffOutcome['justOpened'])) {
-            (new StandoffNotifier())->alertDefender($standoffOutcome['justOpened']);
+            $justOpenedRow        = $standoffOutcome['justOpened'];
+            $justOpenedId         = is_numeric($justOpenedRow['id'] ?? null) ? (int) $justOpenedRow['id'] : 0;
+            $justOpenedDefenderId = is_numeric($justOpenedRow['defender_id'] ?? null) ? (int) $justOpenedRow['defender_id'] : 0;
+
+            // pvp-detection-clarity-26 (BLOCK-3 minor 9) — потолок частоты тревог
+            // ОДНОМУ защитнику (`pvp.standoff.min_alert_interval_sec`), независимый
+            // от кулдауна атаки: без него после своей же отмены нападавший
+            // переоткрывает окно каждые `pvp.attack_cooldown_sec` бессрочно, слав
+            // ~2 пуш-тревоги в минуту. Потолок гасит только УВЕДОМЛЕНИЕ — окно уже
+            // открыто строкой выше, атака уже заморожена; «не открывать окно» вернуло
+            // бы ту самую дыру, ради которой всё строилось.
+            if ($standoffService->shouldAlertDefender($justOpenedDefenderId)) {
+                (new StandoffNotifier())->alertDefender($justOpenedRow);
+                $standoffService->markAlerted($justOpenedId);
+            }
 
             // Само открытие НОВОГО окна — единственный ограничитель цикла
             // «атаковать → уйти → атаковать» (AC#1): отмена (`cancelled`) не

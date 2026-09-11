@@ -205,6 +205,36 @@ final class PvpStandoffService
     }
 
     /**
+     * ADR-186 §5 (pvp-detection-clarity-26, BLOCK-3 minor 9) — потолок частоты
+     * пуш-тревог ОДНОМУ защитнику (`pvp.standoff.min_alert_interval_sec`),
+     * независимый от `pvp.standoff.cooldown_sec` (он защищает от повторного
+     * ОТКРЫТИЯ окна и не армируется отменой нападавшего — {@see
+     * self::COOLDOWN_ARMING_STATUSES}) и от `pvp.attack_cooldown_sec` (он про сам
+     * тап «Атаковать», не про тревогу). `0` выключает потолок целиком. Потолок
+     * гасит только УВЕДОМЛЕНИЕ — вызывающий обязан всё равно открыть окно и
+     * заморозить атаку, иначе потолок превращается в дыру.
+     */
+    public function shouldAlertDefender(int $defenderId): bool
+    {
+        $minIntervalSec = max(0, (int) $this->settings->get('pvp.standoff.min_alert_interval_sec', 60));
+        if ($minIntervalSec <= 0) {
+            return true;
+        }
+
+        return ! $this->model->hasRecentAlert($defenderId, $minIntervalSec);
+    }
+
+    /**
+     * Момент отправленной тревоги — вызывающий обязан позвать это СРАЗУ после
+     * {@see StandoffNotifier::alertDefender()}, иначе {@see shouldAlertDefender()}
+     * никогда не увидит недавнюю тревогу.
+     */
+    public function markAlerted(int $standoffId): void
+    {
+        $this->model->markAlerted($standoffId);
+    }
+
+    /**
      * Одноразовый пинг атакующему об истечении окна — `notified_expired`
      * 0 → 1 через `transitionIfCurrent()`, чтобы два одновременных тика крона
      * не отправили пинг дважды.

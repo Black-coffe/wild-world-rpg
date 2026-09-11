@@ -20,6 +20,7 @@ use App\Services\PVE\PvpDamageCalculator;
 use App\Services\PVE\PvpEquipmentRepository;
 use App\Services\PVE\PvpFormulaService;
 use App\Services\PVE\PvpRoundOrchestrator;
+use App\Services\GameSettings\GameSettingsService;
 use Config\GameBalance;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -103,8 +104,11 @@ final class DuelAction extends BaseAction
             return $this->alert('Соперник слишком далеко — дуэль только в одной/соседней клетке.');
         }
 
-        // Анти-спам кулдаун (как PvP, отдельный ключ).
-        $cooldownSec = $this->cfg->pvpAttackCooldownSec;
+        // Анти-спам кулдаун (как PvP, отдельный ключ). pvp-detection-clarity-26
+        // (ADMIN-TUNABLE BALANCE) — тот же `pvp.attack_cooldown_sec` из GameSettings,
+        // что и AttackPlayerAction; `$this->cfg->…` — страховочный дефолт третьим
+        // аргументом на случай пустой `game_settings`.
+        $cooldownSec = max(0, (int) (new GameSettingsService())->get('pvp.attack_cooldown_sec', $this->cfg->pvpAttackCooldownSec));
         $cacheKey    = 'pvp_duel_cd_' . $attackerId;
         $cache       = \Config\Services::cache();
         $last        = $cache->get($cacheKey);
