@@ -14,10 +14,12 @@ use App\Models\ExploredCellsModel;
 use App\Models\FactionModel;
 use App\Models\MapModel;
 use App\Models\OutfitModel;
+use App\Models\PvpStandoffModel;
 use App\Models\TelegramUserModel;
 use App\Models\WeaponModel;
 
 use App\Services\Endgame\EndgameProgressionService;
+use App\Services\GameSettings\GameSettingsService;
 use App\Services\Housing\BaseCampDecorService;
 use App\Services\Player\DeathService;
 use App\Services\Player\PvPRestrictionService;
@@ -29,6 +31,8 @@ use App\Services\PVE\PvpActivityContextService;
 use App\Services\PVE\PvpBattleLogBuilder;
 use App\Services\PVE\PvpRewardOrchestrator;
 use App\Services\PVE\PvpRoundOrchestrator;
+use App\Services\PVE\PvpStandoffService;
+use App\Services\PVE\StandoffNotifier;
 
 use Config\GameBalance;
 
@@ -134,19 +138,43 @@ class AttackPlayerAction extends BaseAction
             return $this->sendError("Нельзя атаковать самого себя!");
         }
 
+        // ADR-186 (pvp-detection-clarity-08) — гейт окна противостояния стоит
+        // ДО записи анти-спам-кулдауна: отбитый повторный тап по замороженной
+        // цели не должен стоить атакующему 30 секунд (Инвариант 6). Чисто
+        // DB-логика вынесена в resolveStandoffOutcome() — тестируется Reflection'ом
+        // без Telegram-сети, тем же приёмом, что isCellsCloseEnough().
+        $standoffService = new PvpStandoffService();
+        $standoffOutcome = $this->resolveStandoffOutcome($standoffService, $attacker, $defender);
+
+        if (is_array($standoffOutcome['justOpened'])) {
+            (new StandoffNotifier())->alertDefender($standoffOutcome['justOpened']);
+        }
+        if ($standoffOutcome['block']) {
+            // resolveStandoffOutcome() всегда несёт строку вместе с block=true —
+            // is_array() здесь для phpstan, а не альтернативная ветка поведения.
+            return is_array($standoffOutcome['waitStandoff'])
+                ? $this->sendStandoffWaitScreen($standoffOutcome['waitStandoff'])
+                : $this->sendError('Окно противостояния не удалось прочитать. Попробуйте ещё раз.');
+        }
+
         // v0.51.44 — anti-spam cooldown (Security-telegram §7).
         // Cache-based gate per attacker. Раннє повернення до DB queries
         // (PvPRestriction, MapModel, BiomeModel, simulateFight) — зменшує
         // навантаження від spammers, які жмуть кнопку 2-3× за секунду.
-        $cooldownSec    = $this->cfg->pvpAttackCooldownSec;
-        $cacheKey       = "pvp_attack_cd_{$attacker['id']}";
-        $cache          = \Config\Services::cache();
-        $lastAttackTime = $cache->get($cacheKey);
-        if (is_int($lastAttackTime) && time() - $lastAttackTime < $cooldownSec) {
-            $remaining = $cooldownSec - (time() - $lastAttackTime);
-            return $this->sendError("Подождите {$remaining} сек. перед следующей атакой!");
+        // ADR-186 §3/Инвариант 7: тап защитника по «⚔️ Ударить первым» — не
+        // спам, а разовое право ответа из живого окна; свой кулдаун атакующего
+        // (тут — базы) на этот тап не распространяется.
+        if (! $standoffOutcome['isCounterAttack']) {
+            $cooldownSec    = $this->cfg->pvpAttackCooldownSec;
+            $cacheKey       = "pvp_attack_cd_{$attacker['id']}";
+            $cache          = \Config\Services::cache();
+            $lastAttackTime = $cache->get($cacheKey);
+            if (is_int($lastAttackTime) && time() - $lastAttackTime < $cooldownSec) {
+                $remaining = $cooldownSec - (time() - $lastAttackTime);
+                return $this->sendError("Подождите {$remaining} сек. перед следующей атакой!");
+            }
+            $cache->save($cacheKey, time(), $cooldownSec);
         }
-        $cache->save($cacheKey, time(), $cooldownSec);
 
         if (!$this->isCellsCloseEnough($attacker, $defender)) {
             return $this->sendError("Игрок слишком далеко. Атаковать можно только в одной или соседней ячейке!");
@@ -155,7 +183,10 @@ class AttackPlayerAction extends BaseAction
         $pvpRestrictionService = new PvPRestrictionService();
         $check = $pvpRestrictionService->checkPvPAllowed($attacker, $defender);
         if (!$check['allowed']) {
-            return $this->sendError("PvP недоступно: {$check['reason']}");
+            // UX-DISCOVERABILITY: тап по lock-кнопке («🔒 Уровень» и т.п. из
+            // PlayerDetectionService, тот же callback_data) объясняет условие,
+            // а не отказывает «⚠️ Ошибка» (pvp-detection-clarity-08, находка -07).
+            return $this->sendRestrictionExplanation($check);
         }
 
         $mapRowAttacker = $this->mapModel->where('cell_number', $attacker['cell_number'])->first();
@@ -178,11 +209,35 @@ class AttackPlayerAction extends BaseAction
 
         // S26 (ADR-030): defensive structures защитника, если он стоит на своей
         // клетке со структурами (active hp>0). null → бой без защиты (как раньше).
+        // ADR-186 §3/Инвариант 7: при контратаке из окна («⚔️ Ударить первым»)
+        // роли в этом вызове развёрнуты — базой владеет тот, кто СЕЙЧАС в слоте
+        // $attacker, поэтому профиль резолвится по baseOwnerId/baseOwnerCell
+        // из resolveStandoffOutcome(), а не всегда по $defender.
         $defenseService = new DefenseStructureService();
         $defenseProfile = $defenseService->getDefenseProfile(
-            (int) $defender['id'],
-            (int) ($defender['cell_number'] ?? 0),
+            $standoffOutcome['baseOwnerId'],
+            $standoffOutcome['baseOwnerCell'],
         );
+
+        // ADR-186 §3/Инвариант 8: «укрыться» добавляет фиксированный процент к
+        // damage_reduction, сложенный ПОД общим потолком defense.total_damage_
+        // reduction_max_percent — не новое поле в бою, тот же существующий профиль.
+        if ($standoffOutcome['holdBonusPercent'] > 0) {
+            $defenseProfile = $this->applyHoldBonus(
+                $defenseProfile,
+                $defenseService,
+                $standoffOutcome['baseOwnerId'],
+                $standoffOutcome['holdBonusPercent']
+            );
+        }
+
+        // ADR-186 §3: контратака расходует окно ровно один раз — закрываем
+        // ПОСЛЕ того, как все гейты выше (смежность/ограничения) пройдены и бой
+        // действительно состоится, чтобы отбитая по другой причине контратака
+        // не сжигала право на неё.
+        if ($standoffOutcome['isCounterAttack'] && $standoffOutcome['counterStandoffId'] !== null) {
+            $standoffService->close($standoffOutcome['counterStandoffId'], 'countered');
+        }
 
         // F1.4 (Models→Entity): $attacker/$defender — CharacterEntity. simulateFight и
         // processMutualExhaustion строго типизированы `array` → нормализуем к plain array
@@ -394,6 +449,267 @@ class AttackPlayerAction extends BaseAction
         }
 
         return Request::emptyResponse();
+    }
+
+    /**
+     * ADR-186 (pvp-detection-clarity-08) — весь гейт окна противостояния в одной
+     * точке, ДО записи анти-спам-кулдауна и ДО симуляции боя. Чисто DB-чтения и
+     * условные переходы через `PvpStandoffService` (сам сервис — `ConditionalWriteService`
+     * внутри, гонки исключены на уровне БД); отправка Telegram-сообщений — забота
+     * вызывающего `handle()`, поэтому метод тестируется Reflection'ом без сети
+     * (тот же приём, что {@see isCellsCloseEnough()}).
+     *
+     * Три исхода:
+     *  - `isCounterAttack=true` — цель этого тапа сама держит открытое окно против
+     *    кликающего («⚔️ Ударить первым» защитника): роли развёрнуты, базой
+     *    владеет кликающий (`baseOwnerId`), кулдаун и обычный гейт окна не
+     *    применяются (ADR-186 §3, Инвариант 7).
+     *  - `block=true` — атака по ЭТОЙ цели отбивается (либо уже была заморожена,
+     *    либо только что открылась): `waitStandoff` — строка для экрана ожидания.
+     *  - иначе — бой идёт обычным путём; если самая свежая строка окна для этой
+     *    пары закрыта как `held`, `holdBonusPercent` несёт добавку к снижению
+     *    урона (Инвариант 8, складывается вызывающим под общим потолком).
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $attacker
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $defender
+     * @return array{
+     *     enabled: bool,
+     *     block: bool,
+     *     waitStandoff: array<string,mixed>|null,
+     *     justOpened: array<string,mixed>|null,
+     *     isCounterAttack: bool,
+     *     counterStandoffId: int|null,
+     *     baseOwnerId: int,
+     *     baseOwnerCell: int,
+     *     holdBonusPercent: int,
+     * }
+     */
+    private function resolveStandoffOutcome(
+        PvpStandoffService $standoffService,
+        array|\App\Entities\CharacterEntity $attacker,
+        array|\App\Entities\CharacterEntity $defender
+    ): array {
+        $attackerId   = is_numeric($attacker['id'] ?? null) ? (int) $attacker['id'] : 0;
+        $defenderId   = is_numeric($defender['id'] ?? null) ? (int) $defender['id'] : 0;
+        $attackerCell = is_numeric($attacker['cell_number'] ?? null) ? (int) $attacker['cell_number'] : 0;
+        $defenderCell = is_numeric($defender['cell_number'] ?? null) ? (int) $defender['cell_number'] : 0;
+
+        $outcome = [
+            'enabled'           => $standoffService->isEnabled(),
+            'block'             => false,
+            'waitStandoff'      => null,
+            'justOpened'        => null,
+            'isCounterAttack'   => false,
+            'counterStandoffId' => null,
+            'baseOwnerId'       => $defenderId,
+            'baseOwnerCell'     => $defenderCell,
+            'holdBonusPercent'  => 0,
+        ];
+
+        if (! $outcome['enabled']) {
+            return $outcome;
+        }
+
+        // Роли развёрнуты: цель этого тапа держит открытое окно против кликающего —
+        // это защитник, отвечающий «⚔️ Ударить первым» на существующий attackPlayer_.
+        $counter = $standoffService->activeFor($defenderId, $attackerId);
+        if ($counter !== null) {
+            $outcome['isCounterAttack']   = true;
+            $outcome['counterStandoffId'] = is_numeric($counter['id'] ?? null) ? (int) $counter['id'] : null;
+            $outcome['baseOwnerId']       = $attackerId;
+            $outcome['baseOwnerCell']     = $attackerCell;
+
+            return $outcome;
+        }
+
+        // Уже заморожена именно эта пара (attacker → defender) — тот же экран ожидания,
+        // не новое окно (ADR-186 §4: «отойти на клетку и вернуться — не обход»).
+        $frozen = $standoffService->activeFor($attackerId, $defenderId);
+        if ($frozen !== null) {
+            $outcome['block']        = true;
+            $outcome['waitStandoff'] = $frozen;
+
+            return $outcome;
+        }
+
+        // Первая попытка против защитника с живой обороной — открыть окно.
+        if ($standoffService->shouldOpen($defenderId, $defenderCell)) {
+            $opened = $standoffService->open($attackerId, $defenderId, $defenderCell);
+            $active = $opened ?? $standoffService->activeAgainst($defenderId);
+            if ($active !== null) {
+                $outcome['block']        = true;
+                $outcome['waitStandoff'] = $active;
+                $outcome['justOpened']   = $opened;
+
+                return $outcome;
+            }
+        }
+
+        // Не заморожена и не открылась заново — но если самая свежая строка ИМЕННО
+        // этой пары закрыта как `held`, надбавка «укрыться» едет в этот бой
+        // (ADR-186 §3: защитник остался и отдал инициативу прошлым ходом; -09
+        // закрывает окно этим статусом, эта story только читает его результат).
+        //
+        // 🔴 Находка главной сессии: штатный случай («не открылось заново, потому
+        // что защитник ещё на кулдауне») уже закрыт — `shouldOpen()` выше вернул бы
+        // `false` из-за `isDefenderOnCooldown()`, и бонус едет ровно в следующий бой.
+        // Но `shouldOpen()` возвращает `false` и по ДРУГИМ причинам (защитник ушёл с
+        // клетки, постройки снесены, `require_tower` без вышки) — тогда `held`-строка
+        // остаётся «самой свежей» НАВСЕГДА, и надбавка утекала бы бессрочно. Граница —
+        // тот же `pvp.standoff.cooldown_sec`, что и объясняет несостоявшееся открытие
+        // нового окна (не новая настройка): `held` считается «живым для бонуса»
+        // ровно то же время, что держит защитника на кулдауне. `cooldown_sec <= 0`
+        // отключает бонус вовсе — иначе граница пропадает.
+        $latest = $this->latestStandoffRow($attackerId, $defenderId);
+        if (is_array($latest) && ($latest['status'] ?? null) === 'held') {
+            $latestId    = is_numeric($latest['id'] ?? null) ? (int) $latest['id'] : 0;
+            $cooldownSec = max(0, (int) (new GameSettingsService())->get('pvp.standoff.cooldown_sec', 900));
+            if ($latestId > 0 && $cooldownSec > 0 && $this->standoffHeldWithinCooldown($latestId, $cooldownSec)) {
+                $outcome['holdBonusPercent'] = max(0, (int) (new GameSettingsService())
+                    ->get('pvp.standoff.hold_damage_reduction_percent', 10));
+            }
+        }
+
+        return $outcome;
+    }
+
+    /**
+     * Свежесть `held`-строки считается часами БД (`NOW() - INTERVAL … SECOND`), а не
+     * PHP-временем — тот же приём, что `StandoffExpiryHandler` (`-10`) для
+     * `expires_at <= NOW()`: решение принимают одни часы, не два независимых.
+     */
+    private function standoffHeldWithinCooldown(int $standoffId, int $cooldownSec): bool
+    {
+        try {
+            $query = \Config\Database::connect()
+                ->table('pvp_standoffs')
+                ->select('id')
+                ->where('id', $standoffId)
+                ->where('status', 'held')
+                ->where('updated_at >= (NOW() - INTERVAL ' . $cooldownSec . ' SECOND)', null, false)
+                ->get();
+            if ($query === false) {
+                return false;
+            }
+
+            return is_array($query->getRowArray());
+        } catch (\Throwable $e) {
+            log_message('error', '[AttackPlayerAction] standoffHeldWithinCooldown failed: ' . $e->getMessage());
+
+            return false;
+        }
+    }
+
+    /**
+     * ADR-186 §3/Инвариант 8 — добавка «укрыться», сложенная ПОД общим потолком
+     * `defense.total_damage_reduction_max_percent`: не новое поле в бою, тот же
+     * существующий `damage_reduction`. Вынесено отдельно от `handle()`, чтобы
+     * потолок проверялся тестом Reflection'ом без симуляции боя.
+     *
+     * @param array{owner_id:int,damage_reduction:float,fence_damage:int,initiative_bonus:float,structure_ids:list<int>}|null $defenseProfile
+     * @return array{owner_id:int,damage_reduction:float,fence_damage:int,initiative_bonus:float,structure_ids:list<int>}
+     */
+    private function applyHoldBonus(
+        ?array $defenseProfile,
+        DefenseStructureService $defenseService,
+        int $baseOwnerId,
+        int $holdBonusPercent
+    ): array {
+        $capPercent     = $defenseService->totalReductionCapPercent();
+        $currentPercent = $defenseProfile !== null ? $defenseProfile['damage_reduction'] * 100 : 0.0;
+        $newPercent     = min($capPercent, $currentPercent + $holdBonusPercent);
+
+        return [
+            'owner_id'         => $baseOwnerId,
+            'damage_reduction' => $newPercent / 100.0,
+            'fence_damage'     => $defenseProfile['fence_damage'] ?? 0,
+            'initiative_bonus' => $defenseProfile['initiative_bonus'] ?? 0.0,
+            'structure_ids'    => $defenseProfile['structure_ids'] ?? [],
+        ];
+    }
+
+    /**
+     * Самая свежая строка `pvp_standoffs` для пары, ЛЮБОГО статуса — не входит в
+     * контракт `PvpStandoffService` (тот отвечает только за «жива ли тревога
+     * сейчас»), поэтому читается моделью напрямую. Используется только для
+     * определения надбавки «укрыться» — не проверка «окно ещё живо».
+     *
+     * @return array<string,mixed>|null
+     */
+    private function latestStandoffRow(int $attackerId, int $defenderId): ?array
+    {
+        $row = (new PvpStandoffModel())
+            ->where('attacker_id', $attackerId)
+            ->where('defender_id', $defenderId)
+            ->orderBy('id', 'DESC')
+            ->first();
+        if (! is_array($row)) {
+            return null;
+        }
+        $out = [];
+        foreach ($row as $k => $v) {
+            $out[(string) $k] = $v;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Экран ожидания атакующего, отбитого тапа по цели под тревогой — lock-состояние
+     * (UX-Discoverability), не «⚠️ Ошибка»: сколько осталось, что может сделать
+     * защитник, «⏳ Проверить» / «🚶 Уйти» (ADR-186 §4).
+     *
+     * @param array<string,mixed> $standoff
+     */
+    private function sendStandoffWaitScreen(array $standoff): ServerResponse
+    {
+        $screen = (new StandoffNotifier())->waitScreen($standoff);
+
+        Request::answerCallbackQuery([
+            'callback_query_id' => $this->callbackQuery->getId(),
+        ]);
+
+        return Request::sendMessage([
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'         => $screen['text'],
+            'parse_mode'   => 'HTML',
+            'reply_markup' => json_encode($screen['keyboard']) ?: '{}',
+        ]);
+    }
+
+    /**
+     * UX-DISCOVERABILITY (pvp-detection-clarity-08, находка -07): тап по
+     * lock-кнопке («🔒 Уровень» / «🔒 Южная зона» / «🔒 Молодой аккаунт» из
+     * `PlayerDetectionService`, тот же `attackPlayer_<id>`) обязан объяснить
+     * условие и, где возможно, путь его выполнения — а не отвечать «⚠️ Ошибка».
+     * Текст берётся из `reason_code`, который уже несёт `PvPRestrictionService`.
+     *
+     * @param array<string,mixed> $check
+     */
+    private function sendRestrictionExplanation(array $check): ServerResponse
+    {
+        $reasonCode = is_string($check['reason_code'] ?? null) ? $check['reason_code'] : '';
+        $messageRaw = $check['message'] ?? ($check['reason'] ?? 'PvP недоступно.');
+        $message    = is_string($messageRaw) ? $messageRaw : 'PvP недоступно.';
+        $howTo      = match ($reasonCode) {
+            'level'       => 'Путь открыт: качай уровень дальше — прогресс виден в «🧑 Я».',
+            'account_age' => 'Порог возраста аккаунта снимется сам со временем — здесь ничего нажимать не нужно.',
+            'safe_zone'   => 'Отойди из южной зоны — там PvP отключено правилами игры для всех.',
+            default       => '',
+        };
+        $text = '🔒 ' . esc($message, 'html') . ($howTo !== '' ? "\n\n{$howTo}" : '');
+
+        Request::answerCallbackQuery([
+            'callback_query_id' => $this->callbackQuery->getId(),
+            'text'              => $message,
+            'show_alert'        => true,
+        ]);
+
+        return Request::sendMessage([
+            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'       => $text,
+            'parse_mode' => 'HTML',
+        ]);
     }
 
     /**

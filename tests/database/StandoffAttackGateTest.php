@@ -1,0 +1,865 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Database;
+
+use App\Controllers\Telegram\Commands\Actions\PVP\AttackPlayerAction;
+use App\Controllers\Telegram\Commands\Actions\PVP\StandoffCheckAction;
+use App\Controllers\Telegram\Commands\Actions\PVP\StandoffLeaveAction;
+use App\Database\Migrations\Adr186CreatePvpStandoffs;
+use App\Database\Migrations\Adr186SeedStandoffSettings;
+use App\Database\Migrations\CreateActionLogTable;
+use App\Database\Migrations\CreateBiomesTable;
+use App\Database\Migrations\CreateBuildingsTable;
+use App\Database\Migrations\CreateCharacterBuildingsTable;
+use App\Database\Migrations\CreateCharacterFactionsTable;
+use App\Database\Migrations\CreateCharacterTasksTable;
+use App\Database\Migrations\CreateCharactersOutfitsTable;
+use App\Database\Migrations\CreateCharactersTable;
+use App\Database\Migrations\CreateCharactersWeaponsTable;
+use App\Database\Migrations\CreateClaimedCellsTable;
+use App\Database\Migrations\CreateExploredCellsTable;
+use App\Database\Migrations\CreateFactionsTable;
+use App\Database\Migrations\CreateGameSettingsTable;
+use App\Database\Migrations\CreateMapTable;
+use App\Database\Migrations\CreateOutfitsTable;
+use App\Database\Migrations\CreateTasksTable;
+use App\Database\Migrations\CreateTelegramUsersTable;
+use App\Database\Migrations\CreateWeaponsTable;
+use App\Services\PVE\DefenseStructureService;
+use App\Services\PVE\PvpStandoffService;
+use CodeIgniter\Database\Forge;
+use CodeIgniter\Test\CIUnitTestCase;
+use CodeIgniter\Test\DatabaseTestTrait;
+use Config\Database;
+use Longman\TelegramBot\Entities\CallbackQuery;
+use Longman\TelegramBot\Entities\ServerResponse;
+use Longman\TelegramBot\Telegram;
+use ReflectionClass;
+use ReflectionMethod;
+
+/**
+ * pvp-detection-clarity-08 — гейт окна в `AttackPlayerAction::handle()` ДО записи
+ * анти-спам-кулдауна, экран ожидания, профиль обороны владельца базы при
+ * контратаке, надбавка «укрыться» под потолком, lock-объяснение вместо «⚠️ Ошибка».
+ *
+ * Схема строится прогоном настоящих классов миграций (тот же приём, что
+ * `PvpStandoffServiceTest`/`DemolishBuildingTest`; создаём только отсутствующие
+ * таблицы — CI гоняет набор на пустой базе, локальный стенд их обычно уже несёт).
+ * Хвост из `plan.md` (`## Assumptions`): у `battle_logs` нет собственной
+ * `createTable`-миграции — схема хендролится, как в `AttackPlayerActionFixtureFenceTest`.
+ *
+ * Гейт окна (`resolveStandoffOutcome()`/`applyHoldBonus()`) — приватные методы,
+ * тестируются Reflection'ом без Telegram-сети, тем же приёмом, что
+ * `isCellsCloseEnough()`/`toCharacterArray()` в существующих тестах. Путь «от
+ * кнопки до боя» (killswitch OFF / истечение по времени / контратака) проверяется
+ * реальным `handle()` через настоящий `CallbackQuery` — оба бойца получают
+ * искусственно огромное здоровье, чтобы бой гарантированно завершился `exhausted`
+ * (150 раундов без смерти) и не заходил в `DeathService`/лут/ладдер/трофеи —
+ * это отдельная, намного более тяжёлая поверхность соседних story.
+ *
+ * @internal
+ */
+final class StandoffAttackGateTest extends CIUnitTestCase
+{
+    use DatabaseTestTrait;
+
+    protected $migrate = false;
+
+    private \CodeIgniter\Database\BaseConnection $conn;
+
+    /** @var array<string,bool> */
+    private array $created = [];
+    private bool $alteredDefensiveEnum   = false;
+    private bool $seededStandoffSettings = false;
+    private int $woodenWallBuildingId    = 0;
+    private int $biomeId                 = 0;
+
+    /** @var list<int> */
+    private array $characterIds = [];
+    /** @var list<int> */
+    private array $telegramUserIds = [];
+    /** @var list<int> */
+    private array $mapIds = [];
+    /** @var list<int> */
+    private array $buildingRowIds = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->cleanCache();
+
+        $this->conn = Database::connect('tests');
+        $this->conn->resetDataCache();
+
+        $this->created['telegram_users']     = $this->createIfMissing('telegram_users', CreateTelegramUsersTable::class, '2024-03-20-153728_CreateTelegramUsersTable.php');
+        $this->created['characters']         = $this->createIfMissing('characters', CreateCharactersTable::class, '2024-03-20-154155_CreateCharactersTable.php');
+        $this->created['map']                = $this->createIfMissing('map', CreateMapTable::class, '2024-03-18-105708_CreateMapTable.php');
+        $this->created['biomes']             = $this->createIfMissing('biomes', CreateBiomesTable::class, '2024-03-17-222643_CreateBiomesTable.php');
+        $this->created['game_settings']      = $this->createIfMissing('game_settings', CreateGameSettingsTable::class, '2026-05-19-100000_CreateGameSettingsTable.php');
+        $this->created['factions']           = $this->createIfMissing('factions', CreateFactionsTable::class, '2024-05-15-131853_CreateFactionsTable.php');
+        $this->created['character_factions'] = $this->createIfMissing('character_factions', CreateCharacterFactionsTable::class, '2024-05-15-132233_CreateCharacterFactionsTable.php');
+        $this->created['buildings']          = $this->createIfMissing('buildings', CreateBuildingsTable::class, '2024-05-23-090819_CreateBuildingsTable.php');
+        $this->created['character_buildings'] = $this->createIfMissing('character_buildings', CreateCharacterBuildingsTable::class, '2024-05-27-105534_CreateCharacterBuildingsTable.php');
+        $this->created['action_log']         = $this->createIfMissing('action_log', CreateActionLogTable::class, '2024-03-18-134951_CreateActionLogTable.php');
+        $this->created['pvp_standoffs']      = $this->createIfMissing('pvp_standoffs', Adr186CreatePvpStandoffs::class, '2026-09-11-210000_Adr186CreatePvpStandoffs.php');
+        $this->created['claimed_cells']      = $this->createIfMissing('claimed_cells', CreateClaimedCellsTable::class, '2024-05-23-061031_CreateClaimedCellsTable.php');
+        $this->created['explored_cells']     = $this->createIfMissing('explored_cells', CreateExploredCellsTable::class, '2024-03-24-212921_CreateExploredCellsTable.php');
+        $this->created['tasks']              = $this->createIfMissing('tasks', CreateTasksTable::class, '2024-03-22-111828_CreateTasksTable.php');
+        $this->created['character_tasks']    = $this->createIfMissing('character_tasks', CreateCharacterTasksTable::class, '2024-03-22-132411_CreateCharacterTasksTable.php');
+        $this->created['weapons']            = $this->createIfMissing('weapons', CreateWeaponsTable::class, '2025-02-08-195713_CreateWeaponsTable.php');
+        $this->created['outfits']            = $this->createIfMissing('outfits', CreateOutfitsTable::class, '2025-02-08-194808_CreateOutfitsTable.php');
+        $this->created['characters_weapons'] = $this->createIfMissing('characters_weapons', CreateCharactersWeaponsTable::class, '2025-02-11-115603_CreateCharactersWeaponsTable.php');
+        $this->created['characters_outfits'] = $this->createIfMissing('characters_outfits', CreateCharactersOutfitsTable::class, '2025-02-10-224703_CreateCharactersOutfitsTable.php');
+
+        if (! $this->conn->tableExists('battle_logs')) {
+            $this->conn->query('
+                CREATE TABLE battle_logs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    battle_type VARCHAR(20) NOT NULL,
+                    player1_id INT NOT NULL,
+                    player2_id INT NOT NULL,
+                    winner_id INT NULL,
+                    created_at DATETIME NULL,
+                    finished_at DATETIME NULL,
+                    log_data LONGTEXT NULL
+                )
+            ');
+            $this->created['battle_logs'] = true;
+        }
+
+        // ENUM building_type → +'defensive' (то же, что S26AddDefensiveStructures,
+        // без его зависимости на tasks.handler_key/events/world_objects).
+        if ($this->created['buildings'] || $this->created['character_buildings'] || ! $this->hasDefensiveEnumValue()) {
+            $enum = "ENUM('military','residential','farming','resource','engineering','defensive')";
+            $this->conn->query("ALTER TABLE buildings MODIFY building_type {$enum} NOT NULL");
+            $this->conn->query("ALTER TABLE character_buildings MODIFY building_type {$enum} NOT NULL");
+            $this->alteredDefensiveEnum = true;
+        }
+
+        $existing = $this->conn->table('game_settings')->where('setting_key', 'pvp.standoff.enabled')->get()->getRowArray();
+        if (empty($existing)) {
+            $this->requireMigration('Adr186SeedStandoffSettings', '2026-09-11-210100_Adr186SeedStandoffSettings.php');
+            (new Adr186SeedStandoffSettings())->up();
+            $this->seededStandoffSettings = true;
+        }
+
+        $this->woodenWallBuildingId = $this->ensureBuildingRow('WoodenWall', 'Деревянная стена');
+        $this->biomeId              = $this->ensureBiomeRow();
+
+        $this->setBoolSetting('pvp.standoff.enabled', false);
+        $this->setBoolSetting('pvp.standoff.require_tower', false);
+        $this->setIntSetting('pvp.standoff.window_sec', 300);
+        $this->setIntSetting('pvp.standoff.cooldown_sec', 900);
+        $this->setIntSetting('pvp.standoff.hold_damage_reduction_percent', 10);
+    }
+
+    protected function tearDown(): void
+    {
+        foreach ($this->buildingRowIds as $id) {
+            $this->conn->table('buildings')->where('id', $id)->delete();
+        }
+        foreach ($this->characterIds as $id) {
+            $this->conn->table('character_buildings')->where('character_id', $id)->delete();
+            $this->conn->table('pvp_standoffs')->where('attacker_id', $id)->orWhere('defender_id', $id)->delete();
+            $this->conn->table('action_log')->where('character_id', $id)->delete();
+            $this->conn->table('battle_logs')->where('player1_id', $id)->orWhere('player2_id', $id)->delete();
+            $this->conn->table('claimed_cells')->where('character_id', $id)->delete();
+            $this->conn->table('explored_cells')->where('character_id', $id)->delete();
+            $this->conn->table('character_tasks')->where('character_id', $id)->delete();
+            $this->conn->table('characters')->where('id', $id)->delete();
+        }
+        foreach ($this->mapIds as $id) {
+            $this->conn->table('map')->where('id', $id)->delete();
+        }
+        foreach ($this->telegramUserIds as $id) {
+            $this->conn->table('telegram_users')->where('id', $id)->delete();
+        }
+
+        if ($this->seededStandoffSettings) {
+            $this->requireMigration('Adr186SeedStandoffSettings', '2026-09-11-210100_Adr186SeedStandoffSettings.php');
+            (new Adr186SeedStandoffSettings())->down();
+        }
+
+        $downOrder = [
+            ['characters_outfits', CreateCharactersOutfitsTable::class, '2025-02-10-224703_CreateCharactersOutfitsTable.php'],
+            ['characters_weapons', CreateCharactersWeaponsTable::class, '2025-02-11-115603_CreateCharactersWeaponsTable.php'],
+            ['character_tasks', CreateCharacterTasksTable::class, '2024-03-22-132411_CreateCharacterTasksTable.php'],
+            ['explored_cells', CreateExploredCellsTable::class, '2024-03-24-212921_CreateExploredCellsTable.php'],
+            ['claimed_cells', CreateClaimedCellsTable::class, '2024-05-23-061031_CreateClaimedCellsTable.php'],
+            ['pvp_standoffs', Adr186CreatePvpStandoffs::class, '2026-09-11-210000_Adr186CreatePvpStandoffs.php'],
+            ['action_log', CreateActionLogTable::class, '2024-03-18-134951_CreateActionLogTable.php'],
+            ['character_buildings', CreateCharacterBuildingsTable::class, '2024-05-27-105534_CreateCharacterBuildingsTable.php'],
+            ['character_factions', CreateCharacterFactionsTable::class, '2024-05-15-132233_CreateCharacterFactionsTable.php'],
+            ['tasks', CreateTasksTable::class, '2024-03-22-111828_CreateTasksTable.php'],
+            ['weapons', CreateWeaponsTable::class, '2025-02-08-195713_CreateWeaponsTable.php'],
+            ['outfits', CreateOutfitsTable::class, '2025-02-08-194808_CreateOutfitsTable.php'],
+            ['buildings', CreateBuildingsTable::class, '2024-05-23-090819_CreateBuildingsTable.php'],
+            ['factions', CreateFactionsTable::class, '2024-05-15-131853_CreateFactionsTable.php'],
+            ['game_settings', CreateGameSettingsTable::class, '2026-05-19-100000_CreateGameSettingsTable.php'],
+            ['biomes', CreateBiomesTable::class, '2024-03-17-222643_CreateBiomesTable.php'],
+            ['map', CreateMapTable::class, '2024-03-18-105708_CreateMapTable.php'],
+            ['characters', CreateCharactersTable::class, '2024-03-20-154155_CreateCharactersTable.php'],
+            ['telegram_users', CreateTelegramUsersTable::class, '2024-03-20-153728_CreateTelegramUsersTable.php'],
+        ];
+
+        if (! empty($this->created['battle_logs'])) {
+            $this->conn->query('DROP TABLE IF EXISTS battle_logs');
+        }
+
+        foreach ($downOrder as [$table, $class, $file]) {
+            if (empty($this->created[$table])) {
+                continue;
+            }
+            $short = substr($class, (int) strrpos($class, '\\') + 1);
+            $this->requireMigration($short, $file);
+            $forge = Database::forge('tests');
+            (new $class($forge instanceof Forge ? $forge : null))->down();
+        }
+
+        $this->cleanCache();
+        parent::tearDown();
+    }
+
+    // ---------------------------------------------------------------- resolveStandoffOutcome()
+
+    public function testKillswitchOffSkipsAllStandoffLogicAndByteIdenticalCombatHappens(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', false);
+
+        $cell     = $this->createSelfConsistentCell();
+        $defender = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)], veryHighHealth: true);
+        $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)], veryHighHealth: true);
+        $this->placeWoodenWall($defender['id'], $cell);
+
+        $standoffsBefore = $this->conn->table('pvp_standoffs')->countAllResults();
+        $battlesBefore   = $this->conn->table('battle_logs')->countAllResults();
+        $response        = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+        $standoffsAfter  = $this->conn->table('pvp_standoffs')->countAllResults();
+        $battlesAfter    = $this->conn->table('battle_logs')->countAllResults();
+
+        $this->assertSame($standoffsBefore, $standoffsAfter, 'killswitch OFF: ни одна строка pvp_standoffs не пишется');
+        // handle() возвращает Request::emptyResponse() на успешном боевом пути (сам
+        // результат уходит отдельным Request::sendMessage(), не в return) — «дошло
+        // до боя» доказывается battle_logs, а не текстом возврата handle().
+        $this->assertSame($battlesBefore + 1, $battlesAfter, 'killswitch OFF: путь атаки доходит до обычного боя, а не отбивается экраном окна');
+        $this->assertStringNotContainsString('Осталось', $this->responseText($response), 'не должно быть экрана ожидания при выключенном окне');
+    }
+
+    public function testFirstAttackOnDefenderWithBaseOpensWindowInsteadOfFighting(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+
+        $cell     = $this->createSelfConsistentCell();
+        $defender = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $this->placeWoodenWall($defender['id'], $cell);
+
+        $response = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+        $text     = $this->responseText($response);
+
+        $this->assertStringContainsString('Осталось', $text, 'первая атака на защитника с базой обязана дать экран ожидания');
+        $this->assertStringNotContainsString('⚠️ Ошибка', $text);
+
+        $buttons = $this->flattenButtons($response);
+        $callbacks = array_column($buttons, 'callback_data');
+        $this->assertContains("standoffCheck_" . $this->currentStandoffId($attacker['id'], $defender['id']), $callbacks);
+        $this->assertContains("standoffLeave_" . $this->currentStandoffId($attacker['id'], $defender['id']), $callbacks);
+
+        $row = $this->conn->table('pvp_standoffs')->where('attacker_id', $attacker['id'])->where('defender_id', $defender['id'])->get()->getRowArray();
+        $this->assertIsArray($row);
+        $this->assertSame('open', $row['status']);
+    }
+
+    public function testRepeatedTapOnFrozenTargetReturnsSameWaitScreenWithoutPayingCooldown(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+
+        $cell     = $this->createSelfConsistentCell();
+        $defender = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $this->placeWoodenWall($defender['id'], $cell);
+
+        $first  = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+        $second = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+
+        $this->assertStringContainsString('Осталось', $this->responseText($first));
+        $this->assertStringContainsString('Осталось', $this->responseText($second), 'повторный тап по замороженной цели обязан отбиться тем же экраном');
+
+        $cache = \Config\Services::cache();
+        $this->assertNull($cache->get("pvp_attack_cd_{$attacker['id']}"), 'взгляд на часы не должен стоить 30-секундного кулдауна');
+
+        $rows = $this->conn->table('pvp_standoffs')->where('attacker_id', $attacker['id'])->where('defender_id', $defender['id'])->countAllResults();
+        $this->assertSame(1, $rows, 'повторный тап не должен открывать второе окно');
+    }
+
+    public function testExpiredWindowByTimeAllowsNormalAttackWithoutCronTick(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+
+        $cell     = $this->createSelfConsistentCell();
+        $defender = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)], veryHighHealth: true);
+        $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)], veryHighHealth: true);
+        $this->placeWoodenWall($defender['id'], $cell);
+
+        // Открытое (status='open'), но давно истёкшее по времени окно — крон ни разу не прошёл.
+        $this->insertStandoffRow($attacker['id'], $defender['id'], $cell, 'open', -60);
+
+        $battlesBefore = $this->conn->table('battle_logs')->countAllResults();
+        $response      = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+        $battlesAfter  = $this->conn->table('battle_logs')->countAllResults();
+
+        $this->assertStringNotContainsString('Осталось', $this->responseText($response), 'истёкшее по времени окно не должно отбивать атаку');
+        $this->assertSame($battlesBefore + 1, $battlesAfter, 'атака после истечения обязана дойти до боя (battle_logs — не только внутренний переход статуса)');
+    }
+
+    public function testStandoffCheckActionRefreshesScreenThenReportsResolution(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+
+        $cell     = $this->createSelfConsistentCell();
+        $defender = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $this->placeWoodenWall($defender['id'], $cell);
+
+        $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+        $standoffId = $this->currentStandoffId($attacker['id'], $defender['id']);
+        $this->assertGreaterThan(0, $standoffId);
+
+        $stillOpen = (new StandoffCheckAction($this->callbackQuery($attacker['tgId'], "standoffCheck_{$standoffId}")))->handle();
+        $this->assertStringContainsString('Осталось', $this->responseText($stillOpen), '«⏳ Проверить» на живом окне перерисовывает тот же экран');
+
+        // Чужой тап (не атакующий этого окна) — объяснение, не раскрытие состояния.
+        $stranger = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $strangerResp = (new StandoffCheckAction($this->callbackQuery($stranger['tgId'], "standoffCheck_{$standoffId}")))->handle();
+        $this->assertStringContainsString('не твоё', $this->responseText($strangerResp));
+
+        $this->conn->table('pvp_standoffs')->where('id', $standoffId)->update(['status' => 'fled']);
+        $resolved = (new StandoffCheckAction($this->callbackQuery($attacker['tgId'], "standoffCheck_{$standoffId}")))->handle();
+        $this->assertStringContainsString('сбежала', $this->responseText($resolved));
+    }
+
+    public function testStandoffLeaveActionCancelsOnceAndRefusesSecondTap(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+
+        $cell     = $this->createSelfConsistentCell();
+        $defender = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $this->placeWoodenWall($defender['id'], $cell);
+
+        $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+        $standoffId = $this->currentStandoffId($attacker['id'], $defender['id']);
+
+        $first = (new StandoffLeaveAction($this->callbackQuery($attacker['tgId'], "standoffLeave_{$standoffId}")))->handle();
+        $this->assertStringContainsString('передумал', $this->responseText($first));
+
+        $row = $this->conn->table('pvp_standoffs')->where('id', $standoffId)->get()->getRowArray();
+        $this->assertSame('cancelled', $row['status']);
+
+        $second = (new StandoffLeaveAction($this->callbackQuery($attacker['tgId'], "standoffLeave_{$standoffId}")))->handle();
+        $this->assertStringContainsString('уже отреагировал', $this->responseText($second));
+
+        // Атака после «Уйти» идёт обычным путём (окно закрыто, не открывается заново —
+        // защитник ещё на кулдауне после закрытия, но это не блокирует АТАКУЮЩЕГО).
+        $this->conn->table('characters')->where('id', $attacker['id'])->update(['health' => 99999]);
+        $this->conn->table('characters')->where('id', $defender['id'])->update(['health' => 99999]);
+        $battlesBefore = $this->conn->table('battle_logs')->countAllResults();
+        $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+        $battlesAfter = $this->conn->table('battle_logs')->countAllResults();
+        $this->assertSame($battlesBefore + 1, $battlesAfter, 'атака после «Уйти» обязана дойти до боя');
+    }
+
+    public function testCounterAttackReachesCombatBypassingFreezeAndDefenderOwnCooldown(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+
+        $cell     = $this->createSelfConsistentCell();
+        $defender = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)], veryHighHealth: true);
+        $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)], veryHighHealth: true);
+        $this->placeWoodenWall($defender['id'], $cell);
+
+        $standoffId = $this->insertStandoffRow($attacker['id'], $defender['id'], $cell, 'open', 300);
+
+        // Защитник только что «атаковал» что-то своё — его собственный анти-спам
+        // кулдаун активен. «⚔️ Ударить первым» обязан пройти НЕСМОТРЯ на это.
+        $cache = \Config\Services::cache();
+        $cache->save("pvp_attack_cd_{$defender['id']}", time(), 30);
+
+        $before = $this->conn->table('battle_logs')->countAllResults();
+        // Защитник (базовладелец) жмёт `attackPlayer_<attacker_id>` с алерта.
+        $response = $this->invokeAttack($defender['tgId'], $defender['id'], $attacker['id']);
+        $text     = $this->responseText($response);
+        $after    = $this->conn->table('battle_logs')->countAllResults();
+
+        $this->assertStringNotContainsString('Подождите', $text, 'контратака не должна отбиваться своим кулдауном');
+        $this->assertStringNotContainsString('Осталось', $text, 'контратака не должна отбиваться гейтом окна');
+        // handle() возвращает Request::emptyResponse() на успешном боевом пути — «дошло
+        // до реального боя, а не только до смены статуса» доказывается battle_logs.
+        $this->assertSame($before + 1, $after, 'бой обязан записаться в battle_logs — это и есть проверка «дошло до боя»');
+
+        $row = $this->conn->table('pvp_standoffs')->where('id', $standoffId)->get()->getRowArray();
+        $this->assertSame('countered', $row['status']);
+    }
+
+    public function testLockButtonTapExplainsInsteadOfError(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', false);
+
+        $cell     = $this->createSelfConsistentCell();
+        $defender = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)], level: 1);
+
+        $response = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+        $text     = $this->responseText($response);
+
+        $this->assertStringContainsString('🔒', $text);
+        $this->assertStringNotContainsString('⚠️ Ошибка', $text, 'UX-Discoverability: тап по замку объясняет, а не отказывает');
+        $this->assertStringContainsString('качай уровень', $text);
+    }
+
+    // ---------------------------------------------------------------- Reflection: resolveStandoffOutcome()/applyHoldBonus()
+
+    public function testResolveStandoffOutcomeDisabledReturnsNoopDefaults(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', false);
+        $svc = new PvpStandoffService();
+
+        $outcome = $this->resolveOutcome($svc, ['id' => 1, 'cell_number' => 100], ['id' => 2, 'cell_number' => 100]);
+
+        $this->assertFalse($outcome['enabled']);
+        $this->assertFalse($outcome['block']);
+        $this->assertFalse($outcome['isCounterAttack']);
+        $this->assertSame(2, $outcome['baseOwnerId']);
+        $this->assertSame(100, $outcome['baseOwnerCell']);
+        $this->assertSame(0, $outcome['holdBonusPercent']);
+    }
+
+    public function testResolveStandoffOutcomeDetectsCounterAttackAndSwapsBaseOwner(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+
+        $cell     = $this->createSelfConsistentCell();
+        $baseOwner = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $fieldGuy  = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $standoffId = $this->insertStandoffRow($fieldGuy['id'], $baseOwner['id'], $cell, 'open', 300);
+
+        $svc = new PvpStandoffService();
+        // Базовладелец жмёт «⚔️ Ударить первым»: локально он в слоте $attacker, а
+        // цель ($defender) — исходный нападавший.
+        $outcome = $this->resolveOutcome(
+            $svc,
+            ['id' => $baseOwner['id'], 'cell_number' => $cell],
+            ['id' => $fieldGuy['id'], 'cell_number' => $cell]
+        );
+
+        $this->assertTrue($outcome['isCounterAttack']);
+        $this->assertSame($standoffId, $outcome['counterStandoffId']);
+        $this->assertSame($baseOwner['id'], $outcome['baseOwnerId'], 'профиль обороны обязан резолвиться для владельца базы, а не для того, кто локально в слоте $defender');
+        $this->assertSame($cell, $outcome['baseOwnerCell']);
+    }
+
+    public function testResolveStandoffOutcomeReadsMostRecentHeldRowForHoldBonus(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+        $this->setIntSetting('pvp.standoff.hold_damage_reduction_percent', 15);
+
+        $cell     = $this->createSelfConsistentCell();
+        $defender = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $this->insertStandoffRow($attacker['id'], $defender['id'], $cell, 'held', -300);
+
+        $svc = new PvpStandoffService();
+        $outcome = $this->resolveOutcome(
+            $svc,
+            ['id' => $attacker['id'], 'cell_number' => $cell],
+            ['id' => $defender['id'], 'cell_number' => $cell]
+        );
+
+        $this->assertFalse($outcome['block']);
+        $this->assertFalse($outcome['isCounterAttack']);
+        $this->assertSame(15, $outcome['holdBonusPercent']);
+    }
+
+    public function testResolveStandoffOutcomeSkipsHoldBonusOnceHeldRowIsOlderThanCooldown(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+        $this->setIntSetting('pvp.standoff.cooldown_sec', 900);
+        $this->setIntSetting('pvp.standoff.hold_damage_reduction_percent', 15);
+
+        $cell     = $this->createSelfConsistentCell();
+        $defender = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $standoffId = $this->insertStandoffRow($attacker['id'], $defender['id'], $cell, 'held', -300);
+        // База исчезла (снос/уход), а не «ещё на кулдауне»: строка `held` состарилась
+        // за пределы pvp.standoff.cooldown_sec, значит она уже не «недавний бой».
+        // Время — часами БД (NOW() - INTERVAL), не PHP date().
+        $this->conn->query('UPDATE pvp_standoffs SET updated_at = (NOW() - INTERVAL 1000 SECOND) WHERE id = ?', [$standoffId]);
+
+        $svc     = new PvpStandoffService();
+        $outcome = $this->resolveOutcome(
+            $svc,
+            ['id' => $attacker['id'], 'cell_number' => $cell],
+            ['id' => $defender['id'], 'cell_number' => $cell]
+        );
+
+        $this->assertSame(0, $outcome['holdBonusPercent'], 'held-строка старше cooldown_sec — бонус утекал бы бессрочно, если база исчезла, а не только кулдаунит');
+    }
+
+    public function testResolveStandoffOutcomeDisablesHoldBonusWhenCooldownSecIsZero(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+        $this->setIntSetting('pvp.standoff.cooldown_sec', 0);
+        $this->setIntSetting('pvp.standoff.hold_damage_reduction_percent', 15);
+
+        $cell     = $this->createSelfConsistentCell();
+        $defender = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $this->insertStandoffRow($attacker['id'], $defender['id'], $cell, 'held', -300);
+
+        $svc     = new PvpStandoffService();
+        $outcome = $this->resolveOutcome(
+            $svc,
+            ['id' => $attacker['id'], 'cell_number' => $cell],
+            ['id' => $defender['id'], 'cell_number' => $cell]
+        );
+
+        $this->assertSame(0, $outcome['holdBonusPercent'], 'cooldown_sec=0 отключает бонус вовсе — иначе граница пропадает');
+    }
+
+    public function testResolveStandoffOutcomeIgnoresHeldRowIfSupersededByLaterStatus(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+
+        $cell     = $this->createSelfConsistentCell();
+        $defender = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $this->insertStandoffRow($attacker['id'], $defender['id'], $cell, 'held', -600);
+        $this->insertStandoffRow($attacker['id'], $defender['id'], $cell, 'fled', -300);
+
+        $svc = new PvpStandoffService();
+        $outcome = $this->resolveOutcome(
+            $svc,
+            ['id' => $attacker['id'], 'cell_number' => $cell],
+            ['id' => $defender['id'], 'cell_number' => $cell]
+        );
+
+        $this->assertSame(0, $outcome['holdBonusPercent'], 'самая свежая строка ("fled") перекрывает старую "held"');
+    }
+
+    public function testApplyHoldBonusStaysUnderTotalReductionCap(): void
+    {
+        $this->setIntSetting('pvp.standoff.hold_damage_reduction_percent', 30);
+        $defense = new DefenseStructureService();
+        $cap     = $defense->totalReductionCapPercent();
+
+        $profile = [
+            'owner_id'         => 5,
+            'damage_reduction' => ($cap - 5) / 100.0,
+            'fence_damage'     => 3,
+            'initiative_bonus' => 0.0,
+            'structure_ids'    => [11],
+        ];
+
+        $result = $this->applyHoldBonus($profile, $defense, 5, 30);
+
+        $this->assertSame($cap / 100.0, $result['damage_reduction'], 'потолок defense.total_damage_reduction_max_percent не пробивается надбавкой');
+        $this->assertSame(5, $result['owner_id']);
+        $this->assertSame([11], $result['structure_ids']);
+    }
+
+    public function testApplyHoldBonusOnNullProfileStartsFromZero(): void
+    {
+        $defense = new DefenseStructureService();
+        $result  = $this->applyHoldBonus(null, $defense, 7, 10);
+
+        $this->assertSame(7, $result['owner_id']);
+        $this->assertSame(10 / 100.0, $result['damage_reduction']);
+        $this->assertSame([], $result['structure_ids']);
+    }
+
+    // ---------------------------------------------------------------- helpers
+
+    private function action(): AttackPlayerAction
+    {
+        return (new ReflectionClass(AttackPlayerAction::class))->newInstanceWithoutConstructor();
+    }
+
+    /**
+     * @param array<string,mixed> $attacker
+     * @param array<string,mixed> $defender
+     * @return array<string,mixed>
+     */
+    private function resolveOutcome(PvpStandoffService $svc, array $attacker, array $defender): array
+    {
+        $m = new ReflectionMethod(AttackPlayerAction::class, 'resolveStandoffOutcome');
+        $m->setAccessible(true);
+
+        return $m->invoke($this->action(), $svc, $attacker, $defender);
+    }
+
+    /**
+     * @param array<string,mixed>|null $profile
+     * @return array<string,mixed>
+     */
+    private function applyHoldBonus(?array $profile, DefenseStructureService $defense, int $ownerId, int $bonus): array
+    {
+        $m = new ReflectionMethod(AttackPlayerAction::class, 'applyHoldBonus');
+        $m->setAccessible(true);
+
+        return $m->invoke($this->action(), $profile, $defense, $ownerId, $bonus);
+    }
+
+    private function invokeAttack(int $tgId, int $attackerId, int $targetId): ServerResponse
+    {
+        return (new AttackPlayerAction($this->callbackQuery($tgId, "attackPlayer_{$targetId}")))->handle();
+    }
+
+    private function currentStandoffId(int $attackerId, int $defenderId): int
+    {
+        $row = $this->conn->table('pvp_standoffs')
+            ->where('attacker_id', $attackerId)
+            ->where('defender_id', $defenderId)
+            ->orderBy('id', 'DESC')
+            ->get()->getRowArray();
+
+        return is_array($row) ? (int) $row['id'] : 0;
+    }
+
+    /** Настоящий CallbackQuery — как из реального вебхука клика по кнопке. */
+    private function callbackQuery(int $tgId, string $data): CallbackQuery
+    {
+        if (! defined('PHPUNIT_TESTSUITE')) {
+            define('PHPUNIT_TESTSUITE', true);
+        }
+        new Telegram('123456:TEST-fake-token-for-tests', 'test_bot');
+
+        return new CallbackQuery([
+            'id'      => 'cbq_' . random_int(1, PHP_INT_MAX),
+            'from'    => ['id' => $tgId, 'is_bot' => false, 'first_name' => 'Тест'],
+            'message' => [
+                'message_id' => 1,
+                'date'       => time(),
+                'chat'       => ['id' => $tgId, 'type' => 'private'],
+                'text'       => 'placeholder',
+            ],
+            'chat_instance' => 'ci_1',
+            'data'          => $data,
+        ]);
+    }
+
+    private function responseText(ServerResponse $response): string
+    {
+        $result = $response->getResult();
+        if (! is_object($result) || ! method_exists($result, 'getText')) {
+            return '';
+        }
+
+        return (string) ($result->getText() ?? '');
+    }
+
+    /**
+     * @return list<array{text:string,callback_data:string}>
+     */
+    private function flattenButtons(ServerResponse $response): array
+    {
+        $result  = $response->getResult();
+        $raw     = is_object($result) ? ($result->reply_markup ?? null) : null;
+        $decoded = is_string($raw) ? json_decode($raw, true) : null;
+        if (! is_array($decoded) || ! isset($decoded['inline_keyboard']) || ! is_array($decoded['inline_keyboard'])) {
+            return [];
+        }
+
+        $flat = [];
+        foreach ($decoded['inline_keyboard'] as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            foreach ($row as $button) {
+                if (is_array($button)) {
+                    $flat[] = $button;
+                }
+            }
+        }
+
+        return $flat;
+    }
+
+    private function createIfMissing(string $table, string $class, string $file): bool
+    {
+        if ($this->conn->tableExists($table)) {
+            return false;
+        }
+        $short = substr($class, (int) strrpos($class, '\\') + 1);
+        $this->requireMigration($short, $file);
+        $forge = Database::forge('tests');
+        (new $class($forge instanceof Forge ? $forge : null))->up();
+        $this->conn->resetDataCache();
+
+        return true;
+    }
+
+    private function requireMigration(string $shortClass, string $file): void
+    {
+        $class = 'App\\Database\\Migrations\\' . $shortClass;
+        if (! class_exists($class, false)) {
+            require_once APPPATH . 'Database/Migrations/' . $file;
+        }
+    }
+
+    private function hasDefensiveEnumValue(): bool
+    {
+        $row  = $this->conn->query("SHOW COLUMNS FROM buildings LIKE 'building_type'")->getRowArray();
+        $type = is_array($row) && isset($row['Type']) ? (string) $row['Type'] : '';
+
+        return str_contains($type, 'defensive');
+    }
+
+    private function ensureBuildingRow(string $nameEn, string $nameRu): int
+    {
+        $existing = $this->conn->table('buildings')->where('name_en', $nameEn)->get()->getRowArray();
+        if (is_array($existing)) {
+            return (int) $existing['id'];
+        }
+        $this->conn->table('buildings')->insert([
+            'name_ru'       => $nameRu,
+            'name_en'       => $nameEn,
+            'building_type' => 'defensive',
+            'hp'            => 200,
+        ]);
+        $id                     = (int) $this->conn->insertID();
+        $this->buildingRowIds[] = $id;
+
+        return $id;
+    }
+
+    private function ensureBiomeRow(): int
+    {
+        $existing = $this->conn->table('biomes')->where('name', 'StandoffGateTestForest')->get()->getRowArray();
+        if (is_array($existing)) {
+            return (int) $existing['id'];
+        }
+        $this->conn->table('biomes')->insert([
+            'name'            => 'StandoffGateTestForest',
+            'description'     => 'test',
+            'biome_type'      => 'plain',
+            'danger_level'    => 1,
+            'occurrence_rate' => 1.0,
+        ]);
+
+        return (int) $this->conn->insertID();
+    }
+
+    /**
+     * Одна клетка `map`, где `cell_number` совпадает с `id` (та же гарантия, что
+     * на проде — {@see \App\Services\Player\PlayerStateService::isCharacterOnBase()}
+     * доккомментарий): и `characters.cell_number` (сравнивается с `map.cell_number`
+     * в `AttackPlayerAction`), и `character_buildings.map_cell_id` (сравнивается
+     * напрямую в `DefenseStructureService`) обязаны указывать на одно и то же.
+     */
+    private function createSelfConsistentCell(): int
+    {
+        $this->conn->table('map')->insert([
+            'cell_number'  => 0,
+            'coordinate_x' => 0,
+            'coordinate_y' => 100,
+            'biome_id'     => $this->biomeId,
+        ]);
+        $id = (int) $this->conn->insertID();
+        $this->conn->table('map')->where('id', $id)->update(['cell_number' => $id]);
+        $this->mapIds[] = $id;
+
+        return $id;
+    }
+
+    /**
+     * @param array{telegram_id:int} $opts
+     * @return array{id:int,tgId:int}
+     */
+    private function insertCharacter(int $cell, array $opts, int $level = 10, bool $veryHighHealth = false): array
+    {
+        $this->conn->table('telegram_users')->insert(['telegram_id' => $opts['telegram_id']]);
+        $telegramUserId          = (int) $this->conn->insertID();
+        $this->telegramUserIds[] = $telegramUserId;
+
+        $health = $veryHighHealth ? 99999 : 100;
+
+        $this->conn->table('characters')->insert([
+            'name'             => 'T' . random_int(100000, 999999),
+            'level'            => $level,
+            'health'           => $health,
+            'tired'            => 100,
+            'strength'         => 50,
+            'agility'          => 50,
+            'intellect'        => 50,
+            'experience'       => 100,
+            'gold'             => 1000,
+            'cell_number'      => $cell,
+            'telegram_user_id' => $telegramUserId,
+            // Старше pvp.restriction.min_account_age_days (10д по умолчанию).
+            'created_at'       => date('Y-m-d H:i:s', time() - 60 * 86400),
+            'updated_at'       => date('Y-m-d H:i:s'),
+        ]);
+        $id                   = (int) $this->conn->insertID();
+        $this->characterIds[] = $id;
+
+        return ['id' => $id, 'tgId' => $opts['telegram_id']];
+    }
+
+    private function placeWoodenWall(int $characterId, int $cellNumber): void
+    {
+        $this->conn->table('character_buildings')->insert([
+            'character_id'                        => $characterId,
+            'building_id'                          => $this->woodenWallBuildingId,
+            'map_cell_id'                          => $cellNumber,
+            'amount'                               => 1,
+            'character_level_during_construction'  => 10,
+            'hp'                                   => 200,
+            'level'                                => 1,
+            'built_at'                             => date('Y-m-d H:i:s'),
+            'building_type'                        => 'defensive',
+            'tax'                                  => 200,
+            'usage'                                => 'personal',
+        ]);
+    }
+
+    private function insertStandoffRow(int $attackerId, int $defenderId, int $cellNumber, string $status, int $expiresInSeconds): int
+    {
+        $this->conn->table('pvp_standoffs')->insert([
+            'attacker_id'      => $attackerId,
+            'defender_id'      => $defenderId,
+            'cell_number'      => $cellNumber,
+            'started_at'       => date('Y-m-d H:i:s'),
+            'expires_at'       => date('Y-m-d H:i:s', time() + $expiresInSeconds),
+            'status'           => $status,
+            'notified_expired' => 0,
+            'created_at'       => date('Y-m-d H:i:s'),
+            'updated_at'       => date('Y-m-d H:i:s'),
+        ]);
+
+        return (int) $this->conn->insertID();
+    }
+
+    private function setBoolSetting(string $key, bool $value): void
+    {
+        $this->conn->table('game_settings')->where('setting_key', $key)->update(['value_bool' => $value ? 1 : 0]);
+        $this->cleanCache();
+    }
+
+    private function setIntSetting(string $key, int $value): void
+    {
+        $this->conn->table('game_settings')->where('setting_key', $key)->update(['value_int' => $value]);
+        $this->cleanCache();
+    }
+
+    private function cleanCache(): void
+    {
+        if (function_exists('cache')) {
+            $c = cache();
+            if (is_object($c) && method_exists($c, 'clean')) {
+                $c->clean();
+            }
+        }
+    }
+}

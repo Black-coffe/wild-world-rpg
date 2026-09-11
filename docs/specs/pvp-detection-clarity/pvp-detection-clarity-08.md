@@ -1,7 +1,7 @@
 ---
 story: pvp-detection-clarity-08
 spec: pvp-detection-clarity
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -71,4 +71,80 @@ ADR-186 §3 (контратака), §4 (положение атакующего
 
 ## Implementation notes
 
+- `AttackPlayerAction::handle()` — гейт вынесен в приватный `resolveStandoffOutcome()`
+  (вызывается ДО чтения/записи анти-спам-кулдауна, сразу после проверки «не атакую
+  себя»). Метод — чистые DB-чтения/условные переходы через `PvpStandoffService`,
+  без единого Telegram-вызова, поэтому тестируется Reflection'ом (тот же приём, что
+  уже был у `isCellsCloseEnough()`). Три исхода: `isCounterAttack` (роли развёрнуты,
+  «⚔️ Ударить первым» защитника), `block` (замороженная пара — новая или уже
+  открытая), иначе — обычный бой, с `holdBonusPercent`, если самая СВЕЖАЯ строка
+  окна для пары закрыта как `held` (не входит в контракт `PvpStandoffService`,
+  читается моделью напрямую — `latestStandoffRow()`).
+- Профиль обороны теперь резолвится по `baseOwnerId`/`baseOwnerCell` из этого
+  outcome, а не всегда по `$defender` — это и есть правка ADR-186 §3 «профиль
+  обороны при контратаке считается для владельца базы, кто бы ни нажал кнопку».
+  Добавка «укрыться» вынесена в отдельный `applyHoldBonus()` (тоже тестируется
+  Reflection'ом без симуляции боя) — складывается под `totalReductionCapPercent()`.
+- Контратака закрывает окно как `countered` ПОСЛЕ прохождения смежности/ограничений
+  (не сразу при обнаружении) — отбитая по другой причине контратака не сжигает
+  разовое право на неё.
+- `PvPRestrictionService::checkPvPAllowed()` не менялся (сигнатура и так несла
+  `reason_code`/`message` из `-02`) — новый `sendRestrictionExplanation()` заменил
+  `sendError("PvP недоступно: …")` на lock-объяснение с путём («качай уровень» /
+  «порог снимется сам» / «отойди из зоны») без префикса «⚠️ Ошибка».
+- `StandoffCheckAction`/`StandoffLeaveAction` — новые классы, минимальны: читают
+  `PvpStandoffModel`/зовут `PvpStandoffService::activeFor()`/`close()`, своей
+  проверки «окно живо» не заводят. `CallbackRoutes.php` получил только
+  `standoffCheck`/`standoffLeave` — `standoffHold` регистрирует `-09` тем же файлом
+  (см. `plan.md` Plan deltas от 11.09).
+- `grep -rn 'attackPlayer_' app/` — РОВНО два места генерируют этот `callback_data`:
+  `PlayerDetectionService.php` (кнопка «⚔️ Атаковать» и lock-кнопка «🔒 …», обе на
+  соседа) и `StandoffNotifier.php` (кнопка «⚔️ Ударить первым» в тревоге защитника).
+  Оба резолвятся в один и тот же `AttackPlayerAction::handle()` через `exactRoutes['attackPlayer']`
+  в `CallbackRoutes.php` — единственная общая точка, гейт не продублирован ни у одной кнопки.
+- 🔴 **Callback-поток и рендер экранов PHPUnit не видит** — доказательство только
+  Tier-3 двумя аккаунтами на testbot'е (список из Integration gate плана: экран
+  ожидания, тревога защитнику, три хода, lock-объяснение).
+- Тест `tests/database/StandoffAttackGateTest.php`: 14 методов. Reflection-тесты на
+  `resolveStandoffOutcome()`/`applyHoldBonus()` (killswitch off, счётчик стека,
+  контратака+baseOwner swap, held-бонус и его перекрытие более свежим статусом,
+  потолок снижения урона) не требуют боевой фикстуры вовсе. Полный `handle()`
+  вызывается настоящим `CallbackQuery` (`new Telegram('…TEST…')` включает
+  fake-response режим Longman: `defined('PHPUNIT_TESTSUITE')` — сеть не трогается).
+  Оба бойца получают health=99999, чтобы 150-раундовый цикл гарантированно кончился
+  `exhausted` — это единственный ветвление боя, не требующее `DeathService`/лута/
+  ладдера/трофеев (тяжёлая соседняя поверхность). 🔴 **`handle()` на успешном боевом
+  пути возвращает `Request::emptyResponse()`, а не результат `sendMessage()`** —
+  «дошло до реального боя» тесты доказывают через `battle_logs`-дельту, а не через
+  текст возврата (текст читаем только для заблокированных/lock/error-путей, где
+  `handle()` возвращает `sendMessage()` напрямую).
+
 ## Findings
+
+- 🔴 **Доводка главной сессии по находке №1 (утечка hold-бонуса).** Штатный случай
+  был уже закрыт: пока защитник на `pvp.standoff.cooldown_sec`, новое окно не
+  открывается (`shouldOpen()` → `isDefenderOnCooldown()`), и бонус едет ровно в
+  следующий бой. Но `shouldOpen()` возвращает `false` и по ДРУГИМ причинам, не
+  связанным с кулдауном: защитник ушёл с клетки, постройки снесены/деактивированы,
+  либо включён `require_tower`, а вышки больше нет. В этой ветке `held`-строка
+  оставалась «самой свежей» бессрочно, и `holdBonusPercent` утекал бы навсегда
+  против этой конкретной цели. Граница выбрана намеренно — тот же
+  `pvp.standoff.cooldown_sec`, что уже объясняет несостоявшееся открытие нового
+  окна (не новая настройка, не новое поле): `held` считается «живым для бонуса»
+  ровно то время, что держит защитника на кулдауне. `cooldown_sec = 0` отключает
+  бонус целиком (иначе граница пропадает). Свежесть строки проверяется часами БД
+  (`updated_at >= NOW() - INTERVAL cooldown_sec SECOND`), не PHP-временем — тот же
+  приём, что `StandoffExpiryHandler` (`-10`) для `expires_at`. Добавлены два теста:
+  held-строка старше кулдауна → бонус не применяется; `cooldown_sec=0` → бонус
+  отключён вовсе. Существующий тест на «свежий held» не тронут (по умолчанию
+  `updated_at = NOW()` в фикстуре, попадает внутрь окна кулдауна).
+- Локальный `wildworld_tests` (общий стенд машины) несёт `map.id` как **signed**
+  `INT`, хотя `CreateMapTable`-миграция объявляет `unsigned => true`. На этом стенде
+  свежее создание `character_buildings` падает `DatabaseException: … incompatible`
+  (FK `map_cell_id` unsigned → `map.id` signed) — **это воспроизводится и на уже
+  смёрженной `PvpStandoffServiceTest`** (проверено: `vendor/bin/phpunit
+  tests/database/PvpStandoffServiceTest.php` на этом же стенде падает той же
+  ошибкой), то есть дефект среды этой машины, не регресс этой story. На пустой БД
+  (проверено на одноразовых `wildworld_test_standoff_gate_08*`, дважды подряд, плюс
+  отдельно на свежей `wildworld_test_pvpstandoff_verify` для `PvpStandoffServiceTest`)
+  оба набора зелёные. CI гоняет на пустой базе — не затронут.
