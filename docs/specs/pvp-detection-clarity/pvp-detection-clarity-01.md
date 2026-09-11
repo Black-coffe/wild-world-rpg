@@ -1,7 +1,7 @@
 ---
 story: pvp-detection-clarity-01
 spec: pvp-detection-clarity
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: true
@@ -64,5 +64,12 @@ seed баланса, аудит-коды. Если UNIQUE по генериру�
 пять story.
 
 ## Implementation notes
+
+- `app/Database/Migrations/2026-09-11-210000_Adr186CreatePvpStandoffs.php` — таблица `pvp_standoffs`. Forge не умеет генерируемые колонки, поэтому `open_defender_id` (STORED, `IF(status='open', defender_id, NULL)`) и её `UNIQUE`-индекс добавлены сырым `$this->db->query()` после `createTable()`. Индексы `(attacker_id,status)`, `(defender_id,status)`, `(status,expires_at)` — через `forge->addKey()` до создания таблицы, как у соседних PvP-таблиц (`character_tributes`), без FK-constraint'ов (тот же стиль).
+- `app/Database/Migrations/2026-09-11-210100_Adr186SeedStandoffSettings.php` — шесть ключей `pvp.standoff.*`, категория `combat`, идемпотентно по `setting_key` (паттерн `SeedBuyLevelGateGameSettings`). `enabled=false` на seed.
+- `app/Database/Migrations/2026-09-11-210200_Adr186ExtendActionLogPvpCodes.php` **не создан**: SELECT `SHOW COLUMNS FROM action_log LIKE 'action_name'` на локальной БД показал `varchar(255)` — свободный тип, не ENUM (подтверждено также по исходнику `2024-03-18-134951_CreateActionLogTable.php`: `action_name` объявлен VARCHAR с самого создания, ни одна миграция его не меняла на ENUM — искал `modifyColumn`/`ENUM` по всем миграциям, тронувшим `action_name`, нашёл только саму создающую). Восемь кодов окна (`pvp_standoff_opened`/`fled`/`countered`/`held`/`expired`/`cancelled`, `tower_alert_sent`, `abandoned_character_relocated`) пишутся в него как обычные строки без миграции — код `-06`/`-08`/`-09`/`-10` может использовать их сразу.
+- `app/Config/WipeManifest.php` — `pvp_standoffs` добавлен сразу после `battle_logs` (соседняя PvP-таблица), `PLAYER_DATA`, `link => ['attacker_id','defender_id']`, `by => 'character'`.
+- `tests/unit/Config/WipeManifestCoverageTest.php` не менялся — гейт DB-независим (регекс по `createTable()` в миграциях), новая запись в манифесте закрывает его без правки теста.
+- Инвариант «UNIQUE по `open_defender_id`» проверен вручную на одноразовой БД `wildworld_story01_check` (создана и удалена этим кругом, не пересекается с общей `wildworld_tests`): точным SQL из миграции воспроизведена таблица, вторая вставка `status='open'` того же `defender_id` дала `ERROR 1062 Duplicate entry` на уровне БД, третья с `status='fled'` того же защитника и четвёртая `open` другого защитника прошли — ровно поведение из AC. Полный `php spark migrate --all` на пустой БД не запускался осознанно (известная проблема — часть старых таблиц типа `battle_logs` не имеет собственной createTable-миграции, см. `reference_local_db_bootstrap_from_testbot` в памяти проекта, не наш дефект).
 
 ## Findings
