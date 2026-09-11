@@ -31,6 +31,21 @@ use Throwable;
  */
 final class PvpStandoffService
 {
+    /**
+     * 🔴 ADR-186 §5 — кулдаун защитника (`pvp.standoff.cooldown_sec`) защищает
+     * против чередующихся атакующих, поэтому армируют его только исходы, где
+     * защитник реально отреагировал (`held`, `fled`, `countered`) или окно дожило
+     * до конца само (`expired`). `cancelled` — нападавший отменил СВОЁ окно
+     * («🚶 Уйти» в `StandoffLeaveAction`) до какой-либо реакции защитника — не
+     * входит в этот список: иначе атакующий бьёт «атаковать → уйти → атаковать»
+     * без единой секунды окна (находка ревью story `-06`, pvp-detection-clarity-14).
+     * Следующий, кто добавляет статус в ENUM `pvp_standoffs.status`, обязан явно
+     * решить, идёт ли он сюда, а не унаследовать молчаливое «любой, кроме open».
+     *
+     * @var list<string>
+     */
+    private const COOLDOWN_ARMING_STATUSES = ['held', 'fled', 'countered', 'expired'];
+
     private PvpStandoffModel $model;
     private ConditionalWriteService $writer;
     private GameSettingsService $settings;
@@ -203,7 +218,9 @@ final class PvpStandoffService
     /**
      * Кулдаун защитника после закрытия последнего его окна (ADR-186 §5,
      * `pvp.standoff.cooldown_sec`) — анти-эксплойт «чередующиеся атакующие держат
-     * базу в вечной тревоге». Ищет самое свежее ЗАКРЫТОЕ окно этого защитника.
+     * базу в вечной тревоге». Ищет самое свежее окно этого защитника среди
+     * {@see self::COOLDOWN_ARMING_STATUSES} — закрытие, устроенное самим
+     * нападавшим (`cancelled`), в выборку не входит и кулдаун не армирует.
      */
     private function isDefenderOnCooldown(int $defenderId): bool
     {
@@ -214,7 +231,7 @@ final class PvpStandoffService
 
         $lastClosed = $this->normalizeRow((new PvpStandoffModel())
             ->where('defender_id', $defenderId)
-            ->where('status !=', 'open')
+            ->whereIn('status', self::COOLDOWN_ARMING_STATUSES)
             ->orderBy('updated_at', 'DESC')
             ->first());
         if ($lastClosed === null) {

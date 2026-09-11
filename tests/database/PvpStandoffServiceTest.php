@@ -331,6 +331,57 @@ final class PvpStandoffServiceTest extends CIUnitTestCase
         $this->assertTrue((new PvpStandoffService())->shouldOpen($defender, $cell), 'кулдаун истёк — новое окно снова доступно');
     }
 
+    public function testCancelledByAttackerDoesNotArmDefenderCooldown(): void
+    {
+        // Находка ревью story `-06` (pvp-detection-clarity-14): «⚔️ Атаковать» →
+        // «🚶 Уйти» → «⚔️ Атаковать» — нападавший закрывает СВОЁ ЖЕ окно, защитник
+        // не успел отреагировать. Такое закрытие не имеет права армировать кулдаун
+        // защитника, иначе второй тап бьёт вообще без окна.
+        $cell     = $this->createCell();
+        $defender = $this->insertCharacter();
+        $attacker = $this->insertCharacter();
+        $this->placeWoodenWall($defender, $cell);
+        $this->setIntSetting('pvp.standoff.cooldown_sec', 900);
+
+        $service = new PvpStandoffService();
+        $opened  = $service->open($attacker, $defender, $cell);
+        $this->assertIsArray($opened);
+
+        $this->assertTrue($service->close((int) $opened['id'], 'cancelled'), '«Уйти» обязано закрыть своё же окно');
+
+        $this->assertTrue(
+            $service->shouldOpen($defender, $cell),
+            'закрытие нападавшим (cancelled) не армирует кулдаун — следующая атака снова открывает окно',
+        );
+
+        $reopened = $service->open($attacker, $defender, $cell);
+        $this->assertIsArray($reopened, 'ровно та тройка тапов из находки: атака после ухода обязана снова открыть окно');
+    }
+
+    public function testEachReactiveClosingStatusStillArmsDefenderCooldown(): void
+    {
+        // Симметричная проверка: `held`/`fled`/`countered` (защитник отреагировал)
+        // и `expired` (окно дожило до конца) — все четыре по-прежнему армируют
+        // кулдаун, защита от чередующихся атакующих (ADR-186 §5) не ослаблена.
+        $this->setIntSetting('pvp.standoff.cooldown_sec', 900);
+
+        foreach (['held', 'fled', 'countered', 'expired'] as $status) {
+            $cell     = $this->createCell();
+            $defender = $this->insertCharacter();
+            $this->placeWoodenWall($defender, $cell);
+
+            $closedId = $this->insertStandoffRow($this->insertCharacter(), $defender, $cell, $status, -300);
+            $this->conn->table('pvp_standoffs')->where('id', $closedId)->update([
+                'updated_at' => date('Y-m-d H:i:s', time() - 100),
+            ]);
+
+            $this->assertFalse(
+                (new PvpStandoffService())->shouldOpen($defender, $cell),
+                "статус '{$status}' обязан армировать кулдаун защитника",
+            );
+        }
+    }
+
     public function testShouldOpenRespectsRequireTowerSetting(): void
     {
         $cell     = $this->createCell();
