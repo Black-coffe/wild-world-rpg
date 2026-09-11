@@ -20,10 +20,19 @@ use Config\Database;
  * pvp-detection-clarity-03 — `relocate:abandoned`: dry-run по умолчанию, боевой переезд
  * брошенных персонажей из угла карты (0,0)/(1,1) на южную полосу только по подтверждающему
  * флагу. Схема строится исполнением настоящих классов миграций
- * (`feedback_test_schema_must_come_from_migration`), как `RetiredItemDisplayTest`/
- * `CommunityCleanupTest`: общие таблицы (`telegram_users`, `characters`, `map`,
- * `claimed_cells`, `action_log`) создаются, только если их ещё нет, и никогда не
- * дропаются — собственные строки удаляются в `tearDown()` по накопленным id.
+ * (`feedback_test_schema_must_come_from_migration`), как `StandoffAttackGateTest`:
+ * таблицы (`telegram_users`, `characters`, `map`, `claimed_cells`, `action_log`)
+ * создаются, только если их ещё нет, и дропаются в `tearDown()` тем же прогоном
+ * `down()`, но только если создавались ЭТИМ тестом (флаг `$created[...]`) — если
+ * стенд уже нёс таблицу до запуска, она остаётся нетронутой.
+ *
+ * pvp-detection-clarity-15 — `claimed_cells` несёт настоящий FK на `map`
+ * (`CreateClaimedCellsTable`); если оставить её лежать (как было раньше — «никогда
+ * не дропается»), сосед по набору (`TowerAlertServiceTest`), который делает
+ * `DROP TABLE map` рукописным DDL, падает на пустой БД с ошибкой FK-constraint.
+ * Дроп в `tearDown()` в порядке, обратном FK-зависимостям (`action_log` →
+ * `claimed_cells` → `characters` → `map` → `telegram_users`), снимает конфликт,
+ * не трогая соседа и не отключая проверки FK глобально.
  *
  * Время сеется часами БД (`NOW() - INTERVAL ... HOUR/DAY`), не `date()` в PHP
  * (`feedback_db_clock_seed_not_php_in_time_window_tests`) — иначе окно активности
@@ -48,6 +57,9 @@ final class RelocateAbandonedCharactersTest extends CIUnitTestCase
     /** @var list<int> целевые клетки южной полосы, созданные этим тестом */
     private array $targetMapIds = [];
 
+    /** @var array<string,bool> какие таблицы создал этот тест (только их и дропаем) */
+    private array $created = [];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -59,19 +71,24 @@ final class RelocateAbandonedCharactersTest extends CIUnitTestCase
         $forge = Database::forge();
         $forge = $forge instanceof Forge ? $forge : null;
 
-        if (! $this->conn->tableExists('telegram_users')) {
+        $this->created['telegram_users'] = ! $this->conn->tableExists('telegram_users');
+        if ($this->created['telegram_users']) {
             (new CreateTelegramUsersTable($forge))->up();
         }
-        if (! $this->conn->tableExists('characters')) {
+        $this->created['characters'] = ! $this->conn->tableExists('characters');
+        if ($this->created['characters']) {
             (new CreateCharactersTable($forge))->up();
         }
-        if (! $this->conn->tableExists('map')) {
+        $this->created['map'] = ! $this->conn->tableExists('map');
+        if ($this->created['map']) {
             (new CreateMapTable($forge))->up();
         }
-        if (! $this->conn->tableExists('claimed_cells')) {
+        $this->created['claimed_cells'] = ! $this->conn->tableExists('claimed_cells');
+        if ($this->created['claimed_cells']) {
             (new CreateClaimedCellsTable($forge))->up();
         }
-        if (! $this->conn->tableExists('action_log')) {
+        $this->created['action_log'] = ! $this->conn->tableExists('action_log');
+        if ($this->created['action_log']) {
             (new CreateActionLogTable($forge))->up();
         }
 
@@ -94,6 +111,29 @@ final class RelocateAbandonedCharactersTest extends CIUnitTestCase
         $this->targetMapIds    = [];
         $this->characterIds    = [];
         $this->telegramUserIds = [];
+
+        $forge = Database::forge();
+        $forge = $forge instanceof Forge ? $forge : null;
+
+        // Обратный FK-порядок: action_log → claimed_cells → characters → map →
+        // telegram_users. Дропаем только то, что создал сам этот тест — иначе
+        // унесём таблицу, которую уже нёс стенд до запуска (pvp-detection-clarity-15).
+        if (! empty($this->created['action_log'])) {
+            (new CreateActionLogTable($forge))->down();
+        }
+        if (! empty($this->created['claimed_cells'])) {
+            (new CreateClaimedCellsTable($forge))->down();
+        }
+        if (! empty($this->created['characters'])) {
+            (new CreateCharactersTable($forge))->down();
+        }
+        if (! empty($this->created['map'])) {
+            (new CreateMapTable($forge))->down();
+        }
+        if (! empty($this->created['telegram_users'])) {
+            (new CreateTelegramUsersTable($forge))->down();
+        }
+        $this->created = [];
 
         parent::tearDown();
     }
