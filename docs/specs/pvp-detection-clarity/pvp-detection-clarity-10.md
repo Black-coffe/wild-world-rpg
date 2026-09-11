@@ -1,0 +1,61 @@
+---
+story: pvp-detection-clarity-10
+spec: pvp-detection-clarity
+status: todo
+tier: 2
+worker: worker-code
+tracer: false
+wave: 3
+blocked_by: [pvp-detection-clarity-06]
+---
+
+# Истечение окна: одноразовый пинг нападавшему, что пять минут вышли
+
+## Goal
+
+После story существует фоновый хендлер, который помечает истёкшие окна и один раз сообщает
+нападавшему, что ожидание кончилось и атака снова возможна. Крон при этом **не** является условием
+правильности: открытость окна и без него вычисляется по времени в момент чтения. Опоздавший крон
+делает сообщение поздним, а не правило неверным.
+
+## Requirements
+
+> Но ровно пять минут, потом атакующий может атаковать.
+
+> Странно, что меня оповестили по факту что кто-то совершил нападение и опездюлился ... .
+
+## Files
+- app/TaskHandlers/PVP/StandoffExpiryHandler.php
+- app/Config/Tasks.php
+- tests/database/StandoffExpiryHandlerTest.php
+
+## Non-goals
+- Не переносить решение «окно закрыто» в крон: `expired` — это уведомление постфактум, а не источник истины.
+- Не трогать `AttackPlayerAction`, `RunAwayAction` и сервис окна — они заняты соседними story.
+- Не заводить новую инфраструктуру фоновой обработки: только строка в существующем `Config\Tasks`.
+- Не слать больше одного пинга на окно и не слать его при выключенном `pvp.standoff.notify_attacker_on_expiry`.
+- Не запускать полный набор и не делать `DROP`/`migrate` на общей локальной тест-БД; не делать `git stash`/`git checkout`.
+
+## Map slice
+`app/Config/Tasks.php` (формат записи, `everyMinute`, `singleInstance` у соседних задач);
+ADR-186 §1 и §4 (пинг об истечении), «Инвариант» 1;
+`## Contracts` плана — `activeAgainst()`, `markExpiryNotified()`, `notifyAttackerExpired()`, аудит-код
+`pvp_standoff_expired`.
+
+## Acceptance criteria
+- [ ] Хендлер живёт в существующем каркасе task-handler'ов; если каталога `app/TaskHandlers/PVP/` нет — он создаётся, и это названо в отчёте.
+- [ ] Задача зарегистрирована в `Config\Tasks` с минутным расписанием и защитой от параллельного запуска, как у соседних задач.
+- [ ] Хендлер выбирает окна `status='open' AND expires_at <= NOW()`, переводит их в `expired` условным переходом (два одновременных тика не шлют двух писем) и шлёт нападавшему один пинг; `notified_expired` делает его одноразовым.
+- [ ] При `pvp.standoff.notify_attacker_on_expiry = false` пинг не уходит, но статус всё равно переводится.
+- [ ] При `pvp.standoff.enabled = false` хендлер выходит мгновенно и ничего не читает.
+- [ ] Хендлер не инициализирует Telegram-клиент нетерпеливо — тесты не должны требовать живого бота.
+- [ ] Тест строит схему из настоящих классов миграций, сеет время часами БД (`NOW() - INTERVAL`) и доказывает: истёкшее окно помечается один раз, повторный прогон не шлёт второй пинг, живое окно не трогается, выключенный килсвитч всё останавливает.
+- [ ] Пинг — HTML, самодостаточный текст без фото. В `## Implementation notes` сказано: факт доставки проверяется Tier-3, PHPUnit исполняет только путь до отправки.
+
+## Verification
+`vendor/bin/phpunit --no-coverage --no-progress tests/database/StandoffExpiryHandlerTest.php`
+`vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+
+## Implementation notes
+
+## Findings
