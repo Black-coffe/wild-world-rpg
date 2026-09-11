@@ -1,7 +1,7 @@
 ---
 story: pvp-detection-clarity-04
 spec: pvp-detection-clarity
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -60,5 +60,34 @@ no-send. Срабатывание видно в аудите.
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+
+- `TowerAlertService::sendAlert()` разбит на оркестрацию (chatId → deliverAlertMessage → logAlertSent)
+  + `deliverAlertMessage()` (сам `Request::sendMessage`, `parse_mode = 'HTML'`) + `buildAlertMessage()`
+  (текст, имя через `esc($name, 'html')`) — три protected-сида для тестов вместо одного, старые 7
+  тестов (`RecordingTowerAlert`) по-прежнему подменяют `sendAlert()` целиком и не тронуты.
+- `logAlertSent()` пишет `action_log` (`action_name = 'tower_alert_sent'`, `action_status =
+  'Completed'`, `chat_id = 0` — прецедент есть в `OnboardingHintService.php:528`, для этого аудита
+  chat-контекст не нужен, важен факт срабатывания и `character_id` владельца).
+- `MoveCharacterToDirectionAction`: добавлен `$towerAlertService` (типизирован явно —
+  нетипизированный `$playerDetectionService` у phpstan уже пробаселайнен, но добавлять новую строку
+  в баселайн запрещено инструкцией phpstan; типизация проще и правильнее), вызов
+  `notifyTowersNear($character['id'], (int)$targetCell['coordinate_x'], (int)$targetCell['coordinate_y'])`
+  добавлен на ОБА успешных пути (edit-in-place и sendMessage-fallback), обёрнут в try/catch — переход
+  не падает при сбое сервиса, по образцу `MarchingTaskHandler:319-324`.
+- Полный список вызывающих `notifyTowersNear` (Bash-грепом): `MarchingTaskHandler.php:321` (Поход,
+  было раньше), `MoveCharacterToDirectionAction.php:459` (edit-success), `:510` (sendMessage-fallback).
+- Дублирование за один шаг исключено штатным кулдауном (`defense.tower.alert_cooldown_sec`,
+  cache-ключ `tower_alert_cd_{owner}_{mover}`) — код кулдауна не менялся, он общий для обоих
+  вызывающих в рамках одного процесса; новый код в `notifyTowersNear` не добавлялся, только новые
+  места вызова.
+- Тесты: `tests/database/TowerAlertServiceTest.php` — добавлены `telegram_users`/`action_log` таблицы
+  и колонка `characters.telegram_user_id` в тестовую схему (нужны только новым тестам), плюс три
+  теста: экранирование спецсимволов Markdown (проходят verbatim под HTML), экранирование HTML-спецсимволов
+  (`<`,`>`,`&`), аудит-запись при успешной отправке (через новый стаб `DeliveryStubTowerAlert`,
+  который подменяет только `deliverAlertMessage()` — `ownerChatId()` и `logAlertSent()` настоящие).
+- Честно: PHPUnit не рендерит реальное Telegram-сообщение и не проверяет, что Telegram фактически
+  принимает `parse_mode=HTML` с этим текстом (400 vs 200) — единственное доказательство «оповещение
+  реально пришло» на обычном шаге, и что оно не дублируется при смешанном Поход+шаг-сценарии — это
+  Tier-3 smoke на testbot'е двумя аккаунтами (владелец вышки + ходок), который эта story не запускала.
 
 ## Findings

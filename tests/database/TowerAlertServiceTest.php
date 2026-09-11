@@ -30,7 +30,7 @@ final class TowerAlertServiceTest extends CIUnitTestCase
         $this->cleanCache();
 
         $db = Database::connect('tests');
-        foreach (['character_buildings', 'buildings', 'map', 'characters', 'game_settings'] as $t) {
+        foreach (['character_buildings', 'buildings', 'map', 'characters', 'game_settings', 'telegram_users', 'action_log'] as $t) {
             $db->query("DROP TABLE IF EXISTS {$t}");
         }
 
@@ -46,7 +46,10 @@ final class TowerAlertServiceTest extends CIUnitTestCase
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 cell_number INT NOT NULL, coordinate_x INT NOT NULL, coordinate_y INT NOT NULL
             )');
-        $db->query('CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100) NULL)');
+        $db->query('
+            CREATE TABLE characters (
+                id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100) NULL, telegram_user_id INT NULL
+            )');
         $db->query('
             CREATE TABLE game_settings (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -54,6 +57,15 @@ final class TowerAlertServiceTest extends CIUnitTestCase
                 value_type VARCHAR(16) NULL, value_int INT NULL, value_float DECIMAL(15,5) NULL,
                 value_bool TINYINT NULL, value_string TEXT NULL,
                 hard_min VARCHAR(32) NULL, hard_max VARCHAR(32) NULL
+            )');
+        // pvp-detection-clarity-04: нужны только для теста аудита (ownerChatId join + ActionLogModel).
+        $db->query('CREATE TABLE telegram_users (id INT AUTO_INCREMENT PRIMARY KEY, telegram_id BIGINT NULL)');
+        $db->query('
+            CREATE TABLE action_log (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                character_id INT NULL, chat_id BIGINT NULL, action_name VARCHAR(255) NULL,
+                action_status VARCHAR(32) NULL, description TEXT NULL,
+                created_at DATETIME NULL, updated_at DATETIME NULL
             )');
 
         $db->table('buildings')->insert(['name_en' => 'WatchTower']);
@@ -73,7 +85,7 @@ final class TowerAlertServiceTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $db = Database::connect('tests');
-        foreach (['character_buildings', 'buildings', 'map', 'characters', 'game_settings'] as $t) {
+        foreach (['character_buildings', 'buildings', 'map', 'characters', 'game_settings', 'telegram_users', 'action_log'] as $t) {
             $db->query("DROP TABLE IF EXISTS {$t}");
         }
         $this->cleanCache();
@@ -189,6 +201,53 @@ final class TowerAlertServiceTest extends CIUnitTestCase
         $svc = $this->service();
         $this->assertSame(0, $svc->notifyTowersNear(1, 5, 5));
     }
+
+    /**
+     * pvp-detection-clarity-04: имя со спецсимволами Markdown («*», «_») больше не может
+     * дать Telegram 400 — сообщение переведено на HTML, эти символы там не значимы.
+     */
+    public function testAlertMessagePreservesMarkdownSpecialCharsVerbatim(): void
+    {
+        $svc = new MessageExposingTowerAlert();
+        $msg = $svc->exposeBuildAlertMessage('a*b_c', 3, 10, 10);
+
+        $this->assertStringContainsString('a*b_c', $msg);
+    }
+
+    /** HTML-режим требует экранирования собственных спецсимволов ('<','>','&'). */
+    public function testAlertMessageEscapesHtmlSpecialChars(): void
+    {
+        $svc = new MessageExposingTowerAlert();
+        $msg = $svc->exposeBuildAlertMessage('a<b>c&d', 3, 10, 10);
+
+        $this->assertStringContainsString('a&lt;b&gt;c&amp;d', $msg);
+        $this->assertStringNotContainsString('<b>c', $msg);
+    }
+
+    /**
+     * pvp-detection-clarity-04: срабатывание пишет `tower_alert_sent` в action_log —
+     * иначе измерить постфактум, работала ли вышка, по-прежнему нечем.
+     */
+    public function testTowerAlertSentWritesAuditLog(): void
+    {
+        $db = Database::connect('tests');
+        $db->table('telegram_users')->insert(['telegram_id' => 555]);
+        $tgId = (int) $db->insertID();
+
+        $this->makeMover(7, 'Owner');
+        $db->table('characters')->where('id', 7)->update(['telegram_user_id' => $tgId]);
+        $this->makeMover(1, 'Raider');
+        $this->placeTower(7, 6, 5);
+
+        $svc  = new DeliveryStubTowerAlert();
+        $sent = $svc->notifyTowersNear(1, 5, 5);
+
+        $this->assertSame(1, $sent);
+        $rows = $db->table('action_log')->where('action_name', 'tower_alert_sent')->get()->getResultArray();
+        $this->assertCount(1, $rows);
+        $this->assertSame(7, (int) $rows[0]['character_id']);
+        $this->assertSame('Completed', $rows[0]['action_status']);
+    }
 }
 
 /**
@@ -204,6 +263,29 @@ final class RecordingTowerAlert extends TowerAlertService
     protected function sendAlert(int $ownerId, string $moverName, int $dist, int $x, int $y): bool
     {
         $this->pings[] = ['owner' => $ownerId, 'mover' => $moverName, 'dist' => $dist, 'x' => $x, 'y' => $y];
+        return true;
+    }
+}
+
+/** Открывает buildAlertMessage() для прямой проверки HTML-экранирования (без Telegram/БД). */
+final class MessageExposingTowerAlert extends TowerAlertService
+{
+    public function exposeBuildAlertMessage(string $moverName, int $dist, int $x, int $y): string
+    {
+        return $this->buildAlertMessage($moverName, $dist, $x, $y);
+    }
+}
+
+/**
+ * Подменяет только доставку Telegram-сообщения — ownerChatId() и logAlertSent()
+ * реальные, чтобы проверить, что успешная отправка пишет action_log.
+ *
+ * @internal
+ */
+final class DeliveryStubTowerAlert extends TowerAlertService
+{
+    protected function deliverAlertMessage(int $chatId, string $moverName, int $dist, int $x, int $y): bool
+    {
         return true;
     }
 }
