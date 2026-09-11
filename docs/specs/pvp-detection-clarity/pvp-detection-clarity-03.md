@@ -1,7 +1,7 @@
 ---
 story: pvp-detection-clarity-03
 spec: pvp-detection-clarity
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -60,5 +60,32 @@ story не входит и делается только по явному сл�
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+
+- `app/Commands/RelocateAbandonedCharacters.php` — новая команда `relocate:abandoned`. `app/Commands/`
+  уже существовал в репозитории (22 команды), новый каталог не создавался.
+- Отбор кандидатов и переезд — приватные методы `findCandidates()`/`findTargetCells()`/`relocateOne()`,
+  вызываются публичным `relocate(days, yMin, yMax, limit, dryRun): array`, который `run()` только
+  оборачивает CLI-выводом (паттерн `CommunityCleanup::cleanup()`). Тест вызывает `relocate()` напрямую,
+  без перехвата CLI-вывода.
+- `action_log.action_name` — оказался `VARCHAR(255)`, не ENUM (`2024-03-18-134951_CreateActionLogTable.php`).
+  Критерий про «расширение ENUM story `-01`» не сработал — проверено чтением миграции, не предположено;
+  строка `abandoned_character_relocated` пишется без изменений схемы.
+- Биомы целевой полосы — список `[1,2,3,5,6,7,8,9]` из `StartCommand::indexAction()` (фактический спавн),
+  а не `[1,2,3,6]` из `GAME_DESCRIPTION.md:246` — код признан источником истины по прямому указанию story.
+- `chat_id` для аудит-строки берётся джойном `telegram_users.telegram_id` (колонка NOT NULL без default;
+  `COALESCE(...,0)`, если владелец не найден — паттерн из `PvEService::logBossKill()`).
+- «Заклеймённая клетка» — `claimed_cells.status='active'`, и у кандидата (нет своей базы), и у целевой
+  клетки (`map.id`, не `map.cell_number` — FK у `claimed_cells.map_cell_id` ведёт на `map.id`).
+- Атомарность боевого переезда — условный `UPDATE ... WHERE cell_number IN (1,1002)` +
+  `affectedRows()===1` перед записью аудита (a la `feedback_atomic_means_verify_the_write`); это же
+  даёт идемпотентность повторного прогона без отдельной проверки.
+- Тест строит схему пятью настоящими миграциями (`telegram_users`, `characters`, `map`, `claimed_cells`,
+  `action_log`), каждая — только если отсутствует, никогда не дропается (общая инфраструктура, как
+  `RetiredItemDisplayTest`/`CommunityCleanupTest`); свои строки удаляются в `tearDown()` по id.
+  Прогнан на изолированной локальной БД `wildworld_ci_relocate` (не общий `wildworld_tests`), дважды
+  подряд без пересоздания схемы — 4/4 зелёных оба раза.
+- Никакого ADMIN-TUNABLE BALANCE / GUIDE / TIPS-ревью — инструмент admin-only/CLI, не player-facing
+  механика.
+- ADR/GameSettings не заводились — story поставляет только инструмент, боевой прогон вне её объёма.
 
 ## Findings
