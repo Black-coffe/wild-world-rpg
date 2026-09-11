@@ -93,9 +93,20 @@ blocked_by: [pvp-detection-clarity-02]
   в чат). Компромисс: сообщение в чате у `AttackPlayerAction::sendError()` начинается с
   «⚠️ Ошибка:», хотя формально это объяснённый отказ, а не сбой — переписать эту формулировку
   не позволяют границы `## Files`; сама причина (текст) в сообщении настоящая, не generic.
-- `StartCommand`: `'name' => $username ?: 'Путник-' . $telegramId` — различимо на пользователя
-  (telegram_id уникален), не требует id персонажа (появляется только после `insert()`).
-  68 существующих строк не тронуты (WipeManifest KEEP — имя это идентичность).
+- `StartCommand` (доводка после ревью главной сессии): первая версия ставила
+  `'name' => 'Путник-' . $telegramId` — это утечка приватного `telegram_id` в публичное
+  поле (`characters.name` виден другим игрокам: список обнаружения, Арена, рейтинг PvP,
+  лог боя, страница достижений). Исправлено на двухшаговую вставку: `insert()` кладёт `''`
+  (или `@username`), затем при пустом `@username` — `update($id, ['name' =>
+  StartCommand::mintDistinctName($id)])`, где `mintDistinctName(int $characterId): string`
+  — новый `public static` pure-хелпер (`'Путник-' . $characterId`), сигнатура которого
+  физически не принимает `telegram_id` — утечка невозможна by construction, не по
+  аккуратности вызывающего кода. `characters.id` уже публичен (собственный fallback
+  `№{id}` в `PlayerDetectionService::renderDetectionMessage()`). 68 существующих строк
+  не тронуты (WipeManifest KEEP — имя это идентичность). Новый тест —
+  `tests/unit/Controllers/Telegram/StartCommandMintDistinctNameTest.php` (pure, без БД):
+  доказывает отсутствие `telegram_id` в имени прямой рефлексией сигнатуры (единственный
+  параметр — `characterId`) плюс проверкой состава цифр в результате.
 - Tips/guide-вердикт (`.claude/rules/player-facing.md`): **нет** — это рендер-фикс уже
   существующего автоматического экрана обнаружения (не новая механика, не новая кнопка
   входа), discoverability/онбординг не меняются.
