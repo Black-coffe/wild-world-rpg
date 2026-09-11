@@ -1,7 +1,7 @@
 ---
 story: pvp-detection-clarity-07
 spec: pvp-detection-clarity
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -69,5 +69,38 @@ blocked_by: [pvp-detection-clarity-02]
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+
+- `PlayerDetectionService`: сборка сообщения вынесена в `renderDetectionMessage(array $attacker,
+  array $detectedPlayers, int $maxListed, int $inactiveDays, bool $showInactiveSummary): array`
+  (public, `['text' => string, 'keyboard' => array]`) — собирается без похода в Telegram API,
+  поэтому тест зовёт её напрямую. `detectNearbyPlayers()` теперь только собирает данные
+  (level/created_at в SQL-select соседей, `last_active_at` одним групповым запросом по
+  `action_log.character_id/created_at` — `characters.last_update_time` не тронута, она пуста
+  у всех строк на проде), читает три ключа `GameSettings`, зовёт рендер и шлёт через `Request::sendMessage`
+  с `parse_mode=HTML` (было `Markdown`; имя — чужой ввод, экранируется `esc($name, 'html')`).
+- Жёсткая граница длины реализована ДВУМЯ независимыми механизмами: `max_listed` капает
+  список по настройке, а внутренний бюджет символов (`MAX_TEXT_CHARS=3800` с запасом под
+  footer/overflow-строку) обрывает построение строк ДАЖЕ если `max_listed` подняли выше
+  разумного — тест `testHardTextLengthBoundaryOnTwoHundredNeighborsRegardlessOfMaxListedSetting`
+  доказывает это на 200 соседях с длинными именами и `max_listed=500`.
+- Кнопки: `⚔️ Атаковать`/`🔒 <причина>` (по `PvPRestrictionService::checkPvPAllowed()`, коды
+  `level`/`safe_zone`/`account_age` → короткая метка, иначе `Недоступно`) + опциональная
+  `🤺 Дуэль` в плоский список, `🏃 Бежать` добавлена в конец один раз, весь список пакуется
+  `App\Services\Telegram\ButtonPacker::pack()` (2–3 в ряд, без одиночных строк).
+- Лок переиспользует существующий `callback_data = 'attackPlayer_<id>'` — тап уходит в уже
+  работающий `AttackPlayerAction` (не в `## Files` этой story, трогать нельзя), который сам
+  вызывает `checkPvPAllowed()` и отвечает игроку реальной причиной отказа (alert + сообщение
+  в чат). Компромисс: сообщение в чате у `AttackPlayerAction::sendError()` начинается с
+  «⚠️ Ошибка:», хотя формально это объяснённый отказ, а не сбой — переписать эту формулировку
+  не позволяют границы `## Files`; сама причина (текст) в сообщении настоящая, не generic.
+- `StartCommand`: `'name' => $username ?: 'Путник-' . $telegramId` — различимо на пользователя
+  (telegram_id уникален), не требует id персонажа (появляется только после `insert()`).
+  68 существующих строк не тронуты (WipeManifest KEEP — имя это идентичность).
+- Tips/guide-вердикт (`.claude/rules/player-facing.md`): **нет** — это рендер-фикс уже
+  существующего автоматического экрана обнаружения (не новая механика, не новая кнопка
+  входа), discoverability/онбординг не меняются.
+- PHPUnit не рендерит Telegram-сообщение: вид списка (сворачивание, метка брошенного,
+  замок, упаковка кнопок) в реальном клиенте и корректность тапа по замку доказываются
+  Tier-3 на testbot'е (MCP Chrome + Telegram Web), не этим тестом.
 
 ## Findings

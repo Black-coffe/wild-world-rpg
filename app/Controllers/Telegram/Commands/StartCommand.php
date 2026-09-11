@@ -90,7 +90,12 @@ class StartCommand extends UserCommand
         if (!$existingCharacter) {
             $createdCharacterId = $characterModel->insert([
                 'telegram_user_id' => $createdUserId,
-                'name'        => $username ?: 'Unknown Hero',
+                // pvp-detection-clarity-07: литерал 'Unknown Hero' штамповался ОДИНАКОВО
+                // на 24 разных персонажа в одном списке обнаружения — неотличимы друг от
+                // друга. `Путник-{telegram_id}` различим (telegram_id уникален на пользователя)
+                // и не требует id персонажа, который появится только после этого insert().
+                // Существующие 68 строк не переименовываются (WipeManifest KEEP — имя = идентичность).
+                'name'        => $username ?: ('Путник-' . $telegramId),
                 'level'       => 1,
                 'experience'  => 0.01,
                 'health'      => 100,
