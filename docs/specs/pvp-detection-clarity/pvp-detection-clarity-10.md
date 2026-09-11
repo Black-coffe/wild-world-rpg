@@ -1,7 +1,7 @@
 ---
 story: pvp-detection-clarity-10
 spec: pvp-detection-clarity
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -57,5 +57,40 @@ ADR-186 §1 и §4 (пинг об истечении), «Инвариант» 1;
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+
+- `app/TaskHandlers/PVP/StandoffExpiryHandler.php` — новый handler в уже существующем каталоге
+  `app/TaskHandlers/PVP/` (создавать не пришлось, там уже жил `TributeExpiryHandler`). Никакой своей
+  логики окна: killswitch — `PvpStandoffService::isEnabled()`, выборка — `status='open' AND
+  expires_at <= NOW()`, закрытие — `PvpStandoffService::close($id, 'expired')`
+  (`transitionIfCurrent`, гонки исключены на уровне БД), одноразовый пинг — свой условный переход
+  `markExpiryNotified()` (0→1), гейтится `pvp.standoff.notify_attacker_on_expiry`. Пинг посылается
+  ТОЛЬКО когда `markExpiryNotified()` вернул `true` — если два тика крона как-то оба прошли мимо
+  `close()`-гонки (не должны, но защита в глубину), второй пинг всё равно не уйдёт.
+- Конструктор принимает все 4 зависимости через nullable-DI (как у `TributeExpiryHandler`/
+  `PvpStandoffService`) — телеграм-клиент нигде не создаётся в конструкторе, только
+  `StandoffNotifier::notifyAttackerExpired()` внутри дёргает `Request::sendMessage()` через
+  переопределяемый `protected sendExpiredPing()`.
+- `app/Config/Tasks.php` — строка `pvp-standoff.expiry` рядом с `tribute.expiry`, `everyMinute()` +
+  `singleInstance()`, как договорено в story.
+- `tests/database/StandoffExpiryHandlerTest.php` — схема строится прогоном настоящих классов
+  миграций (тот же приём, что `PvpStandoffServiceTest`), только нужные таблицы
+  (`telegram_users`/`characters`/`game_settings`/`action_log`/`pvp_standoffs` + сид
+  `Adr186SeedStandoffSettings`). Время сеется часами БД (`NOW() + INTERVAL ? SECOND` сырым SQL), не
+  PHP `date()`. 4 теста: закрытие+одноразовый пинг (включая повторный прогон крона), живое окно не
+  трогается, killswitch `pvp.standoff.enabled=false` не читает и не шлёт ничего, выключенный
+  `notify_attacker_on_expiry` переводит статус, но не шлёт пинг. Доставка подменена (как в
+  `PvpStandoffServiceTest::testAlertDefenderKeyboardHasExactlyThreeNamedMoves`) — PHPUnit исполняет
+  путь ровно до `sendExpiredPing()`; факт живой доставки в Telegram — Tier-3.
+- Прогонялось на одноразовой БД `wildworld_test_standoff_expiry_10`
+  (`env "database.tests.database=..."`), созданной и удалённой этим воркером — общий локальный
+  тест-стенд не трогался.
+- Доводка: отбор просроченных окон изначально сравнивал `expires_at` со строкой из PHP `date()` —
+  второй источник времени рядом с `PvpStandoffService::activeAgainst()`, который решает то же самое
+  через `NOW()` БД. При дрейфе/разнице таймзон процесса и MySQL это развело бы «крон закрыл» и
+  «сервис считает открытым» в разные стороны. Заменено на сырое SQL-сравнение
+  `->where('expires_at <= NOW()', null, false)` — решение принимается теми же часами, что и у
+  сервиса. Больше никакого PHP-времени handler в SQL не подставляет (только пишет
+  `date('Y-m-d H:i:s')` нигде — весь остальной путь идёт через `PvpStandoffService`, который сам
+  уже целиком на `NOW()`).
 
 ## Findings
