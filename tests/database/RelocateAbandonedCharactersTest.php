@@ -282,11 +282,14 @@ final class RelocateAbandonedCharactersTest extends CIUnitTestCase
 
         $threw = false;
 
+        // Зовём НАСТОЯЩИЙ `setUp()` этого теста повторно (а не его внутренности
+        // напрямую) — иначе тест проверял бы только `dropTrackedTables()`, а не то,
+        // что `setUp()` сам ловит исключение и вызывает уборку. `CIUnitTestCase::setUp()`
+        // идемпотентен на повторном вызове ($this->app/loadDependencies() — null-guard,
+        // $migrate=false отключает миграции), так что второй проход безопасен.
         try {
-            $this->buildSchema();
-            $this->ensureOriginCells();
+            $this->setUp();
         } catch (\Throwable $e) {
-            $this->dropTrackedTables();
             $threw = true;
         }
 
@@ -299,8 +302,8 @@ final class RelocateAbandonedCharactersTest extends CIUnitTestCase
         // Возвращаем консистентную схему — иначе настоящий tearDown() этого теста
         // унаследует несовместимую map и упадёт сам, забрав с собой остальной набор.
         $this->conn->query('DROP TABLE IF EXISTS map');
-        $this->buildSchema();
-        $this->ensureOriginCells();
+        $this->conn->resetDataCache();
+        $this->setUp();
     }
 
     private function command(): RelocateAbandonedCharacters
