@@ -254,6 +254,33 @@ final class StandoffExpiryHandlerTest extends CIUnitTestCase
         $this->assertSame(0, (int) $row['notified_expired'], 'флаг остаётся 0 — пинг про неё больше не пробуем слать');
     }
 
+    /**
+     * pvp-detection-clarity-27 (CI-находка, run 34625203061) — на CI нет валидного
+     * Telegram-ключа: `telegram()` бросает `TelegramException` и на первой попытке, и в
+     * собственной аварийной ветке. `handle()` обязан пережить это — закрыть просроченные
+     * окна (уборка не зависит от Telegram) и молча пропустить рассылку пингов, оставив
+     * `notified_expired=0` для ретрая следующим тиком (в пределах RETRY_HORIZON_SEC).
+     */
+    public function testBrokenTelegramBridgeDoesNotCrashHandleAndStillClosesExpiredWindow(): void
+    {
+        $defender = $this->insertCharacter();
+        $attacker = $this->insertCharacter();
+        $cell     = 900_000_007;
+        $id       = $this->insertStandoffRow($attacker, $defender, $cell, 'open', -60);
+
+        $notifier = $this->capturingNotifier();
+        $handler  = $this->makeHandlerWithBrokenTelegram($notifier);
+
+        // Не должно бросать наружу — упавшая инициализация моста гасит только пинги.
+        $handler->handle();
+
+        $row = $this->conn->table('pvp_standoffs')->where('id', $id)->get()->getRowArray();
+        $this->assertIsArray($row);
+        $this->assertSame('expired', $row['status'], 'уборка (перевод в expired) не зависит от Telegram');
+        $this->assertSame(0, (int) $row['notified_expired'], 'пинг не отправлялся — флаг не сожжён');
+        $this->assertSame([], $notifier->calls, 'notifier не должен звонить, если мост не поднялся');
+    }
+
     public function testNotifyAttackerOnExpiryOffTransitionsStatusButSendsNoPing(): void
     {
         $this->setBoolSetting('pvp.standoff.notify_attacker_on_expiry', false);
@@ -310,14 +337,68 @@ final class StandoffExpiryHandlerTest extends CIUnitTestCase
         };
     }
 
-    private function makeHandler(StandoffNotifier $notifier): StandoffExpiryHandler
+    /**
+     * pvp-detection-clarity-27 (CI-находка) — CI не несёт валидного Telegram API-ключа,
+     * `BaseTaskHandler::telegram()` бросает и на первой попытке, и в собственной
+     * аварийной ветке (`new Telegram('invalid','invalid')` бросает то же исключение).
+     * Локальный `.env` с ключом валидного формата этого не воспроизводит — поэтому
+     * тест не полагается на окружение, а гарантированно ломает init подменой метода.
+     */
+    private function makeHandlerWithBrokenTelegram(StandoffNotifier $notifier): StandoffExpiryHandler
     {
-        return new StandoffExpiryHandler(
+        return new class (
             new PvpStandoffModel(),
             new PvpStandoffService(),
             $notifier,
             new GameSettingsService()
-        );
+        ) extends StandoffExpiryHandler {
+            protected function telegram(): \Longman\TelegramBot\Telegram
+            {
+                throw new \RuntimeException('simulated: Telegram-мост недоступен (нет ключа, как на CI)');
+            }
+        };
+    }
+
+    /**
+     * pvp-detection-clarity-27 (CI-находка) — `telegram()` теперь реально вызывается
+     * из `handle()` перед рассылкой пингов. Локальный `.env` несёт ключ валидного
+     * формата и молча это скрывает, а CI (без ключа вовсе) — нет. Тесты, проверяющие
+     * логику пинга/ретрая, не должны зависеть ни от того, ни от другого окружения:
+     * override возвращает `Telegram`, собранный из заведомо валидного ПО ФОРМАТУ (не
+     * по реальности) ключа — конструктор `Longman\TelegramBot\Telegram` только
+     * проверяет `preg_match('/(\d+):[\w\-]+/')`, сетевых вызовов не делает — а
+     * реальную доставку по-прежнему исполняет подменённый `sendExpiredPing()`.
+     */
+    private function stubTelegram(): \Longman\TelegramBot\Telegram
+    {
+        return new \Longman\TelegramBot\Telegram('123456:test-stub-format-only', 'test_stub_bot');
+    }
+
+    private function makeHandler(StandoffNotifier $notifier): StandoffExpiryHandler
+    {
+        $stub = $this->stubTelegram();
+        return new class (
+            new PvpStandoffModel(),
+            new PvpStandoffService(),
+            $notifier,
+            new GameSettingsService(),
+            $stub
+        ) extends StandoffExpiryHandler {
+            public function __construct(
+                PvpStandoffModel $model,
+                PvpStandoffService $service,
+                StandoffNotifier $notifier,
+                GameSettingsService $settings,
+                private readonly \Longman\TelegramBot\Telegram $stub
+            ) {
+                parent::__construct($model, $service, $notifier, $settings);
+            }
+
+            protected function telegram(): \Longman\TelegramBot\Telegram
+            {
+                return $this->stub;
+            }
+        };
     }
 
     private function createIfMissing(string $table, string $class, string $file): bool

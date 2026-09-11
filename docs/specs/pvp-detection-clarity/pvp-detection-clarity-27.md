@@ -139,6 +139,29 @@ handler их не зовёт: он делегирует отправку в `App
   истекла −700 сек — за горизонтом): убеждается, что `handle()` её не трогает и не шлёт.
   `testFailedPingKeepsFlagUnsetAndRetriesNextTick` сохранён без изменений (−60 сек — внутри
   горизонта, ретрай по-прежнему работает).
+- CI-находка (run 34625203061, `Tests: 4083, Errors: 2` на обоих тестах пинга): на CI нет
+  telegram-ключа вовсе (`.env` в репозиторий не попадает, `deploy.yml` его не создаёт), а
+  `BaseTaskHandler::telegram()` ловит `TelegramException` только вокруг первой попытки —
+  собственная аварийная ветка сама делает `new Telegram('invalid','invalid')`, который
+  бросает то же исключение НЕПОЙМАННЫМ (мина из `feedback_transport_double_hides_dead_send_path`,
+  не названная мне в брифе). Правка: голый `$this->telegram()` в `handle()` обёрнут в
+  `try/catch (\Throwable)` — при провале инициализации логируем `error` (не `warning`: порог
+  логирования на проде — 4, warning туда не попадает) и гасим `$notifyOnExpiry = false` только
+  на этот тик; перевод `open→expired` не зависит от Telegram и идёт как обычно, строка остаётся
+  `notified_expired=0` и подхватывается следующим тиком в пределах `RETRY_HORIZON_SEC`.
+  `BaseTaskHandler::telegram()` не тронут — общий класс вне `## Files`, см. `## Findings`.
+- Тесты переведены на env-независимый стаб `Telegram`, а не на реальный ключ из `.env`:
+  добавлен `StandoffExpiryHandlerTest::stubTelegram()` — `new Telegram('123456:test-stub-format-only',
+  'test_stub_bot')`, конструктор `Longman\TelegramBot\Telegram` только проверяет формат
+  регуляркой `preg_match('/(\d+):[\w\-]+/')` и сети не трогает. `makeHandler()` теперь строит
+  анонимный потомок `StandoffExpiryHandler`, переопределяющий `telegram()` на этот стаб —
+  локальный `.env` (валидный ключ) раньше маскировал зависимость от окружения, воспроизвести
+  провал CI (нет ключа вовсе) он не мог. Добавлен отдельный
+  `testBrokenTelegramBridgeDoesNotCrashHandleAndStillClosesExpiredWindow` +
+  `makeHandlerWithBrokenTelegram()` (переопределяет `telegram()`, бросает `RuntimeException`) —
+  проверяет именно новую защитную ветку. Прогон подтверждён ДВАЖДЫ: с реальным ключом
+  из `.env` и с `env "telegram.API_KEY=" "telegram.BOT_USERNAME="` (воспроизводит условия CI,
+  где переменных нет вовсе) — оба раза 7/7 зелёных.
 
 ## Findings
 
@@ -151,3 +174,13 @@ handler их не зовёт: он делегирует отправку в `App
 `app/` не даёт других вызывающих. Из CLI/крона этот путь не зовётся — чинить его
 этой story не нужно, дефект был только в паре `StandoffExpiryHandler` ↔
 `sendExpiredPing()`.
+
+Известное расхождение (CI-находка, не чинится этой story по прямому указанию): у
+`BaseTaskHandler::telegram()` (`app/TaskHandlers/BaseTaskHandler.php:39`) аварийная
+ветка (`catch (TelegramException)` → `new Telegram('invalid','invalid')`) сама бросает
+то же исключение вторично и НЕПОЙМАННО, потому что литерал `'invalid'` не проходит
+формат-регулярку конструктора `Telegram`. Любой другой handler, унаследованный от
+`BaseTaskHandler`, который зовёт `telegram()`/`safeSendMessage()`/`safeSendPhoto()` в
+окружении без ключа (как CI), получит тот же неперехваченный `TelegramException`.
+`StandoffExpiryHandler` теперь защищён своим локальным `try/catch`; остальные ~70
+handler'ов — нет. Правка `BaseTaskHandler` вне `## Files` этой story.

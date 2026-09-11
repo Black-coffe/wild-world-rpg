@@ -122,8 +122,24 @@ class StandoffExpiryHandler extends BaseTaskHandler
         // safeSendMessage(), который сам зовёт telegram() лениво; StandoffNotifier —
         // сервис общего назначения (его зовут ещё и из webhook, где мост уже готов),
         // поэтому инициализацию делаем здесь, один раз на прогон, до первой отправки.
+        //
+        // pvp-detection-clarity-27 (CI-находка) — `BaseTaskHandler::telegram()` ловит
+        // TelegramException только вокруг ПЕРВОЙ попытки; аварийная ветка сама создаёт
+        // `new Telegram('invalid','invalid')`, а конструктор `Telegram` бросает то же
+        // исключение на невалидном ключе/окружении без ключа (как на CI) — «страховка»
+        // не спасает. Оборачиваем здесь, а не правим общий `BaseTaskHandler` (он вне
+        // `## Files` этой story и его авария задевает разом все ~70 handler'ов). Если
+        // мост не поднялся — гасим ТОЛЬКО рассылку пингов в этом тике; перевод
+        // просроченных `open` в `expired` ниже не зависит от Telegram и обязан пройти
+        // в любом случае. Строки останутся с `notified_expired=0` и попадут под ретрай
+        // следующего тика в пределах RETRY_HORIZON_SEC — ровно желаемое поведение.
         if ($notifyOnExpiry) {
-            $this->telegram();
+            try {
+                $this->telegram();
+            } catch (\Throwable $e) {
+                log_message('error', '[' . static::class . '] telegram() init failed, skipping pings this tick: ' . $e->getMessage());
+                $notifyOnExpiry = false;
+            }
         }
 
         foreach ($rows as $row) {
