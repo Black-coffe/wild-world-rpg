@@ -279,7 +279,7 @@ final class StandoffAttackGateTest extends CIUnitTestCase
         $this->assertSame('open', $row['status']);
     }
 
-    public function testRepeatedTapOnFrozenTargetReturnsSameWaitScreenWithoutPayingCooldown(): void
+    public function testRepeatedTapOnFrozenTargetDoesNotPayCooldownAgain(): void
     {
         $this->setBoolSetting('pvp.standoff.enabled', true);
 
@@ -288,14 +288,23 @@ final class StandoffAttackGateTest extends CIUnitTestCase
         $attacker = $this->insertCharacter($cell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
         $this->placeWoodenWall($defender['id'], $cell);
 
-        $first  = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+        $first = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+
+        // pvp-detection-clarity-19 (AC#1): открытие НОВОГО окна само платит
+        // анти-спам-кулдаун атакующего — это и есть ограничитель цикла
+        // «атаковать → уйти → атаковать» (BLOCK-2 критично #A).
+        $cache      = \Config\Services::cache();
+        $afterFirst = $cache->get("pvp_attack_cd_{$attacker['id']}");
+        $this->assertIsInt($afterFirst, 'открытие нового окна обязано зафиксировать анти-спам-кулдаун атакующего');
+
         $second = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
 
         $this->assertStringContainsString('Осталось', $this->responseText($first));
         $this->assertStringContainsString('Осталось', $this->responseText($second), 'повторный тап по замороженной цели обязан отбиться тем же экраном');
 
-        $cache = \Config\Services::cache();
-        $this->assertNull($cache->get("pvp_attack_cd_{$attacker['id']}"), 'взгляд на часы не должен стоить 30-секундного кулдауна');
+        // AC#4: «экран ожидания» — повторный тап по СВОЕМУ уже открытому окну —
+        // остаётся бесплатным, кулдаун не продлевается заново вторым тапом.
+        $this->assertSame($afterFirst, $cache->get("pvp_attack_cd_{$attacker['id']}"), 'повторный тап по замороженной цели не должен продлевать кулдаун заново');
 
         $rows = $this->conn->table('pvp_standoffs')->where('attacker_id', $attacker['id'])->where('defender_id', $defender['id'])->countAllResults();
         $this->assertSame(1, $rows, 'повторный тап не должен открывать второе окно');
@@ -368,20 +377,33 @@ final class StandoffAttackGateTest extends CIUnitTestCase
         $second = (new StandoffLeaveAction($this->callbackQuery($attacker['tgId'], "standoffLeave_{$standoffId}")))->handle();
         $this->assertStringContainsString('уже отреагировал', $this->responseText($second));
 
-        // Атака после «Уйти» идёт обычным путём гейта окна: `cancelled` не армирует
-        // кулдаун защитника ({@see \App\Services\PVE\PvpStandoffService::COOLDOWN_ARMING_STATUSES}),
-        // поэтому повторный тап того же атакующего снова открывает окно (новая
-        // строка), а не бьёт мимо гейта прямо в бой — сам гейт (не PvpStandoffService,
-        // его контракт этой story не тронут) обязан пройти смежность/ограничения
-        // заново, не сорвавшись на кулдауне анти-спама (он не был потрачен —
-        // предыдущий тап отбился на самом же гейте окна, до записи в кэш).
-        $this->conn->table('characters')->where('id', $attacker['id'])->update(['health' => 99999]);
-        $this->conn->table('characters')->where('id', $defender['id'])->update(['health' => 99999]);
+        // pvp-detection-clarity-19 (AC#1, BLOCK-2 критично #A): первый invokeAttack()
+        // выше уже открыл окно и потратил анти-спам-кулдаун атакующего — немедленное
+        // повторное открытие после «Уйти» обязано упереться именно в него, а не
+        // крутиться бесплатно (это и была регрессия -13/-14 в сумме).
         $again     = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
         $againText = $this->responseText($again);
 
-        $this->assertStringNotContainsString('Подождите', $againText, 'предыдущий отбитый тап не должен был потратить анти-спам кулдаун');
-        $this->assertStringContainsString('Осталось', $againText, 'новое окно открывается заново — отменённое не кулдаунит защитника');
+        $this->assertStringContainsString('Подождите', $againText, 'немедленное повторное открытие после «Уйти» обязано упереться в собственный кулдаун атакующего');
+
+        $rowsAfterCooldownBlock = $this->conn->table('pvp_standoffs')->where('attacker_id', $attacker['id'])->where('defender_id', $defender['id'])->countAllResults();
+        $this->assertSame(1, $rowsAfterCooldownBlock, 'тап, отбитый кулдауном, не создаёт вторую строку окна');
+
+        // Non-goal story `-14` остаётся в силе отдельно от кулдауна атакующего:
+        // `cancelled` не армирует кулдаун ЗАЩИТНИКА
+        // ({@see \App\Services\PVE\PvpStandoffService::COOLDOWN_ARMING_STATUSES}).
+        // Сняв только кулдаун атакующего (эмулируя, что 30 сек прошли — реальный
+        // сценарий следующего честного тапа), реоткрытие обязано удаться сразу,
+        // без штрафа за прошлую отмену на стороне защитника.
+        $cache = \Config\Services::cache();
+        $cache->delete("pvp_attack_cd_{$attacker['id']}");
+        $this->conn->table('characters')->where('id', $attacker['id'])->update(['health' => 99999]);
+        $this->conn->table('characters')->where('id', $defender['id'])->update(['health' => 99999]);
+        $reopened     = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+        $reopenedText = $this->responseText($reopened);
+
+        $this->assertStringNotContainsString('Подождите', $reopenedText, 'после снятия своего кулдауна атакующий не должен нести штраф за прошлую отмену защитника');
+        $this->assertStringContainsString('Осталось', $reopenedText, 'новое окно открывается заново — отменённое не кулдаунит защитника');
 
         $rows = $this->conn->table('pvp_standoffs')->where('attacker_id', $attacker['id'])->where('defender_id', $defender['id'])->countAllResults();
         $this->assertSame(2, $rows, 'вторая попытка — отдельная новая строка окна, не бой мимо гейта');
@@ -433,6 +455,11 @@ final class StandoffAttackGateTest extends CIUnitTestCase
         $this->assertStringContainsString('🔒', $text);
         $this->assertStringNotContainsString('⚠️ Ошибка', $text, 'UX-Discoverability: тап по замку объясняет, а не отказывает');
         $this->assertStringContainsString('качай уровень', $text);
+
+        // AC#4 (pvp-detection-clarity-19): тап по замку — «уровень» имеет
+        // lock-кнопку в PlayerDetectionService, поэтому бесплатен.
+        $cache = \Config\Services::cache();
+        $this->assertNull($cache->get("pvp_attack_cd_{$attacker['id']}"), 'объяснение замка не должно стоить анти-спам-кулдауна');
     }
 
     // ---------------------------------------------------------------- pvp-detection-clarity-13 (BLOCK #1 / major #5)
@@ -455,6 +482,11 @@ final class StandoffAttackGateTest extends CIUnitTestCase
 
         $rows = $this->conn->table('pvp_standoffs')->where('attacker_id', $attacker['id'])->where('defender_id', $defender['id'])->countAllResults();
         $this->assertSame(0, $rows, 'далёкая цель не должна открывать окно и поднимать тревогу защитнику');
+
+        // pvp-detection-clarity-19 (BLOCK-2 major #B, AC#3): отбитый по смежности
+        // тап — как на origin/develop — снова стоит атакующему анти-спам-кулдаун.
+        $cache = \Config\Services::cache();
+        $this->assertIsInt($cache->get("pvp_attack_cd_{$attacker['id']}"), 'тап по далёкой цели обязан фиксировать анти-спам-кулдаун');
     }
 
     public function testRestrictedPairDoesNotOpenStandoff(): void
@@ -476,6 +508,44 @@ final class StandoffAttackGateTest extends CIUnitTestCase
 
         $rows = $this->conn->table('pvp_standoffs')->where('attacker_id', $attacker['id'])->where('defender_id', $defender['id'])->countAllResults();
         $this->assertSame(0, $rows, 'запрещённая PvP-пара (уровень ниже порога) не должна открывать окно');
+
+        // pvp-detection-clarity-19 (AC#4): «уровень» — одна из трёх причин с
+        // lock-кнопкой в PlayerDetectionService, поэтому тап по ней бесплатен
+        // (та же lock-explanation, что тап прямо по кнопке «🔒»).
+        $cache = \Config\Services::cache();
+        $this->assertNull($cache->get("pvp_attack_cd_{$attacker['id']}"), 'запрет с lock-кнопкой (уровень) не должен стоить анти-спам-кулдауна');
+    }
+
+    /**
+     * pvp-detection-clarity-19 (BLOCK-2 major #B): `map_missing` — единственная
+     * причина `checkPvPAllowed()`, у которой нет lock-метки в
+     * `PlayerDetectionService::lockLabel()` — и попасть на неё с рендеренной
+     * кнопки нельзя вовсе: детект-список берёт игроков INNER JOIN'ом по `map`,
+     * такого игрока там нет. Значит это настоящая запрещённая пара «не с
+     * кнопки-замка» (AC#3), и она обязана платить кулдаун, как далёкая цель.
+     */
+    public function testRestrictedPairWithoutLockButtonChargesCooldown(): void
+    {
+        $this->setBoolSetting('pvp.standoff.enabled', true);
+
+        // Общая (несуществующая на `map`) клетка у обоих — isCellsCloseEnough()
+        // проходит по равенству cell_number без чтения `map`, а checkPvPAllowed()
+        // падает на собственном чтении `map` и возвращает `reason_code=map_missing`.
+        $ghostCell = 987_654_321;
+        $defender  = $this->insertCharacter($ghostCell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+        $attacker  = $this->insertCharacter($ghostCell, ['telegram_id' => random_int(100_000_000, 999_999_999)]);
+
+        $response = $this->invokeAttack($attacker['tgId'], $attacker['id'], $defender['id']);
+        $text     = $this->responseText($response);
+
+        $this->assertStringContainsString('🔒', $text);
+        $this->assertStringNotContainsString('Осталось', $text);
+
+        $rows = $this->conn->table('pvp_standoffs')->where('attacker_id', $attacker['id'])->where('defender_id', $defender['id'])->countAllResults();
+        $this->assertSame(0, $rows, 'запрещённая пара без карты не должна открывать окно');
+
+        $cache = \Config\Services::cache();
+        $this->assertIsInt($cache->get("pvp_attack_cd_{$attacker['id']}"), 'причина без lock-кнопки обязана платить анти-спам-кулдаун');
     }
 
     public function testAttackerHittingForeignOpenWindowSeesNoOwnershipTrapButtons(): void
@@ -506,8 +576,61 @@ final class StandoffAttackGateTest extends CIUnitTestCase
         $this->assertStringNotContainsString('не твоё', $text, 'экран не должен содержать ловушку владения');
         $this->assertStringContainsString('чужой тревогой', $text, 'текст обязан честно объяснить причину отказа');
 
+        // pvp-detection-clarity-19 (BLOCK-2 minor #F): экран без чужих кнопок
+        // владения — не тупик без единой кнопки; должен остаться хотя бы один
+        // рабочий путь дальше (на карту), в котором игроку не откажут.
+        $this->assertNotEmpty($buttons, 'экран «чужая тревога» не должен быть тупиком без единой кнопки');
+
         $rows = $this->conn->table('pvp_standoffs')->where('defender_id', $defender['id'])->countAllResults();
         $this->assertSame(1, $rows, 'второй тап не должен открывать второе окно на того же защитника');
+    }
+
+    /**
+     * pvp-detection-clarity-19 — мост между двумя независимыми списками причин:
+     * `PlayerDetectionService::lockLabel()` решает, рисовать ли замок с конкретной
+     * подсказкой на карте, `AttackPlayerAction::restrictionReasonHasLockButton()`
+     * решает, платит ли тап по `checkPvPAllowed()`-отказу кулдаун. Связаны только
+     * соглашением («2 системы ключей без моста» — тот же класс дыры, что уже
+     * ловили раньше: молчаливый рассинхрон даёт мёртвую/откаченную фичу с
+     * зелёными тестами). `PlayerDetectionService.php` держит story `-22` —
+     * читаем его приватный `lockLabel()` тем же Reflection-приёмом, что уже есть
+     * в этом файле для приватных методов `AttackPlayerAction`, не трогая файл.
+     *
+     * Оба метода чистые (не читают `$this`), поэтому `newInstanceWithoutConstructor()`
+     * безопасен — конструктор `PlayerDetectionService` тянет `GameBalance`/DI,
+     * который `lockLabel()` не использует вовсе.
+     *
+     * Причины перечислены буквально по контракту `PvPRestrictionService::checkPvPAllowed()`
+     * (`level` / `map_missing` / `safe_zone` / `account_age`) плюс контрольный
+     * незнакомый код — доказывает, что ОБЕ стороны одинаково относят его к «нет
+     * замка», а не расходятся молча.
+     */
+    public function testLockButtonReasonsMatchCooldownExemptReasons(): void
+    {
+        $reasonCodes = ['level', 'map_missing', 'safe_zone', 'account_age', 'some_future_reason_code'];
+
+        $detectionService = (new ReflectionClass(\App\Services\Player\PlayerDetectionService::class))
+            ->newInstanceWithoutConstructor();
+        $lockLabel = new ReflectionMethod(\App\Services\Player\PlayerDetectionService::class, 'lockLabel');
+        $lockLabel->setAccessible(true);
+        $genericLabel = (string) $lockLabel->invoke($detectionService, 'some_future_reason_code');
+
+        $hasLockButton = new ReflectionMethod(AttackPlayerAction::class, 'restrictionReasonHasLockButton');
+        $hasLockButton->setAccessible(true);
+
+        foreach ($reasonCodes as $reasonCode) {
+            $label            = (string) $lockLabel->invoke($detectionService, $reasonCode);
+            $rendersAsLock    = $label !== $genericLabel;
+            $chargesNoCooldown = (bool) $hasLockButton->invoke($this->action(), $reasonCode);
+
+            $this->assertSame(
+                $rendersAsLock,
+                $chargesNoCooldown,
+                "reason_code='{$reasonCode}': PlayerDetectionService::lockLabel() и "
+                . "AttackPlayerAction::restrictionReasonHasLockButton() разошлись — "
+                . 'один список знает эту причину замка, а другой нет'
+            );
+        }
     }
 
     // ---------------------------------------------------------------- Reflection: resolveStandoffPreGate()/resolveStandoffOpen()/applyHoldBonus()

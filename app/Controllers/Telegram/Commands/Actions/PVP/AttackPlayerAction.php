@@ -163,12 +163,6 @@ class AttackPlayerAction extends BaseAction
         // ADR-186 §3/Инвариант 7: тап защитника по «⚔️ Ударить первым» — не
         // спам, а разовое право ответа из живого окна; свой кулдаун атакующего
         // (тут — базы) на этот тап не распространяется.
-        //
-        // pvp-detection-clarity-13: САМА ЗАПИСЬ кулдауна (`$cache->save()`) сдвинута
-        // ниже, за resolveStandoffOpen() — тап, который лишь открывает окно/натыкается
-        // на чужое окно (`block=true`), не платит кулдаун, ровно как раньше отбитый
-        // тап никогда не доходил до `$cache->save()` вовсе (Инвариант 6). Платит
-        // только тап, что реально доходит до боя.
         $cooldownSec = $this->cfg->pvpAttackCooldownSec;
         $cacheKey    = "pvp_attack_cd_{$attacker['id']}";
         $cache       = \Config\Services::cache();
@@ -180,13 +174,43 @@ class AttackPlayerAction extends BaseAction
             }
         }
 
-        if (!$this->isCellsCloseEnough($attacker, $defender)) {
+        // pvp-detection-clarity-19 (BLOCK-2 критично #A / major #B) — фиксация
+        // кулдауна разложена по путям, а не по одной точке внизу handle():
+        // -13/-14 в сумме сдвинули `$cache->save()` НИЖЕ смежности/ограничений
+        // и перестали армировать кулдаун защитника на `cancelled`, из-за чего
+        // «⚔️ Атаковать → 🚶 Уйти → ⚔️ Атаковать» крутился бесплатно, а отбитые
+        // по смежности/ограничениям тапы вообще перестали платить. Свободными
+        // обязаны остаться ровно три экрана (AC#4): объяснение замка
+        // (`sendRestrictionExplanation` для причин, у которых есть lock-кнопка —
+        // level/safe_zone/account_age, {@see PlayerDetectionService::lockLabel()}),
+        // «⏳ Проверить»/повторный тап по СВОЕМУ уже открытому окну (не платит
+        // и раньше — pre-gate block выше вообще не доходит до кэша) и честный
+        // экран «чужая тревога». Всё остальное — включая САМО открытие нового
+        // окна (было бесплатно, это и была дыра #A) — платит кулдаун.
+        if (! $this->isCellsCloseEnough($attacker, $defender)) {
+            if (! $standoffPreGate['isCounterAttack']) {
+                $cache->save($cacheKey, time(), $cooldownSec);
+            }
+
             return $this->sendError("Игрок слишком далеко. Атаковать можно только в одной или соседней ячейке!");
         }
 
         $pvpRestrictionService = new PvPRestrictionService();
         $check = $pvpRestrictionService->checkPvPAllowed($attacker, $defender);
         if (!$check['allowed']) {
+            $reasonCode = is_string($check['reason_code'] ?? null) ? $check['reason_code'] : '';
+            // Только level/safe_zone/account_age имеют lock-кнопку в
+            // PlayerDetectionService (тот же checkPvPAllowed решает, показать
+            // «🔒 <причина>» или «⚔️ Атаковать» — {@see PlayerDetectionService::lockLabel()}),
+            // поэтому тап на них — почти всегда тот самый замок (AC#4, бесплатно).
+            // `map_missing` и любой будущий код без lock-метки никогда не
+            // отражается кнопкой (детект-список берёт игроков INNER JOIN'ом по
+            // `map`, такого игрока там просто не будет) — значит это не замок,
+            // а настоящая запрещённая пара, и она платит, как isCellsCloseEnough выше.
+            if (! $this->restrictionReasonHasLockButton($reasonCode) && ! $standoffPreGate['isCounterAttack']) {
+                $cache->save($cacheKey, time(), $cooldownSec);
+            }
+
             // UX-DISCOVERABILITY: тап по lock-кнопке («🔒 Уровень» и т.п. из
             // PlayerDetectionService, тот же callback_data) объясняет условие,
             // а не отказывает «⚠️ Ошибка» (pvp-detection-clarity-08, находка -07).
@@ -201,6 +225,15 @@ class AttackPlayerAction extends BaseAction
 
         if (is_array($standoffOutcome['justOpened'])) {
             (new StandoffNotifier())->alertDefender($standoffOutcome['justOpened']);
+
+            // Само открытие НОВОГО окна — единственный ограничитель цикла
+            // «атаковать → уйти → атаковать» (AC#1): отмена (`cancelled`) не
+            // армирует кулдаун защитника (-14, правильно — Non-goals), но
+            // ПОВТОРНОЕ открытие тем же атакующим против той же цели снова
+            // упирается в его же анти-спам-кулдаун ровно как первое.
+            if (! $standoffPreGate['isCounterAttack']) {
+                $cache->save($cacheKey, time(), $cooldownSec);
+            }
         }
         if ($standoffOutcome['block']) {
             // BLOCK major #5 — окно, открытое кем-то другим против той же цели:
@@ -217,7 +250,8 @@ class AttackPlayerAction extends BaseAction
         }
 
         // Тап дошёл до реального боя (или до штатного продолжения без окна) —
-        // только теперь фиксируем анти-спам кулдаун (см. комментарий выше).
+        // фиксируем анти-спам кулдаун, если ещё не зафиксирован выше (открытие
+        // окна и обычный бой — взаимоисключающие пути, двойной записи нет).
         if (! $standoffPreGate['isCounterAttack']) {
             $cache->save($cacheKey, time(), $cooldownSec);
         }
@@ -798,6 +832,12 @@ class AttackPlayerAction extends BaseAction
      * кто держит тревогу первым и сколько осталось. Секунды читаются готовой
      * формулой `PvpStandoffService::secondsLeft()`, не дублируются здесь.
      *
+     * pvp-detection-clarity-19 (BLOCK-2 minor #F): раньше экран уходил вовсе
+     * без клавиатуры — честно по владению (ни одна кнопка ему не принадлежит),
+     * но тупик: игроку некуда нажать дальше. «🗺️ Поход» ведёт туда же, куда
+     * штатная кнопка возврата на карту (`RunAwayAction`/`AttackPlayerAction`
+     * combat-screen), не выдаёт ложных прав на чужое окно.
+     *
      * @param array<string,mixed> $standoff чужая строка pvp_standoffs
      */
     private function sendForeignStandoffScreen(array $standoff): ServerResponse
@@ -814,10 +854,29 @@ class AttackPlayerAction extends BaseAction
         ]);
 
         return Request::sendMessage([
-            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'       => $text,
-            'parse_mode' => 'HTML',
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'         => $text,
+            'parse_mode'   => 'HTML',
+            'reply_markup' => json_encode([
+                'inline_keyboard' => [[
+                    ['text' => '🗺️ Поход', 'callback_data' => 'march'],
+                ]],
+            ]) ?: '{}',
         ]);
+    }
+
+    /**
+     * pvp-detection-clarity-19 (BLOCK-2 major #B) — только эти три причины
+     * `checkPvPAllowed()` появляются как «🔒 <причина>» на карте
+     * ({@see \App\Services\Player\PlayerDetectionService::lockLabel()}, тот же
+     * `checkPvPAllowed()` внутри решает, показать замок или «⚔️ Атаковать»).
+     * `map_missing` и любой другой код никогда не рендерится замком — детект-
+     * список берёт игроков INNER JOIN'ом по `map`, такого игрока в списке
+     * попросту не будет, значит тап на этой причине не мог прийти с замка.
+     */
+    private function restrictionReasonHasLockButton(string $reasonCode): bool
+    {
+        return in_array($reasonCode, ['level', 'safe_zone', 'account_age'], true);
     }
 
     /**
