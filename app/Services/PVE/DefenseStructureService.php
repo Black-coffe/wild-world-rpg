@@ -185,6 +185,23 @@ final class DefenseStructureService
     }
 
     /**
+     * ADR-186 §2 (pvp-detection-clarity-06) — честный признак «персонаж на своей
+     * базе» для окна противостояния. Переиспользует ровно тот же SQL, что
+     * {@see activeStructures()}, и НЕ путается с `getDefenseProfile() !== null`:
+     * с ADR-064 тот метод возвращает профиль и на одном боевом дроне в чистом
+     * поле (`structure_ids => []`) — признак базы обязан требовать непустой
+     * набор активных (hp>0) оборонительных построек именно на этой клетке.
+     */
+    public function hasActiveStructuresOnCell(int $characterId, int $cellNumber): bool
+    {
+        if ($characterId <= 0 || $cellNumber <= 0) {
+            return false;
+        }
+
+        return $this->activeStructures($characterId, $cellNumber) !== [];
+    }
+
+    /**
      * @return list<array<string,mixed>>
      */
     private function activeStructures(int $defenderId, int $cellNumber): array
