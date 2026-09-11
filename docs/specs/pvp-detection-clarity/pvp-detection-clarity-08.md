@@ -31,12 +31,13 @@ blocked_by: [pvp-detection-clarity-06]
 - app/Controllers/Telegram/Commands/Actions/PVP/AttackPlayerAction.php
 - app/Controllers/Telegram/Commands/Actions/PVP/StandoffCheckAction.php
 - app/Controllers/Telegram/Commands/Actions/PVP/StandoffLeaveAction.php
+- app/Config/CallbackRoutes.php
 - tests/database/StandoffAttackGateTest.php
 
 ## Non-goals
 - Не блокировать атакующему прочие действия: запрет узкий, на пару (атакующий, защитник). Широкий запрет превращает окно в оружие защитника.
 - Не трогать `PvpRoundOrchestrator` и `PvpDamageCalculator` — RNG-fence; надбавка «укрыться» едет существующим `damage_reduction`.
-- Не менять `RunAwayAction` и не создавать «укрыться» — это `-09`, соседняя story той же волны.
+- Не менять `RunAwayAction` и не создавать «укрыться» — это `-09`, она идёт СЛЕДУЮЩЕЙ волной.
 - Не писать свои условные апдейты и не дублировать логику окна: всё через `PvpStandoffService` из `-06`.
 - Не переносить кулдаун 30 с в `GameSettings`: ADR-186 §6 оставляет его в коде.
 - Не запускать полный набор и не делать `DROP`/`migrate` на общей локальной тест-БД; не делать `git stash`/`git checkout`.

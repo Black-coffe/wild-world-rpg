@@ -5,7 +5,7 @@ status: todo
 tier: 1
 worker: drone-docs
 tracer: false
-wave: 4
+wave: 5
 blocked_by: [pvp-detection-clarity-08, pvp-detection-clarity-09, pvp-detection-clarity-10]
 ---
 
