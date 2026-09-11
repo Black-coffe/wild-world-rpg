@@ -33,6 +33,7 @@ use App\Services\PVE\PvpRewardOrchestrator;
 use App\Services\PVE\PvpRoundOrchestrator;
 use App\Services\PVE\PvpStandoffService;
 use App\Services\PVE\StandoffNotifier;
+use App\Services\Telegram\ButtonPacker;
 
 use Config\GameBalance;
 
@@ -838,6 +839,11 @@ class AttackPlayerAction extends BaseAction
      * штатная кнопка возврата на карту (`RunAwayAction`/`AttackPlayerAction`
      * combat-screen), не выдаёт ложных прав на чужое окно.
      *
+     * pvp-detection-clarity-23 (BLOCK-3 major #1): одна кнопка в ряду нарушает
+     * 🔴-правило `ButtonPacker` («ноль одиночек»). Добавлена «◀️ Я» — тот же
+     * запасной путь, что у `RunAwayAction` после побега — и обе кнопки идут
+     * через `pack()`, а не собранным вручную рядом.
+     *
      * @param array<string,mixed> $standoff чужая строка pvp_standoffs
      */
     private function sendForeignStandoffScreen(array $standoff): ServerResponse
@@ -858,9 +864,10 @@ class AttackPlayerAction extends BaseAction
             'text'         => $text,
             'parse_mode'   => 'HTML',
             'reply_markup' => json_encode([
-                'inline_keyboard' => [[
+                'inline_keyboard' => ButtonPacker::pack([
                     ['text' => '🗺️ Поход', 'callback_data' => 'march'],
-                ]],
+                    ['text' => '◀️ Я',      'callback_data' => 'character'],
+                ]),
             ]) ?: '{}',
         ]);
     }

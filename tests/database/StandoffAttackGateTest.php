@@ -581,6 +581,13 @@ final class StandoffAttackGateTest extends CIUnitTestCase
         // рабочий путь дальше (на карту), в котором игроку не откажут.
         $this->assertNotEmpty($buttons, 'экран «чужая тревога» не должен быть тупиком без единой кнопки');
 
+        // pvp-detection-clarity-23 (BLOCK-3 major #1): проверяем ФОРМУ РЯДОВ на
+        // выходе нормализатора — одиночная кнопка в ряду нарушает 🔴-правило
+        // ButtonPacker и AC story -19 «2-3 в ряд», даже если кнопок в сумме много.
+        foreach ($this->keyboardRows($response) as $row) {
+            $this->assertGreaterThanOrEqual(2, count($row), 'ни один ряд клавиатуры не может нести одиночную кнопку');
+        }
+
         $rows = $this->conn->table('pvp_standoffs')->where('defender_id', $defender['id'])->countAllResults();
         $this->assertSame(1, $rows, 'второй тап не должен открывать второе окно на того же защитника');
     }
@@ -607,7 +614,14 @@ final class StandoffAttackGateTest extends CIUnitTestCase
      */
     public function testLockButtonReasonsMatchCooldownExemptReasons(): void
     {
-        $reasonCodes = ['level', 'map_missing', 'safe_zone', 'account_age', 'some_future_reason_code'];
+        // pvp-detection-clarity-23 (BLOCK-3 minor #3): перечень реальных кодов
+        // читается из источника (`checkPvPAllowed()`), а не переписывается
+        // литералом в тесте — код, добавленный в сервис и забытый здесь,
+        // раньше мог разъехаться молча. Контрольный незнакомый код остаётся
+        // литералом намеренно: его нет и не может быть в источнике, он
+        // доказывает, что ОБЕ стороны одинаково относят «неизвестный код» к
+        // «нет замка».
+        $reasonCodes = [...$this->pvpAllowedReasonCodes(), 'some_future_reason_code'];
 
         $detectionService = (new ReflectionClass(\App\Services\Player\PlayerDetectionService::class))
             ->newInstanceWithoutConstructor();
@@ -889,6 +903,30 @@ final class StandoffAttackGateTest extends CIUnitTestCase
         ]);
     }
 
+    /**
+     * pvp-detection-clarity-23 (BLOCK-3 minor #3): `checkPvPAllowed()` не
+     * выставляет свои коды отказа программным списком (ни константы, ни enum,
+     * ни метода-перечисления) — только `'reason_code' => '<код>'` в каждом
+     * `return`-блоке. Источник читается сканом исходника (тот же приём, что
+     * `token_get_all` в `CallbackDataRoutingTest`/`CommunityGuardTest`), а не
+     * переписывается литералом в тесте: код, добавленный в сервис и забытый
+     * здесь, ловится по расхождению множеств, а не тонет молча.
+     *
+     * @return list<string>
+     */
+    private function pvpAllowedReasonCodes(): array
+    {
+        $file = (new ReflectionClass(\App\Services\Player\PvPRestrictionService::class))->getFileName();
+        $src  = $file !== false ? (string) file_get_contents($file) : '';
+
+        preg_match_all("/'reason_code'\\s*=>\\s*'([a-z_]+)'/", $src, $matches);
+
+        $codes = array_values(array_unique($matches[1] ?? []));
+        $this->assertNotEmpty($codes, 'checkPvPAllowed() не отдал ни одного reason_code сканом исходника — источник переехал?');
+
+        return $codes;
+    }
+
     private function responseText(ServerResponse $response): string
     {
         $result = $response->getResult();
@@ -904,6 +942,25 @@ final class StandoffAttackGateTest extends CIUnitTestCase
      */
     private function flattenButtons(ServerResponse $response): array
     {
+        $flat = [];
+        foreach ($this->keyboardRows($response) as $row) {
+            foreach ($row as $button) {
+                $flat[] = $button;
+            }
+        }
+
+        return $flat;
+    }
+
+    /**
+     * pvp-detection-clarity-23: ряды КАК ОНИ ЕСТЬ на выходе `ButtonPacker::pack()`
+     * (не расплющенный список кнопок) — иначе тест не может проверить правило
+     * «ноль одиночек в ряду», которое живёт именно в форме рядов.
+     *
+     * @return list<list<array{text:string,callback_data:string}>>
+     */
+    private function keyboardRows(ServerResponse $response): array
+    {
         $result  = $response->getResult();
         $raw     = is_object($result) ? ($result->reply_markup ?? null) : null;
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
@@ -911,19 +968,21 @@ final class StandoffAttackGateTest extends CIUnitTestCase
             return [];
         }
 
-        $flat = [];
+        $rows = [];
         foreach ($decoded['inline_keyboard'] as $row) {
             if (! is_array($row)) {
                 continue;
             }
+            $packedRow = [];
             foreach ($row as $button) {
                 if (is_array($button)) {
-                    $flat[] = $button;
+                    $packedRow[] = $button;
                 }
             }
+            $rows[] = $packedRow;
         }
 
-        return $flat;
+        return $rows;
     }
 
     private function createIfMissing(string $table, string $class, string $file): bool
