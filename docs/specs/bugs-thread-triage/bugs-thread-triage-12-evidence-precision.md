@@ -1,7 +1,7 @@
 ---
 story: bugs-thread-triage-12
 spec: bugs-thread-triage
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -67,5 +67,9 @@ blocked_by: [bugs-thread-triage-09]
 `bash docs/specs/bugs-thread-triage/verdict-lint.sh docs/specs/bugs-thread-triage/verdicts/craft.md && bash docs/specs/bugs-thread-triage/verdict-lint.sh docs/specs/bugs-thread-triage/verdicts/bases.md && bash docs/specs/bugs-thread-triage/verdict-lint.sh docs/specs/bugs-thread-triage/verdicts/consumables.md`
 
 ## Implementation notes
+- `craft.md` (mid `4294974610`): подтверждено grep'ом (`craftCardHelper->quantityRows` в `app/` — единственное совпадение, `UtilityRecipePreviewT3Action.php:251`), что `MedicalRecipePreviewT3Action.php:235`, `ArmorRecipePreviewT3Action.php:273`, `WeaponRecipePreviewT3Action.php:268` всё ещё жёстко печатают «Скрафтить 1 шт». Хвост назван в `Сомнения` как незакрытый — не переоткрывает жалобу, т.к. `craft-quantity-parity-01.md` (Non-goals) осознанно сузил scope до одного экрана.
+- `bases.md`: строка про `BuildingHandlerCoverageTest` сужена — тест сканирует исходник на метки `case` и гарантирует отсутствие пропущенного `case`, но не ловит `case`, ведущий на сломанный handler (подтверждено чтением теста, урок `feedback_source_scan_tests_are_not_coverage`).
+- `consumables.md` (mid `4294974461`): поле «Живой прогон» сужено — синтетический прогон проверял только сохранённое в БД `health`/`tired`, а симптом со скриншота (напечатанное «до» у второго препарата) — это рендер, который прогон не смотрел.
+- Правки точечные (Edit, не переписывание файлов); вердикты и черновики ответов не менялись.
 
 ## Findings
