@@ -132,3 +132,13 @@
 {"ts":"2026-09-11T14:38:14Z","story":"pvp-detection-clarity-19","declared":2,"changed":3,"out_of_scope":3}
 {"ts":"2026-09-11T14:38:14Z","story":"pvp-detection-clarity-20","declared":4,"changed":3,"out_of_scope":3}
 {"ts":"2026-09-11T14:38:14Z","story":"pvp-detection-clarity-22","declared":4,"changed":3,"out_of_scope":3}
+{"ts":"2026-09-12T09:48:46Z","story":"bugs-thread-triage-03-robots","declared":1,"changed":8,"out_of_scope":7}
+{"ts":"2026-09-12T15:44:13Z","story":"bugs-thread-triage-08-report","declared":1,"changed":7,"out_of_scope":6}
+{"ts":"2026-09-12T15:45:05Z","story":"bugs-thread-triage-01-bases","declared":1,"changed":6,"out_of_scope":6}
+{"ts":"2026-09-12T15:45:05Z","story":"bugs-thread-triage-02-storage","declared":1,"changed":6,"out_of_scope":6}
+{"ts":"2026-09-12T15:45:06Z","story":"bugs-thread-triage-03-robots","declared":1,"changed":6,"out_of_scope":6}
+{"ts":"2026-09-12T15:45:06Z","story":"bugs-thread-triage-04-craft","declared":1,"changed":6,"out_of_scope":6}
+{"ts":"2026-09-12T15:45:06Z","story":"bugs-thread-triage-05-consumables","declared":1,"changed":6,"out_of_scope":6}
+{"ts":"2026-09-12T15:45:07Z","story":"bugs-thread-triage-06-world","declared":1,"changed":6,"out_of_scope":6}
+{"ts":"2026-09-12T15:45:07Z","story":"bugs-thread-triage-07-live-run","declared":1,"changed":6,"out_of_scope":6}
+{"ts":"2026-09-12T15:45:08Z","story":"bugs-thread-triage-08-report","declared":1,"changed":6,"out_of_scope":6}
