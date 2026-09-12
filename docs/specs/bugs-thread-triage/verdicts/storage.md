@@ -11,7 +11,7 @@
 **Чем доказано:** прогон `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Storage/BaseStorageDepositTest.php tests/unit/Storage/BaseStorageRetrieveTest.php tests/unit/Storage/BaseStorageWithdrawTest.php` — 19 passed, 66 assertions (зелёный на локальной БД сессии). Прод-`SELECT` по `action_log` (`wildworld-bot`): `BASE_STORAGE_DEPOSIT` — 84 строки (19.08–24.08), `BASE_STORAGE_DEPOSIT_ALL` — 7 строк (19.08–02.09), `BASE_STORAGE_RETRIEVE_ONE` — 73 строки (24.08–25.08) — экран `BaseStorageDepositAction` не просто задеплоен, им реально пользуются живые игроки в обе стороны.
 **На проде:** коммит `95c1cca3` (`feat(ux): три вопроса Анжелы закрыты — заряд маяка, своя карта, склад в обе стороны`) → `git tag --contains 95c1cca3 | sort -V | head -1` = `v0.51.626` ≤ `v0.51.666` — в прод-релизе; плюс прямой прод-`SELECT` выше подтверждает фактическое использование.
 **Живой прогон:** не нужен — прод-данные уже показывают реальные вызовы обоих направлений.
-**Черновик ответа:** Починили: на своей базе теперь можно и забрать со склада, и *положить на склад* руками — кнопка рядом со *📦 Склад базы*, дрон для этого больше не обязателен.
+**Черновик ответа:** Починили: на своей базе теперь можно и забрать со склада, и положить руками — открой *🎒 Инвентарь → 📦 Склад базы*, кнопка «📥 Положить на склад» уже на этом экране, дрон для этого больше не обязателен.
 **Сомнения:** нет.
 
 ### `4294974531` — 2026-08-19 — Анжела
@@ -46,23 +46,38 @@ T2 `WorkbenchStandard` — брони, оружия) карточка и ста�
 (`CraftCardHelper::available()` → `ResourcePoolService::availableByName()`, `GenericCraftActionStart::checkResources()`
 → тот же `ResourcePoolService::breakdown()` — прогон `vendor/bin/phpunit --no-coverage --no-progress
 tests/unit/Player/ResourcePoolServiceTest.php tests/unit/Services/Craft/CraftCardHelperTest.php` —
-17 passed, 36 assertions). Но **специализированные T2-карточки не мигрировали**: ни в одном файле
-`app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchStandard/Robots/*.php` (`RobotExplorer2Action`,
-`RobotGatherer2Action`, `RobotT2PreviewAction` — общий предок `RobotScout2Action`/`RobotIndustrial2Action`)
-и `WorkbenchStandard/TeleportBeacon/{TeleportBackpack2Action,TeleportBeaconBasic2Action}.php` нет ни
-одного упоминания `ResourcePoolService` (`grep -rl ResourcePoolService` — пусто); все четыре читают
-доступность через `CharacterResourceModel`/`getResourceByNameAndCharacterId()` напрямую — тот же
-самый баг, что описан в жалобе, просто на карточках роботов и маяков телепортации, а не на обычном
-крафте. Игрок, стоящий на складе с ресурсами под робота или маяк, увидит ❌ ровно как до фикса.
+17 passed, 36 assertions). Но **специализированные T2-карточки не мигрировали** — и черновик здесь
+изначально занизил счёт: файлов **семь**, не пять/четыре. `app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchStandard/Robots/`:
+`RobotExplorer2Action.php`, `RobotGatherer2Action.php`, `RobotT2PreviewAction.php` — три файла, но
+экрана четыре: `RobotT2PreviewAction` — абстрактный общий предок, от него наследуются
+`RobotScout2Action` и `RobotIndustrial2Action` (`grep -rn 'extends RobotT2PreviewAction'` — ровно
+эти два), а свою реализацию рендера не переопределяют — значит их карточки ломаются тем же кодом
+предка. `WorkbenchStandard/TeleportBeacon/` — уже не два файла, как в первом прогоне грепа этого
+блока, а четыре: `TeleportBackpack2Action.php`, `TeleportBeaconBasic2Action.php` (были в исходном
+списке) плюс пропущенные тогда `PortableTeleport2Action.php` (та же карточка требований для «📡
+Портативный телепорт», `resourceQuantity()` читает исключительно `CharacterResourceModel`) и
+`StartCraftPortableTeleport2Action.php` — она НЕ того же типа, что соседние
+`StartCraftTeleportBackpack2Action`/`StartCraftTeleportBeaconBasic2Action` (те по своему докблоку
+«доверяют предыдущему экрану» и ресурсы повторно не проверяют — просто списывают, не тот класс
+бага); `StartCraftPortableTeleport2Action`, по контрасту, согласно собственному докблоку нарочно
+перепроверяет требования ПОВТОРНО перед списанием тем же прямым `CharacterResourceModel` — второй,
+самостоятельный разрыв на том же предмете. Ни в одном из всех семи файлов нет ни одного упоминания
+`ResourcePoolService` (`grep -rl ResourcePoolService` — пусто); все читают доступность через
+`CharacterResourceModel`/`getResourceByNameAndCharacterId()` напрямую — тот же самый баг, что описан
+в жалобе. Итог: 7 файлов / 7 карточек-предметов (4 робота T2 — Исследователь, Добытчик, Разведчик,
+Промышленник — и 3 телепорт-рецепта), из которых у Портативного телепорта разрыв случается дважды
+в одном потоке (карточка и повторная проверка на подтверждении). Игрок, стоящий на складе с
+ресурсами под робота, маяк или портативный телепорт, увидит ❌ ровно как до фикса.
 **На проде:** для пункта (2) — коммит `dd758cc0` → тег `v0.51.631` ≤ `v0.51.666`. Для устранённой
 части пункта (1) — коммиты `fc3ba6b1`/`efa1c504` → тег `v0.51.631`, `b9365c7d` → тег `v0.51.641`, оба
 ≤ `v0.51.666`. Для неустранённого хвоста пункта (1) (роботы/маяки Т2) — правки не существует ни в
 `develop`, ни в `vulyk/*`: это не «исправлено, но не на проде», а незакрытый дефект в актуальном коде.
-**Живой прогон:** не нужен для вердикта — отсутствие `ResourcePoolService` в исходнике этих четырёх
+**Живой прогон:** не нужен для вердикта — отсутствие `ResourcePoolService` в исходнике всех семи
 файлов доказывает дефект напрямую; живой прогон (story 07 или отдельная story фикса) нужен будет
 только когда/если решат чинить робото-карточки, чтобы подтвердить UI после правки.
 **Черновик ответа:** —
 **Сомнения:** пункт (1) закрыт частично — обычный крафт (в т.ч. большинство брони и оружия) уже
 видит склад, но карточки роботов и маяков телепортации T2 — нет; если это отдельная зона внимания
-владельца, стоит завести узкую story на миграцию этих четырёх карточек на `ResourcePoolService` по
-образцу `GenericCraftActionStart`.
+владельца, стоит завести узкую story на миграцию этих семи файлов (4 карточки роботов T2 + 3
+телепорт-карточки, из которых портативный телепорт закрывает сразу обе свои точки проверки) на
+`ResourcePoolService` по образцу `GenericCraftActionStart`.

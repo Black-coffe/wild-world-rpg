@@ -1,7 +1,7 @@
 ---
 story: bugs-thread-triage-11
 spec: bugs-thread-triage
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -75,5 +75,34 @@ blocked_by: [bugs-thread-triage-09]
 `bash docs/specs/bugs-thread-triage/verdict-lint.sh docs/specs/bugs-thread-triage/verdicts/robots.md && bash docs/specs/bugs-thread-triage/verdict-lint.sh docs/specs/bugs-thread-triage/verdicts/live-run.md && bash docs/specs/bugs-thread-triage/verdict-lint.sh docs/specs/bugs-thread-triage/verdicts/storage.md`
 
 ## Implementation notes
+
+Ярлыки сверены прямым SSH-grep деплоенных файлов на `wildworld-bot@185.161.208.135` (read-only),
+не по локальному дереву/памяти. `robots.md` mid `4294974548`: исправлены три расхождения в
+«Чем доказано» (🚁→🤖 Ангар, 🔧→🪛 Ремонт инструментов) и в черновике (🎒→🔨 Крафтовые ресурсы,
+🚁 Ангар→🤖 Ангар, «🚁 Разведчик»→«🚁 Дроны» — на прод-клавиатуре нет кнопки с текстом
+«Разведчик», есть только «🚁 Дроны» → экран `DroneScoutCraftedListAction` с кнопками
+«🚁 Запустить #N»). `robots.md` mid `4294974471`: вердикт → `подтверждено, но не дефект кода`
+(седьмое значение из story 09), черновик остался `—`. `live-run.md` mid `4294974469`: черновик
+переписан с «Починили» на «уже корректно засчитывается … код здесь не менялся», добавлен путь
+проверки (🔨 Крафтовые ресурсы); в «Сомнения» записано открытым вопросом расхождение
+«построил три раза — 1 шт. на скриншоте» — не объяснялось ни этим блоком, ни `bases.md`, код не
+трогался. `storage.md` mid `4294974511`: черновик переписан на честный путь — кнопка
+«📥 Положить на склад» живёт внутри экрана `BaseStorageListAction` (открывается из
+🎒 Инвентарь → 📦 Склад базы), а не «рядом со Складом базы» в хабе инвентаря.
+`verdict-lint.sh` зелёный на всех трёх файлах.
+
+Доп. правка (запрошена team-lead после закрытия story, тот же файл `storage.md`): mid `4294974532`
+называл «все четыре» T2-карточки, но перечислял пять файлов, и сам список был неполон. SSH-grep на
+проде дал точное число: **семь** файлов без `ResourcePoolService`, не пять/четыре —
+`RobotExplorer2Action`, `RobotGatherer2Action`, абстрактный `RobotT2PreviewAction` (от него
+наследуются `RobotScout2Action`/`RobotIndustrial2Action` — 3 файла на 4 экрана-карточки),
+`TeleportBackpack2Action`, `TeleportBeaconBasic2Action` и два файла, пропущенных первым прогоном
+грепа — `PortableTeleport2Action` (карточка «📡 Портативный телепорт», тот же прямой
+`CharacterResourceModel`) и `StartCraftPortableTeleport2Action` (по своему докблоку сознательно
+перепроверяет ресурсы повторно при подтверждении — в отличие от соседних
+`StartCraftTeleportBackpack2Action`/`StartCraftTeleportBeaconBasic2Action`, которые ресурсы не
+перепроверяют и потому не того класса баг). Текст блока переписан на 7 файлов / 7 карточек, с
+явным разведением «файлов» и «экранов, которые видит игрок» и с указанием, что портативный
+телепорт ловит разрыв дважды в своём потоке. `verdict-lint.sh` на `storage.md` — по-прежнему зелёный.
 
 ## Findings
