@@ -94,4 +94,31 @@ blocked_by: []
 
 ## Implementation notes
 
+Три `mid` закрыты в `verdicts/storage.md`: `4294974511` — устранено (коммит `95c1cca3`, тег
+`v0.51.626`, плюс прод-`action_log` подтверждает реальное использование обеих кнопок);
+`4294974531` — устранено (коммит `d6b595c6`, тег `v0.51.631`, `GreenhouseProductionHandler` читает
+пул склад+рюкзак напрямую через `BaseStorageModel`, killswitch `storage.pool_enabled=1` на проде);
+`4294974532` — разведён на два независимых пункта внутри одного блока: пункт (2), про форму кнопки
+«забрать со склада», устранено (коммит `dd758cc0`, тег `v0.51.631`); пункт (1), про видимость
+складских ресурсов в крафте, — не устранено полностью (обычный крафт — устранено, T2-карточки
+роботов/маяков — нет), итоговый вердикт блока `не устранено` по более слабой части.
+
 ## Findings
+
+Обычный крафт (T1 `WorkbenchGeneral` и большинство T2 `WorkbenchStandard` — броня, оружие) уже
+читает общий пул рюкзак+склад через `ResourcePoolService` (`CraftCardHelper::available()`,
+`GenericCraftActionStart::checkResources()`). Но пять экранов T2 остались на старом чтении
+«только рюкзак» мимо общего пула — `grep -rl ResourcePoolService` по этим файлам пуст, они читают
+доступность напрямую через `CharacterResourceModel::getResourceByNameAndCharacterId()`:
+
+- `app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchStandard/Robots/RobotExplorer2Action.php`
+- `app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchStandard/Robots/RobotGatherer2Action.php`
+- `app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchStandard/Robots/RobotT2PreviewAction.php` (общий предок `RobotScout2Action`/`RobotIndustrial2Action`)
+- `app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchStandard/TeleportBeacon/TeleportBackpack2Action.php`
+- `app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchStandard/TeleportBeacon/TeleportBeaconBasic2Action.php`
+
+Ключевая находка: для этого хвоста **коммита-кандидата не существует нигде** — ни в `develop`, ни
+в `vulyk/*`. Это отличается от «исправлено, но не выкачено на прод»: правки просто не написано.
+Игрок, стоящий на складе с ресурсами под робота или маяк, сегодня видит ❌ ровно как до фикса
+`dd758cc0`/`fc3ba6b1`/`efa1c504`/`b9365c7d`. Кандидат на отдельную узкую story — миграция этих
+пяти карточек на `ResourcePoolService` по образцу `GenericCraftActionStart`.

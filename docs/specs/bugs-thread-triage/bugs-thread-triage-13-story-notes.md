@@ -1,7 +1,7 @@
 ---
 story: bugs-thread-triage-13
 spec: bugs-thread-triage
-status: todo
+status: done
 tier: 1
 worker: worker-code
 tracer: false
