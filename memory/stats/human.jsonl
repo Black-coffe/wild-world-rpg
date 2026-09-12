@@ -3,3 +3,4 @@
 {"ts":"2026-09-10T20:23:45Z","spec":"building-bonus-absorption","verdict":"ACCEPTED","by":"Claude Code","head":"ed7fadfe","pack":"0086ef8a0910","note":"владелец смотрел на preprod-testbot, слова: «посмотрел, всё ок, тегай прод»"}
 {"ts":"2026-09-10T21:30:53Z","spec":"health-warning-backoff","verdict":"ACCEPTED","by":"Claude Code","head":"9f410caf","pack":"93fc563c31b3","note":"владелец смотрел на preprod-testbot, слова: «посмотрел, всё ок, тегай прод»"}
 {"ts":"2026-09-12T16:46:03Z","spec":"bugs-thread-triage","verdict":"ACCEPTED","by":"Andrei Andrievskii","head":"cd02b80a","pack":"7dbe560aabac","note":"Подтверждаю. Давай далее двигаться, продолжай."}
+{"ts":"2026-09-12T17:25:18Z","spec":"bugs-thread-triage","verdict":"ACCEPTED","by":"Andrei Andrievskii","head":"d5299883","pack":"7dbe560aabac","note":"Potwierdzaj odprawę. (владелец подтвердил отправку пакета после публикации 15 реплаев)"}

@@ -324,3 +324,4 @@ MEDIA-id выше — приложения к соседнему тексту, �
 **Branch:** `vulyk/bugs-thread-triage` (ответвлена от `develop` 2026-09-12; вливается обратно в `develop`, `master` не трогаем — см. `CLAUDE.vulyk.md` → «Цикл 0.11.0 на нашем релиз-потоке»)
 **Shipped:** <пишет scripts/ship-check.sh --record — стадия 06>
 **Checked:** ACCEPTED by Andrei Andrievskii (владелец), 2026-09-12, at cd02b80a - Подтверждаю. Давай далее двигаться, продолжай.
+**Checked:** ACCEPTED by Andrei Andrievskii (владелец), 2026-09-12, at d5299883 - Potwierdzaj odprawę. (владелец подтвердил отправку пакета после публикации 15 реплаев)
