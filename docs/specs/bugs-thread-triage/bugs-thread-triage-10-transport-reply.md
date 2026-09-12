@@ -1,7 +1,7 @@
 ---
 story: bugs-thread-triage-10
 spec: bugs-thread-triage
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -72,5 +72,26 @@ blocked_by: [bugs-thread-triage-09]
 `bash docs/specs/bugs-thread-triage/verdict-lint.sh docs/specs/bugs-thread-triage/verdicts/world.md`
 
 ## Implementation notes
+
+Прочитал прод (`ssh wildworld-deploy`): `CraftedResourcesAction::TRANSPORT_VEHICLES` — ровно 5 машин
+(LightCart, MountainBike, Snowmobile, DraftCart, AutonomousDrone), Плота там нет. `Config\CraftRecipes`
+на проде даёт `required_level` 6/12/14/14/16 и `required_faction` 2/1/4/3 для четырёх из пяти (LightCart
+без фракции). SELECT `game_settings.world.vehicle.*.required_level` на проде совпадает с этими же
+числами — живого расхождения config/GameSettings на сейчас нет, но переопределение остаётся
+возможным в любой момент, поэтому черновик уровни числом не называет (только факт «свой уровень,
+экран покажет»), а фракционный гейт называет прямо, по фракциям. Заодно почистил MINOR-8: заменил
+`git tag --contains | sort -V | head -1` (реально печатает `backup-website-2026-05-25`, не `v0.1.0`)
+на `git merge-base --is-ancestor 430775f8 v0.51.666` (exit 0, локально перепроверено), старую команду
+процитировал как контрпример прямо в тексте.
+
+Ремонтный круг (team-lead вернул): «Чем доказано» блока `4294974544` противоречило починенному
+черновику — называло id 42 «Плот» активным с рецептом рядом с черновиком, где Плота нет. Прод-SELECT
+`crafted_items` (10 строк `type='transport'`) + grep по `Config\CraftRecipes` показал: реальный путь
+крафта есть только у 5 (43/46/47/49/50 = LightCart/DraftCart/MountainBike/AutonomousDrone/Snowmobile);
+42/44/45/51 (Плот/Парусник/Верблюд/Лодка с мотором) — активные строки БД без рецепта, заморожены той
+же миграцией `TransportCatalogCleanup.php:30`; 48 (Воздушный шар) — честно `deprecated`, тоже без
+рецепта. Переписал «Чем доказано», назвал ровно 5 рабочих машин + отдельно объяснил судьбу всех
+пяти замороженных/deprecated, пометил `crafted_items.required_level` как не тот источник, по
+которому гейтит экран.
 
 ## Findings
