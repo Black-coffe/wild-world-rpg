@@ -325,3 +325,4 @@ MEDIA-id выше — приложения к соседнему тексту, �
 **Shipped:** <пишет scripts/ship-check.sh --record — стадия 06>
 **Checked:** ACCEPTED by Andrei Andrievskii (владелец), 2026-09-12, at cd02b80a - Подтверждаю. Давай далее двигаться, продолжай.
 **Checked:** ACCEPTED by Andrei Andrievskii (владелец), 2026-09-12, at d5299883 - Potwierdzaj odprawę. (владелец подтвердил отправку пакета после публикации 15 реплаев)
+**Checked:** ACCEPTED by Andrei Andrievskii (владелец), 2026-09-12, at c82dda9e - Подтверждаю, вливай. (после отправки 15 реплаев и коммита трёх файлов-хвостов прошлой сессии)
