@@ -8,6 +8,7 @@ use Longman\TelegramBot\Entities\ServerResponse;
 use App\Models\CharacterBuildingModel;
 use App\Models\BuildingModel;
 use App\Models\CharacterModel;
+use App\Models\ClaimedCellModel;
 
 /**
  * Абстрактный класс с общей логикой:
@@ -72,10 +73,24 @@ abstract class BaseBuildingUpgradeAction extends BaseAction
             ]);
         }
 
-        // 1. Проверяем, есть ли у персонажа это здание
+        // ADR-102: резолвим базу, чью строку character_buildings апгрейдим —
+        // без этого мультибэйс-игрок правит первую попавшуюся строку по всем
+        // базам, не ту, на которой стоит (см. BuildingUpgradeValidator).
+        $charIdForBase   = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $currentCell     = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
+        $targetMapCellId = (new ClaimedCellModel())->resolveTargetBaseCell($charIdForBase, $currentCell);
+        if ($targetMapCellId === null) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Баз у тебя несколько. Встань на ту базу, с которой работаешь, — и открой экран снова.',
+            ]);
+        }
+
+        // 1. Проверяем, есть ли у персонажа это здание НА ЭТОЙ базе
         $this->characterBuilding = $this->characterBuildingModel
             ->where('character_id', $character['id'])
             ->where('building_id', $this->buildingId)
+            ->where('map_cell_id', $targetMapCellId)
             ->first();
 
         if (!$this->characterBuilding) {

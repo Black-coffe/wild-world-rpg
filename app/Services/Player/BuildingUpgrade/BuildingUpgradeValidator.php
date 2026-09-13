@@ -4,6 +4,7 @@ namespace App\Services\Player\BuildingUpgrade;
 
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
+use App\Models\ClaimedCellModel;
 use App\Models\ResourceModel;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Services\Player\PlayerStateService;
@@ -51,19 +52,22 @@ class BuildingUpgradeValidator
     private ResourceModel $resourceModel;
     private PlayerStateService $playerStateService;
     private ResourcePoolService $resourcePool;
+    private ClaimedCellModel $claimedCellModel;
 
     public function __construct(
         ?CharacterBuildingModel $characterBuildingModel = null,
         ?BuildingModel $buildingModel = null,
         ?ResourceModel $resourceModel = null,
         ?PlayerStateService $playerStateService = null,
-        ?ResourcePoolService $resourcePool = null
+        ?ResourcePoolService $resourcePool = null,
+        ?ClaimedCellModel $claimedCellModel = null
     ) {
         $this->characterBuildingModel = $characterBuildingModel ?? new CharacterBuildingModel();
         $this->buildingModel          = $buildingModel          ?? new BuildingModel();
         $this->resourceModel          = $resourceModel          ?? new ResourceModel();
         $this->playerStateService     = $playerStateService     ?? new PlayerStateService();
         $this->resourcePool           = $resourcePool           ?? new ResourcePoolService();
+        $this->claimedCellModel       = $claimedCellModel       ?? new ClaimedCellModel();
     }
 
     /**
@@ -78,10 +82,22 @@ class BuildingUpgradeValidator
             return ['ok' => false, 'error' => "Вы не на базе или база отсутствует. Нельзя улучшать постройки."];
         }
 
-        // 2) Character has the building
+        // 1b) ADR-102: резолвим базу, чью строку character_buildings апгрейдим —
+        // мультибэйс-мир иначе находит первую строку character+building_id по
+        // всем базам сразу и правит не ту, на которой стоит игрок (та же
+        // порча данных, что чинили Demolish/Delete/Relocate).
+        $charIdForBase = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $currentCell   = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
+        $targetMapCellId = $this->claimedCellModel->resolveTargetBaseCell($charIdForBase, $currentCell);
+        if ($targetMapCellId === null) {
+            return ['ok' => false, 'error' => 'Баз у тебя несколько. Встань на ту базу, с которой работаешь, — и открой экран снова.'];
+        }
+
+        // 2) Character has the building ON THIS BASE
         $charBuilding = $this->characterBuildingModel
             ->where('character_id', $character['id'])
             ->where('building_id', $buildingId)
+            ->where('map_cell_id', $targetMapCellId)
             ->first();
         if (!$charBuilding) {
             return ['ok' => false, 'error' => "У вас нет здания с ID={$buildingId}."];

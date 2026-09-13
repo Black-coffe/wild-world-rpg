@@ -1,7 +1,7 @@
 ---
 story: angela-second-base-bugs-03
 spec: angela-second-base-bugs
-status: todo
+status: done
 tier: 3
 worker: worker-code
 tracer: false
@@ -56,7 +56,7 @@ blocked_by: []
 - [ ] Персонаж с одной базой: поведение апгрейда не изменилось.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/unit/Player/`
+`vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Замечания по тестам (обязательно прочесть)
 - Обязателен тест на то, что чужая строка НЕ изменилась, — иначе порча данных останется незамеченной.
@@ -67,5 +67,39 @@ blocked_by: []
 - Не запускай весь набор параллельно с другими агентами.
 
 ## Implementation notes
+
+- `BuildingUpgradeValidator.php` — новый шаг 1b: резолв целевой базы через
+  `ClaimedCellModel::resolveTargetBaseCell($characterId, $character['cell_number'])`
+  сразу после старого шага 1 («на базе»), до поиска строки `character_buildings`.
+  Null → отказ текстом из `## Contracts`. Шаг 2 получил `->where('map_cell_id', $targetMapCellId)`.
+  Конструктор получил 6-й опциональный параметр `?ClaimedCellModel $claimedCellModel = null`
+  (append в конец, позиционные вызовы с 5 аргументами не ломаются).
+- `BuildingUpgradeApplier.php` — код НЕ менялся. `update($charBuilding['id'], …)` и раньше
+  бил по правильному id, только id приходил из бажного шага 2 валидатора; с починкой шага 2
+  applier автоматически перестал портить чужую строку — отдельного фикса не требовалось.
+- `BaseBuildingUpgradeAction.php` — тот же паттерн (резолв базы + `where('map_cell_id', …)`
+  + отказ при `null`) продублирован в generic-путь для `RoboticsWorkshopUpgradeAction`
+  (единственный наследник). Проверил перед правкой: `RoboticsWorkshopUpgradeAction` нигде не
+  инстанцируется/не роутится (`grep -rn` по `app/` — ноль вызовов кроме своего же файла) —
+  мёртвый пример-код, но раз файл в Files списка и несёт тот же баг класса — почил тем же
+  патчем ради согласованности с валидатором, реального игрового пути это не меняет.
+  `RepairBuildingAction.php` НЕ трогал — он `extends BaseAction`, к `BaseBuildingUpgradeAction`
+  отношения не имеет, вне Files и вне пути этого бага.
+- `UpgradeBuildingAction.php` — не менялся. Обе двери (ask/confirm) уже шли через
+  `$this->validator->validate(...)`, читая свежий `$character['cell_number']` из БД на каждый
+  callback — фикс полностью внутри валидатора, «Ask и confirm видят одну базу» выполняется
+  автоматически (одна и та же детерминированная функция от текущей позиции персонажа).
+- `PoolAdoptionRepairUpgradeTest.php` — НЕ в Files этой story, но новый обязательный вызов
+  `ClaimedCellModel::resolveTargetBaseCell()` внутри `validate()` ломал все его тесты (дефолтный
+  `new ClaimedCellModel()` бил по реальной `claimed_cells`, которой в изолированном наборе этого
+  файла нет — `Table 'wildworld_tests.claimed_cells' doesn't exist`). Добавил `claimedCellModelDouble()`
+  (всегда возвращает `1`, т.к. `characterBuildingModelDouble` в этом файле игнорирует `where()`-
+  фильтры и так) и передал 6-м аргументом в `validator()`. Коллизия неизбежна при добавлении
+  параметра с боевым дефолтом в конструктор, используемый другим тестом с частичными доублами —
+  задокументировано здесь, а не молча пропущено.
+- Тестовая схема `bubs_claimed_cells`/`bubs_character_buildings` (приватный префикс, без FK) —
+  1:1 колонки с `2024-05-23-061031_CreateClaimedCellsTable.php` и
+  `2024-05-27-105534_CreateCharacterBuildingsTable.php` (+ `..._AddLastTaxCollectedToCharacterBuildings.php`),
+  изолирована от общих таблиц, за которые в этот момент дерутся параллельные агенты волны.
 
 ## Findings
