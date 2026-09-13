@@ -61,10 +61,22 @@ class ArsenalHandler extends BaseAction
 
         $buildingId = $arsenalRow['id'];  // ID здания «Арсенал»
 
+        // ADR-095 мульти-база: читаем строку character_buildings ТОЙ базы, где стоит
+        // игрок — иначе карточка путает уровень с другой базы персонажа (angela-second-base-bugs #2).
+        $currentCell = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
+        $targetCell  = (new \App\Models\ClaimedCellModel())->resolveTargetBaseCell((int) $character['id'], $currentCell);
+        if ($targetCell === null) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Баз у тебя несколько. Встань на ту базу, с которой работаешь, — и открой экран снова.',
+            ]);
+        }
+
         // 3. Ищем запись character_buildings для "Арсенала"
         $characterBuilding = $this->characterBuildingModel
             ->where('character_id', $character['id'])
             ->where('building_id', $buildingId)
+            ->where('map_cell_id', $targetCell)
             ->first();
 
         // Если у игрока нет Арсенала

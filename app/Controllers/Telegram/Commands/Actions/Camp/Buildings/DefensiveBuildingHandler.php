@@ -72,10 +72,22 @@ class DefensiveBuildingHandler extends BaseAction
         }
         $buildingId = $this->asInt($buildingInfo['id'] ?? null);
 
+        // ADR-095 мульти-база: читаем строки character_buildings ТОЙ базы, где стоит
+        // игрок — иначе карточка путает уровень с другой базы персонажа (angela-second-base-bugs #2).
+        $currentCell = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
+        $targetCell  = (new \App\Models\ClaimedCellModel())->resolveTargetBaseCell((int) $character['id'], $currentCell);
+        if ($targetCell === null) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Баз у тебя несколько. Встань на ту базу, с которой работаешь, — и открой экран снова.',
+            ]);
+        }
+
         // Показываем самую повреждённую инстанцию (чтобы кнопка ремонта была релевантна).
         $cb = $this->characterBuildingModel
             ->where('character_id', $character['id'])
             ->where('building_id', $buildingId)
+            ->where('map_cell_id', $targetCell)
             ->orderBy('hp', 'ASC')
             ->first();
         if (!is_array($cb)) {

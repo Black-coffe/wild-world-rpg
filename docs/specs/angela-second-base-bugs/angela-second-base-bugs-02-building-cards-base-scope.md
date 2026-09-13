@@ -1,7 +1,7 @@
 ---
 story: angela-second-base-bugs-02
 spec: angela-second-base-bugs
-status: todo
+status: done
 tier: 3
 worker: worker-code
 tracer: false
@@ -63,7 +63,7 @@ blocked_by: []
 - [ ] `vendor/bin/phpstan analyse --memory-limit=512M --no-progress` зелёный по тронутым файлам.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/unit/Camp/`
+`vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Замечания по тестам (обязательно прочесть)
 - Тест обязан проверять ПОВЕДЕНИЕ выборки, а не наличие подстроки в исходнике: скан исходника оставит сломанный метод зелёным (`feedback_source_scan_tests_are_not_coverage`).
@@ -73,5 +73,35 @@ blocked_by: []
 - Не запускай весь набор параллельно с другими агентами.
 
 ## Implementation notes
+
+- Во всех 14 хендлерах перед запросом `character_buildings` вставлен один и тот же блок:
+  резолв `$currentCell` из `character['cell_number']` → `(new ClaimedCellModel())->resolveTargetBaseCell($characterId, $currentCell)`;
+  `null` → `Request::sendMessage` с текстом отказа из `## Contracts` плана; иначе запрос
+  получает `->where('map_cell_id', $targetCell)`. `DefensiveBuildingHandler` и `LeanToHandler`
+  уже имели `orderBy('hp', 'ASC')` (выбор самой повреждённой инстанции той же базы) —
+  фильтр по базе добавлен ДО этого `orderBy`, поведение сортировки не тронуто.
+- Тест `tests/unit/Camp/BuildingCardBaseScopeTest.php` бьёт по реальному `handle()`
+  (`HandPumpHandler`, `WarehouseHandler`) — не по подстроке в исходнике. Пришлось решить
+  две несвязанные с этой story проблемы тестового стенда (не правка prod-кода, только тест):
+  1. `Request::encodeFile(base_url(...))` в тестах пытается открыть `http://example.com/...`
+     реальным `fopen()` — файл шимится через namespace-function fallback
+     (`namespace Longman\TelegramBot { function fopen(...) }`), который перенаправляет
+     `http(s)://.../uploads/...` на реальный файл в `public/uploads/...`.
+  2. Фейковая `CallbackQuery` всегда несёт `message_id`, поэтому `MediaSender::editOrSend()`
+     уходит в ветку `editMessageMedia` — caption там лежит внутри `InputMediaPhoto` (`media`),
+     а не top-level. `Longman\TelegramBot\Entities\Entity` реализует геттеры только через
+     `__call()` (магия) — `method_exists()` их не видит, поэтому `textOf()` зовёт
+     `getCaption()`/`getMedia()`/`getText()` напрямую без `method_exists`-охраны.
+- Tips-coverage/guide-coverage вердикт (правило `player-facing.md`, п.4): **нет** — это
+  бэкенд-баг-фикс существующего поведения (карточка и раньше должна была показывать СВОЮ
+  базу), новой игровой поверхности не появилось; текст карточки не изменился, кроме того,
+  какая строка БД в него подставлена. Discoverability/онбординг не затронуты — те же кнопки,
+  тот же путь входа.
+- Верификация: `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Camp/` — 17 passed
+  (4 новых + 13 существующих); `vendor/bin/phpstan analyse --memory-limit=512M --no-progress` —
+  No errors (весь `app/`, включая все 14 тронутых файлов).
+- Живой Tier-3 smoke на preprod-testbot НЕ проведён этим агентом (вне доступа: MCP Chrome +
+  Telegram Web — обязанность Queen/владельца перед шипом, см. story и `CLAUDE.vulyk.md`
+  → «Verification в story — три уровня»).
 
 ## Findings
