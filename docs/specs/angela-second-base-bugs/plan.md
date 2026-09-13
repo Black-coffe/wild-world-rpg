@@ -57,7 +57,7 @@ ADR-142 (Навес как one-shot первое укрытие), ADR-020 (media
 
 **Approved:** <owner, date>
 **Briefed:** via grill, Andrei, 2026-09-13
-**Branch:** <\/vulyk-build>
+**Branch:** vulyk/angela-second-base-bugs
 **Checked:** <scripts/human-check.sh>
 **Council:** <scripts/cycle.sh judge>
 **Shipped:** <scripts/ship-check.sh --record>
