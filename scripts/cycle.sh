@@ -1290,16 +1290,23 @@ command_cell_exists() { # command_cell_exists <claude-md> <command> -> 0 iff <co
   # byte for byte, the backticked command cell of some row of the hive's `## Commands` table
   # (a `\|` inside the cell is a literal `|`, R11/C-4). Reads only that one table's rows -
   # nothing else in CLAUDE.md (Non-goals) - by slicing to the section first.
-  local file="$1" want="$2"
-  [ -f "$file" ] || return 1
-  awk '
-    /^## Commands[[:space:]]*$/ { inblock=1; next }
-    /^##[[:space:]]/            { if (inblock) exit }
-    inblock                     { print }
-  ' "$file" \
-    | sed -n 's/^|[^|]*|[[:space:]]*`\(.*\)`[[:space:]]*|[[:space:]]*$/\1/p' \
-    | sed 's/\\|/|/g' \
-    | grep -qxF "$want"
+  local file="$1" want="$2" f
+  # PROJECT PATCH (docs/vulyk/ADAPTATION.md): our constitution is split in two, and the
+  # `## Commands` table lives in the imported CLAUDE.vulyk.md, not in CLAUDE.md. Reading
+  # only CLAUDE.md left the allowlist empty, so EVERY `## Verification` command was
+  # rejected and close-story could never pass. Read both files.
+  for f in "$file" "${file%/CLAUDE.md}/CLAUDE.vulyk.md"; do
+    [ -f "$f" ] || continue
+    awk '
+      /^## Commands[[:space:]]*$/ { inblock=1; next }
+      /^##[[:space:]]/            { if (inblock) exit }
+      inblock                     { print }
+    ' "$f" \
+      | sed -n 's/^|[^|]*|[[:space:]]*`\(.*\)`[[:space:]]*|[[:space:]]*$/\1/p' \
+      | sed 's/\\|/|/g' \
+      | grep -qxF "$want" && return 0
+  done
+  return 1
 }
 
 verification_segments() { # verification_segments <line> -> one &&-separated segment per line
