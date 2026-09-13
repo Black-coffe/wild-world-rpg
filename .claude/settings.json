@@ -9,7 +9,9 @@
       "Bash(bash scripts/trace-check.sh:*)",
       "Bash(bash scripts/acceptance-log.sh:*)",
       "Bash(bash scripts/release-check.sh:*)",
-      "Bash(bash scripts/vulyk-update.sh:*)"
+      "Bash(bash scripts/vulyk-update.sh:*)",
+      "Bash(bash scripts/cycle.sh:*)",
+      "Bash(bash scripts/journal.sh:*)"
     ]
   },
   "hooks": {

@@ -36,6 +36,4 @@ Your job is to turn that skeleton into a document the next session can resume fr
 3. In the YAML frontmatter, flip `enriched: false` to `enriched: true`.
 4. Touch nothing except the `## Summary` section and the `enriched` field — everything else was assembled mechanically and must stay as-is.
 
-Additionally, if the session produced state VULYK owns — an active spec under `docs/specs/`, story `status:` lines, a stale map slice — name it in `## Summary` under **Next step**, since `scripts/state.sh` output above is regenerated, not archived.
-
 Finish with one short line to the user: the file path plus a reminder that `/clear` (or exit + restart) is now safe — the next session in this project picks the handoff up automatically.

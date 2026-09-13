@@ -15,7 +15,6 @@ maxTurns: 20
 > and stay thin - they point into the vault, they do not copy it. Deleted code: mark the note
 > `status: deprecated` with a reason, never delete it. Full rationale: `CLAUDE.vulyk.md` ->
 > `## Project bindings`. Re-apply this note after `/vulyk-update` (`docs/vulyk/ADAPTATION.md`).
-
 You keep the hive's memory truthful. You receive: the merged **diff**, and the map/wiki
 entries it touches.
 
