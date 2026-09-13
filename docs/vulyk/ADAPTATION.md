@@ -163,7 +163,7 @@ git check-ignore -v .claude/admin-credentials.local.md .claude/settings.local.js
 | `.claude/commands/vulyk-handoff.md` | вызов глобального `context_guard.py` вместо удалённого `handoff.sh` | `grep -L context_guard .claude/commands/vulyk-handoff.md` |
 | `.claude/agents/lead-architect.md` | блок «Project path binding» — ADR пишутся в `mmorpg-vault/decisions/` | `grep -L "Project path binding" .claude/agents/lead-architect.md` |
 | `.claude/agents/drone-docs.md` | блок «Project path binding» — ноты пишутся в `mmorpg-vault/tech-writing/` | `grep -L "Project path binding" .claude/agents/drone-docs.md` |
-| `scripts/ship-check.sh`, `scripts/human-check.sh` | `paperwork_only()` знает про леджеры улья (§10) | `grep -c "memory/learnings" scripts/*-check.sh` |
+| `scripts/lib.sh` (до 0.12.0 — `ship-check.sh` + `human-check.sh`) | `is_paperwork_path()` знает про леджеры улья (§10) | `grep -c "memory/learnings" scripts/lib.sh` |
 
 Одной командой — что откатилось:
 
@@ -172,7 +172,8 @@ grep -L "Project path binding" .claude/agents/lead-architect.md .claude/agents/d
 grep -L "context_guard"       .claude/commands/vulyk-handoff.md
 ls .claude/hooks/handoff.*        # должно быть пусто
 grep -c "handoff.sh" .claude/settings.json   # должно быть 0
-grep -c "memory/learnings" scripts/ship-check.sh scripts/human-check.sh   # по 1 в каждом
+grep -c "memory/learnings" scripts/lib.sh                                 # должно быть 1 (§10)
+ls .claude/agents/drone-acceptance.md    # должно отсутствовать: упразднён в 0.12.0, но --upgrade не удаляет
 ```
 
 Пустой вывод первых двух и отсутствие `handoff.*` = апгрейд ничего не сломал.
@@ -243,10 +244,14 @@ ls .claude/rules/example-api.md                   # должно отсутст�
 
 ## 10. `paperwork_only()` в гейтах цикла знает про леджеры улья
 
-**Что.** В `scripts/ship-check.sh` и `scripts/human-check.sh` одна и та же функция
-`paperwork_only()` перечисляет пути, изменение которых **не** считается изменением софта.
-Ванильный список — `*/plan.md`, `memory/stats/human.jsonl`, `acceptance.jsonl`, `ship.jsonl`.
-У нас он расширен до `*/plan.md`, `memory/stats/*`, `memory/learnings/*`.
+**Что.** Функция `paperwork_only()` перечисляет пути, изменение которых **не** считается
+изменением софта. Ванильный список — `*/plan.md`, `memory/stats/human.jsonl`, `acceptance.jsonl`,
+`ship.jsonl`. У нас он расширен на `memory/stats/*` (включая `skills.json`) и `memory/learnings/*`.
+
+**Где править — сменилось в 0.12.0.** До 0.12.0 копия функции жила отдельно в `ship-check.sh` и
+`human-check.sh`, и патчить надо было обе. С 0.12.0 она (и её whitelist `is_paperwork_path()`)
+живёт один раз в `scripts/lib.sh`, который сорсят `ship-check.sh`, `human-check.sh`,
+`acceptance-log.sh` и `release-check.sh` — патч теперь ровно один, в `lib.sh`.
 
 **Почему.** Стадия 05 объявляется устаревшей (`STALE (commit)`), если после подписи владельца
 в HEAD приехал хоть один путь вне этого списка. А хуки улья пишут `memory/stats/skills.json`
@@ -268,6 +273,36 @@ grep -c "memory/learnings" scripts/ship-check.sh scripts/human-check.sh   # ож
 > Правка внутри рамки: `scripts/ship-check.sh`, `scripts/human-check.sh`.
 
 Сверка самого цикла с нашим релиз-потоком (мёртвый `master`, тег вместо CHANGELOG, постоянное
-разрешение на прод-тег, смоук Claude'а ≠ подпись владельца) живёт не здесь, а в
-`CLAUDE.vulyk.md` → `## Project bindings` → «Цикл 0.11.0 на нашем релиз-потоке»: это проектное
+разрешение на прод-тег, ворота, которых слепые места не знают) живёт не здесь, а в
+`CLAUDE.vulyk.md` → `## Project bindings` → «Цикл 0.12.0 на нашем релиз-потоке»: это проектное
 правило, а не отличие установки.
+
+---
+
+## 11. Что доведено руками в апгрейде 0.12.0 (13.09.2026)
+
+Релиз 0.12.0 упразднил обязательный взгляд владельца на стадии 05 и заменил его **советом** из
+слепых агент-мест (`council-haiku` / `council-sonnet` / `council-opus` + `lead-review`), слил
+стадии 01+02 в `**Briefed:**`, добавил state-машину `scripts/cycle.sh` с Workflow-драйвером и
+научил `/vulyk-ship` мержить локально, не нажимая публикацию.
+
+Откатилось ровно то, что обещала §6 (три файла + пара `handoff.*`) — повторено. Сверх таблицы
+сделано:
+
+- **Патч леджеров переехал** из `*-check.sh` в `scripts/lib.sh` (§10).
+- **Удалён `.claude/agents/drone-acceptance.md`** — упразднён апстримом, но `--upgrade` файлы не
+  удаляет, и агент остался бы жить призраком рядом с советом.
+- **`.claude/workflows/` внесён в исключения `.gitignore`** (§3): без этого Workflow-драйвер
+  `vulyk-cycle.js` не уехал бы на вторую машину — ровно та же болезнь, что была у агентов.
+- **Конституция доведена вручную**: таблица тиров получила колонку мест, `## The cycle` — новую
+  таблицу стадий и абзац про то, что слепые места не знают предметных ворот `CLAUDE.md` (их надо
+  формулировать строками `## Asks`), Profile — строку `Browser MCP` со значением `none` и
+  объяснением почему, таблица ворот — замену `drone-acceptance` на конкретные места совета,
+  раздел «Цикл 0.11.0…» переписан в «Цикл 0.12.0…».
+
+**Открытый хвост.** Совет — это ставка апстрима на то, что слепые места ловят больше, чем ловил
+человеческий взгляд (их цифры: 0 REJECTED из 10 подписей владельца против 5 из 42 у слепой
+приёмки). У нас человек ловил не то же самое: восемь предметных правил `CLAUDE.md` и живой
+Telegram-рендер. Первый же Tier 2+ круг на 0.12.0 стоит пройти с оглядкой — и если ворота начнут
+утекать мимо `## Asks`, вернуть обязательную подпись через `/vulyk-pause` + `human-check.sh`
+дешевле, чем узнать об утечке с прода.
