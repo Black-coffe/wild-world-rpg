@@ -26,9 +26,10 @@ use Config\Database;
  *
  * Приватные `bubs_`-таблицы (claimed_cells, character_buildings) — схема 1:1 с
  * `2024-05-23-061031_CreateClaimedCellsTable.php` / `2024-05-27-105534_CreateCharacterBuildingsTable.php`
- * (+ `..._AddLastTaxCollectedToCharacterBuildings.php`), без FK (см. паттерн
- * `GenericBuildingCompletionBonusTest`) — изолированы от общих таблиц, за которые
- * дерутся параллельно работающие агенты этой волны.
+ * (+ `..._AddLastTaxCollectedToCharacterBuildings.php`, + ENUM `building_type`
+ * расширен `defensive`/`NOT NULL` вслед за `2026-05-20-600000_S26AddDefensiveStructures.php`),
+ * без FK (см. паттерн `GenericBuildingCompletionBonusTest`) — изолированы от общих
+ * таблиц, за которые дерутся параллельно работающие агенты этой волны.
  *
  * `PlayerStateService` (шаг 1 валидатора — «игрок на базе») и `CharacterStatsService`
  * (золото в Applier) — тестовые двойники: эта story не трогает ни один из этих двух
@@ -80,7 +81,7 @@ final class BuildingUpgradeBaseScopeTest extends CIUnitTestCase
             . 'hp INT NOT NULL, '
             . 'level INT DEFAULT 1, '
             . 'built_at DATETIME NOT NULL, '
-            . "building_type ENUM('military','residential','farming','resource','engineering') NULL, "
+            . "building_type ENUM('military','residential','farming','resource','engineering','defensive') NOT NULL, "
             . 'tax INT NOT NULL, '
             . "`usage` ENUM('personal','collective','all') NULL, "
             . 'created_at DATETIME NULL, '

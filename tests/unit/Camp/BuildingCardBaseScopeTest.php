@@ -12,13 +12,24 @@ namespace Longman\TelegramBot {
      * stand can't fetch; we rewrite it to the real local asset under `public/` so the
      * card's photo/caption path runs exactly like in production, just off disk.
      *
+     * The namespaced `function fopen()` declaration itself can't be scoped to one test
+     * file — PHP registers it process-wide the moment this file is loaded, and nothing
+     * can undeclare it (angela-second-base-bugs-05). What CAN be scoped is its
+     * BEHAVIOUR: gated behind a static flag that `BuildingCardBaseScopeTest` flips on
+     * only for its own `setUp()`/`tearDown()` window, this function is a transparent
+     * pass-through to the real `fopen()` for every test loaded before it, after it, or
+     * running interleaved in the same process — indistinguishable from no shim at all.
+     *
      * @param string $filename
      * @param string $mode
      * @return resource|false
      */
     function fopen($filename, $mode)
     {
-        if (is_string($filename) && preg_match('#^https?://[^/]+/(.+)$#', $filename, $m) === 1) {
+        if (\Tests\Unit\Camp\BuildingCardBaseScopeTest::$fopenShimActive
+            && is_string($filename)
+            && preg_match('#^https?://[^/]+/(.+)$#', $filename, $m) === 1
+        ) {
             $local = rtrim(FCPATH, '\\/') . '/' . $m[1];
             if (is_file($local)) {
                 return \fopen($local, $mode);
@@ -66,18 +77,26 @@ namespace Tests\Unit\Camp {
 
         protected $migrate = false;
 
-        /** @var list<string> таблицы, которые СОЗДАЛ этот тест (и поэтому вправе дропнуть). */
-        private array $createdTables = [];
+        /**
+         * Флаг, читаемый namespaced `fopen()`-шимом выше: включён только на время
+         * setUp()..tearDown() ЭТОГО теста, чтобы шим не действовал на тесты,
+         * загруженные до/после/вперемешку с этим файлом (angela-second-base-bugs-05).
+         */
+        public static bool $fopenShimActive = false;
 
-        /** @var list<int> id персонажей, заведённых этим тестом. */
-        private array $ownCharacterIds = [];
+        /**
+         * Приватный префикс таблиц (тот же паттерн, что `bubs_*` в
+         * `BuildingUpgradeBaseScopeTest`), применяется через `BaseConnection::setPrefix()` —
+         * реальные модели/хендлеры продолжают запрашивать `characters`/`buildings`/...
+         * без единой правки, а CI4 query builder транслирует их в `bcbs_characters`/
+         * `bcbs_buildings`/... на уровне SQL. Полная изоляция от общих таблиц: чужой тест
+         * не может оставить здесь несовместимую схему, потому что имя `bcbs_*` — только
+         * наше (feedback_test_schema_must_come_from_migration,
+         * feedback_local_green_on_empty_test_db_proves_nothing).
+         */
+        private const PREFIX = 'bcbs_';
 
-        private const CHAR_LINKED = [
-            'characters'          => 'id',
-            'character_buildings' => 'character_id',
-            'claimed_cells'       => 'character_id',
-            'character_tasks'     => 'character_id',
-        ];
+        private string $origPrefix = '';
 
         protected function setUp(): void
         {
@@ -90,14 +109,18 @@ namespace Tests\Unit\Camp {
             // вместо реального HTTP (урок feedback_taskhandler_telegram_init_in_tests).
             new Telegram('123456:TEST-fake-token-for-tests', 'test_bot');
 
-            $this->createTableIfMissing('telegram_users', '
-                CREATE TABLE telegram_users (
+            self::$fopenShimActive = true;
+            $this->origPrefix      = $this->db()->getPrefix();
+            $this->db()->setPrefix(self::PREFIX);
+
+            $this->createOwnTable('telegram_users', '
+                CREATE TABLE __TABLE__ (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     telegram_id BIGINT NULL
                 )
-            ');
-            $this->createTableIfMissing('characters', '
-                CREATE TABLE characters (
+            ', ['id', 'telegram_id']);
+            $this->createOwnTable('characters', '
+                CREATE TABLE __TABLE__ (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     telegram_user_id INT NULL,
                     name VARCHAR(64) NULL,
@@ -106,9 +129,10 @@ namespace Tests\Unit\Camp {
                     level INT NULL DEFAULT 1,
                     created_at DATETIME NULL,
                     updated_at DATETIME NULL
-                ) AUTO_INCREMENT=' . random_int(3_000_000, 3_999_999));
-            $this->createTableIfMissing('buildings', "
-                CREATE TABLE buildings (
+                )
+            ', ['id', 'telegram_user_id', 'cell_number', 'locale']);
+            $this->createOwnTable('buildings', "
+                CREATE TABLE __TABLE__ (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     name_ru VARCHAR(255) NULL,
                     name_en VARCHAR(255) NULL,
@@ -117,9 +141,9 @@ namespace Tests\Unit\Camp {
                     usage_count INT NULL,
                     description VARCHAR(255) NULL
                 )
-            ");
-            $this->createTableIfMissing('character_buildings', "
-                CREATE TABLE character_buildings (
+            ", ['id', 'name_ru', 'name_en', 'building_type']);
+            $this->createOwnTable('character_buildings', "
+                CREATE TABLE __TABLE__ (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     character_id INT NULL,
                     building_id INT NULL,
@@ -136,25 +160,25 @@ namespace Tests\Unit\Camp {
                     created_at DATETIME NULL,
                     updated_at DATETIME NULL
                 )
-            ");
-            $this->createTableIfMissing('claimed_cells', '
-                CREATE TABLE claimed_cells (
+            ", ['id', 'character_id', 'building_id', 'map_cell_id', 'level']);
+            $this->createOwnTable('claimed_cells', '
+                CREATE TABLE __TABLE__ (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     character_id INT NULL,
                     map_cell_id INT NULL,
                     claimed_at DATETIME NULL,
                     status VARCHAR(16) NULL DEFAULT "active"
                 )
-            ');
-            $this->createTableIfMissing('tasks', '
-                CREATE TABLE tasks (
+            ', ['id', 'character_id', 'map_cell_id', 'status']);
+            $this->createOwnTable('tasks', '
+                CREATE TABLE __TABLE__ (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     name VARCHAR(64) NULL,
                     name_rus VARCHAR(64) NULL
                 )
-            ');
-            $this->createTableIfMissing('character_tasks', '
-                CREATE TABLE character_tasks (
+            ', ['id', 'name']);
+            $this->createOwnTable('character_tasks', '
+                CREATE TABLE __TABLE__ (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     character_id INT NULL,
                     task_id INT NULL,
@@ -163,7 +187,7 @@ namespace Tests\Unit\Camp {
                     end_time DATETIME NULL,
                     task_settings TEXT NULL
                 )
-            ');
+            ', ['id', 'character_id', 'task_id', 'status']);
 
             $cache = service('cache');
             if (is_object($cache) && method_exists($cache, 'clean')) {
@@ -174,35 +198,53 @@ namespace Tests\Unit\Camp {
         protected function tearDown(): void
         {
             try {
-                foreach (self::CHAR_LINKED as $table => $col) {
-                    if (in_array($table, $this->createdTables, true) || $this->ownCharacterIds === []) {
-                        continue;
-                    }
-                    try {
-                        $this->db()->table($table)->whereIn($col, $this->ownCharacterIds)->delete();
-                    } catch (\Throwable $e) {
-                        // Таблица общая и уже не наша — не мешаем соседнему воркеру фаталом здесь.
-                    }
+                foreach (array_reverse(self::TABLES) as $table) {
+                    $this->db()->query('DROP TABLE IF EXISTS ' . self::PREFIX . $table);
                 }
             } finally {
-                foreach (array_reverse($this->createdTables) as $t) {
-                    $this->db()->query("DROP TABLE IF EXISTS {$t}");
-                }
+                $this->db()->setPrefix($this->origPrefix);
+                self::$fopenShimActive = false;
             }
 
             parent::tearDown();
         }
+
+        /** @var list<string> порядок создания == порядок дропа в reverse. */
+        private const TABLES = [
+            'telegram_users', 'characters', 'buildings', 'character_buildings',
+            'claimed_cells', 'tasks', 'character_tasks',
+        ];
 
         private function db(): BaseConnection
         {
             return Database::connect('tests');
         }
 
-        private function createTableIfMissing(string $table, string $ddl): void
+        /**
+         * Таблица живёт только под приватным префиксом `bcbs_` — никакой другой тест
+         * этим именем не пользуется, поэтому здесь никогда не может обнаружиться
+         * чужая, несовместимая схема: `DROP ... IF EXISTS` подчищает только
+         * возможный мусор от аварийно прерванного прошлого прогона ЭТОГО ЖЕ файла.
+         * После создания проверяем ожидаемые колонки — если DDL когда-нибудь
+         * разойдётся с требованиями `handle()`, тест упадёт с именем таблицы и
+         * недостающей колонки, а не с сырым `Unknown column` из драйвера.
+         *
+         * @param list<string> $requiredColumns
+         */
+        private function createOwnTable(string $table, string $ddl, array $requiredColumns): void
         {
-            if (! $this->db()->tableExists($table, false)) {
-                $this->db()->query($ddl);
-                $this->createdTables[] = $table;
+            $prefixed = self::PREFIX . $table;
+            $this->db()->query("DROP TABLE IF EXISTS {$prefixed}");
+            $this->db()->query(str_replace('__TABLE__', $prefixed, $ddl));
+
+            $actual  = $this->db()->getFieldNames($prefixed);
+            $missing = array_diff($requiredColumns, $actual);
+            if ($missing !== []) {
+                throw new \RuntimeException(sprintf(
+                    'BuildingCardBaseScopeTest: таблица %s существует, но в ней нет колонки %s — DDL теста разошёлся с тем, что реально трогает handle().',
+                    $prefixed,
+                    implode(', ', $missing)
+                ));
             }
         }
 
@@ -216,8 +258,7 @@ namespace Tests\Unit\Camp {
             $this->db()->table('characters')->insert([
                 'telegram_user_id' => $tgUid, 'cell_number' => $cellNumber, 'locale' => 'ru',
             ]);
-            $charId                 = (int) $this->db()->insertID();
-            $this->ownCharacterIds[] = $charId;
+            $charId = (int) $this->db()->insertID();
 
             return [$tgId, $charId];
         }
