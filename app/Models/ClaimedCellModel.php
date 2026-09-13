@@ -127,6 +127,29 @@ class ClaimedCellModel extends Model
     }
 
     /**
+     * story angela-second-base-bugs-01 — ВСЕ активные базы персонажа (нормализованные
+     * string-ключи, порядок по `id` — детерминированный, стабильный между вызовами).
+     * Карта и строка расстояния больше не смотрят на одну случайную запись через
+     * `first()` без `orderBy` — им нужен полный набор.
+     *
+     * @return array<int, array<string,mixed>>
+     */
+    public function findAllActiveCells(int $characterId): array
+    {
+        $rows = $this->where('character_id', $characterId)
+            ->where('status', 'active')
+            ->orderBy('id', 'ASC')
+            ->findAll();
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = $this->normalizeKeys($row);
+            }
+        }
+        return $out;
+    }
+
+    /**
      * ADR-095/102 — число активных баз игрока.
      */
     public function countActiveBases(int $characterId): int

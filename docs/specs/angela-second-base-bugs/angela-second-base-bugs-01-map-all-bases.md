@@ -1,7 +1,7 @@
 ---
 story: angela-second-base-bugs-01
 spec: angela-second-base-bugs
-status: todo
+status: done
 tier: 3
 worker: worker-code
 tracer: true
@@ -50,7 +50,7 @@ blocked_by: []
 - [ ] Текст экрана самодостаточен без картинок: число ходов и факт «это твоя база» читаются из самого сообщения.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/World/`
+`vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Tracer
 Тонкий срез через все слои класса ошибки: модель (`findAllActiveCells`) → сервис (набор клеток вместо одной пары) → текст экрана. Если на этом срезе вскроется, что «текущая база» резолвится не так, как предполагает план, — это меняет истории 02 и 03, и узнать об этом надо здесь.
@@ -63,5 +63,10 @@ blocked_by: []
 - Не гоняй весь набор параллельно с другими агентами: DB-тесты дерутся за общие таблицы.
 
 ## Implementation notes
+- `ClaimedCellModel::findAllActiveCells()` добавлен (orderBy id ASC, детерминированный порядок); `findFirstActiveCell`/`resolveTargetBaseCell` не тронуты.
+- `TextMapService::buildMapOnly()` — `$baseX/$baseY` заменены на `$ownBaseCells` (map `"{x}_{y}" => true`), отрисовка 🏕 через `isset()`; порядок веток (своя база до тумана войны) сохранён байт-в-байт.
+- `TextMapService::getDistanceLine()` — вместо `first()` перебирает `findAllActiveCells()`, берёт минимум по Чебышёву; формат строки не менялся.
+- Тест `TextMapMultiBaseTest` — без БД, все модели подменены reflection'ом на анонимные подклассы (паттерн `TeleportUseValidatorBaseChoiceTest`), проверяет обе базы в окне, базу вне окна, отсутствие баз, и ближайшую базу в строке расстояния (+ byte-identical формат для одной базы).
+- phpstan: `find($claimedRow['map_cell_id'])` пришлось нарроуить через `is_numeric()` на переменной (не на offset), не кастуя mixed напрямую; заодно почистил 4 устаревших baseline-записи для TextMapService.php (obsolete: coordinate_x/y на вложенном типе, map_cell_id-non-empty, notIdentical.alwaysTrue) и поднял count 2→4 для двух живых записей coordinate_x/coordinate_y (тот же класс ошибки CI4 `find()`, теперь встречается в цикле по нескольким базам).
 
 ## Findings

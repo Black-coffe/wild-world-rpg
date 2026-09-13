@@ -121,18 +121,20 @@ class TextMapService
             ];
         }
 
-        // Проверяем, есть ли у персонажа своя база
-        $baseX = null;
-        $baseY = null;
-        $claimedRow = $this->claimedCellModel
-            ->where('character_id', $characterRow['id'])
-            ->where('status', 'active')
-            ->first();
-        if ($claimedRow) {
-            $baseMapRow = $this->mapModel->find($claimedRow['map_cell_id']);
+        // story angela-second-base-bugs-01 — ВСЕ активные базы персонажа, не одна
+        // случайная (`first()` без `orderBy`): каждая попавшая в окно карты клетка
+        // помечается 🏕, а не только та, что вернула БД первой.
+        $ownBaseCells = [];
+        foreach ($this->claimedCellModel->findAllActiveCells((int) $characterRow['id']) as $claimedRow) {
+            $mapCellIdRaw = $claimedRow['map_cell_id'] ?? null;
+            if (! is_numeric($mapCellIdRaw)) {
+                continue;
+            }
+            $baseMapRow = $this->mapModel->find((int) $mapCellIdRaw);
             if ($baseMapRow) {
-                $baseX = (int) $baseMapRow['coordinate_x'];
-                $baseY = (int) $baseMapRow['coordinate_y'];
+                $bx = (int) $baseMapRow['coordinate_x'];
+                $by = (int) $baseMapRow['coordinate_y'];
+                $ownBaseCells["{$bx}_{$by}"] = true;
             }
         }
 
@@ -230,12 +232,10 @@ class TextMapService
                     continue;
                 }
 
-                // Если своя база
-                if ($baseX !== null && $baseY !== null) {
-                    if ($worldX === $baseX && $worldY === $baseY) {
-                        $mapText .= "🏕";
-                        continue;
-                    }
+                // Если своя база (любая из активных — story angela-second-base-bugs-01)
+                if (isset($ownBaseCells["{$worldX}_{$worldY}"])) {
+                    $mapText .= "🏕";
+                    continue;
                 }
 
                 // Собираем ключ
@@ -369,12 +369,10 @@ class TextMapService
      */
     public function getDistanceLine(array|\App\Entities\CharacterEntity $characterRow): string
     {
-        // 1) Проверяем наличие базы
-        $claimedRow = $this->claimedCellModel
-            ->where('character_id', $characterRow['id'])
-            ->where('status', 'active')
-            ->first();
-        if (!$claimedRow) {
+        // 1) Проверяем наличие баз (story angela-second-base-bugs-01 — считаем до
+        // БЛИЖАЙШЕЙ из всех активных, не до случайной первой)
+        $claimedRows = $this->claimedCellModel->findAllActiveCells((int) $characterRow['id']);
+        if ($claimedRows === []) {
             // Нет базы
             return "";
         }
@@ -391,18 +389,31 @@ class TextMapService
         $pX = (int)$mapRowPlayer['coordinate_x'];
         $pY = (int)$mapRowPlayer['coordinate_y'];
 
-        // 3) Координаты базы
-        $mapRowBase = $this->mapModel->find($claimedRow['map_cell_id']);
-        if (!$mapRowBase) {
+        // 3) Координаты каждой базы → берём ближайшую по метрике Чебышёва
+        $bX = null;
+        $bY = null;
+        $distance = null;
+        foreach ($claimedRows as $claimedRow) {
+            $mapCellIdRaw = $claimedRow['map_cell_id'] ?? null;
+            if (! is_numeric($mapCellIdRaw)) {
+                continue;
+            }
+            $mapRowBase = $this->mapModel->find((int) $mapCellIdRaw);
+            if (!$mapRowBase) {
+                continue;
+            }
+            $candX = (int) $mapRowBase['coordinate_x'];
+            $candY = (int) $mapRowBase['coordinate_y'];
+            $candDistance = max(abs($pX - $candX), abs($pY - $candY));
+            if ($distance === null || $candDistance < $distance) {
+                $distance = $candDistance;
+                $bX = $candX;
+                $bY = $candY;
+            }
+        }
+        if ($bX === null || $bY === null || $distance === null) {
             return "";
         }
-        $bX = (int)$mapRowBase['coordinate_x'];
-        $bY = (int)$mapRowBase['coordinate_y'];
-
-        // 4) Используем метрику Чебышёва (поскольку можно двигаться по диагонали)
-        $deltaX = abs($pX - $bX);
-        $deltaY = abs($pY - $bY);
-        $distance = max($deltaX, $deltaY);
 
         // Идея #13 (Yupirex, 23.01.2025): emoji-стрелка направления к базе.
         $arrow = $this->compassArrow($pX, $pY, $bX, $bY);

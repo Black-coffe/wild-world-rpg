@@ -142,3 +142,6 @@
 {"ts":"2026-09-12T15:45:07Z","story":"bugs-thread-triage-06-world","declared":1,"changed":6,"out_of_scope":6}
 {"ts":"2026-09-12T15:45:07Z","story":"bugs-thread-triage-07-live-run","declared":1,"changed":6,"out_of_scope":6}
 {"ts":"2026-09-12T15:45:08Z","story":"bugs-thread-triage-08-report","declared":1,"changed":6,"out_of_scope":6}
+{"ts":"2026-09-13T16:53:16Z","story":"angela-second-base-bugs-01-map-all-bases","declared":3,"changed":25,"out_of_scope":22}
+{"ts":"2026-09-13T16:53:24Z","story":"angela-second-base-bugs-01-map-all-bases","declared":3,"changed":26,"out_of_scope":23}
+{"ts":"2026-09-13T17:02:36Z","story":"angela-second-base-bugs-01-map-all-bases","declared":3,"changed":33,"out_of_scope":30}
