@@ -8,6 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\Craft\Repair\RepairCraftedItemActi
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\CharacterTaskModel;
+use App\Models\ClaimedCellModel;
 use App\Models\ResourceModel;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeApplier;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeValidator;
@@ -300,6 +301,30 @@ final class PoolAdoptionRepairUpgradeTest extends CIUnitTestCase
         };
     }
 
+    /**
+     * angela-second-base-bugs-03 (ADR-102) — валидатор с этой story резолвит целевую
+     * базу через `ClaimedCellModel::resolveTargetBaseCell()` ДО поиска строки
+     * `character_buildings`. Двойник ниже всегда возвращает одну и ту же «базу» —
+     * `characterBuildingModelDouble` в этом файле игнорирует `where()`-фильтры
+     * (возвращает фиксированную строку независимо от условий), так что конкретное
+     * значение не важно, важно лишь что оно не `null` (иначе шаг 1b отказал бы
+     * раньше, чем тест успевает дойти до проверки ресурсов/уровня — не по теме этого
+     * файла, ADR-102 mapping здесь не тестируется, см. `BuildingUpgradeBaseScopeTest`).
+     */
+    private function claimedCellModelDouble(): ClaimedCellModel
+    {
+        return new class () extends ClaimedCellModel {
+            public function __construct()
+            {
+            }
+
+            public function resolveTargetBaseCell(int $characterId, int $currentCell): ?int
+            {
+                return 1;
+            }
+        };
+    }
+
     private function validator(ResourcePoolService $pool, array $charBuilding, array $buildingInfo): BuildingUpgradeValidator
     {
         return new BuildingUpgradeValidator(
@@ -307,7 +332,8 @@ final class PoolAdoptionRepairUpgradeTest extends CIUnitTestCase
             $this->buildingModelDouble($buildingInfo),
             $this->resourceModelDouble(),
             $this->playerStateServiceDouble(true), // "на базе" гейт (шаг 1) — не то же самое, что pooled-статус самого пула
-            $pool
+            $pool,
+            $this->claimedCellModelDouble()
         );
     }
 
