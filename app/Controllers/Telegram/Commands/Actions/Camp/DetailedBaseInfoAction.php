@@ -55,12 +55,13 @@ class DetailedBaseInfoAction extends BaseAction
             return $this->showBuildings($character, $activeCell, $mapModel, $biomeModel, $buildingModel, $characterBuildingModel);
         }
 
-        // Не на базе физически — берём первую базу для дистанционного просмотра / координат.
-        $claimedCell = $claimedCellModel
-            ->where('character_id', $character['id'])
-            ->first();
+        // Не на базе физически — берём первую АКТИВНУЮ базу (по `id`) для дистанционного
+        // просмотра / координат. story angela-second-base-bugs-07: раньше `first()` без
+        // `status`/`orderBy` мог отдать заброшенную базу, пока рядом стоит живая.
+        $activeCells = $claimedCellModel->findAllActiveCells((int) $character['id']);
+        $claimedCell = $activeCells[0] ?? null;
 
-        // Если лагеря нет вообще (is_array нарроуит для showBuildings: returnType='array').
+        // Если активных баз нет вообще (is_array нарроуит для showBuildings: returnType='array').
         if (! is_array($claimedCell)) {
             return $this->handleNoBase($character);
         }

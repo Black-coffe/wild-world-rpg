@@ -68,11 +68,12 @@ class LeanToHandler extends BaseAction
         // ADR-095 мульти-база: читаем строки character_buildings ТОЙ базы, где стоит
         // игрок — иначе карточка путает уровень с другой базы персонажа (angela-second-base-bugs #2).
         $currentCell = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
-        $targetCell  = (new \App\Models\ClaimedCellModel())->resolveTargetBaseCell((int) $character['id'], $currentCell);
+        $scope = (new \App\Services\Bases\BaseScopeResolver())->resolve((int) $character['id'], $currentCell);
+        $targetCell = $scope['cell'];
         if ($targetCell === null) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => 'Баз у тебя несколько. Встань на ту базу, с которой работаешь, — и открой экран снова.',
+                'text'    => $scope['text'],
             ]);
         }
 

@@ -1,7 +1,7 @@
 ---
 story: angela-second-base-bugs-07
 spec: angela-second-base-bugs
-status: todo
+status: done
 tier: 3
 worker: worker-code
 tracer: false
@@ -84,6 +84,7 @@ inline-блока с литеральным текстом. Правила ре�
 - app/Controllers/Telegram/Commands/Actions/Camp/Buildings/Upgrades/BaseBuildingUpgradeAction.php
 - tests/unit/Services/Buildings/BaseScopeResolverTest.php
 - tests/unit/Camp/BuildingCardBaseScopeTest.php
+- tests/unit/Player/BuildingUpgradeBaseScopeTest.php
 
 ## Non-goals
 - В `tests/unit/Camp/BuildingCardBaseScopeTest.php` разрешено менять ТОЛЬКО ожидание текста
@@ -140,5 +141,89 @@ inline-блока с литеральным текстом. Правила ре�
   фаталом загрузки: меняешь сигнатуру — прогреби наследников и вызывающих.
 
 ## Implementation notes
+
+- Новый `App\Services\Bases\BaseScopeResolver` (единственная точка резолва) — конструктор
+  `(?ClaimedCellModel $claimedCellModel = null, ?CommunicationTowerCoverageService $towerService = null)`,
+  метод `resolve(int $characterId, int $currentCell): array{cell:int|null, reason:string|null, text:string|null}`.
+  Константы `REASON_NO_BASES`/`REASON_AMBIGUOUS`/`TEXT_NO_BASES`/`TEXT_AMBIGUOUS` — единый источник
+  обоих текстов отказа.
+- Четырнадцать хендлеров: механическая замена одного и того же трёхстрочного блока
+  (`ClaimedCellModel::resolveTargetBaseCell()` + ручной null-текст) на
+  `(new BaseScopeResolver())->resolve(...)` + `$scope['text']`. Правка сделана скриптом
+  (regex по идентичному блоку) — все 14 файлов дали `matched 1` без отклонений в структуре.
+- `BuildingUpgradeValidator`: конструктор НЕ менялся (сигнатура и порядок 6 позиционных
+  параметров сохранены байт в байт — их использует чужой тест
+  `BuildingUpgradeBaseScopeTest`, не в `## Files` этой истории). Добавлено приватное поле
+  `?BaseScopeResolver $baseScopeResolver` и ленивый геттер
+  `baseScopeResolver(): BaseScopeResolver`, который строит резолвер поверх УЖЕ
+  инжектированного `$this->claimedCellModel` — тестовые двойники модели подхватываются
+  автоматически, без изменения способа их передачи.
+- `BaseBuildingUpgradeAction`: тот же паттерн, инлайново — `(new BaseScopeResolver())->resolve(...)`.
+  Импорт `ClaimedCellModel` убран (стал неиспользуемым).
+- `DetailedBaseInfoAction` (п.3): выборка «первой базы для дистанционного просмотра»
+  заменена с `->where('character_id', …)->first()` (без status/orderBy) на
+  `findAllActiveCells((int) $character['id'])[0] ?? null` — тот же порядок
+  (`status='active'`, `orderBy('id')`), что использует `BaseScopeResolver`. Само
+  `handleNoBase()` (текст «У тебя нет ещё разбитого лагеря…») не трогал — это другая дверь,
+  не входящая в контракт «14 карточек + валидатор + generic-апгрейд», и у неё уже был
+  честный текст.
+- `tests/unit/Camp/BuildingCardBaseScopeTest.php`: добавлен ОДИН новый тестовый метод
+  `testNoBasesAtAllGetsHonestRefusalNotAmbiguousText()` (персонаж без единой `seedBase()`),
+  инфраструктура (префикс `bcbs_`, `fopen`-шим, `createOwnTable`) не тронута.
+- `tests/unit/Services/Buildings/BaseScopeResolverTest.php` (новый) — своя изолированная
+  таблица `bsr_claimed_cells` (паттерн `bubs_*`), двойник `CommunicationTowerCoverageService`
+  (анонимный класс, переопределяющий только `checkCoverage()`). Шесть тестов: своя база /
+  нет баз вообще / вышка → первая активная по `id` / нет вышки → ambiguous (текст байт в байт
+  как раньше) / заброшенная база с МЕНЬШИМ `id` не выбирается / одна база — поведение как до
+  истории.
+
+**Открытый вопрос Queen: удалённый апгрейд под вышкой.** `BuildingUpgradeValidator::validate()`
+шаг 1 (`PlayerStateService::isCharacterOnBase()`) требует, чтобы игрок физически стоял на
+СВОЕЙ активной базе (`ClaimedCellModel::findActiveCell()`), и это условие проверяется ДО
+резолва базы шагом 1b — покрытие Вышкой связи там вообще не участвует. Если шаг 1 не прошёл,
+апгрейд отказывает текстом «Вы не на базе или база отсутствует» и до `BaseScopeResolver` не
+доходит. Если шаг 1 прошёл (игрок физически на активной базе), `resolveTargetBaseCell()`
+внутри `BaseScopeResolver` находит ту же базу тем же методом `findActiveCell()` немедленно —
+ветка «вышка покрывает → берём первую базу» для апгрейда в проде НЕДОСТИЖИМА в принципе.
+**Вывод: удалённый апгрейд построек под сигналом Вышки связи НЕ работает и не работал —
+нужно физическое присутствие на базе.** Политика не менялась (Non-goals), только текст
+отказа и способ его получения.
+
+**Незапланированная находка при верификации (не фикс, для сведения).** Полный прогон
+`vendor/bin/phpunit --no-coverage --no-progress` дважды подряд падает ровно в одном месте —
+`BuildingUpgradeBaseScopeTest::testAmbiguousBaseReturnsAgreedMessageAndDoesNotApply`,
+`DatabaseException: Table 'wildworld_tests.claimed_cells' doesn't exist`. Причина: в этом
+тесте `PlayerStateService` — двойник, который ВСЕГДА возвращает `isCharacterOnBase()===true`
+(искусственно, шаг 1 вне охвата истории 03), поэтому шаг 1b гипотетической «вышка покрывает»
+ветки в этом тесте технически достижим — то, что в проде недостижимо (см. выше), здесь
+доходит до `CommunicationTowerCoverageService::checkCoverage()`, а тот бьёт НЕпрефиксованную
+реальную таблицу `claimed_cells` (сервис намеренно вне правки, Non-goals). Десятки других
+тестов в репозитории (`OnBaseResolutionMultiBaseTest`, `DemolishBuildingTest`,
+`PvpRewardOrchestratorTest` и др.) создают/дропают эту же безпрефиксную `claimed_cells` без
+изоляции — известная утечка схемы между тестами (`feedback_shared_table_schema_leaks_between_tests`).
+До этой истории `BuildingUpgradeValidator` эту таблицу вообще не трогал; теперь трогает —
+только в этом одном искусственном тестовом сценарии (в проде путь недостижим, см. вывод
+выше). Три целевых прогона (`BaseScopeResolverTest` отдельно; все три связанных файла вместе)
+— зелёные, стабильно, дважды. Файл `tests/unit/Player/BuildingUpgradeBaseScopeTest.php` НЕ в
+`## Files` этой истории — трогать нельзя.
+
+**Догон (файл добавлен в `## Files`, границы истории расширены).**
+`tests/unit/Player/BuildingUpgradeBaseScopeTest.php::testAmbiguousBaseReturnsAgreedMessageAndDoesNotApply`
+чинён без единой правки `app/` — только тест. Проблема была не в `BuildingUpgradeValidator`
+и не в `BaseScopeResolver` (оба логически верны, Non-goals не тронуты), а в том, что
+`BaseScopeResolver::__construct()` без явного второго аргумента заводит РЕАЛЬНЫЙ
+`CommunicationTowerCoverageService`, а тот сам создаёт РЕАЛЬНЫЙ `ClaimedCellModel` на
+непрефиксованную `claimed_cells` — таблицу, которую в общей тест-БД держат/дропают десятки
+других тестов без изоляции. `BuildingUpgradeValidator::baseScopeResolver()` — приватный
+ленивый геттер без сеттера (сигнатуру конструктора валидатора трогать было нельзя — она
+контракт этого же теста), поэтому тестовый двойник `CommunicationTowerCoverageService`
+(анонимный класс, `checkCoverage()` → `['isCovered' => false]`) подставляется в приватное
+поле `baseScopeResolver` через `ReflectionProperty` в helper-методе `validator()` — той же
+префиксованной `bubs_claimed_cells`, что использует сам валидатор. Ветка «вышка покрывает»
+для апгрейда и так недостижима в проде (см. вывод выше), так что `isCovered=false` в
+двойнике ничего не меняет в проверяемом поведении — только убирает обращение к чужой
+таблице. Проверено: `tests/unit/Player/BuildingUpgradeBaseScopeTest.php` зелёный в одиночку
+(7 тестов, 24 assertions) и весь набор `vendor/bin/phpunit --no-coverage --no-progress`
+зелёный (`Tests: 4114, Assertions: 32659, Skipped: 10`, 0 errors/failures).
 
 ## Findings

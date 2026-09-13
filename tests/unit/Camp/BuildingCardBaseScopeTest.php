@@ -403,5 +403,22 @@ namespace Tests\Unit\Camp {
             $response = (new HandPumpHandler($this->cbq($tgId, 'building_' . $buildingId . '_HandPump')))->handle();
             $this->assertStringContainsString('4 lvl', $this->textOf($response));
         }
+
+        // story angela-second-base-bugs-07 — `resolveTargetBaseCell()` возвращает `null`
+        // и для «баз ≥2» И для «баз нет вообще»; до этой истории оба состояния отвечали
+        // одним текстом «Встань на ту базу, с которой работаешь» — прямая ложь игроку
+        // без единой базы.
+        public function testNoBasesAtAllGetsHonestRefusalNotAmbiguousText(): void
+        {
+            $buildingId      = $this->seedBuilding('Ручная скважина', 'HandPump');
+            [$tgId, $charId] = $this->seedCharacter(100); // ни одной seedBase()
+
+            $response = (new HandPumpHandler($this->cbq($tgId, 'building_' . $buildingId . '_HandPump')))->handle();
+            $this->assertStringContainsString(
+                'Базы у тебя сейчас нет. Разбей лагерь — и постройки появятся на этом экране.',
+                $this->textOf($response)
+            );
+            $this->assertStringNotContainsString('Встань на ту базу', $this->textOf($response));
+        }
     }
 }

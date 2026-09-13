@@ -7,6 +7,8 @@ namespace Tests\Unit\Player;
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\ClaimedCellModel;
+use App\Services\Bases\BaseScopeResolver;
+use App\Services\Coverage\CommunicationTowerCoverageService;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeApplier;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeValidator;
 use App\Services\Player\CharacterStatsService;
@@ -14,6 +16,7 @@ use App\Services\Player\PlayerStateService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use ReflectionProperty;
 
 /**
  * angela-second-base-bugs-03 — ADR-102: апгрейд здания находил `character_buildings`
@@ -188,9 +191,35 @@ final class BuildingUpgradeBaseScopeTest extends CIUnitTestCase
         return (int) $this->conn->insertID();
     }
 
+    /**
+     * `CommunicationTowerCoverageService` — вне правки этой story (Non-goals в
+     * angela-second-base-bugs-07), и его собственный конструктор всегда заводит
+     * РЕАЛЬНЫЙ `ClaimedCellModel` на непрефиксованную `claimed_cells` — таблицу,
+     * которую в общей тест-БД держат/дропают десятки других тестов без изоляции
+     * (`feedback_shared_table_schema_leaks_between_tests`). `BuildingUpgradeValidator`
+     * доходит до него только веткой «≥2 активных баз, игрок не на своей» —
+     * именно тем сценарием, который проверяет
+     * `testAmbiguousBaseReturnsAgreedMessageAndDoesNotApply()`. Двойник исключает
+     * этот сервис из теста так же, как остальные приватные `bubs_`-таблицы этого
+     * файла изолируют его от общих.
+     */
+    private function coverageServiceDouble(): CommunicationTowerCoverageService
+    {
+        return new class () extends CommunicationTowerCoverageService {
+            public function __construct()
+            {
+            }
+
+            public function checkCoverage(int $characterId): array
+            {
+                return ['isCovered' => false];
+            }
+        };
+    }
+
     private function validator(): BuildingUpgradeValidator
     {
-        return new BuildingUpgradeValidator(
+        $validator = new BuildingUpgradeValidator(
             $this->characterBuildingModel(),
             $this->buildingModelDouble(),
             null, // resourceModel — реальный дефолт безвреден, requirements ниже без ресурсов
@@ -198,6 +227,18 @@ final class BuildingUpgradeBaseScopeTest extends CIUnitTestCase
             null, // resourcePool — реальный дефолт безвреден (ресурсов нет — не вызывается)
             $this->claimedCellModel(),
         );
+
+        // `BuildingUpgradeValidator` строит `BaseScopeResolver` лениво и без
+        // публичного сеттера (конструктор валидатора — контракт чужого теста,
+        // менять нельзя, см. story 07 Implementation notes). Подменяем приватное
+        // поле напрямую, той же префиксованной `claimedCellModel()`, что и сам
+        // валидатор, плюс двойник вышки — без единой правки app/.
+        $resolver = new BaseScopeResolver($this->claimedCellModel(), $this->coverageServiceDouble());
+        $prop     = new ReflectionProperty(BuildingUpgradeValidator::class, 'baseScopeResolver');
+        $prop->setAccessible(true);
+        $prop->setValue($validator, $resolver);
+
+        return $validator;
     }
 
     private function applier(): BuildingUpgradeApplier

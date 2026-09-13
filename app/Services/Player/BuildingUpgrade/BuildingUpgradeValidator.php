@@ -6,6 +6,7 @@ use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\ClaimedCellModel;
 use App\Models\ResourceModel;
+use App\Services\Bases\BaseScopeResolver;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Services\Player\PlayerStateService;
 use App\Services\Player\ResourcePoolService;
@@ -53,6 +54,7 @@ class BuildingUpgradeValidator
     private PlayerStateService $playerStateService;
     private ResourcePoolService $resourcePool;
     private ClaimedCellModel $claimedCellModel;
+    private ?BaseScopeResolver $baseScopeResolver = null;
 
     public function __construct(
         ?CharacterBuildingModel $characterBuildingModel = null,
@@ -88,9 +90,10 @@ class BuildingUpgradeValidator
         // порча данных, что чинили Demolish/Delete/Relocate).
         $charIdForBase = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
         $currentCell   = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
-        $targetMapCellId = $this->claimedCellModel->resolveTargetBaseCell($charIdForBase, $currentCell);
+        $scope = $this->baseScopeResolver()->resolve($charIdForBase, $currentCell);
+        $targetMapCellId = $scope['cell'];
         if ($targetMapCellId === null) {
-            return ['ok' => false, 'error' => 'Баз у тебя несколько. Встань на ту базу, с которой работаешь, — и открой экран снова.'];
+            return ['ok' => false, 'error' => $scope['text']];
         }
 
         // 2) Character has the building ON THIS BASE
@@ -216,5 +219,14 @@ class BuildingUpgradeValidator
                 'requirements'  => $req,
             ],
         ];
+    }
+
+    /**
+     * Ленивый резолвер поверх уже инжектированного `claimedCellModel` — тестовые
+     * двойники модели (свои таблицы) подхватываются автоматически.
+     */
+    private function baseScopeResolver(): BaseScopeResolver
+    {
+        return $this->baseScopeResolver ??= new BaseScopeResolver($this->claimedCellModel);
     }
 }

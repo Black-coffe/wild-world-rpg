@@ -8,7 +8,7 @@ use Longman\TelegramBot\Entities\ServerResponse;
 use App\Models\CharacterBuildingModel;
 use App\Models\BuildingModel;
 use App\Models\CharacterModel;
-use App\Models\ClaimedCellModel;
+use App\Services\Bases\BaseScopeResolver;
 
 /**
  * Абстрактный класс с общей логикой:
@@ -78,11 +78,12 @@ abstract class BaseBuildingUpgradeAction extends BaseAction
         // базам, не ту, на которой стоит (см. BuildingUpgradeValidator).
         $charIdForBase   = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
         $currentCell     = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
-        $targetMapCellId = (new ClaimedCellModel())->resolveTargetBaseCell($charIdForBase, $currentCell);
+        $scope           = (new BaseScopeResolver())->resolve($charIdForBase, $currentCell);
+        $targetMapCellId = $scope['cell'];
         if ($targetMapCellId === null) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => 'Баз у тебя несколько. Встань на ту базу, с которой работаешь, — и открой экран снова.',
+                'text'    => $scope['text'],
             ]);
         }
 
