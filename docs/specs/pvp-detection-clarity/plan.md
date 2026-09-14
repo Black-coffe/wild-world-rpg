@@ -241,5 +241,5 @@ UX-DISCOVERABILITY требует, чтобы клик по замку объя�
 
 **Approved:** Andrei Andrievskii, 2026-09-11 — «одобряю» (стадия 02). Одобрено вместе с четырьмя решениями редколлегии и вердиктом гриля об отказе от авто-очистки, записанными в `## Assumptions`.
 **Branch:** `vulyk/pvp-detection-clarity` (ответвлена от `develop` 2026-09-11; `master` в релиз-путь не входит)
-**Checked:** <written by scripts/human-check.sh after the owner has looked - stage 05. /vulyk-ship refuses without it.>
 **Shipped:** <written by scripts/ship-check.sh --record - stage 06: the published version, and where>
+**Checked:** ACCEPTED by Claude Code, 2026-09-14, at a1d36efd - владелец выбрал «Тег develop целиком (Рекомендую)» 2026-09-14: pvp-detection-clarity уезжает на прод в составе v0.51.667 вместе с angela-second-base-bugs; окно противостояния остаётся выключенным (pvp.standoff.enabled=false)
