@@ -118,7 +118,7 @@ Tech-writing ноты на тронутые сервисы; ADR о том, чт�
 
 **Approved:** Andrei (делегировал: «Давай на твое усмотрение»), 2026-09-15
 **Briefed:** <not used - Approved above>
-**Branch:** <written by /vulyk-build before wave 1>
+**Branch:** vulyk/cron-delivery-integrity
 **Checked:** <written by scripts/human-check.sh>
 **Council:** <written by scripts/cycle.sh judge>
 **Shipped:** <written by scripts/ship-check.sh --record>
