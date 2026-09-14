@@ -165,6 +165,7 @@ git check-ignore -v .claude/admin-credentials.local.md .claude/settings.local.js
 | `.claude/agents/drone-docs.md` | блок «Project path binding» — ноты пишутся в `mmorpg-vault/tech-writing/` | `grep -L "Project path binding" .claude/agents/drone-docs.md` |
 | `scripts/lib.sh` (до 0.12.0 — `ship-check.sh` + `human-check.sh`) | `is_paperwork_path()` знает про леджеры улья (§10) | `grep -c "memory/learnings" scripts/lib.sh` |
 | `scripts/cycle.sh` | `command_cell_exists()` читает и `CLAUDE.vulyk.md` (раздел в конце файла) | `grep -c 'CLAUDE.vulyk.md' scripts/cycle.sh` |
+| `.claude/commands/vulyk-build.md` | драйвер зовётся через `scriptPath`, не `name` (раздел в конце файла) | `grep -c 'scriptPath' .claude/commands/vulyk-build.md` |
 
 Одной командой — что откатилось:
 
@@ -346,6 +347,18 @@ be hidden in the approval dialog`. Сам `.claude/workflows/vulyk-cycle.js` п�
 ни `Cc`, ни `Cf`, ни BOM; перевод CRLF→LF не помог и откачен. Круг ведётся запасным драйвером в
 главной сессии (`/vulyk-build` шаг 2), на состав работы это не влияет — только на то, что
 дежурит Queen, а не Workflow.
+
+**Решено 14.09.2026 (0.13.1): отвергается вызов ПО ИМЕНИ, а не скрипт.** Разведено тремя пробами:
+`name: "vulyk-cycle"` — тот же отказ (и на CRLF, и на LF-копии; ошибка прямо говорит «tool input
+from the model was valid» — скрипт с «control characters» подставляет сам резолвер имени);
+минимальный inline-скрипт — проходит; **тот же файл через `scriptPath` — проходит и отрабатывает**
+(на отгруженной спеке: 3 вызова `cycle-clerk`, `next: shipped`, выход, 0 ошибок). Откуда резолвер
+берёт скрипт по имени — не выяснено. Обход: `/vulyk-build` зовёт драйвер через
+`scriptPath: ".claude/workflows/vulyk-cycle.js"` (правка в §6). Попутно: при `core.autocrlf=true`
+рабочая копия `vulyk-cycle.js` получала CRLF (290 `\r`; проверка в текстовом режиме Python их
+склеивала и не видела) — в `.gitattributes` добавлено `.claude/workflows/*.js text eol=lf`.
+Не проверено, прошёл бы `scriptPath` на CRLF-копии. Открыто: 3 вызова клерка стоили ~167k токенов
+субагентов (~55k на вызов) — на полном круге это заметные деньги.
 
 ## 12. Апгрейд 0.12.0 → 0.13.1 (14.09.2026)
 
