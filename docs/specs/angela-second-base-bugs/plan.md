@@ -97,3 +97,4 @@ ADR-142 (Навес как one-shot первое укрытие), ADR-020 (media
 **Council:** <scripts/cycle.sh judge>
 **Shipped:** <scripts/ship-check.sh --record>
 **Council:** RED round 1, 2026-09-13, at 213d2bf0, pack edbb6544e15a - red: 7
+**Council:** GREEN round 2, 2026-09-14, at f13503e2, pack 6cb085774590
