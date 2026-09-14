@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-08
+last-verified: 2026-09-14
 
 # Scout report: Базы, лагерь, постройки
 
@@ -11,7 +11,12 @@ last-verified: 2026-09-08
 
 ## Entry points
 - `app/Services/Bases/` — `BaseLifecycleService`, `BaseLimitService`, `BaseCheckService`,
-  `CampCheckService`, `BaseLocationResolver`, `BaseBuildingsList`, `BaseServiceMessageFormatter`.
+  `CampCheckService`, `BaseLocationResolver`, `BaseBuildingsList`, `BaseServiceMessageFormatter`,
+  `BaseScopeResolver` (story angela-second-base-bugs-07) — единая точка «с какой базой работает
+  этот экран», вызывается всеми 14 карточками построек, роутящимися через
+  `Camp/BuildingHandlerAction` (12 обычных + `DefensiveBuildingHandler` + `LeanToHandler`), и
+  `BuildingUpgradeValidator` (шаг 1b). `resolve()` даёт 4 исхода: своя база / `no_bases` /
+  первая активная под покрытием Вышки связи / `ambiguous` (несколько баз, нет покрытия).
 - `app/Services/Buildings/`, `app/Services/BuildingEffects/`, `app/Services/Housing/`.
 - `app/Services/Player/BuildingUpgrade/`.
 - TaskHandlers — `app/TaskHandlers/Built/`, `BaseLifecycleHandler.php`, `TaxCollectionHandler.php`.
@@ -47,6 +52,13 @@ outbound: ресурсы, `GameSettings`, `Services/Coverage`.
   прочитанным до транзакции (два параллельных вылета делили один заряд); `RepairBuildingAction`
   при отказе на одной строке плана коммитил уже списанные другие строки. Оба — через
   `decrementIfAtLeast()`/условный откат внутри транзакции.
+- **(2026-09-13, angela-second-base-bugs-07) Building-карточки теперь мульти-база-aware.**
+  Раньше 14 карточек построек, generic `BaseBuildingUpgradeAction` и `BuildingUpgradeValidator`
+  звали `ClaimedCellModel::resolveTargetBaseCell()` напрямую и на `null` отвечали ОДНИМ текстом
+  для «баз нет» и «баз несколько» — ложь игроку без единой базы. `BaseScopeResolver` типизирует
+  отказ. `BaseBuildingUpgradeAction` (abstract) на практике недостижим: единственный наследник
+  `RoboticsWorkshopUpgradeAction` нигде не инстанцируется — живой путь апгрейда
+  `CallbackPrefixDispatcher` → `UpgradeBuildingAction` → `BuildingUpgradeValidator`.
 - **Экран «📡 Маяки» — две двери, обе в `BaseServiceMessageFormatter`** (сверено 2026-09-08,
   merge `53470325`): `baseBuildings()` (happy-path, на базе/под вышкой) и `notOnBasePhysically()`
   (заглушка «база в другой ячейке», `BaseService.php:241`). Маяк ставится в клетке игрока —
