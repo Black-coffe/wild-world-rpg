@@ -117,8 +117,8 @@ Tech-writing ноты на тронутые сервисы; ADR о том, чт�
   Гейт: тест роняет набор, если класс в `app/Services/**`, зовущий `Request::send*`/`Request::edit*`, не поднимает мост сам и не стоит в списке исключений с причиной; к скану приложен поведенческий тест — реальный путь отправки без ключа не бросает наружу и не возвращает ложный успех.
 
 **Approved:** Andrei (делегировал: «Давай на твое усмотрение»), 2026-09-15
-**Briefed:** —
-**Branch:** —
-**Checked:** —
-**Council:** —
-**Shipped:** —
+**Briefed:** <not used - Approved above>
+**Branch:** <written by /vulyk-build before wave 1>
+**Checked:** <written by scripts/human-check.sh>
+**Council:** <written by scripts/cycle.sh judge>
+**Shipped:** <written by scripts/ship-check.sh --record>
