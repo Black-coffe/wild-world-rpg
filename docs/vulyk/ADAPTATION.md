@@ -164,6 +164,7 @@ git check-ignore -v .claude/admin-credentials.local.md .claude/settings.local.js
 | `.claude/agents/lead-architect.md` | блок «Project path binding» — ADR пишутся в `mmorpg-vault/decisions/` | `grep -L "Project path binding" .claude/agents/lead-architect.md` |
 | `.claude/agents/drone-docs.md` | блок «Project path binding» — ноты пишутся в `mmorpg-vault/tech-writing/` | `grep -L "Project path binding" .claude/agents/drone-docs.md` |
 | `scripts/lib.sh` (до 0.12.0 — `ship-check.sh` + `human-check.sh`) | `is_paperwork_path()` знает про леджеры улья (§10) | `grep -c "memory/learnings" scripts/lib.sh` |
+| `scripts/cycle.sh` | `command_cell_exists()` читает и `CLAUDE.vulyk.md` (раздел в конце файла) | `grep -c 'CLAUDE.vulyk.md' scripts/cycle.sh` |
 
 Одной командой — что откатилось:
 
@@ -345,3 +346,32 @@ be hidden in the approval dialog`. Сам `.claude/workflows/vulyk-cycle.js` п�
 ни `Cc`, ни `Cf`, ни BOM; перевод CRLF→LF не помог и откачен. Круг ведётся запасным драйвером в
 главной сессии (`/vulyk-build` шаг 2), на состав работы это не влияет — только на то, что
 дежурит Queen, а не Workflow.
+
+## 12. Апгрейд 0.12.0 → 0.13.1 (14.09.2026)
+
+**Откатилось и возвращено руками** — ровно по списку §6 + одна правка из раздела выше:
+- `.claude/commands/vulyk-handoff.md` → восстановлен из `HEAD` (вызов `context_guard.py`);
+- `.claude/hooks/handoff.py` + `handoff.sh` вернулись (в `settings.json` не прописались) → удалены;
+- `scripts/lib.sh` → `is_paperwork_path()` снова знает `memory/stats/skills.json` и `memory/learnings/*`;
+- `scripts/cycle.sh` → `command_cell_exists()` снова читает обе конституции;
+- `.claude/agents/lead-architect.md` + `drone-docs.md` → блоки «Project path binding» вставлены
+  обратно сразу после frontmatter (текст — из `HEAD` до апгрейда);
+- `.claude/rules/example-api.md` вернулся → удалён.
+
+**Конституция слита вручную в `CLAUDE.vulyk.md`:** раздел «Routing» (сначала результат, потом тир;
+study work = `brief.md` + `report.md` без stories и совета), остановка на `**Approved:**` по
+умолчанию (`--go` — опт-ин, Tier 1 — насквозь), раздел «The model ladder» (Lead у нас = `opus`,
+Haiku 4.5 не диспатчится), новая строка 01+02 таблицы цикла. Эссе про effort сжато по ванили.
+
+**Решение по Tier 2.** С 0.13.0 совет Tier 2 = `council-sonnet` + `lead-review`, `council-opus`
+на этом тире не зовётся. Наши предметные ворота (discoverability / onboarding / guide / tips) на
+Tier 2 раньше нёс `council-opus` — теперь несёт `council-sonnet`: ворота и так пишутся строками
+`## Asks`, а он доказывает каждый ask. Вернуть `council-opus` правкой `cycle.sh
+required_seats_for_tier` отказались — ещё один патч, который откатывает каждый апгрейд.
+
+Проверка после следующего апгрейда — чек-лист §6 плюс:
+
+```
+grep -c 'CLAUDE.vulyk.md' scripts/cycle.sh        # ожидаем ≥1 (command_cell_exists)
+ls .claude/rules/example-api.md                   # должно отсутствовать
+```

@@ -40,34 +40,48 @@ Do **not** add instructions telling an agent to verify itself, re-check its answ
 verification pass. Current models already do this, and asking again compounds into wasted tokens
 without improving the result. Reviewing *another* agent's diff is a different thing and stays.
 
-## Complexity routing (decide BEFORE working)
+## Routing (decide BEFORE working)
 
-Classify every request into a tier, announce the tier, then follow its protocol:
+**First the deliverable, then the tier.** A request whose result is a *document* — an audit, a
+monitoring or validation report, a research answer, "make me a plan/spec" — is **study work**: it
+ends at the document and never dispatches a worker, opens a council or cuts a story. Say
+`deliverable: document` and follow `/vulyk-plan` step 0 (`brief.md` + `report.md`). Only a request
+whose result is *changed code* gets a tier:
 
-| Tier | Signal | Stories | Agents (C15) | Protocol |
+| Tier | Signal | Stories | Agents | Protocol |
 |---|---|---|---|---|
-| 0 | Trivial, single file, obvious | — | none | Do it directly - no brief, no council. No ceremony. |
-| 1 | One module, clear task | 1 | 1 worker + 1 seat | Mini-brief (`## Asks` = the task phrase, verbatim, no grill) → dispatch 1 `worker-code` (scout first if location unknown) → one council round → `/vulyk-ship`. |
-| 2 | Feature within a module | 2–4 | 2-4 workers + 2 seats + `lead-review` | `/vulyk-plan` (grill) → driver (`/vulyk-build`: build → council → repair) → `/vulyk-ship`. |
-| 3 | Cross-cutting, multi-module | 4–8 | 4-8 workers + 3 seats + `lead-review` | `/vulyk-plan` (grill) → driver (`/vulyk-build`) → `/vulyk-ship`; `/vulyk-review` runs one more council round on demand first if you want a second look before shipping. |
-| 4 | Architecture, migration, 200k+ LOC touched | 9–16 | Tier 3, + `lead-architect` + a second reviewer | Tier 3 + `lead-architect` consult + a second reviewer on a *different* model (у нас гейт идёт на `opus` — второй ревьюер берёт `fable` или `sonnet`; бриф называет его явно). Raise session effort before planning (see below). |
+| 0 | Trivial, single file, obvious | — | none | Do it directly - no brief, no council, no ceremony. |
+| 1 | One module, clear task | 1 | 1 worker + `council-sonnet` | Mini-brief (`## Asks` = the task phrase, verbatim, no grill) → 1 `worker-code` (scout first only if the location is unknown) → one council round → `/vulyk-ship`. |
+| 2 | Feature within a module | 2–4 | 2-4 workers + `council-sonnet` + `lead-review` | `/vulyk-plan` (grill, ≤1 scout) → **stop for approval** → `/vulyk-build` → `/vulyk-ship`. |
+| 3 | Cross-cutting, multi-module | 4–8 | 4-8 workers + the full court (`sonnet`, `opus`, `haiku` seats) + `lead-review` | `/vulyk-plan` (grill, ≤2 scouts, coverage check) → **stop for approval** → `/vulyk-build` → `/vulyk-ship`; `/vulyk-review` — ещё один круг совета по желанию перед шипом. |
+| 4 | Architecture, migration, 200k+ LOC touched | 9–16 | Tier 3 + `lead-architect` + a second reviewer on a *different* model | Tier 3 + `lead-architect` consult; у нас гейт идёт на `opus` — второй ревьюер берёт `fable` или `sonnet`, бриф называет его явно. Raise session effort before planning. |
 
-Past 16 stories the goal is more than one spec — split it. Story counts are calibration, not
-targets. **Ceremony floor:** `brief.md` and `## Requirements` quotes exist at Tier 2+; `## Asks`
-exists at Tier 1+ (Tier 1: the task phrase itself, verbatim, no grill); `trace-check.sh` runs
-whenever stories exist; Tier 0 gets none of it.
+Past 16 stories the goal is more than one spec — split it. Counts are calibration, not targets.
+**Ceremony floor:** `brief.md` and `## Requirements` quotes exist at Tier 2+; `## Asks` at Tier 1+;
+`trace-check.sh` runs whenever stories exist; Tier 0 and study work get none of it.
 
-**Effort.** Effort is a session-level setting in Claude Code, not a per-agent one: `/effort <level>`
-mid-session, `--effort <level>` at launch, or `effortLevel` in `.claude/settings.json`. Subagents
-inherit the session's level — a `.claude/agents/*.md` file cannot set its own, and writing `effort:`
-into that frontmatter is silently ignored. Measured on this repo, July 2026.
+**The plan stops for approval by default** (`**Approved:**` in plan.md). Straight-through into the
+build is the opt-in — `/vulyk-plan --go`, or the owner saying so on the grill's last question.
+Tier 1 stays straight-through. An owner who has not read the plan has not approved the spend.
 
-So effort is a posture you set per work session, not per caste: recon and mechanical passes at
-`low`, ordinary implementation at `medium`, planning and review at `high`. Escalate only after a
-real failure, and treat `max` as something a falling test earns rather than a default — the step
-from `high` to `max` nearly doubles the bill for about two points of benchmark index. Note also
-that changing effort mid-session re-renders the prompt and drops the cached prefix, which can cost
-more than the effort change saves; prefer setting it once at the start of a session.
+**Effort** is a session setting, not a per-agent one (`effort:` in agent frontmatter is silently
+ignored). Set it once at launch: `low` for recon, `medium` for implementation, `high` for planning
+and review; `max` only after a real failure. Changing it mid-session drops the cached prefix.
+
+## The model ladder
+
+Four rungs, one job each. Agent frontmatter carries the rung; the dispatch parameter carries the
+upgrade. Full table and rationale: `docs/model-cascade.md` (ADR-007 рамки).
+
+| Rung | Alias | Who | Work |
+|---|---|---|---|
+| Lead | `TOP_MODEL` — у нас `opus` (пин в `CLAUDE.md`) | Queen, `queen-planner`, `lead-architect`, `lead-review` | planning, design, the gate |
+| Senior | `opus` | `council-opus`; the **second attempt** of any story a mid missed; stories the planner marks `model: opus` | judgment, hard stories, retries |
+| Mid | `sonnet` | `worker-code`, `worker-test`, `council-sonnet`, `drone-scout`, `drone-docs`, `drone-coverage`, `librarian` | implementation, recon, memory |
+| Junior | `haiku` **only once a Haiku 5 exists**; until then `sonnet` | `council-haiku` (the black-box seat keeps its name - it is an angle), `cycle-clerk`, the learnings distiller | mechanical, one-verb, no judgment |
+
+Haiku 4.5 is never dispatched. Route with frontmatter and the dispatch parameter, never `/model`
+mid-session.
 
 ## The cycle
 
@@ -76,14 +90,14 @@ turn - [docs/cycle.md](docs/cycle.md) says what each stage cannot skip and what 
 
 | # | Stage | Confirmation on disk | Command |
 |---|---|---|---|
-| 01+02 | Spec + Plan - what, why, who, in which files | `**Briefed:**` (or `**Approved:**` in two-stop mode) in plan.md | `/vulyk-plan` (grill, one round) |
+| 01+02 | Spec + Plan - what, why, who, in which files | `**Approved:**` (owner) or `**Briefed:**` (`--go` / Tier 1) in plan.md | `/vulyk-plan` (grill, one round) |
 | 03 | Code - agents work, in their own branch | `**Branch:**` + one commit per story | `/vulyk-build` |
 | 04+05 | **Council** - blind seats + `lead-review` judge the brief's own `## Asks` | `**Council:** GREEN` + `memory/stats/council.jsonl` | `/vulyk-build` (driver) or `/vulyk-review` (one round) |
 | 06 | Ship - branch merged locally, publish command printed, next circle opened | `**Shipped:**` via `scripts/ship-check.sh --record` | `/vulyk-ship` |
 
 The council is the one mandatory control after the plan closes, and it shrinks by seat count
 with the tier, never to zero (C15): `council-sonnet` alone at Tier 1, `council-sonnet` +
-`council-opus` + `lead-review` at Tier 2, and the full court - `council-haiku`,
+`lead-review` at Tier 2 (с 0.13.0 — `council-opus` на Tier 2 больше не зовётся), and the full court - `council-haiku`,
 `council-sonnet`, `council-opus` plus `lead-review` - at Tier 3-4. The tier is the Queen's own
 call, made once before any work; `plan.md`'s `**Tier:**` line is what `cycle.sh` reads to size
 the court, frozen into the round at `open-round`. Green needs unanimity; half the asks RED, or
@@ -259,7 +273,7 @@ Drop file contents, diffs, command output and scout reports: they are on disk an
 | WIPE-COVERAGE: новая таблица/player-колонка → `Config\WipeManifest` | `worker-code` в story, `lead-review` проверяет; PostToolUse-хук напоминает |
 | ADMIN-TUNABLE BALANCE: любое число баланса → `GameSettings` с rationale | `lead-review` — hardcoded баланс-число это отказ в мердже |
 | MEDIA-OFF: caption самодостаточен | `lead-review` + `council-sonnet` (ask'ом в `brief.md`) |
-| UX-DISCOVERABILITY / ONBOARDING / GUIDE / TIPS coverage | Queen фиксирует вердикт **строкой `## Asks`** в `brief.md` — иначе слепые места о нём не узнают; достижимость по UI проверяет `council-haiku` (Tier 3–4) или `council-opus` (Tier 2) |
+| UX-DISCOVERABILITY / ONBOARDING / GUIDE / TIPS coverage | Queen фиксирует вердикт **строкой `## Asks`** в `brief.md` — иначе слепые места о нём не узнают; достижимость по UI проверяет `council-haiku` (Tier 3–4) или `council-sonnet` (Tier 2 — с 0.13.0 единственное слепое место на этом тире) |
 | Дизайн-системы `wildworld-ui.css` (сайт) и `admin-ui.css` (админка) | `.claude/rules/web-public.md` и `.claude/rules/web-admin.md` |
 
 Вердикт по tips/guide выносится **всегда**, включая «не добавляем — потому что». Место вердикта —
@@ -320,7 +334,7 @@ Drop file contents, diffs, command output and scout reports: they are on disk an
 | «`/vulyk-ship` мержит локально и ПЕЧАТАЕТ команду публикации, не жмёт» (новое в 0.12.0) | тег + пуш — outward-facing, но у владельца стоит **постоянное** разрешение: зелёный preprod-смоук = добро | Печатаемую команду выполняем: после зелёного смоука на preprod тег ставится без отдельного вопроса. Но **состав диффа сверяется до тега** (в репо бывает параллельная сессия), а `--record` получает имя тега в примечании |
 | «стадии 04+05 — совет, человек не обязателен» (новое в 0.12.0) | у нас есть предметные ворота, которых слепые места не знают, и Tier-3, для которого у них нет браузера | Ворота идут строками в `## Asks` (см. таблицу ворот выше). Живой Tier-3 в Telegram гоняет Queen руками на preprod-testbot'е и кладёт результат в брифовый ask. `human-check.sh` остался как override — им пользуемся, когда владелец хочет отменить вердикт совета в любую сторону, а `/vulyk-pause` — когда хочет вмешаться посреди круга |
 
-Порядок одного круга, целиком: `/vulyk-plan` (гриль → `## Asks` → `**Briefed:**`) →
+Порядок одного круга, целиком: `/vulyk-plan` (гриль → `## Asks` → стоп на `**Approved:**` владельца, либо `**Briefed:**` при `--go`) →
 `/vulyk-build` (ветка `vulyk/<slug>`; драйвер крутит build → council → repair, потолок 3 раунда) →
 `**Council:** GREEN` → merge в `develop` + push → GitHub Actions катит **preprod** → смоук нужного
 тира → `/vulyk-ship`: тег `v0.51.x` на `develop` → Actions катит **прод** + сайт → смоук на проде →

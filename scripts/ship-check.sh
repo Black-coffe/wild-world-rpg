@@ -80,7 +80,7 @@ echo ""
 if [ -f "$SPEC/brief.md" ]; then ok 01 "spec: brief.md exists"
 else fail 01 "spec: no brief.md - there is no verbatim request for anything below to answer to"; fi
 
-# 02 Plan - **Briefed:** (autonomous mode) or **Approved:** (two-stop mode) close this
+# 02 Plan - **Approved:** (the default) or **Briefed:** (--go / Tier 1) close this
 # stage; ship-check.sh accepts either (ADR-001 D1).
 if [ ! -f "$PLAN" ]; then
   fail 02 "plan: no plan.md"
@@ -189,7 +189,8 @@ if [ -n "$CLAST" ]; then
   esac
 
   OVERRIDE=""
-  if [ -n "$HLAST" ] && [ -n "$HTS" ] && [ -n "$CTS" ] && [ "$HTS" \> "$CTS" ]; then
+  if [ -n "$HLAST" ] && [ -n "$HTS" ] && [ -n "$CTS" ] \
+     && { [ "$HTS" \> "$CTS" ] || [ "$HTS" = "$CTS" ]; }; then
     case "$HV" in
       ACCEPTED) OVERRIDE=ACCEPTED ;;
       REJECTED) OVERRIDE=REJECTED ;;
@@ -224,7 +225,7 @@ else
     AV="$(printf '%s' "$LAST" | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p')"
     AP="$(printf '%s' "$LAST" | sed -n 's/.*"pack":"\([^"]*\)".*/\1/p')"
     if [ "$AP" != "$NOW_P" ]; then
-      fail 04 "tests: acceptance verdict $AV is STALE - given against pack $AP, now $NOW_P; re-dispatch drone-acceptance"
+      fail 04 "tests: acceptance verdict $AV is STALE - given against pack $AP, now $NOW_P; run /vulyk-review to record a current council verdict"
     elif [ "$AV" = ACCEPTED ]; then
       ok 04 "tests: acceptance ACCEPTED, current for this pack"
     elif [ "$AV" = CANNOT_RUN ]; then
