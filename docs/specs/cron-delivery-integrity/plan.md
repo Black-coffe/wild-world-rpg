@@ -1,7 +1,7 @@
 # План: сообщения из крона не теряются молча
 
-**Спека:** `cron-delivery-integrity` · **Тир:** 3 · **Ветка:** `vulyk/cron-delivery-integrity`
-**Бриф:** [brief.md](./brief.md) · **Approved:** _(ждёт слова владельца)_
+**Tier:** 3 · **Spec slug:** `cron-delivery-integrity` · **Ветка:** `vulyk/cron-delivery-integrity`
+**Бриф:** [brief.md](./brief.md)
 
 ## Главное решение плана
 
@@ -80,3 +80,45 @@ Tech-writing ноты на тронутые сервисы; ADR о том, чт�
 - Аудит ~80 completion-хендлеров под `Worker.php` поштучно. Гейт из `-04` закрывает класс, но если
   владелец захочет именно перепись — это отдельная разведка.
 - Очередь и повторы доставки как подсистема. Никто не просил, и это другая задача.
+
+## Assumptions
+
+- «чини CI» из брифа выполнено до спеки: CI поднят локальным try/catch в `StandoffExpiryHandler` (`e38f252d`, 2026-09-11); корень той поломки — аварийная ветка `new Telegram('invalid','invalid')` — убирает `-01`. Отдельной story на CI нет (drone-coverage, 2026-09-15).
+- Мост из веб-запроса поднимает `BotController`; гейт `-04` сканирует только `app/Services/**`.
+
+## Contracts
+
+- `App\Services\Telegram\TelegramBridge::ensure(): bool` — идемпотентно поднимает мост
+  (`new Telegram(API_KEY, BOT_USERNAME)` + `Request::initialize`) из `getenv('telegram.*')`;
+  `true` — мост готов, `false` — не удалось (одна строка `log_message('error', …)` с причиной).
+  **Никогда не бросает.** Повторный вызов после успеха — no-op. Создаёт `-01`; `-02` и `-04`
+  строятся против этой сигнатуры, не изобретая свою.
+
+## Integration gate
+
+`vendor/bin/phpunit --no-coverage --no-progress` + `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`;
+приёмка ask 1 — живой прогон крона на preprod-testbot (Queen, Tier 3).
+
+## Descoped
+
+*(empty)*
+
+## Plan deltas
+
+- **2026-09-15 · `-05` («Бумага») не worker-story.** Триггер: делегирование владельца
+  («Давай на твое усмотрение»). Tech-writing ноты — `drone-docs`, ADR «гарантия инициализации
+  живёт в точке отправки» — `lead-architect`, оба после merge (Project bindings). `-04` берётся.
+  Отклонено: story на worker-code для бумаги — у воркера нет доступа к vault-конвенциям.
+
+- **2026-09-15 · Asks 1–5 сформулированы Queen по делегированию владельца** («Давай на твое усмотрение»): бриф 11.09 не нёс `## Asks`, требования стоят в «Чего хотим» прозой. Story цитируют эти формулировки:
+  Авто-PvE из крона: после боя игрок получает сообщение о бое — живой прогон крона на preprod-testbot (тест-чар на клетке с живым агрессивным NPC, тик `npc.auto-pve`), сообщение пришло в чат, в логе нет `PvE notify failed`.
+  Подъём Telegram-моста при невалидном/пустом ключе не бросает исключение наружу и честно сообщает о неудаче; пять копий аварийной ветки `new Telegram('invalid','invalid')` (`BaseTaskHandler`, `DeathService`, `GatherResultPersister`, `LevelUpNotifier`, `BaseObjectHandler`) заменены одним общим помощником — в `app/` не осталось ни одной.
+  Провал отправки игроцкого сообщения в PvE-пути и в `BaseTaskHandler::safeSend*` пишется уровнем `error` — строка видна при прод-пороге логгера 4.
+  Гейт: тест роняет набор, если класс в `app/Services/**`, зовущий `Request::send*`/`Request::edit*`, не поднимает мост сам и не стоит в списке исключений с причиной; к скану приложен поведенческий тест — реальный путь отправки без ключа не бросает наружу и не возвращает ложный успех.
+
+**Approved:** Andrei (делегировал: «Давай на твое усмотрение»), 2026-09-15
+**Briefed:** —
+**Branch:** —
+**Checked:** —
+**Council:** —
+**Shipped:** —
