@@ -10,3 +10,4 @@
 - 2026-09-14T06:37:25Z · resumed · resumed · next: status
 - 2026-09-14T06:37:39Z · 03-building · launching the workflow driver · next: the loop holds the working tree of vulyk/angela-second-base-bugs; to edit, run /vulyk-pause angela-second-base-bugs
 - 2026-09-14T06:58:10Z · 04-council:GREEN · round 2 verdict GREEN at f13503e2 pack 6cb085774590 · next: green
+- 2026-09-14T07:38:20Z · 06-shipped · reply sent to Анжела in Bugs-info (mid 4294974699, reply to 4294974694) after green prod smoke, by owner's go · next: ask 5 second half closed
