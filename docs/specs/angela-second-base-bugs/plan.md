@@ -95,6 +95,6 @@ ADR-142 (Навес как one-shot первое укрытие), ADR-020 (media
 **Branch:** vulyk/angela-second-base-bugs
 **Checked:** <scripts/human-check.sh>
 **Council:** <scripts/cycle.sh judge>
-**Shipped:** <scripts/ship-check.sh --record>
 **Council:** RED round 1, 2026-09-13, at 213d2bf0, pack edbb6544e15a - red: 7
 **Council:** GREEN round 2, 2026-09-14, at f13503e2, pack 6cb085774590
+**Shipped:** v0.51.667, 2026-09-14, at b325a440 - merged to develop (ff 99dcd7b0), CI green on clean DB, preprod deployed 2026-09-14-071526, Tier-3 webhook smoke green (2 bases: upgrade on base 2 moved row 163 1->2, base 1 row 140 stayed 7; 6/6 firehose ok); prod tag pending: develop also carries unshipped pvp-detection-clarity - owner decision
