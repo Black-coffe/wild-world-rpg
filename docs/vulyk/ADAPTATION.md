@@ -165,7 +165,6 @@ git check-ignore -v .claude/admin-credentials.local.md .claude/settings.local.js
 | `.claude/agents/drone-docs.md` | блок «Project path binding» — ноты пишутся в `mmorpg-vault/tech-writing/` | `grep -L "Project path binding" .claude/agents/drone-docs.md` |
 | `scripts/lib.sh` (до 0.12.0 — `ship-check.sh` + `human-check.sh`) | `is_paperwork_path()` знает про леджеры улья (§10) | `grep -c "memory/learnings" scripts/lib.sh` |
 | `scripts/cycle.sh` | `command_cell_exists()` читает и `CLAUDE.vulyk.md` (раздел в конце файла) | `grep -c 'CLAUDE.vulyk.md' scripts/cycle.sh` |
-| `.claude/commands/vulyk-build.md` | драйвер зовётся через `scriptPath`, не `name` (раздел в конце файла) | `grep -c 'scriptPath' .claude/commands/vulyk-build.md` |
 
 Одной командой — что откатилось:
 
@@ -388,3 +387,16 @@ required_seats_for_tier` отказались — ещё один патч, ко
 grep -c 'CLAUDE.vulyk.md' scripts/cycle.sh        # ожидаем ≥1 (command_cell_exists)
 ls .claude/rules/example-api.md                   # должно отсутствовать
 ```
+
+## 13. Апгрейды 0.13.2 и 0.13.3 (14.09.2026, поставила сессия разработки VULYK)
+
+Наш обход драйвера ушёл в upstream: 0.13.2 пинит `.claude/workflows/*.js` в LF (`.gitattributes`
++ установщик) и зовёт драйвер из `/vulyk-build` через `scriptPath`; 0.13.3 вдобавок срезает CR с
+`.claude/workflows/*.js` при каждой установке. Правка `vulyk-build.md` из §6 поэтому снята —
+теперь это ванильный текст. Причина отказа вызова по имени в upstream записана как неизвестная
+(у нас он отвергался и на LF-копии); поддерживаемый вызов — `scriptPath`.
+
+Оба апгрейда снова откатили остальные правки §6 — возвращены из `HEAD` (дифф каждого файла был
+чистым откатом патча, upstream-изменений в них не было): `cycle.sh`, `lib.sh`, `vulyk-handoff.md`,
+блоки «Project path binding» в `lead-architect`/`drone-docs`; `handoff.*` и `example-api.md`
+удалены. Чек-лист §6 зелёный.

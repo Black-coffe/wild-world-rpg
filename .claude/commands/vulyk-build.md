@@ -34,9 +34,8 @@ the newest spec under `docs/specs/` that is briefed or approved but has no `**Br
    its `error` verbatim and stop here, before dispatching the Workflow tool or entering the
    fallback loop. Never retry the claim.
    - **Workflow driver:** call the `Workflow` tool with
-     `scriptPath: ".claude/workflows/vulyk-cycle.js"` — NOT `name: "vulyk-cycle"` (project
-     adaptation, `docs/vulyk/ADAPTATION.md` §6: the by-name lookup is refused by the permission
-     layer here, the explicit path runs) — and
+     `scriptPath: ".claude/workflows/vulyk-cycle.js"` - never `name: "vulyk-cycle"`, which the
+     tool's permission handler rejects with "script contains control characters" - and
      `args: {spec: "docs/specs/<slug>", top_model, second_model, stamp}` (C11). It drives
      build -> round -> judge -> repair through `cycle-clerk` and the worker/council/`lead-review`/
      `queen-planner` agents on its own to one of the terminal `next` values (`green`, `escalated`,
