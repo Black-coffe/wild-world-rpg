@@ -40,7 +40,7 @@ model: sonnet
 - [ ] Поведение `blocked_at`-гигиены (`markBlocked`/`clearBlocked`) не изменилось.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/`
+`vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Implementation notes
 

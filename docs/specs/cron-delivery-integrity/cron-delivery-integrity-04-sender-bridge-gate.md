@@ -45,7 +45,7 @@ model: opus
 - [ ] Набор зелёный.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/unit/Config/`
+`vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Implementation notes
 

@@ -44,7 +44,7 @@ not-ok (`:175`), `degradeToText` not-ok (`:258`). Порог логгера не
 - [ ] Решение по `action_log`-маркеру записано с причиной (и `ActionLogModel` enum не нарушен, если маркер есть — `feedback_action_log_enum_strict_values`).
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/Player/`
+`vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Implementation notes
 
