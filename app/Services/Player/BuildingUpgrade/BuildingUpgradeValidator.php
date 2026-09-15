@@ -77,7 +77,7 @@ class BuildingUpgradeValidator
      * @param array<int,array<string,mixed>> $upgradeRequirements 2D array indexed by nextLevel
      * @return array<string,mixed>
      */
-    public function validate(array|\App\Entities\CharacterEntity $character, int $buildingId, array $upgradeRequirements): array
+    public function validate(array|\App\Entities\CharacterEntity $character, int $buildingId, array $upgradeRequirements, ?int $baseId = null): array
     {
         // 1) Player on base
         if (!$this->playerStateService->isCharacterOnBase($character['id'])) {
@@ -88,9 +88,13 @@ class BuildingUpgradeValidator
         // мультибэйс-мир иначе находит первую строку character+building_id по
         // всем базам сразу и правит не ту, на которой стоит игрок (та же
         // порча данных, что чинили Demolish/Delete/Relocate).
+        // story multibase-picker-03: с явным $baseId (суффикс callback'а) база
+        // заново проверяется через resolveForBase(); без него — прежнее правило.
         $charIdForBase = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
         $currentCell   = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
-        $scope = $this->baseScopeResolver()->resolve($charIdForBase, $currentCell);
+        $scope = $baseId !== null
+            ? $this->baseScopeResolver()->resolveForBase($charIdForBase, $currentCell, $baseId)
+            : $this->baseScopeResolver()->resolve($charIdForBase, $currentCell);
         $targetMapCellId = $scope['cell'];
         if ($targetMapCellId === null) {
             return ['ok' => false, 'error' => $scope['text']];

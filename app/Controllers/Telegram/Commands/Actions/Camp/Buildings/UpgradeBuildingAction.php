@@ -13,6 +13,7 @@ use App\Services\Endgame\EndgameProgressionService;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeApplier;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeMessageFormatter;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeValidator;
+use App\Services\Bases\BaseCallbackSuffix;
 use Config\BuildingUpgrades;
 
 /**
@@ -87,15 +88,19 @@ class UpgradeBuildingAction extends BaseAction
             return Request::emptyResponse();
         }
 
-        // Parse buildingId з callback_data ("upgrade_building_4")
-        $parts      = explode('_', $this->callbackQuery->getData());
+        // Parse buildingId з callback_data ("upgrade_building_4" или "upgrade_building_4_b345")
+        $rawData    = $this->callbackQuery->getData();
+        [$withoutSuffix, $baseId] = BaseCallbackSuffix::split($rawData);
+        $parts      = explode('_', $withoutSuffix);
         $buildingId = $parts[2] ?? null;
         if (!$buildingId) {
             return $this->send($chatId, $this->formatter->buildingIdMissingAsk());
         }
 
-        // Run full validation
-        $res = $this->validator->validate($character, (int) $buildingId, $this->upgrades->requirements);
+        // Run full validation. story multibase-picker-03: суффикс `_b<baseId>`
+        // (если есть) — заново проверенный выбор базы; без суффикса работает
+        // прежнее правило `BaseScopeResolver::resolve()`.
+        $res = $this->validator->validate($character, (int) $buildingId, $this->upgrades->requirements, $baseId);
 
         if (!$res['ok']) {
             if (!empty($res['missingResources'])) {
@@ -145,15 +150,19 @@ class UpgradeBuildingAction extends BaseAction
             return $this->send($chatId, $this->formatter->userOrCharacterNotFound());
         }
 
-        // Parse buildingId з callback_data: "confirm_upgrade_building_4"
-        $parts      = explode('_', $this->callbackQuery->getData());
+        // Parse buildingId з callback_data: "confirm_upgrade_building_4" (или "..._b345")
+        $rawData    = $this->callbackQuery->getData();
+        [$withoutSuffix, $baseId] = BaseCallbackSuffix::split($rawData);
+        $parts      = explode('_', $withoutSuffix);
         $buildingId = $parts[3] ?? null;
         if (!$buildingId) {
             return $this->send($chatId, $this->formatter->buildingIdMissingConfirm());
         }
 
-        // v0.51.57 — re-validate всю chain (resources могли поменяться після ask)
-        $res = $this->validator->validate($character, (int) $buildingId, $this->upgrades->requirements);
+        // v0.51.57 — re-validate всю chain (resources могли поменяться після ask).
+        // story multibase-picker-03: суффикс `_b<baseId>` (если есть) — заново
+        // проверенный выбор базы; см. INTERFACES у story о том, откуда он берётся.
+        $res = $this->validator->validate($character, (int) $buildingId, $this->upgrades->requirements, $baseId);
         if (!$res['ok']) {
             if (!empty($res['missingResources'])) {
                 return $this->send($chatId, $this->formatter->missingResourcesConfirm(

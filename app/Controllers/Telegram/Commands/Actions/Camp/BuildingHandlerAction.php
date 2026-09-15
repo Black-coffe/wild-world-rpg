@@ -21,6 +21,7 @@ use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\ArsenalHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\CommunicationTowerHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\DefensiveBuildingHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\LeanToHandler;
+use App\Services\Bases\BaseCallbackSuffix;
 
 class BuildingHandlerAction extends BaseAction
 {
@@ -29,7 +30,9 @@ class BuildingHandlerAction extends BaseAction
         // Отправляем ответ на CallbackQuery сразу
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        $callbackData = $this->callbackQuery->getData();
+        // story multibase-picker-03: суффикс `_b<baseId>` (если есть) не участвует
+        // в маршрутизации по имени постройки — только сама постройка его разбирает.
+        [$callbackData, ] = BaseCallbackSuffix::split($this->callbackQuery->getData());
         [$prefix, $buildingId, $buildingNameEng] = explode('_', $callbackData);
 
         // Проверка на корректность коллбека

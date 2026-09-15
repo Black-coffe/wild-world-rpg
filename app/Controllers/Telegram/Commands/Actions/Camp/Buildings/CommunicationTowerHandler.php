@@ -62,7 +62,12 @@ class CommunicationTowerHandler extends BaseAction
         // ADR-095 мульти-база: читаем строку character_buildings ТОЙ базы, где стоит
         // игрок — иначе карточка путает уровень с другой базы персонажа (angela-second-base-bugs #2).
         $currentCell = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
-        $scope = (new \App\Services\Bases\BaseScopeResolver())->resolve((int) $character['id'], $currentCell);
+        // story multibase-picker-03: суффикс `_b<baseId>` (если есть) — заново
+        // проверенный выбор базы; без суффикса работает прежнее правило.
+        [, $baseId] = \App\Services\Bases\BaseCallbackSuffix::split($this->callbackQuery->getData());
+        $scope = $baseId !== null
+            ? (new \App\Services\Bases\BaseScopeResolver())->resolveForBase((int) $character['id'], $currentCell, $baseId)
+            : (new \App\Services\Bases\BaseScopeResolver())->resolve((int) $character['id'], $currentCell);
         $targetCell = $scope['cell'];
         if ($targetCell === null) {
             return Request::sendMessage([
@@ -117,7 +122,9 @@ class CommunicationTowerHandler extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🆙 Поднять уровень',   'callback_data' => 'upgrade_building_' . $buildingId],
+                    ['text' => '🆙 Поднять уровень',   'callback_data' => $baseId !== null
+                        ? \App\Services\Bases\BaseCallbackSuffix::append('upgrade_building_' . $buildingId, $baseId)
+                        : 'upgrade_building_' . $buildingId],
                     ['text' => '🏠 База',            'callback_data' => 'Base'],
                 ],
             ],
