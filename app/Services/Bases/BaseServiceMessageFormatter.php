@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services\Bases;
 
+use App\Services\Display\MarkdownSafe;
+use App\Services\Telegram\ButtonPacker;
+
 /**
  * v0.51.81 (BaseService decomp Step 1) — extract Markdown templates
  * + inline keyboards для BaseService у dedicated formatter.
@@ -149,7 +152,8 @@ final class BaseServiceMessageFormatter
         ?string $campName = null,
         ?string $campFlag = null,
         bool $decorEnabled = false,
-        ?array $interior = null
+        ?array $interior = null,
+        int $baseId = 0
     ): array {
         $coverageText = "";
         if ($coverageResult !== null && !empty($coverageResult['isCovered'])) {
@@ -202,18 +206,20 @@ final class BaseServiceMessageFormatter
             $caption .= "\n\n💡 _Нажми «🏗 Строить», чтобы возвести первую постройку — Склад, Теплицу и др._";
         }
 
+        // multibase-picker-02: кнопки, ведущие на этой базой владеющие экраны, несут
+        // суффикс её id (Contracts плана) — обработчик каждой заново проверит доступность.
         $kbRows = [
             [
                 ['text' => '🏗 Строить',   'callback_data' => 'Build'],
-                ['text' => '🏘 Постройки', 'callback_data' => 'construction'],
+                ['text' => '🏘 Постройки', 'callback_data' => BaseCallbackSuffix::append('construction', $baseId)],
                 ['text' => '📡 Маяки',     'callback_data' => 'teleportBeacon'],
             ],
         ];
         // E20 (ADR-120): «🤖 Ангар» — хаб автоматизации; всегда виден
         // (UX-discoverability), lock-state рендерит сам HangarAction.
-        $hangarRow = [['text' => '🤖 Ангар', 'callback_data' => 'hangar']];
+        $hangarRow = [['text' => '🤖 Ангар', 'callback_data' => BaseCallbackSuffix::append('hangar', $baseId)]];
         if ($decorEnabled) {
-            $hangarRow[] = ['text' => '🎨 Декор', 'callback_data' => 'campDecor'];
+            $hangarRow[] = ['text' => '🎨 Декор', 'callback_data' => BaseCallbackSuffix::append('campDecor', $baseId)];
         }
         $kbRows[] = $hangarRow;
 
@@ -288,6 +294,55 @@ final class BaseServiceMessageFormatter
             'text'         => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => (string) json_encode($keyboard),
+        ];
+    }
+
+    /**
+     * multibase-picker-02 — «🏠 База» у персонажа с ≥2 активными базами, не на своей,
+     * когда покрытых Вышкой баз НЕ ровно одна (0 — все базы текстом; ≥2 — ещё и
+     * кнопками). Прецедент — `TeleportUseMessageFormatter::chooseBase()`: текст
+     * перечисляет базы до кнопок (media-off, ADR-020), имена через `MarkdownSafe::name()`,
+     * ряды кнопок — через `ButtonPacker::pack()`.
+     *
+     * @param list<array{base_id:int, cell:int, name:string, x:int, y:int, towerLevel:int, distance:int, maxCoverage:int, isCovered:bool}> $bases
+     * @return array{text: string, parse_mode: string, reply_markup: string}
+     */
+    public function basePicker(array $bases): array
+    {
+        $count   = count($bases);
+        $covered = array_values(array_filter($bases, static fn (array $b): bool => $b['isCovered']));
+        $rest    = array_values(array_filter($bases, static fn (array $b): bool => ! $b['isCovered']));
+
+        $text = self::ROBI_PREFIX . "Активных баз: *{$count}*. ";
+        $text .= $covered !== []
+            ? "Под сигналом Вышки связи сразу несколько баз — выбери, с какой работать:\n\n"
+            : "Ни одна база сейчас не под сигналом своей Вышки связи:\n\n";
+
+        $buttons = [];
+        foreach ($covered as $base) {
+            $name = MarkdownSafe::name($base['name'], 'База');
+            $text .= "🏠 {$name} (X={$base['x']}, Y={$base['y']}) — под сигналом Вышки\n";
+            $buttons[] = [
+                'text'          => "🏠 {$name} ({$base['x']},{$base['y']})",
+                'callback_data' => BaseCallbackSuffix::append('Base', $base['base_id']),
+            ];
+        }
+        foreach ($rest as $base) {
+            $name = MarkdownSafe::name($base['name'], 'База');
+            $dist = $base['distance'] >= 0 ? "{$base['distance']} ходов" : 'неизвестно';
+            $text .= "▫️ {$name} (X={$base['x']}, Y={$base['y']}), расстояние: {$dist}\n";
+        }
+
+        $rows   = ButtonPacker::pack($buttons);
+        $rows[] = [
+            ['text' => '📡 Телепорт',  'callback_data' => 'TeleportToCamp'],
+            ['text' => '🧭 Двигаться', 'callback_data' => 'move'],
+        ];
+
+        return [
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => (string) json_encode(['inline_keyboard' => $rows]),
         ];
     }
 }

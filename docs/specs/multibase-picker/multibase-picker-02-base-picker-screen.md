@@ -1,8 +1,8 @@
 ---
 story: multibase-picker-02
 spec: multibase-picker
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: sonnet
@@ -55,4 +55,14 @@ blocked_by: [multibase-picker-01]
 
 ## Implementation notes
 
+- `ShowBaseInfoAction`/`DetailedBaseInfoAction` split `BaseCallbackSuffix` on their own `callback_data`; router (story 01) does not strip it.
+- `BaseService::showBaseInfo()` gained `?int $baseId = null` (4th param, backward-compatible with the 2 unmodified call sites `GenericmessageCommand.php`/`BotMenuService.php`): non-null → `showBaseById()` (`resolveForBase()`, honest `unavailable` text, else that base's screen); null → own base / single-base legacy path unchanged / `showBasePicker()` for ≥2 active bases off-base.
+- `showBasePicker()`: covered count===1 → opens that base directly (no picker shown); else `BaseServiceMessageFormatter::basePicker()` (text-only, no photo) — covered bases as `Base_b<id>` buttons (`ButtonPacker::pack()`), rest as text lines with name/coords/distance ("N ходов"), trailing Телепорт/Двигаться row.
+- `baseBuildings()` now takes `int $baseId` (last param) and suffixes `construction`/`hangar`/`campDecor`; `DetailedBaseInfoAction::showBuildings()` suffixes `building_<id>_<name>` and `baseDevelopment`. `BaseCallbackSuffix::append()` used everywhere (throws >64 bytes — none of our concatenations get near it, verified by test with a 10-digit base id + longest building name `TeleportationCenter`).
+- phpstan: added `characterIdOf()`/`currentCellOf()`/`findBaseRow()`/`toStringKeyed()` private helpers in `BaseService` specifically to avoid `(int) $mixed` casts (`feedback_phpstan_no_mixed_to_int_cast`) — kept the file's pre-existing baseline count for `cast.int` at 8 (unchanged), no baseline edits needed.
+- Test `tests/unit/Camp/BasePickerTest.php`: builds its own schema under table prefix `bp2_` (own MySQL connection, drop+create in setUp/tearDown). The "chosen base with buildings" screen ends in `Request::encodeFile(base_url(...))` (`sendPhoto`), unreachable in this test stand regardless of `disable_media` (the `fopen()` happens before `MediaSender` gets to check the flag — pre-existing pattern, see `StartRobotGatheringBaseTest`'s docblock). Scenarios landing there are asserted by catching the thrown `TelegramException` and checking its message names `base_with_its_buildings.jpg` (proves the real render was reached, not an error/picker branch) plus, where available, a DB side-effect (`claimed_cells.last_visited_at` via `touchVisit()`, which runs before the photo call). Text-only branches (picker, unavailable, no-base) are asserted end-to-end via the real response text/buttons.
+- INTERFACES: `BaseService::showBaseInfo(int $chatId, array|CharacterEntity $characterRow, ?int $editMessageId = null, ?int $baseId = null): ServerResponse` (new 4th param); `BaseServiceMessageFormatter::baseBuildings(..., ?array $interior = null, int $baseId = 0): array` (new last param), new `BaseServiceMessageFormatter::basePicker(array $bases): array`; `DetailedBaseInfoAction::showBuildings(..., ?array $coverageResult = null, ?int $baseId = null): ServerResponse` (new last param).
+
 ## Findings
+
+None — story unambiguous, no blockers hit.

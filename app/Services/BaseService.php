@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Models\ClaimedCellModel;
 use App\Services\Bases\BaseBuildingsList;
+use App\Services\Bases\BaseCallbackSuffix;
 use App\Services\Bases\BaseLifecycleService;
 use App\Services\Bases\BaseLocationResolver;
+use App\Services\Bases\BaseScopeResolver;
 use App\Services\Bases\BaseServiceMessageFormatter;
 use App\Services\Bases\CampCheckService;
 use App\Services\Coverage\CommunicationTowerCoverageService;
@@ -52,14 +54,24 @@ class BaseService
     }
 
     /**
-     * Показывает информацию о базе. 4-branch dispatcher.
+     * Показывает информацию о базе. 4-branch dispatcher + multibase-picker-02:
+     * `$baseId` (из суффикса `Base_b<id>`) — игрок уже выбрал конкретную базу на
+     * пикере, проверяется заново через {@see BaseScopeResolver::resolveForBase()}.
+     * `$baseId === null` — прежний путь (bare `Base`, reply-меню «🏠 База»): своя
+     * база / единственная активная / пикер при ≥2 активных не на своей базе.
      */
-    public function showBaseInfo(int $chatId, array|\App\Entities\CharacterEntity $characterRow, ?int $editMessageId = null): ServerResponse
+    public function showBaseInfo(int $chatId, array|\App\Entities\CharacterEntity $characterRow, ?int $editMessageId = null, ?int $baseId = null): ServerResponse
     {
+        if ($baseId !== null) {
+            return $this->showBaseById($chatId, $characterRow, $baseId, $editMessageId);
+        }
+
+        $characterId = (int) $characterRow['id'];
+
         // ADR-095 Фаза 1b: «активная база» = база на ТЕКУЩЕЙ клетке (а не первая). Чинит
         // мульти-бэйс: стоя на 2-й базе раньше показывалась 1-я / «не на базе».
         $activeCell = $this->claimedCellModel->findActiveCell(
-            (int) $characterRow['id'],
+            $characterId,
             (int) ($characterRow['cell_number'] ?? 0)
         );
         if ($activeCell !== null) {
@@ -71,24 +83,159 @@ class BaseService
             // ADR-103 Слой 2: игрок открыл экран своей базы — event для онбординг-цели
             // open_base_screen (gated killswitch'ем + уровнем, idempotent).
             $this->recordBaseOpened($characterRow, $chatId);
-            return $this->showBaseBuildings($chatId, $characterRow, $activeCell, null, $editMessageId);
+            $activeCellIdRaw = $activeCell['id'] ?? null;
+            $activeCellId    = is_numeric($activeCellIdRaw) ? (int) $activeCellIdRaw : 0;
+            return $this->showBaseBuildings($chatId, $characterRow, $activeCell, null, $editMessageId, $activeCellId);
         }
 
-        // Не на базе физически — берём первую активную базу для дистанционного просмотра.
-        $claimedCell = $this->claimedCellModel->findFirstActiveCell((int) $characterRow['id']);
-        if ($claimedCell === null) {
+        // Не на базе физически.
+        $activeCells = $this->claimedCellModel->findAllActiveCells($characterId);
+        if ($activeCells === []) {
             return $this->showNoBaseInfo($chatId, $characterRow, $editMessageId);
         }
 
-        $coverage = $this->towerCoverageService->checkCoverage($characterRow['id']);
-        if ($coverage['isCovered']) {
-            // ADR-103 Слой 2: дистанционный просмотр базы под покрытием вышки — тоже
-            // «открыл экран базы» (видит постройки/оборону) → засчитываем event.
-            $this->recordBaseOpened($characterRow, $chatId);
-            return $this->showBaseBuildings($chatId, $characterRow, $claimedCell, $coverage, $editMessageId);
+        // Ровно одна активная база — прежнее поведение (Non-goals: не менять).
+        if (count($activeCells) === 1) {
+            $claimedCell = $activeCells[0];
+            $coverage = $this->towerCoverageService->checkCoverage($characterId);
+            if ($coverage['isCovered']) {
+                // ADR-103 Слой 2: дистанционный просмотр базы под покрытием вышки — тоже
+                // «открыл экран базы» (видит постройки/оборону) → засчитываем event.
+                $this->recordBaseOpened($characterRow, $chatId);
+                $claimedCellIdRaw = $claimedCell['id'] ?? null;
+                $claimedCellId    = is_numeric($claimedCellIdRaw) ? (int) $claimedCellIdRaw : 0;
+                return $this->showBaseBuildings($chatId, $characterRow, $claimedCell, $coverage, $editMessageId, $claimedCellId);
+            }
+            return $this->showNotOnBaseInfo($chatId, $claimedCell, $editMessageId);
         }
 
-        return $this->showNotOnBaseInfo($chatId, $claimedCell, $editMessageId);
+        // multibase-picker-02: ≥2 активных баз, игрок не на своей — пикер по сигналу Вышки.
+        return $this->showBasePicker($chatId, $characterRow, $editMessageId);
+    }
+
+    /**
+     * multibase-picker-02 — база выбрана явно (`_b<id>` из пикера или экрана базы).
+     * Заново проверяет доступность через {@see BaseScopeResolver::resolveForBase()}:
+     * недоступна → честный отказ (единый текст `unavailable`); своя/под сигналом — её экран.
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $characterRow
+     */
+    private function showBaseById(int $chatId, array|\App\Entities\CharacterEntity $characterRow, int $baseId, ?int $editMessageId): ServerResponse
+    {
+        $characterId = $this->characterIdOf($characterRow);
+        $currentCell = $this->currentCellOf($characterRow);
+
+        $resolved = (new BaseScopeResolver())->resolveForBase($characterId, $currentCell, $baseId);
+        if ($resolved['reason'] === BaseScopeResolver::REASON_UNAVAILABLE) {
+            return $this->sendMessage($chatId, ['text' => $resolved['text']], $editMessageId);
+        }
+
+        $claimedCell = $this->findBaseRow($baseId);
+        if ($claimedCell === null) {
+            return $this->sendMessage($chatId, ['text' => BaseScopeResolver::TEXT_UNAVAILABLE], $editMessageId);
+        }
+
+        if ($resolved['reason'] === BaseScopeResolver::REASON_ON_BASE) {
+            $this->touchVisit($claimedCell);
+            $claimedCell['last_visited_at'] = date('Y-m-d H:i:s');
+            $this->recordBaseOpened($characterRow, $chatId);
+            return $this->showBaseBuildings($chatId, $characterRow, $claimedCell, null, $editMessageId, $baseId);
+        }
+
+        // REASON_TOWER — дистанционный просмотр именно ЭТОЙ базы под сигналом её Вышки.
+        $this->recordBaseOpened($characterRow, $chatId);
+        $coverageResult = $this->coverageResultForBase($characterId, $currentCell, $baseId);
+        return $this->showBaseBuildings($chatId, $characterRow, $claimedCell, $coverageResult, $editMessageId, $baseId);
+    }
+
+    /**
+     * multibase-picker-02 — «🏠 База» у персонажа с ≥2 активными базами, не на своей:
+     * ровно одна под сигналом её Вышки → её экран сразу (без выбора); иначе — пикер
+     * (покрытые базы — кнопками, остальные — текстом с координатами и расстоянием).
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $characterRow
+     */
+    private function showBasePicker(int $chatId, array|\App\Entities\CharacterEntity $characterRow, ?int $editMessageId): ServerResponse
+    {
+        $characterId = $this->characterIdOf($characterRow);
+        $currentCell = $this->currentCellOf($characterRow);
+
+        $coverage = $this->towerCoverageService->coverageByBase($characterId, $currentCell);
+        $covered  = array_values(array_filter($coverage, static fn (array $row): bool => $row['isCovered']));
+
+        if (count($covered) === 1) {
+            $baseId      = $covered[0]['base_id'];
+            $claimedCell = $this->findBaseRow($baseId);
+            if ($claimedCell !== null) {
+                $this->recordBaseOpened($characterRow, $chatId);
+                $coverageResult = $this->adaptCoverageRow($covered[0]);
+                return $this->showBaseBuildings($chatId, $characterRow, $claimedCell, $coverageResult, $editMessageId, $baseId);
+            }
+        }
+
+        return $this->sendMessage($chatId, $this->formatter->basePicker($coverage), $editMessageId);
+    }
+
+    /** @return array<string,mixed>|null */
+    private function findBaseRow(int $baseId): ?array
+    {
+        $row = $this->claimedCellModel->find($baseId);
+        return is_array($row) ? $this->toStringKeyed($row) : null;
+    }
+
+    /** @param array<string,mixed>|\App\Entities\CharacterEntity $characterRow */
+    private function characterIdOf(array|\App\Entities\CharacterEntity $characterRow): int
+    {
+        $raw = $characterRow['id'] ?? null;
+        return is_numeric($raw) ? (int) $raw : 0;
+    }
+
+    /** @param array<string,mixed>|\App\Entities\CharacterEntity $characterRow */
+    private function currentCellOf(array|\App\Entities\CharacterEntity $characterRow): int
+    {
+        $raw = $characterRow['cell_number'] ?? null;
+        return is_numeric($raw) ? (int) $raw : 0;
+    }
+
+    /**
+     * @param array<int|string,mixed> $row
+     * @return array<string,mixed>
+     */
+    private function toStringKeyed(array $row): array
+    {
+        $out = [];
+        foreach ($row as $k => $v) {
+            $out[(string) $k] = $v;
+        }
+        return $out;
+    }
+
+    /** {@see CommunicationTowerCoverageService::coverageByBase()} строка → форма `checkCoverage()`.
+     *
+     * @return array{isCovered:bool,towerLevel:int,distanceToBase:int,maxCoverage:int}
+     */
+    private function coverageResultForBase(int $characterId, int $currentCell, int $baseId): array
+    {
+        foreach ($this->towerCoverageService->coverageByBase($characterId, $currentCell) as $row) {
+            if ($row['base_id'] === $baseId) {
+                return $this->adaptCoverageRow($row);
+            }
+        }
+        return ['isCovered' => false, 'towerLevel' => 0, 'distanceToBase' => 0, 'maxCoverage' => 0];
+    }
+
+    /**
+     * @param array{isCovered:bool,towerLevel:int,distance:int,maxCoverage:int} $row
+     * @return array{isCovered:bool,towerLevel:int,distanceToBase:int,maxCoverage:int}
+     */
+    private function adaptCoverageRow(array $row): array
+    {
+        return [
+            'isCovered'      => $row['isCovered'],
+            'towerLevel'     => $row['towerLevel'],
+            'distanceToBase' => $row['distance'],
+            'maxCoverage'    => $row['maxCoverage'],
+        ];
     }
 
     /**
@@ -258,7 +405,8 @@ class BaseService
         array|\App\Entities\CharacterEntity $characterRow,
         array $claimedCell,
         ?array $coverageResult = null,
-        ?int $editMessageId = null
+        ?int $editMessageId = null,
+        ?int $baseId = null
     ): ServerResponse {
         $mapRow = $this->resolver->findMapRow((int) $claimedCell['map_cell_id']);
         if (!$mapRow) {
@@ -278,6 +426,10 @@ class BaseService
         $decor       = $decorSvc->getCampDecor((int) $characterRow['id'], $cellNum);
         $decorEnabled = $decorSvc->enabled();
 
+        // multibase-picker-02: base_id всегда известен (claimedCell всегда несёт свой
+        // 'id') — суффикс кнопок 'construction'/'hangar'/'campDecor' этой базы.
+        $resolvedBaseId = $baseId ?? (is_numeric($claimedCell['id'] ?? null) ? (int) $claimedCell['id'] : 0);
+
         $payload = $this->formatter->baseBuildings(
             $mapRow['coordinate_x'],
             $mapRow['coordinate_y'],
@@ -290,6 +442,7 @@ class BaseService
             $decor['flag'],
             $decorEnabled,
             $decorEnabled ? $decor : null, // W22: interior items только при включённом killswitch
+            $resolvedBaseId,
         );
 
         // ADR-095 Фаза 2 (DORMANT): остаток срока жизни базы. daysRemaining = null при

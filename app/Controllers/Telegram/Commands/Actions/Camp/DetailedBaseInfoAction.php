@@ -8,6 +8,8 @@ use App\Models\MapModel;
 use App\Models\BiomeModel;
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
+use App\Services\Bases\BaseCallbackSuffix;
+use App\Services\Bases\BaseScopeResolver;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -44,21 +46,50 @@ class DetailedBaseInfoAction extends BaseAction
         // >>> Создаём сервис проверки вышки связи
         $towerService           = new CommunicationTowerCoverageService();
 
+        $characterId = (int) $character['id'];
+        $currentCell = (int) ($character['cell_number'] ?? 0);
+
+        // multibase-picker-02: `construction_b<id>` — база выбрана явно (с экрана
+        // пикера/базы), доступность проверяется заново через `resolveForBase()`.
+        [, $suffixBaseId] = BaseCallbackSuffix::split((string) $this->callbackQuery->getData());
+        if ($suffixBaseId !== null) {
+            $resolved = (new BaseScopeResolver())->resolveForBase($characterId, $currentCell, $suffixBaseId);
+            if ($resolved['reason'] === BaseScopeResolver::REASON_UNAVAILABLE) {
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text'    => $resolved['text'],
+                ]);
+            }
+
+            $claimedCell = $claimedCellModel->find($suffixBaseId);
+            if (! is_array($claimedCell)) {
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text'    => BaseScopeResolver::TEXT_UNAVAILABLE,
+                ]);
+            }
+
+            $coverageResult = $resolved['reason'] === BaseScopeResolver::REASON_TOWER
+                ? $this->coverageResultForBase($towerService, $characterId, $currentCell, $suffixBaseId)
+                : null;
+
+            return $this->showBuildings($character, $claimedCell, $mapModel, $biomeModel, $buildingModel, $characterBuildingModel, $coverageResult, $suffixBaseId);
+        }
+
         // ADR-095 Фаза 1b: «активная база» — если игрок стоит на ОДНОЙ ИЗ своих баз,
         // показываем ИМЕННО её постройки (а не всегда первую). Чинит мульти-бэйс:
         // на 2-й базе раньше показывалась 1-я (или «не на базе»).
-        $activeCell = $claimedCellModel->findActiveCell(
-            (int) $character['id'],
-            (int) ($character['cell_number'] ?? 0)
-        );
+        $activeCell = $claimedCellModel->findActiveCell($characterId, $currentCell);
         if ($activeCell !== null) {
-            return $this->showBuildings($character, $activeCell, $mapModel, $biomeModel, $buildingModel, $characterBuildingModel);
+            $activeCellIdRaw = $activeCell['id'] ?? null;
+            $activeCellId    = is_numeric($activeCellIdRaw) ? (int) $activeCellIdRaw : 0;
+            return $this->showBuildings($character, $activeCell, $mapModel, $biomeModel, $buildingModel, $characterBuildingModel, null, $activeCellId);
         }
 
         // Не на базе физически — берём первую АКТИВНУЮ базу (по `id`) для дистанционного
         // просмотра / координат. story angela-second-base-bugs-07: раньше `first()` без
         // `status`/`orderBy` мог отдать заброшенную базу, пока рядом стоит живая.
-        $activeCells = $claimedCellModel->findAllActiveCells((int) $character['id']);
+        $activeCells = $claimedCellModel->findAllActiveCells($characterId);
         $claimedCell = $activeCells[0] ?? null;
 
         // Если активных баз нет вообще (is_array нарроуит для showBuildings: returnType='array').
@@ -67,8 +98,10 @@ class DetailedBaseInfoAction extends BaseAction
         }
 
         // Не на базе, проверяем сигнал вышки
-        $coverageResult = $towerService->checkCoverage($character['id']);
+        $coverageResult = $towerService->checkCoverage($characterId);
         if ($coverageResult['isCovered']) {
+            $claimedCellIdRaw = $claimedCell['id'] ?? null;
+            $claimedCellId    = is_numeric($claimedCellIdRaw) ? (int) $claimedCellIdRaw : 0;
             // Покрывает вышка → можно дистанционно посмотреть постройки
             return $this->showBuildings(
                 $character,
@@ -77,12 +110,33 @@ class DetailedBaseInfoAction extends BaseAction
                 $biomeModel,
                 $buildingModel,
                 $characterBuildingModel,
-                $coverageResult
+                $coverageResult,
+                $claimedCellId
             );
         }
 
         // Иначе нет покрытия — старое поведение
         return $this->handleNotOnBasePhysically($character, $claimedCell, $mapModel, $biomeModel);
+    }
+
+    /**
+     * {@see CommunicationTowerCoverageService::coverageByBase()} строка → форма `checkCoverage()`, которую читает `showBuildings()`.
+     *
+     * @return array{isCovered:bool,towerLevel:int,distanceToBase:int,maxCoverage:int}
+     */
+    private function coverageResultForBase(CommunicationTowerCoverageService $towerService, int $characterId, int $currentCell, int $baseId): array
+    {
+        foreach ($towerService->coverageByBase($characterId, $currentCell) as $row) {
+            if ($row['base_id'] === $baseId) {
+                return [
+                    'isCovered'      => $row['isCovered'],
+                    'towerLevel'     => $row['towerLevel'],
+                    'distanceToBase' => $row['distance'],
+                    'maxCoverage'    => $row['maxCoverage'],
+                ];
+            }
+        }
+        return ['isCovered' => false, 'towerLevel' => 0, 'distanceToBase' => 0, 'maxCoverage' => 0];
     }
 
     /**
@@ -172,9 +226,12 @@ class DetailedBaseInfoAction extends BaseAction
         BiomeModel $biomeModel,
         BuildingModel $buildingModel,
         CharacterBuildingModel $characterBuildingModel,
-        ?array $coverageResult = null
+        ?array $coverageResult = null,
+        ?int $baseId = null
     ): ServerResponse
     {
+        // multibase-picker-02: base_id всегда известен (claimedCell всегда несёт своё 'id').
+        $resolvedBaseId = $baseId ?? (is_numeric($claimedCell['id'] ?? null) ? (int) $claimedCell['id'] : 0);
         // Получаем список построек ТОЛЬКО просматриваемой базы (ADR-102: per-base).
         $buildings = $characterBuildingModel
             ->where('character_id', $character['id'])
@@ -238,7 +295,7 @@ class DetailedBaseInfoAction extends BaseAction
 
             $keyboardButtons[] = [
                 'text' => "{$icon} {$bNameRu}{$lvlSuffix}",
-                'callback_data' => 'building_' . $building['building_id'] . '_' . $bNameEng
+                'callback_data' => BaseCallbackSuffix::append('building_' . $building['building_id'] . '_' . $bNameEng, $resolvedBaseId),
             ];
         }
 
@@ -246,7 +303,7 @@ class DetailedBaseInfoAction extends BaseAction
         $keyboard = array_chunk($keyboardButtons, 2);
 
         // E18 (ADR-118) — вход в витрину «🏗 Развитие базы» (легибельность эффектов уровней построек).
-        $keyboard[] = [['text' => '🏗 Развитие базы', 'callback_data' => 'baseDevelopment']];
+        $keyboard[] = [['text' => '🏗 Развитие базы', 'callback_data' => BaseCallbackSuffix::append('baseDevelopment', $resolvedBaseId)]];
 
         $imagePath = base_url('uploads/telegram/camp/base_with_its_buildings.jpg');
 

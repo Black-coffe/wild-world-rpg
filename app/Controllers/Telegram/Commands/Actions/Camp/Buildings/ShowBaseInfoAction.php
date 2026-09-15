@@ -4,6 +4,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\BaseService;
+use App\Services\Bases\BaseCallbackSuffix;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -15,6 +16,11 @@ class ShowBaseInfoAction extends BaseAction
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),
         ]);
+
+        // multibase-picker-02: `Base_b<id>` из пикера — база выбрана явно, идёт в
+        // BaseService::showBaseInfo() для повторной проверки {@see \App\Services\Bases\BaseScopeResolver::resolveForBase()}.
+        // Бес суффикса (старые сообщения / reply-меню) — $baseId=null, прежнее правило.
+        [, $baseId] = BaseCallbackSuffix::split((string) $this->callbackQuery->getData());
 
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
@@ -45,6 +51,6 @@ class ShowBaseInfoAction extends BaseAction
         // сообщения (на котором нажали «🏕») — showBaseInfo отредактирует его в «База»-вид
         // (с graceful fallback на новое, если source — text-сообщение).
         $baseService = new BaseService();
-        return $baseService->showBaseInfo($chatId, $character, $this->callbackQuery->getMessage()->getMessageId());
+        return $baseService->showBaseInfo($chatId, $character, $this->callbackQuery->getMessage()->getMessageId(), $baseId);
     }
 }
