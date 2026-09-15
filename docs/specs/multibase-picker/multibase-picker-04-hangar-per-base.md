@@ -1,8 +1,8 @@
 ---
 story: multibase-picker-04
 spec: multibase-picker
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: sonnet
@@ -44,5 +44,26 @@ blocked_by: [multibase-picker-01]
 `vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Implementation notes
+
+- `HangarAction::handle()` разбирает `hangar_b<id>` через `BaseCallbackSuffix::split()`; с суффиксом →
+  `BaseScopeResolver::resolveForBase()` (unavailable → её `text`), без — прежний `resolve()`.
+- Уровень Мастерской и `baseLabel` больше не считаются в файле: переиспользованы
+  `StartRobotGatheringAction::workshopAtBase()`/`::baseLabel()` (owned by story 05) — убрал старый
+  приватный `workshopLevel()` (max по всем базам, корень бага) вместе с ставшими лишними импортами
+  `BuildingModel`/`CharacterBuildingModel`.
+- Lock-текст и заголовок «Ангар автоматизации» теперь называют базу (имя + координаты); строка
+  Мастерской в unlocked-экране тоже называет базу.
+- Кнопка «🏠 База» (и «🏗 Строить» в lock-state) несёт суффикс базы, если ангар был открыт с ним
+  (`withBaseSuffix()`); кнопки на роботов/дронов/страховку — без суффикса (Non-goals: инвентарь
+  персонажа, не база-scoped). Downstream-обработчики (`Base`/`Build`) суффикс пока не читают —
+  добавление вперёд совместимо (роутер матчит по первому сегменту до `_`), поведение не меняет.
+- INTERFACES: `HangarAction` теперь читает `character.cell_number` и требует его в тестовой схеме
+  (раньше не трогал персонажа кроме `id`); публичных сигнатур класс не меняет (единственный входной
+  метод — `handle()`).
+- Tech-writing нота `mmorpg-vault/tech-writing/handlers/` для `HangarAction` не создана/обновлена —
+  вне `## Files` этой истории (конституция §1 требует синхронную ноту; driver/lead-review должны
+  решить, кто её пишет — `drone-docs` по таблице «Ворота, которых у VULYK нет»).
+- Guide/tips-вердикт: «нет» — это фикс существующего экрана (правильная база вместо чужой), новой
+  player-поверхности не добавляет; текст лока и так объясняет путь к постройке на месте.
 
 ## Findings

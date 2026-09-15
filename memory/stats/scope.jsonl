@@ -166,3 +166,4 @@
 {"ts":"2026-09-15T09:59:05Z","story":"multibase-picker-02-base-picker-screen","declared":5,"changed":37,"out_of_scope":32}
 {"ts":"2026-09-15T10:02:22Z","story":"multibase-picker-06-development-decor-base","declared":5,"changed":31,"out_of_scope":26}
 {"ts":"2026-09-15T10:06:20Z","story":"multibase-picker-03-cards-upgrade-base-id","declared":18,"changed":23,"out_of_scope":5}
+{"ts":"2026-09-15T10:09:46Z","story":"multibase-picker-04-hangar-per-base","declared":2,"changed":4,"out_of_scope":2}

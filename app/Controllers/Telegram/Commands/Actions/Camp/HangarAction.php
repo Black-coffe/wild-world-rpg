@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Controllers\Telegram\Commands\Actions\Camp;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use App\Models\BuildingModel;
-use App\Models\CharacterBuildingModel;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\StartRobotGatheringAction;
 use App\Models\CharacterTaskModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\TaskModel;
+use App\Services\Bases\BaseCallbackSuffix;
+use App\Services\Bases\BaseScopeResolver;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\DroneService;
 use App\Services\Telegram\BotMenuService;
@@ -64,31 +65,61 @@ final class HangarAction extends BaseAction
         $rawId  = $character['id'] ?? null;
         $charId = is_numeric($rawId) ? (int) $rawId : 0;
 
-        $workshopLevel = $this->workshopLevel($charId);
-        if ($workshopLevel <= 0 && ! $this->hasAutomationGear($charId)) {
-            return $this->renderLocked($chatId);
+        $cellRaw     = $character['cell_number'] ?? null;
+        $currentCell = is_numeric($cellRaw) ? (int) $cellRaw : 0;
+
+        // multibase-picker-04: «🤖 Ангар» с суффиксом (`hangar_b<id>`) обязан показать
+        // Мастерскую именно ТОЙ базы, а не max(level) по всем (корень бага —
+        // recon.md «Ангар и роботы», workshopLevel() :371-397). Роутер суффикс не
+        // снимает — разбираем сами (BaseCallbackSuffix).
+        [, $baseId] = BaseCallbackSuffix::split($this->callbackQuery->getData());
+        $resolver   = new BaseScopeResolver();
+
+        if ($baseId !== null) {
+            $scope = $resolver->resolveForBase($charId, $currentCell, $baseId);
+            if ($scope['reason'] === BaseScopeResolver::REASON_UNAVAILABLE) {
+                return Request::sendMessage(['chat_id' => $chatId, 'text' => $scope['text']]);
+            }
+            $baseCell = $scope['cell'];
+        } else {
+            $scope    = $resolver->resolve($charId, $currentCell);
+            $baseCell = $scope['cell'];
         }
 
-        return $this->renderHangar($chatId, $charId, $workshopLevel);
+        if ($baseCell === null) {
+            return Request::sendMessage(['chat_id' => $chatId, 'text' => $scope['text'] ?? BaseScopeResolver::TEXT_AMBIGUOUS]);
+        }
+
+        $baseLabel = StartRobotGatheringAction::baseLabel($charId, $baseCell);
+        $workshop  = StartRobotGatheringAction::workshopAtBase($charId, $baseCell);
+        $levelRaw      = is_array($workshop) ? ($workshop['level'] ?? 0) : 0;
+        $workshopLevel = is_numeric($levelRaw) ? (int) $levelRaw : 0;
+
+        if ($workshopLevel <= 0 && ! $this->hasAutomationGear($charId)) {
+            return $this->renderLocked($chatId, $baseLabel, $baseId);
+        }
+
+        return $this->renderHangar($chatId, $charId, $workshopLevel, $baseLabel, $baseId);
     }
 
     /**
-     * Lock-state: мастерской нет — объясняем ценность автоматизации и путь к ней.
+     * Lock-state: на ЭТОЙ базе мастерской нет — объясняем ценность автоматизации
+     * и путь к ней (не хозяйство другой базы — multibase-picker-04).
      */
-    private function renderLocked(int $chatId): ServerResponse
+    private function renderLocked(int $chatId, string $baseLabel, ?int $baseId): ServerResponse
     {
-        $text = "🔒 *Ангар закрыт*\n\n"
+        $text = "🔒 *Ангар закрыт — база {$baseLabel}*\n\n"
             . "Автоматизация работает на тебя, пока ты офлайн:\n"
             . "  🤖 *роботы* — исследуют карту и добывают ресурсы часами;\n"
             . "  🚁 *дроны* — мгновенно разведывают зону 21×21, доставляют груз на базу, "
             . "чинят всех роботов разом и защищают базу в бою.\n\n"
-            . "Для всего этого нужна 🤖 *Мастерская робототехники*.\n"
+            . "Здесь нужна Мастерская робототехники на этой базе. "
             . "Построй её: 🏠 База → 🏗 Строить → 🤖 Мастерская робототехники.";
 
         $rows = [
             [
-                ['text' => '🏗 Строить', 'callback_data' => 'Build'],
-                ['text' => '🏠 База',    'callback_data' => 'Base'],
+                ['text' => '🏗 Строить', 'callback_data' => $this->withBaseSuffix('Build', $baseId)],
+                ['text' => '🏠 База',    'callback_data' => $this->withBaseSuffix('Base', $baseId)],
             ],
         ];
 
@@ -101,15 +132,32 @@ final class HangarAction extends BaseAction
     }
 
     /**
+     * `callback_data` с суффиксом базы, если ангар был открыт с ним (`hangar_b<id>`),
+     * иначе — без изменений (multibase-picker-04). Роботы/дроны — инвентарь персонажа
+     * (не база-scoped, см. Non-goals истории), суффикс им не нужен.
+     */
+    private function withBaseSuffix(string $callbackData, ?int $baseId): string
+    {
+        if ($baseId === null) {
+            return $callbackData;
+        }
+        try {
+            return BaseCallbackSuffix::append($callbackData, $baseId);
+        } catch (\LengthException) {
+            return $callbackData;
+        }
+    }
+
+    /**
      * Основной экран: сводка роботов + дронов + кнопки на существующие экраны.
      */
-    private function renderHangar(int $chatId, int $charId, int $workshopLevel): ServerResponse
+    private function renderHangar(int $chatId, int $charId, int $workshopLevel, string $baseLabel, ?int $baseId): ServerResponse
     {
         $service = new DroneService();
 
         $workshopLine = $workshopLevel > 0
-            ? "_Мастерская робототехники: уровень {$workshopLevel}_"
-            : '_Мастерской робототехники нет — построй: 🏠 База → 🏗 Строить → 🤖 Мастерская робототехники_';
+            ? "_Мастерская робототехники ({$baseLabel}): уровень {$workshopLevel}_"
+            : "_Мастерской робототехники на этой базе ({$baseLabel}) нет — построй: 🏠 База → 🏗 Строить → 🤖 Мастерская робототехники_";
 
         $text = "🤖 *Ангар автоматизации*\n"
             . "{$workshopLine}\n\n";
@@ -142,7 +190,7 @@ final class HangarAction extends BaseAction
         // сам объяснит, что агент не работает, а не оставит игрока без двери.
         $rows[] = [
             ['text' => '📦 Крафт-страховка', 'callback_data' => 'craftInsuranceList'],
-            ['text' => '🏠 База',              'callback_data' => 'Base'],
+            ['text' => '🏠 База',              'callback_data' => $this->withBaseSuffix('Base', $baseId)],
         ];
 
         return MediaSender::editTextOrSend($this->navTarget() + [
@@ -362,38 +410,6 @@ final class HangarAction extends BaseAction
             ->whereIn('crafted_item_id', $numericIds)
             ->where('quantity >', 0)
             ->countAllResults() > 0;
-    }
-
-    /**
-     * Уровень Мастерской робототехники персонажа (max по базам, ADR-102 per-base);
-     * 0 = не построена.
-     */
-    private function workshopLevel(int $charId): int
-    {
-        $building = (new BuildingModel())->where('name_en', 'RoboticsWorkshop')->first();
-        $bIdRaw   = is_array($building) ? ($building['id'] ?? null) : null;
-        if (! is_numeric($bIdRaw) || (int) $bIdRaw <= 0) {
-            return 0;
-        }
-
-        $rows = (new CharacterBuildingModel())
-            ->where('character_id', $charId)
-            ->where('building_id', (int) $bIdRaw)
-            ->findAll();
-
-        $maxLevel = 0;
-        foreach ($rows as $row) {
-            $lvlRaw = $this->rowVal($row, 'level');
-            $lvl    = is_numeric($lvlRaw) ? (int) $lvlRaw : 0;
-            $maxLevel = max($maxLevel, $lvl);
-        }
-
-        // Запись есть, но level некорректен → считаем построенной (L1).
-        if ($maxLevel === 0 && $rows !== []) {
-            return 1;
-        }
-
-        return $maxLevel;
     }
 
     /** «3ч 12м» из end_time (пусто, если время вышло/не парсится). */
