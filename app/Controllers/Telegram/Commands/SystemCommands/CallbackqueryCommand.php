@@ -36,7 +36,7 @@ class CallbackqueryCommand extends SystemCommand
     {
         $callbackQuery = $this->getCallbackQuery();
         $callbackData  = $callbackQuery->getData();
-        $action        = explode('_', $callbackData)[0];
+        $action        = self::actionOf($callbackData);
 
         // 1) character inline shortcut
         if ($action === 'character') {
@@ -74,6 +74,16 @@ class CallbackqueryCommand extends SystemCommand
         ]);
 
         return Request::emptyResponse();
+    }
+
+    /**
+     * Ключ exact/prefix-слоя — первый сегмент до `_`. Суффикс базы `_b<id>`
+     * (story multibase-picker-01) лежит в хвосте и ключ не меняет: `hangar_b345` → `hangar`.
+     * Обработчику при этом уходит ПОЛНЫЙ callback_data — через `$callbackQuery`.
+     */
+    public static function actionOf(string $callbackData): string
+    {
+        return explode('_', $callbackData)[0];
     }
 
     /**

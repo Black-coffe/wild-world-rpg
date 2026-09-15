@@ -31,6 +31,13 @@ class BaseScopeResolver
     public const TEXT_NO_BASES = 'Базы у тебя сейчас нет. Разбей лагерь — и постройки появятся на этом экране.';
     public const TEXT_AMBIGUOUS = 'Баз у тебя несколько. Встань на ту базу, с которой работаешь, — и открой экран снова.';
 
+    /** story multibase-picker-01 — исходы {@see resolveForBase()}. */
+    public const REASON_ON_BASE = 'on_base';
+    public const REASON_TOWER = 'tower';
+    public const REASON_UNAVAILABLE = 'unavailable';
+
+    public const TEXT_UNAVAILABLE = 'Эта база сейчас недоступна: встань на неё или подойди под сигнал её Вышки связи — и открой «🏠 База» снова.';
+
     private ClaimedCellModel $claimedCellModel;
     private CommunicationTowerCoverageService $towerService;
 
@@ -66,5 +73,40 @@ class BaseScopeResolver
         }
 
         return ['cell' => null, 'reason' => self::REASON_AMBIGUOUS, 'text' => self::TEXT_AMBIGUOUS];
+    }
+
+    /**
+     * story multibase-picker-01 — путь с явной базой (`claimed_cells.id` из суффикса
+     * callback'а, см. {@see BaseCallbackSuffix}). База заново проверяется при каждом
+     * использовании: своя, активная, и игрок либо стоит на ней (`on_base`), либо под
+     * сигналом ЕЁ Вышки связи (`tower`). Иначе — `unavailable` с единым текстом отказа.
+     *
+     * @return array{cell: int|null, base_id: int|null, reason: string, text: string}
+     */
+    public function resolveForBase(int $characterId, int $currentCell, int $baseId): array
+    {
+        $unavailable = ['cell' => null, 'base_id' => null, 'reason' => self::REASON_UNAVAILABLE, 'text' => self::TEXT_UNAVAILABLE];
+
+        $row = $this->claimedCellModel
+            ->where('id', $baseId)
+            ->where('character_id', $characterId)
+            ->where('status', 'active')
+            ->first();
+        if (! is_array($row) || ! is_numeric($row['map_cell_id'] ?? null)) {
+            return $unavailable;
+        }
+        $cell = (int) $row['map_cell_id'];
+
+        if ($cell === $currentCell) {
+            return ['cell' => $cell, 'base_id' => $baseId, 'reason' => self::REASON_ON_BASE, 'text' => ''];
+        }
+
+        foreach ($this->towerService->coverageByBase($characterId, $currentCell) as $coverage) {
+            if ($coverage['base_id'] === $baseId && $coverage['isCovered']) {
+                return ['cell' => $cell, 'base_id' => $baseId, 'reason' => self::REASON_TOWER, 'text' => ''];
+            }
+        }
+
+        return $unavailable;
     }
 }

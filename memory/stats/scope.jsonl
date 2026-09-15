@@ -157,3 +157,7 @@
 {"ts":"2026-09-15T06:21:02Z","story":"cron-delivery-integrity-02-pve-sender-self-init","declared":2,"changed":10,"out_of_scope":8}
 {"ts":"2026-09-15T06:24:10Z","story":"cron-delivery-integrity-03-delivery-loss-is-error","declared":3,"changed":6,"out_of_scope":3}
 {"ts":"2026-09-15T06:35:23Z","story":"cron-delivery-integrity-04-sender-bridge-gate","declared":2,"changed":5,"out_of_scope":3}
+{"ts":"2026-09-15T09:25:01Z","story":"multibase-picker-01-coverage-resolver-callback","declared":10,"changed":21,"out_of_scope":13}
+{"ts":"2026-09-15T09:26:28Z","story":"multibase-picker-05-robot-gathering-base","declared":5,"changed":22,"out_of_scope":17}
+{"ts":"2026-09-15T09:27:56Z","story":"multibase-picker-07-guide-and-tip","declared":3,"changed":22,"out_of_scope":19}
+{"ts":"2026-09-15T09:30:26Z","story":"multibase-picker-01-coverage-resolver-callback","declared":10,"changed":22,"out_of_scope":14}
