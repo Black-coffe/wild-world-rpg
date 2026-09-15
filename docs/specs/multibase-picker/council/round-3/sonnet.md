@@ -1,0 +1,18 @@
+<!-- seat: sonnet · model: claude-sonnet-5 · round: 3 · head: 65cb4b3c · pack: ce99166e76e3 · attempt: 1 · recorded: 2026-09-15T11:40:36Z -->
+COUNCIL: multibase-picker · round 3 · seat sonnet
+MODEL: claude-sonnet-5
+COURT: C:/laragon/www/mmorpg/.vulyk/court/multibase-picker/round-3
+VERDICT: GREEN
+ASSUMED CONFIG: Локальное окружение (Laragon, MySQL), фикс-БД wildworld_ci_mbp (свежая, per brief's "Как проверять")
+RAN: composer install; vendor/bin/phpunit --no-coverage --no-progress (full suite); vendor/bin/phpunit targeted files below; vendor/bin/phpstan analyse --memory-limit=512M --no-progress; git ls-files migrations | xargs php -l
+PATH: код-путь (phpunit/phpstan/php -l), Tier-3 живой Telegram и mmorpg-vault недостижимы из COURT
+ASK 1: GREEN - пикер баз по сигналу Вышки, остальные текстом, авто-открытие при одной базе/на своей - run: vendor/bin/phpunit tests/unit/Camp/BaseScopeResolverCoveredBaseTest.php tests/unit/Services/World/TextMapMultiBaseTest.php tests/database/OnBaseResolutionMultiBaseTest.php saw: OK, 48 tests total in this batch, 0 failures
+ASK 2: GREEN - покрытие по каждой активной базе (не first()), радиус в GameSettings с rationale/effect/above/below/soft/hard, дефолт=100 (прежнее поведение) - run: vendor/bin/phpunit tests/unit/Camp/CommunicationTowerCoverageByBaseTest.php; чтение app/Database/Migrations/2026-12-07-100000_SeedTowerCoveragePerLevelSetting.php saw: OK 35 tests (batch); миграция несёт все требуемые поля
+ASK 3: GREEN - callback_data несёт id базы (≤64 байт, проверено тестом), обработчик перепроверяет владение/активность/доступность, старые кнопки без суффикса работают по resolve() - run: vendor/bin/phpunit tests/unit/Telegram/BaseCallbackSuffixRoutingTest.php tests/unit/Camp/BaseScopeResolverForBaseTest.php saw: OK, 0 failures
+ASK 4: GREEN - Ангар с суффиксом показывает мастерскую именно той базы, называет базу, честный lock без чужого хозяйства - run: vendor/bin/phpunit tests/unit/Camp/HangarBaseScopeTest.php saw: OK, 0 failures; код HangarAction.php подтверждает resolveForBase()+baseLabel()
+ASK 5: GREEN - робот запускается только с базы со своей Мастерской, база сохраняется в задании, завершение собирает вокруг неё, старые задания без базы не падают - run: vendor/bin/phpunit tests/unit/Camp/StartRobotGatheringBaseTest.php tests/unit/TaskHandlers/CompleteRobotGatheringBaseTest.php tests/unit/TaskHandlers/CompleteRobotGatheringNameTest.php saw: OK, 0 failures
+ASK 6: GREEN (код) / N/A - why: ADR-187 живёт в mmorpg-vault, отдельном репозитории-соседе, недоступном из COURT - «Развитие базы»/«Декор базы» работают с выбранной базой - run: vendor/bin/phpunit tests/unit/Camp/BaseDevelopmentBaseScopeTest.php tests/unit/Camp/BaseCampDecorBaseChoiceTest.php saw: OK, 0 failures
+ASK 7: GREEN - media-off/discoverability/onboarding/tips/guide вердикты выполнены: seed-миграция тега SeedMultibasePickerTip (категория «общие», markdown-safe), раздел «base» GuideCatalog несёт абзац про Вышку/сигнал - run: vendor/bin/phpunit tests/unit/Services/Onboarding/MultibasePickerGuideTipTest.php saw: OK; чтение GuideCatalog.php:317-319 и миграции подтверждает содержимое
+ASK 8: GREEN (гейты) / N/A - why: tech-writing ноты в mmorpg-vault (вне COURT) и живой Tier-3 на preprod-testbot (SSH/Telegram недоступны этому месту) не проверяемы отсюда - run: vendor/bin/phpunit --no-coverage --no-progress; vendor/bin/phpstan analyse --memory-limit=512M --no-progress; git ls-files migrations | xargs php -l saw: полный набор 4213 тестов/4 фейла (все в NpcDialogueTreeInvariantTest, не по теме multibase-picker); phpstan "No errors"; php -l чисто
+UNASKED: none
+BREACH: none
