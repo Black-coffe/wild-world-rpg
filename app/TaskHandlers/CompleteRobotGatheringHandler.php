@@ -117,10 +117,25 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         $robotName = $this->resolveRobotDisplayName($task);
 
         // 3) База
-        $baseRow = $this->claimedCellModel
-            ->where('character_id', $character['id'])
-            ->where('status', 'active')
-            ->first();
+        // multibase-picker-05: задание несёт `base_cell` базы запуска — копаем вокруг неё,
+        // если она всё ещё активная база персонажа. Нет ключа (легаси) или база с тех пор
+        // заброшена/перенесена — прежнее правило ниже (v0.51.30: не ронять сбор).
+        $launchCell = $this->resolveLaunchBaseCell($task);
+        $baseRow    = null;
+        if ($launchCell !== null) {
+            $baseRow = (new ClaimedCellModel())
+                ->where('character_id', $character['id'])
+                ->where('map_cell_id', $launchCell)
+                ->where('status', 'active')
+                ->first();
+        }
+        $usesLaunchBase = is_array($baseRow);
+        if (!$usesLaunchBase) {
+            $baseRow = $this->claimedCellModel
+                ->where('character_id', $character['id'])
+                ->where('status', 'active')
+                ->first();
+        }
         if (!$baseRow) {
             $this->sendTextOnly($chatId, "⚙ *{$robotName} вернулся...*\nНо базы тут нет, всё потеряно!");
             return;
@@ -133,6 +148,7 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
             return;
         }
         $baseCellNumber = (int)$mapRec['cell_number'];
+        $baseLabel      = $this->baseLabel($baseRow, $mapRec);
 
         // 5) Мастерская => уровень
         // v0.51.30 fix (Bug #8): drop `map_cell_id` filter — інконсистентно з
@@ -141,10 +157,23 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         // completion handler знаходить workshop на старому cell і фейлить.
         // Reported у Bugs-info: "Робот-добытчик прибыл / Мастерская
         // робототехники отсутствует" хоча у user'а вона є у списку построек.
-        $workshop = $this->characterBuildingModel
-            ->where('character_id', $character['id'])
-            ->where('building_id', $this->workshopBuildingId)
-            ->first();
+        // multibase-picker-05: при живой базе запуска сначала берём Мастерскую ЭТОЙ базы;
+        // не нашлась (снесли после запуска) — прежний поиск без клетки, не обнуляем сбор.
+        $workshop = null;
+        if ($usesLaunchBase) {
+            $workshop = (new CharacterBuildingModel())
+                ->where('character_id', $character['id'])
+                ->where('building_id', $this->workshopBuildingId)
+                ->where('map_cell_id', $baseCellNumber)
+                ->orderBy('level', 'DESC')
+                ->first();
+        }
+        if (!$workshop) {
+            $workshop = $this->characterBuildingModel
+                ->where('character_id', $character['id'])
+                ->where('building_id', $this->workshopBuildingId)
+                ->first();
+        }
         if (!$workshop) {
             $this->sendTextOnly($chatId, "⚙ *{$robotName} прибыл*\nНо 🤖 Мастерская робототехники отсутствует — без неё робот не разгружает добычу.\nПострой её: 🏠 База → 🏗 Строить.");
             return;
@@ -256,7 +285,7 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         }
 
         // Формируем финальное сообщение
-        $msg = $this->formatGatheringResultMessage($biomeGroupedResources, $hoursSpent, $workshopLevel, $biomeCellCounts, $robotName);
+        $msg = $this->formatGatheringResultMessage($biomeGroupedResources, $hoursSpent, $workshopLevel, $biomeCellCounts, $robotName, $baseLabel);
 
         // Проверка длины текста => либо отправить фото, либо только текст
         $safeCaption = $this->sanitizeForTelegram($msg);
@@ -379,7 +408,8 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         float $hoursSpent,
         int   $workshopLevel,
         array $biomeCellCounts,
-        string $robotName = 'Робот'
+        string $robotName = 'Робот',
+        string $baseLabel = ''
     ): string
     {
         $wh= floor($hoursSpent);
@@ -387,6 +417,7 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         $timeStr= "{$wh} ч {$mm} мин";
 
         $msg = "⚙ *{$robotName} завершил работу!* \n\n"
+            .($baseLabel !== '' ? "🏠 База: *{$baseLabel}*\n" : '')
             ."⏳ Время сбора: `{$timeStr}`\n"
             ."🏭 Уровень мастерской: *{$workshopLevel}*\n\n"
             ."🎉 *Сводка по биомам:*";
@@ -476,6 +507,45 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         $row  = (new CraftedItemsModel())->find((int) $decoded['crafted_item_id']);
         $name = is_array($row) && isset($row['name_eng']) ? $row['name_eng'] : null;
         return is_string($name) ? $name : null;
+    }
+
+    /**
+     * multibase-picker-05: клетка базы запуска из `task_settings.base_cell`
+     * (StartRobotGatheringAction её пишет). null — легаси-задание без ключа.
+     *
+     * @param array<string,mixed> $task
+     */
+    private function resolveLaunchBaseCell(array $task): ?int
+    {
+        $raw = $task['task_settings'] ?? null;
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded) || !isset($decoded['base_cell']) || !is_numeric($decoded['base_cell'])) {
+            return null;
+        }
+        $cell = (int) $decoded['base_cell'];
+        return $cell > 0 ? $cell : null;
+    }
+
+    /**
+     * multibase-picker-05: «Имя базы (x, y)» для итога — `MarkdownSafe::name()` +
+     * координаты клетки, как в StartRobotGatheringAction::baseLabel().
+     *
+     * @param array<array-key,mixed> $baseRow строка claimed_cells
+     * @param array<array-key,mixed> $mapRec  строка map
+     */
+    private function baseLabel(array $baseRow, array $mapRec): string
+    {
+        $campNameRaw = $baseRow['camp_name'] ?? '';
+        $name = MarkdownSafe::name(is_scalar($campNameRaw) ? (string) $campNameRaw : '', 'База');
+        $xRaw = $mapRec['coordinate_x'] ?? null;
+        $yRaw = $mapRec['coordinate_y'] ?? null;
+        $x    = is_scalar($xRaw) ? (string) $xRaw : '?';
+        $y    = is_scalar($yRaw) ? (string) $yRaw : '?';
+
+        return "{$name} ({$x}, {$y})";
     }
 
     /**

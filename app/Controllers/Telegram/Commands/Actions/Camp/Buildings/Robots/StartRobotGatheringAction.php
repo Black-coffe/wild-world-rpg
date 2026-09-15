@@ -9,6 +9,10 @@ use App\Models\CraftedItemsModel; // <-- добавляем, чтобы узна
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\TaskModel;
+use App\Models\ClaimedCellModel;
+use App\Models\MapModel;
+use App\Services\Bases\BaseScopeResolver;
+use App\Services\Display\MarkdownSafe;
 use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 
@@ -133,19 +137,30 @@ class StartRobotGatheringAction extends BaseAction
             );
         }
 
-        // 4) Узнаём уровень мастерской
-        $roboticsWorkshop = $this->characterBuildingModel
-            ->where('character_id', $characterId)
-            ->where('building_id', $roboticsWorkshopId)
-            ->first();
+        // 4) База запуска и её Мастерская.
+        // multibase-picker-05: «стоя на второй базе без ангара запустила робота —
+        // в какой локации, непонятно». Робот работает у базы, с которой запущен:
+        // та, на которой стоит игрок (или под сигналом Вышки — BaseScopeResolver),
+        // и Мастерская обязана стоять именно на ней (`map_cell_id`).
+        $charIdInt   = is_numeric($characterId) ? (int) $characterId : 0;
+        $cellRaw     = $character['cell_number'] ?? null;
+        $currentCell = is_numeric($cellRaw) ? (int) $cellRaw : 0;
+        $scope       = (new BaseScopeResolver())->resolve($charIdInt, $currentCell);
+        $baseCell    = $scope['cell'];
+        if ($baseCell === null) {
+            return $this->sendError($scope['text'] ?? BaseScopeResolver::TEXT_AMBIGUOUS);
+        }
+        $baseLabel = self::baseLabel($charIdInt, $baseCell);
 
         // Чат сообщества 2026-08-24 (Torch0010): робот уходил БЕЗ мастерской, тратил
         // прочность и возвращался с «Мастерская робототехники отсутствует». Гейт —
         // здесь, до списания, а не в completion-handler'е.
-        if (!$roboticsWorkshop) {
-            return $this->sendError(self::noWorkshopMessage());
+        $roboticsWorkshop = self::workshopAtBase($charIdInt, $baseCell);
+        if ($roboticsWorkshop === null) {
+            return $this->sendError(self::noWorkshopOnBaseMessage($baseLabel));
         }
-        $workshopLevel = (int) ($roboticsWorkshop['level'] ?? 1);
+        $levelRaw      = $roboticsWorkshop['level'] ?? 1;
+        $workshopLevel = is_numeric($levelRaw) ? (int) $levelRaw : 1;
 
         // 5) Ищем в crafted_items_log любую запись, где есть нужный робот (crafted_item_id = $robotId) и quantity > 0
         $robotLogEntry = $this->craftedItemsLogModel
@@ -230,7 +245,9 @@ class StartRobotGatheringAction extends BaseAction
             'status'           => 'in_work',
             // V18 (ADR-049): какой именно робот запущен — для tier-aware множителя
             // в CompleteRobotGatheringHandler (T2 Промышленник = больше выхода + клеток).
-            'task_settings'    => json_encode(['crafted_item_id' => (int) $robotId]),
+            // multibase-picker-05: `base_cell` — клетка базы запуска; завершение копает
+            // вокруг неё. Нет ключа (задание до выкатки) — легаси-правило в хендлере.
+            'task_settings'    => json_encode(['crafted_item_id' => (int) $robotId, 'base_cell' => $baseCell]),
         ]);
 
         // E20 (ADR-120) — инструментация адопшена (успешные запуски раньше не логировались).
@@ -270,13 +287,15 @@ class StartRobotGatheringAction extends BaseAction
             ? $robotData['name_rus']
             : 'Робот-добытчик';
 
-        $text = "🚀 *{$robotDisplayName} запущен!* ⚙\n\n"
-            . "🔧 Он будет работать *{$hoursUntilBreakdown} ч.* (Уровень мастерской: {$workshopLevel}).\n\n"
-            . "{$reachLine}\n\n"
-            . "📉 Остаток роботов после запуска:\n"
-            . "   — Роботов: *{$sumQuantity}* шт.\n"
-            . "   — Общая прочность: *{$sumDurability}*\n\n"
-            . "⛏ Ожидай окончания работы, пока робот соберёт всё возможное!";
+        $text = self::launchCaption(
+            $robotDisplayName,
+            $baseLabel,
+            $hoursUntilBreakdown,
+            $workshopLevel,
+            $reachLine,
+            (int) $sumQuantity,
+            (int) $sumDurability
+        );
 
         // Кнопки для удобства
         $keyboard = [
@@ -311,6 +330,89 @@ class StartRobotGatheringAction extends BaseAction
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'text'    => $message,
         ]);
+    }
+
+    /**
+     * multibase-picker-05: caption экрана запуска — самодостаточен в media-off
+     * (имя робота, база с координатами, часы, охват, остаток).
+     */
+    public static function launchCaption(
+        string $robotDisplayName,
+        string $baseLabel,
+        int $hours,
+        int $workshopLevel,
+        string $reachLine,
+        int $sumQuantity,
+        int $sumDurability
+    ): string {
+        return "🚀 *{$robotDisplayName} запущен!* ⚙\n\n"
+            . "🏠 База: *{$baseLabel}* — робот копает вокруг неё.\n\n"
+            . "🔧 Он будет работать *{$hours} ч.* (Уровень мастерской: {$workshopLevel}).\n\n"
+            . "{$reachLine}\n\n"
+            . "📉 Остаток роботов после запуска:\n"
+            . "   — Роботов: *{$sumQuantity}* шт.\n"
+            . "   — Общая прочность: *{$sumDurability}*\n\n"
+            . "⛏ Ожидай окончания работы, пока робот соберёт всё возможное!";
+    }
+
+    /**
+     * multibase-picker-05: Мастерская робототехники, стоящая на базе `$baseCell`
+     * (`character_buildings.map_cell_id`). null — на этой базе её нет.
+     *
+     * @return array<string,mixed>|null
+     */
+    public static function workshopAtBase(int $characterId, int $baseCell): ?array
+    {
+        $workshopId = (new BuildingModel())->idByNameEn('RoboticsWorkshop');
+        $row = (new CharacterBuildingModel())
+            ->where('character_id', $characterId)
+            ->where('building_id', $workshopId)
+            ->where('map_cell_id', $baseCell)
+            ->orderBy('level', 'DESC')
+            ->first();
+        if (! is_array($row)) {
+            return null;
+        }
+        $out = [];
+        foreach ($row as $k => $v) {
+            $out[(string) $k] = $v;
+        }
+        return $out;
+    }
+
+    /**
+     * multibase-picker-05: «Имя базы (x, y)» — имя через `MarkdownSafe::name()`
+     * (как `TeleportUseMessageFormatter::chooseBase()`), координаты из `map`
+     * (map.id == cell_number).
+     */
+    public static function baseLabel(int $characterId, int $baseCell): string
+    {
+        $base = (new ClaimedCellModel())
+            ->where('character_id', $characterId)
+            ->where('map_cell_id', $baseCell)
+            ->where('status', 'active')
+            ->first();
+        $campNameRaw = is_array($base) ? ($base['camp_name'] ?? '') : '';
+        $name = MarkdownSafe::name(is_scalar($campNameRaw) ? (string) $campNameRaw : '', 'База');
+
+        $map  = (new MapModel())->find($baseCell);
+        $xRaw = is_array($map) ? ($map['coordinate_x'] ?? null) : null;
+        $yRaw = is_array($map) ? ($map['coordinate_y'] ?? null) : null;
+        $x    = is_scalar($xRaw) ? (string) $xRaw : '?';
+        $y    = is_scalar($yRaw) ? (string) $yRaw : '?';
+
+        return "{$name} ({$x}, {$y})";
+    }
+
+    /**
+     * multibase-picker-05: отказ «на ЭТОЙ базе нет Мастерской» — называет базу и путь.
+     */
+    public static function noWorkshopOnBaseMessage(string $baseLabel): string
+    {
+        return "🔒 База {$baseLabel}: нужна Мастерская робототехники на этой базе.\n"
+            . "Робот работает у базы, с которой запущен, и разгружает добычу в её Мастерскую.\n\n"
+            . "Как построить: встань на эту базу → 🏠 База → 🏗 Строить → Мастерская робототехники. "
+            . "Или запусти робота с базы, где Мастерская уже есть.";
     }
 
     /**

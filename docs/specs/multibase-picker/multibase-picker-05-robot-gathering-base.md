@@ -1,8 +1,8 @@
 ---
 story: multibase-picker-05
 spec: multibase-picker
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -50,5 +50,12 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Implementation notes
+- `StartRobotGatheringAction`: база запуска = `BaseScopeResolver::resolve()` (стоит на базе → она; одна база / под Вышкой → прежнее правило), Мастерская ищется по `map_cell_id` этой базы ДО списания прочности; отказ называет базу. `task_settings` = `{crafted_item_id, base_cell}`. Caption вынесен в `launchCaption()` (строка «🏠 База: *Имя (x, y)*»).
+- `RobotGathererActivator`: экран робота и lock-кнопка смотрят Мастерскую базы запуска и называют её; `buildCaption(..., ?int $baseCell = null)` — null сохраняет прежний путь (на нём держится `RobotReachSingleSourceTest`).
+- `CompleteRobotGatheringHandler`: `base_cell` активной базы персонажа → BFS от неё, Мастерская сперва этой базы, иначе прежний поиск без клетки (v0.51.30 не возвращён: снесённая после запуска Мастерская сбор не обнуляет). Нет ключа / база неактивна → прежнее правило. Итог несёт строку «🏠 База: …» (новый необязательный последний параметр `formatGatheringResultMessage`).
+- Сюрприз: `CompleteRobotGatheringNameTest` на пустой свежей БД падает 4/5 и на HEAD-версии хендлера (кэш `tableExists()` + raw DROP в самом тесте) — не регрессия; зелёный, когда `buildings`/`crafted_items` уже есть (как на CI с дампом).
+- Успешный запуск в тесте упирается в фото по `base_url()` (стенд `http://example.com/`); успех проверен по записи задания, caption — через `launchCaption()`/`baseLabel()`.
+- Media-off: отказ — plain text; экран запуска и итог несут имя базы и координаты в тексте; фото только через `MediaSender` / `safeSendPhoto` (без изменений путей отправки).
+INTERFACES: `StartRobotGatheringAction::launchCaption(string,string,int,int,string,int,int): string`, `::workshopAtBase(int $characterId, int $baseCell): ?array`, `::baseLabel(int $characterId, int $baseCell): string`, `::noWorkshopOnBaseMessage(string $baseLabel): string` — все public static. Контракт `base_cell` — как в plan.md.
 
 ## Findings

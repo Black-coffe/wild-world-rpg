@@ -10,6 +10,7 @@ use App\Services\Player\RobotService;
 use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Bases\BaseCheckService;
+use App\Services\Bases\BaseScopeResolver;
 use App\Services\Coverage\CommunicationTowerCoverageService;
 
 /**
@@ -68,6 +69,17 @@ class RobotGathererActivator implements RobotActivatorInterface
             // Если покрытие есть — продолжаем код: считаем, что «виртуально» мы имеем доступ к базе
         }
 
+        // multibase-picker-05: база, с которой робот уйдёт (та же, что в StartRobotGatheringAction).
+        $currentCell = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
+        $scope       = (new BaseScopeResolver())->resolve((int) $characterId, $currentCell);
+        $baseCell    = $scope['cell'];
+        if ($baseCell === null) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => $scope['text'] ?? BaseScopeResolver::TEXT_AMBIGUOUS,
+            ]);
+        }
+
         // --- ниже идёт уже ваш прежний код ---
         // 2) Проверяем, есть ли в crafted_items_log роботы данного типа
         $logRows = $this->craftedItemsLogModel
@@ -88,12 +100,12 @@ class RobotGathererActivator implements RobotActivatorInterface
         // chat-requests-batch-09 review fix (BLOCK #3): вынесены в отдельный
         // testable `buildCaption()`, чтобы тест мог проверить РЕНДЕР текста
         // (не только приватный делегат формулы в отрыве от экрана).
-        $text = $this->buildCaption($characterId, $logRows);
+        $text = $this->buildCaption((int) $characterId, $logRows, $baseCell);
 
         // 8) Кнопки: «Запуск робота», (V19) «Ремонт» если частично израсходован, «Назад»
         // UX-DISCOVERABILITY: без мастерской кнопка не прячется, а становится lock-кнопкой;
         // клик ведёт в StartRobotGatheringAction, который объяснит, что и где построить.
-        $launchLabel = $this->hasWorkshop($characterId) ? '🚀 Запуск робота' : '🔒 Нужна мастерская';
+        $launchLabel = $this->hasWorkshop((int) $characterId, $baseCell) ? '🚀 Запуск робота' : '🔒 Нужна мастерская';
         $rows = [
             [['text' => $launchLabel, 'callback_data' => 'startRobotGatherer_' . $this->robotId]],
         ];
@@ -147,8 +159,11 @@ class RobotGathererActivator implements RobotActivatorInterface
      *
      * @param array<int,array<string,mixed>> $logRows строки `crafted_items_log`
      *                                                 для `$this->robotId` (уже отфильтрованы quantity>0)
+     * @param int|null $baseCell multibase-picker-05: клетка базы запуска — Мастерская
+     *                           ищется на ней и база называется в тексте; null — прежнее
+     *                           правило (любая Мастерская персонажа, база не названа).
      */
-    private function buildCaption(int $characterId, array $logRows): string
+    private function buildCaption(int $characterId, array $logRows, ?int $baseCell = null): string
     {
         $robotItem = $this->craftedItemsModel->find($this->robotId);
         $baseDurability = is_array($robotItem) && isset($robotItem['durability_count']) && is_numeric($robotItem['durability_count'])
@@ -174,15 +189,24 @@ class RobotGathererActivator implements RobotActivatorInterface
         }
 
         // Уровень мастерской робототехники — id по стабильному name_en (E28, не хардкод 9).
-        $roboticsId       = (new BuildingModel())->idByNameEn('RoboticsWorkshop');
-        $roboticsWorkshop = $this->characterBuildingModel
-            ->where('character_id', $characterId)
-            ->where('building_id', $roboticsId)
-            ->first();
+        if ($baseCell !== null) {
+            $baseLabel        = StartRobotGatheringAction::baseLabel($characterId, $baseCell);
+            $roboticsWorkshop = StartRobotGatheringAction::workshopAtBase($characterId, $baseCell);
+            $noWorkshopText   = StartRobotGatheringAction::noWorkshopOnBaseMessage($baseLabel);
+            $baseLine         = "🏠 База запуска: *{$baseLabel}* — робот копает вокруг неё.\n\n";
+        } else {
+            $roboticsId       = (new BuildingModel())->idByNameEn('RoboticsWorkshop');
+            $roboticsWorkshop = $this->characterBuildingModel
+                ->where('character_id', $characterId)
+                ->where('building_id', $roboticsId)
+                ->first();
+            $noWorkshopText   = StartRobotGatheringAction::noWorkshopMessage();
+            $baseLine         = "🚫 *Внимание:* робот привязан строго к координате твоей базы, рандомно выбрать точку нельзя.\n\n";
+        }
         if (!is_array($roboticsWorkshop)) {
             return "⚙️ *{$robotDisplayName}* ⚙️\n\n"
                 . "📊 Роботов данного типа: *{$totalQuantity}*, суммарный остаток запусков: *{$totalDurability}*.\n\n"
-                . StartRobotGatheringAction::noWorkshopMessage();
+                . $noWorkshopText;
         }
         $workshopLevel = isset($roboticsWorkshop['level']) && is_numeric($roboticsWorkshop['level'])
             ? (int) $roboticsWorkshop['level']
@@ -199,7 +223,7 @@ class RobotGathererActivator implements RobotActivatorInterface
         $cellsCountNext = $this->robotService->gatheringReachCells($workshopLevel + 1, $robotNameEn);
 
         return "⚙️ *{$robotDisplayName}* ⚙️\n\n"
-            . "🚫 *Внимание:* робот привязан строго к координате твоей базы, рандомно выбрать точку нельзя.\n\n"
+            . $baseLine
             . "🏭 Мастерская робототехники (уровень: *{$workshopLevel}*):\n"
             . "   • даёт *{$maxHours}* часов работы (2 часа на уровень)\n"
             . "   • позволяет собирать ресурсы редкости от *10* до *{$minRarity}*\n"
@@ -211,9 +235,12 @@ class RobotGathererActivator implements RobotActivatorInterface
             . "🎉 Готов к сбору? Жми «Запуск робота» ниже!";
     }
 
-    /** Есть ли у персонажа Мастерская робототехники (любого уровня). */
-    private function hasWorkshop(int $characterId): bool
+    /** Есть ли Мастерская робототехники на базе запуска (null — на любой базе персонажа). */
+    private function hasWorkshop(int $characterId, ?int $baseCell = null): bool
     {
+        if ($baseCell !== null) {
+            return StartRobotGatheringAction::workshopAtBase($characterId, $baseCell) !== null;
+        }
         $roboticsId = (new BuildingModel())->idByNameEn('RoboticsWorkshop');
 
         return $this->characterBuildingModel
