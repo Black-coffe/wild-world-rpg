@@ -125,5 +125,5 @@ Tech-writing ноты на тронутые сервисы; ADR о том, чт�
 **Briefed:** <not used - Approved above>
 **Branch:** vulyk/cron-delivery-integrity
 **Checked:** <written by scripts/human-check.sh>
-**Council:** <written by scripts/cycle.sh judge>
+**Council:** GREEN round 1, 2026-09-15, at dba12de1, pack 878408c49bb4
 **Shipped:** <written by scripts/ship-check.sh --record>
