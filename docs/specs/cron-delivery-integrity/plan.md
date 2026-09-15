@@ -126,4 +126,4 @@ Tech-writing ноты на тронутые сервисы; ADR о том, чт�
 **Branch:** vulyk/cron-delivery-integrity
 **Checked:** <written by scripts/human-check.sh>
 **Council:** GREEN round 1, 2026-09-15, at dba12de1, pack 878408c49bb4
-**Shipped:** <written by scripts/ship-check.sh --record>
+**Shipped:** v0.51.668, 2026-09-15, at 55790e79 - tag v0.51.668 on develop pushed (preprod smoke green: testbot battle #30 09:52:02, 'Сообщение успешно отправлено' to tg 6995661239); prod deploy via Actions
