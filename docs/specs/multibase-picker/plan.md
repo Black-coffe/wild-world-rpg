@@ -20,6 +20,7 @@
 - **Сборка — `/vulyk-build multibase-picker --fallback`**: `cycle-clerk` Workflow-драйвера обрезает JSON (известная стена).
 - **Имя ключа `GameSettings` и форма его сида** (`communication_tower.coverage_per_level`, дефолт `100`) — предложение плана; воркер 01 сверяет с конвенцией соседних ключей и сообщает фактическое имя в INTERFACES.
 - **`## Files` историй 01, 02, 03, 06, 07 сверены Queen'ом до утверждения** (см. «Ответы на вопросы разведки» и дельту ниже).
+- **Новый текст отказа в истории 12** (`Не удалось открыть базу — нажми «🏠 База» ещё раз.`) — предложение плана для редкой ветки «одна покрытая база, её строка не найдена»; Queen может заменить формулировку до диспатча волны 5.
 
 ## Ответы на вопросы разведки (Queen, grep, 2026-09-15)
 1. 14 карточек — `Camp/Buildings/{Arsenal,BlastFurnace,CommunicationTower,DefensiveBuilding,Greenhouse,Gym,HandPump,Laboratory,LeanTo,RoboticsWorkshop,SolarStation,TeleportationCenter,Warehouse,Workshop}Handler.php`; «Поднять уровень» строится в каждой карточке (`'upgrade_building_' . $buildingId`, напр. `ArsenalHandler.php:136`); апгрейд — `Camp/Buildings/UpgradeBuildingAction.php` через префикс `upgrade_building_` в `CallbackPrefixDispatcher.php:60`. Что есть `{id}` — воркер 03 сверяет.
@@ -49,7 +50,11 @@
 - `multibase-picker-09-launch-base-covered` — ask 5 RED: ветка tower в `resolve()` берёт первую ПОКРЫТУЮ базу; база запуска робота — стоит на ней или покрыта своей Вышкой и со своей Мастерской; детерминированное легаси-завершение (minor 8); честный тест успешного запуска (minor 7). **model: opus.**
 - `multibase-picker-10-hangar-hub-no-base` — Major 1: голый `hangar` без базы в охвате рисует хаб ADR-120 (инвентарь + lock с путём к Мастерской); текст пикера по числу кнопок (minor 3). model: sonnet.
 
-Карта asks → истории: 1 → 02, 10 (minor 3); 2 → 01; 3 → 01 (проверка, маршрут), 02 (кнопки), 03, 04, 06, 08 (разбор суффикса), 09 (легаси-правило tower); 4 → 04, 10; 5 → 05, 09; 6 → 06 + ADR-187 (Assumptions); 7 → media-off критерием в 02/04/05/09/10, discoverability/onboarding в 02, 10, tips/guide в 07; 8 → `## Integration gate` + Assumptions (tech-writing, Tier-3).
+**Wave 5** — ремонт после совета, раунд 2; обе `blocked_by: [multibase-picker-09, multibase-picker-10]`, `## Files` непересекающиеся
+- `multibase-picker-11-bare-construction-resolve` — ask 3 RED: голый `construction` показывает и штампует базу `resolve()`, числа Вышки — этой же базы; «🏗 К базе» в «Развитии базы» несёт суффикс; «Развитие базы» называет базу (opus UNASKED 4). **model: opus.**
+- `multibase-picker-12-review-minors-tests` — lead-review раунда 2, minors 2, 3, 4, 6 (тесты, которые могут покраснеть) и 5 (отказ в ветке «одна покрытая, строка не найдена» не велит идти под сигнал). model: sonnet.
+
+Карта asks → истории: 1 → 02, 10 (minor 3), 12 (minor 5); 2 → 01; 3 → 01 (проверка, маршрут), 02 (кнопки), 03, 04, 06, 08 (разбор суффикса), 09 (легаси-правило tower), 11 (голый `construction`, «🏗 К базе»); 4 → 04, 10, 12 (тесты хаба); 5 → 05, 09, 12 (тесты легаси и активатора); 6 → 06, 11 (имя базы на «Развитии») + ADR-187 (Assumptions); 7 → media-off критерием в 02/04/05/09/10/11, discoverability/onboarding в 02, 10, tips/guide в 07; 8 → `## Integration gate` + Assumptions (tech-writing, Tier-3).
 
 ## Contracts
 - **Идентификатор базы** — `claimed_cells.id` (int). Персонаж-владелец + `status='active'` проверяются при каждом использовании.
@@ -61,8 +66,9 @@
 - **Кнопка базы в пикере:** `Base_b<baseId>` → `ShowBaseInfoAction` → `BaseService::showBaseInfo()` с выбранной базой; с экрана базы — `construction_b<id>`, `hangar_b<id>`, `campDecor_b<id>`, `baseDevelopment_b<id>`; из `DetailedBaseInfoAction` — `building_<id>_<name>_b<id>` (история 02 строит, история 01 гарантирует маршрут всех этих форм).
 - **Покрытие (история 01):** `CommunicationTowerCoverageService::coverageByBase(int $characterId, int $playerCell): list<array{base_id:int, cell:int, name:string, x:int, y:int, towerLevel:int, distance:int, maxCoverage:int, isCovered:bool}>` — все активные базы персонажа по `claimed_cells.id` ASC; `towerLevel=0`/`isCovered=false` у базы без Вышки; `maxCoverage = towerLevel × GameSettings('communication_tower.coverage_per_level')`. `checkCoverage(int $characterId)` сохраняет форму ответа и становится детерминированным.
 - **Проверка выбранной базы (история 01):** `BaseScopeResolver::resolveForBase(int $characterId, int $currentCell, int $baseId): array{cell: ?int, base_id: ?int, reason: string, text: string}`; `reason ∈ {'on_base', 'tower', 'unavailable'}`. `unavailable` (не своя / не активна / игрок не на ней и не под её сигналом) → `cell=null`, текст един для всех дверей: `Эта база сейчас недоступна: встань на неё или подойди под сигнал её Вышки связи — и открой «🏠 База» снова.` ~~`resolve()` не меняется.~~ `resolve()`: тексты и форма прежние; ветка tower (история 09) возвращает первую по `id` базу с `isCovered=true` в `coverageByBase()`.
+- **Голый `construction` (история 11):** база экрана = `resolve()['base_id']` / `['cell']`; суффикс кнопок и числа шапки покрытия — этой же базы (строка `coverageByBase()` с тем же `base_id`). Инвариант: `resolveForBase(characterId, currentCell, <id на кнопке>)` не отвечает `unavailable` для того же игрока в той же клетке.
 - **Задание робота (история 05):** `character_tasks.task_settings` JSON получает ключ `base_cell` (int, номер клетки базы запуска) рядом с `crafted_item_id`. Отсутствие ключа = легаси-задание; легаси-база завершения — активная с наименьшим `id` (история 09).
-- **База запуска робота (история 09):** один public static-хелпер в `StartRobotGatheringAction`; его зовут и `StartRobotGatheringAction`, и `RobotGathererActivator`. `StartRobotGatheringAction::workshopAtBase(int, int): ?array` и `::baseLabel(int, int): string` сохраняют сигнатуры — на них стоит `HangarAction` (история 10).
+- **База запуска робота (история 09):** один public static-хелпер в `StartRobotGatheringAction`; его зовут и `StartRobotGatheringAction`, и `RobotGathererActivator`. `StartRobotGatheringAction::workshopAtBase(int, int): ?array` и `::baseLabel(int, int): string` сохраняют сигнатуры — на них стоит `HangarAction` (история 10) и `BaseDevelopmentAction` (история 11, имя базы на «Развитии»).
 - **Имя базы в текстах** — `MarkdownSafe::name()` + `(x, y)` из `claimed_cells`/карты, как в `TeleportUseMessageFormatter::chooseBase()`.
 
 ## Integration gate
@@ -70,14 +76,17 @@
 
 ## Descoped
 
-- **Ask 8, половина tech-writing, — после мерджа, не в коде этой спеки** (lead-review, раунд 1, #9). Ноты из Assumptions пишет `drone-docs` в `mmorpg-vault/tech-writing/` после мерджа; добавляются `BaseService` и хаб без базы в `HangarAction`. Эту половину ask 8 совет в раунде 2 не может увидеть зелёной внутри COURT; её закрывает Queen до `/vulyk-ship`.
+- **Ask 8, половина tech-writing, — после мерджа, не в коде этой спеки** (lead-review, раунд 1, #9). Ноты из Assumptions пишет `drone-docs` в `mmorpg-vault/tech-writing/` после мерджа; добавляются `BaseService` и хаб без базы в `HangarAction`. Эту половину ask 8 совет в раунде 2 не может увидеть зелёной внутри COURT; её закрывает Queen до `/vulyk-ship`. После волны 5 обновляются ноты `DetailedBaseInfoAction` (база голого `construction` = `resolve()`) и `BaseDevelopmentAction` («🏗 К базе» с суффиксом, имя базы).
 
 ## Открытые хвосты
 
-- **Minor 4 — голый `construction` штампует базу, которую `resolveForBase()` отвергнет.** Ожидается, что история 09 закроет его попутно: после неё `resolve()` и `checkCoverage()` оба выбирают первую покрытую базу. Queen сверяет после волны 4; если не закрылось — отдельная правка `DetailedBaseInfoAction`.
+- ~~**Minor 4 — голый `construction` штампует базу, которую `resolveForBase()` отвергнет.**~~ **Закрывается историей 11 (волна 5).** Прежняя запись, что его попутно закроет история 09, была неверной: `DetailedBaseInfoAction` не зовёт `resolve()`, а берёт первую запись `findAllActiveCells()` и проверяет только `checkCoverage()` (lead-review, раунд 2, minor 1; opus, раунд 2, ask 3 RED).
 - **Minor 5 — `Build_b<id>` в lock-состоянии Ангара.** `BuildListAction` суффикс не читает, стройка привязана к клетке игрока; вреда нет. Правка: снять суффикс или записать, что `Build` привязан к позиции.
-- **Minor 6 — «🏠 База» на карточках построек (и «🏗 К базе» в Развитии, «🏗 Развитие базы» на карточке LeanTo) без суффикса.** Для игрока с 2+ базами ведёт в пикер, а не на экран той же базы. Ангар и Декор суффикс несут — навигация назад непоследовательна.
-- **Номер базы по цепочке роботов** (`hangar_b` → `AllRobots` → `ActivateRobot` → `startRobotGatherer`). Если под сигналом две базы и у обеих своя Мастерская, робот уходит с первой по `id`, даже если открыт Ангар второй. Полная «выбранная база» для запуска — отдельная спека, если владелец захочет.
+- **Minor 6 — «🏠 База» на карточках построек (и «🏗 Развитие базы» на карточке LeanTo) без суффикса.** Для игрока с 2+ базами ведёт в пикер, а не на экран той же базы. Ангар и Декор суффикс несут — навигация назад непоследовательна. *(«🏗 К базе» в «Развитии базы» закрывается историей 11.)*
+- **Номер базы по цепочке роботов** (`hangar_b` → `AllRobots` → `ActivateRobot` → `startRobotGatherer`) — opus, раунд 2, UNASKED 1. Если под сигналом две базы и у обеих своя Мастерская, робот уходит с первой по `id`, даже если открыт Ангар второй. Caption называет базу честно. Полная «выбранная база» для запуска — отдельная спека, если владелец захочет.
+- **Голые кнопки «назад» теряют базу** — opus, раунд 2, UNASKED 2. Голый `Base` на каждой карточке постройки, в `AllRobots` и `StartRobot` (и хвост minor 6 выше) открывает пикер или легаси-путь, а не экран просматриваемой базы. Правка — суффикс в этих кнопках, отдельной правкой после шипа.
+- **Кнопки экрана базы без суффикса** — opus, раунд 2, UNASKED 3: «🏗 Строить», «📦 Склад базы», «🔨 Снести», `DeleteBase`, «📡 Маяки». Пока они требуют стоять на базе, это безопасно; повторной проверки выбранной базы в них нет. Сверить при следующей правке этих обработчиков.
+- ~~**«Развитие базы» не называет базу** — opus, раунд 2, UNASKED 4.~~ **Закрывается историей 11.**
 
 ## Plan deltas
 
@@ -108,6 +117,12 @@
   3. **Попутно:** детерминированное легаси-завершение робота (minor 8) и честный тест успешного запуска (minor 7) — в историю 09; текст пикера по числу кнопок (minor 3) — в историю 10. Minors 4, 5, 6 — в `## Открытые хвосты`; #9 (tech-writing) — в `## Descoped`, после мерджа. Цитаты историй 09 и 10 взяты дословно из этой секции (дельта «Источник цитат»).
 
 - **2026-09-15 · История 09: `BaseScopeResolverTest.php` добавлен в `## Files`.** Триггер: воркер 09 остановился на закреплении — `tests/unit/Services/Buildings/BaseScopeResolverTest.php` подменяет сервис вышки двойником только с `checkCoverage()`, и новый вызов `coverageByBase()` в ветке tower падает на пустом двойнике. Решение (вариант B воркера): `resolve()` зовёт `coverageByBase()` только когда `checkCoverage()` сказал «покрыто»; в двойник теста добавляется override `coverageByBase()`, ожидание теста (база 1) не меняется; `BuildingCardBaseScopeTest` и `BuildingUpgradeBaseScopeTest` не трогаются и зелёные. Отклонено: реализовать только части 2–4 — легаси-кнопки без суффикса по-прежнему вели бы на непокрывающую базу (UNASKED (a) раунда 1).
+
+- **2026-09-15 · Ремонт после совета, раунд 2 (RED по ask 3): истории 11 и 12, волна 5 — последний раунд до потолка.** Триггер: место `opus` показало, что голый `construction` в `DetailedBaseInfoAction` не зовёт `resolve()`: он берёт `findAllActiveCells()[0]` и проверяет только `checkCoverage()`. Когда покрыта только база-2, экран показывает постройки базы-1 под числами Вышки базы-2 и штампует id базы-1, который `resolveForBase()` отвергает. До него доходит живая кнопка «🏗 К базе» в `BaseDevelopmentAction`. `lead-review` (PASS) выставил minors 1–6; minor 1 — это тот же дефект (ложная запись в `## Открытые хвосты`). Решения:
+  1. **История 11 (opus): голый `construction` берёт базу из `resolve()`, отказы не трогаются.** Числа шапки — из строки `coverageByBase()` той же базы, суффикс кнопок — её id. «🏗 К базе» несёт суффикс, если «Развитие базы» открыто с ним. «Развитие базы» называет базу через существующий `baseLabel()` (opus UNASKED 4, тот же файл, почти бесплатно). Отклонено: добавить суффикс на кнопку «🏗 К базе» и оставить голый `construction` как есть. Старые сообщения и легаси-путь продолжили бы показывать чужую базу, а это и есть RED по ask 3.
+  2. **История 12 (sonnet): minors 2, 3, 4, 6 — тесты, которые должны уметь покраснеть; minor 5 — отказ ветки «одна покрытая, строка не найдена» больше не велит идти под сигнал.** Файлы не пересекаются с историей 11. Код обработчиков роботов и Ангара не трогается: если `RobotGathererActivator::activate()` нельзя запустить в тесте без правки кода, это WALL, а не правка.
+  3. **Хвосты:** запись minor 4 исправлена, он закрывается историей 11. opus UNASKED 1 (две покрытые базы с Мастерскими → запуск с меньшим `id`), 2 (голые кнопки «назад»), 3 (кнопки экрана базы без суффикса) записаны в `## Открытые хвосты`, UNASKED 4 закрывается историей 11.
+  Цитаты историй 11 и 12 взяты дословно из дельты «Источник цитат».
 
 **Approved:** Andrei, 2026-09-15 (сборка через `/vulyk-build multibase-picker --fallback`)
 **Briefed:** <...>
