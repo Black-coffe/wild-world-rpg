@@ -7,9 +7,8 @@ namespace App\Services\Player\Progression;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use CodeIgniter\Database\ResultInterface;
 use Config\Database;
-use Longman\TelegramBot\Exception\TelegramException;
 use App\Services\Telegram\Request;
-use Longman\TelegramBot\Telegram;
+use App\Services\Telegram\TelegramBridge;
 use Throwable;
 
 /**
@@ -38,7 +37,6 @@ class LevelUpNotifier
 {
     use GameSettingsReaderTrait;
 
-    private ?Telegram $telegram = null;
 
     /** Killswitch: слать ли уведомление о новом уровне. */
     public function isEnabled(): bool
@@ -155,8 +153,10 @@ class LevelUpNotifier
      */
     protected function send(int $chatId, string $text): void
     {
+        if (! TelegramBridge::ensure()) {
+            return; // причина уже в логе
+        }
         try {
-            $this->telegram();
             $response = Request::sendMessage([
                 'chat_id'    => $chatId,
                 'text'       => $text,
@@ -168,24 +168,5 @@ class LevelUpNotifier
         } catch (Throwable $e) {
             log_message('error', '[LevelUpNotifier] sendMessage exception: ' . $e->getMessage());
         }
-    }
-
-    /** Ленивая инициализация Telegram-моста (как в BaseTaskHandler). */
-    private function telegram(): Telegram
-    {
-        if ($this->telegram === null) {
-            try {
-                $this->telegram = new Telegram(
-                    (string) getenv('telegram.API_KEY'),
-                    (string) getenv('telegram.BOT_USERNAME')
-                );
-                Request::initialize($this->telegram);
-            } catch (TelegramException $e) {
-                log_message('error', '[LevelUpNotifier] Telegram init: ' . $e->getMessage());
-                $this->telegram = new Telegram('invalid', 'invalid');
-            }
-        }
-
-        return $this->telegram;
     }
 }

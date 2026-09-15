@@ -114,6 +114,8 @@ Call to a member function getBotUsername() on null
 preprod: посадить тест-чара на клетку с живым NPC, дождаться тика, убедиться, что сообщение о бое
 пришло, а в логе нет `PvE notify failed`.
 
+**Среда для набора (добавлено 2026-09-15, Queen).** Полный PHPUnit локально гонять **только на свежей пустой базе**, как CI: `/c/laragon/bin/mysql/mysql-8.0.30-winx64/bin/mysql.exe -uroot -e "DROP DATABASE IF EXISTS wildworld_ci_<своя>; CREATE DATABASE wildworld_ci_<своя> CHARACTER SET utf8mb4;"`, затем `env "database.tests.database=wildworld_ci_<своя>" vendor/bin/phpunit --no-coverage --no-progress`. На общей `wildworld_tests` набор красный и без этой спеки (148 ошибок про `resources`/FK — тесты дропают общие таблицы); `-d` базу не переключает. Общие базы не дропать и не мигрировать.
+
 ## Answers
 
 Гриль не проводился: владелец делегировал выбор после разбора ветки Bugs-info

@@ -15,9 +15,8 @@ use App\Services\Player\Death\LootProcessor;
 use App\Services\Player\Death\PlayerRespawner;
 use CodeIgniter\Database\ResultInterface;
 use Config\Database;
-use Longman\TelegramBot\Exception\TelegramException;
 use App\Services\Telegram\Request;
-use Longman\TelegramBot\Telegram;
+use App\Services\Telegram\TelegramBridge;
 use Throwable;
 
 /**
@@ -46,8 +45,6 @@ class DeathService
     private PlayerRespawner        $respawner;
     private GameSettingsService    $settings;
 
-    /** transport-14: lazy Telegram-мост для отдельного уведомления «машина разбита». */
-    private ?Telegram $telegram = null;
 
     public function __construct(
         ?InsuranceCalculator $insuranceCalculator = null,
@@ -648,8 +645,10 @@ class DeathService
      */
     protected function sendVehicleBrokenMessage(int $chatId, string $text): void
     {
+        if (! TelegramBridge::ensure()) {
+            return; // причина уже в логе
+        }
         try {
-            $this->telegram();
             $response = Request::sendMessage([
                 'chat_id'    => $chatId,
                 'text'       => $text,
@@ -661,24 +660,5 @@ class DeathService
         } catch (Throwable $e) {
             log_message('error', '[DeathService] sendMessage exception: ' . $e->getMessage());
         }
-    }
-
-    /** Ленивая инициализация Telegram-моста (как в BaseTaskHandler/LevelUpNotifier). */
-    private function telegram(): Telegram
-    {
-        if ($this->telegram === null) {
-            try {
-                $this->telegram = new Telegram(
-                    (string) getenv('telegram.API_KEY'),
-                    (string) getenv('telegram.BOT_USERNAME')
-                );
-                Request::initialize($this->telegram);
-            } catch (TelegramException $e) {
-                log_message('error', '[DeathService] Telegram init: ' . $e->getMessage());
-                $this->telegram = new Telegram('invalid', 'invalid');
-            }
-        }
-
-        return $this->telegram;
     }
 }

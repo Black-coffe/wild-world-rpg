@@ -110,6 +110,33 @@ final class LevelUpNotifierTest extends CIUnitTestCase
         $this->assertCount(1, $svc->sent);
     }
 
+    /**
+     * cron-delivery-integrity-01 — настоящий send() (без двойника) при отсутствии ключа:
+     * не бросает, пишет error через TelegramBridge и тихо выходит.
+     */
+    public function testRealSendWithoutKeyDoesNotThrow(): void
+    {
+        $savedKey = getenv('telegram.API_KEY');
+        putenv('telegram.API_KEY');
+        \App\Services\Telegram\TelegramBridge::reset();
+
+        try {
+            $svc = new class extends LevelUpNotifier {
+                public function probe(int $chatId, string $text): void
+                {
+                    $this->send($chatId, $text);
+                }
+            };
+
+            $svc->probe(6995661239, 'x');
+
+            $this->assertLogged('error', '[TelegramBridge] Telegram init failed: API KEY not defined!');
+        } finally {
+            putenv($savedKey === false ? 'telegram.API_KEY' : 'telegram.API_KEY=' . $savedKey);
+            \App\Services\Telegram\TelegramBridge::reset();
+        }
+    }
+
     // ── Текст ───────────────────────────────────────────────────────────
 
     public function testComposeCarriesLevelAndDistanceToNext(): void

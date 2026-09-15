@@ -11,11 +11,10 @@ use App\Models\ResourceModel;
 use App\Services\Player\Progression\EarlyProgressionService;
 use App\Services\Player\VehicleActivationService;
 use App\Services\Telegram\Request;
+use App\Services\Telegram\TelegramBridge;
 use App\Services\World\VehicleEffectsService;
 use CodeIgniter\Database\ResultInterface;
 use Config\Database;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Telegram;
 use Throwable;
 
 /**
@@ -53,7 +52,6 @@ class GatherResultPersister
     private ClaimedCellModel $claimedCellModel;
     private BaseStorageModel $baseStorageModel;
     private ResourceModel $resourceModel;
-    private ?Telegram $telegram = null;
 
     public function __construct(
         private ?CharacterResourceModel $characterResourceModel = null,
@@ -367,8 +365,10 @@ class GatherResultPersister
      */
     protected function send(int $chatId, string $text): void
     {
+        if (! TelegramBridge::ensure()) {
+            return; // причина уже в логе
+        }
         try {
-            $this->telegram();
             $response = Request::sendMessage([
                 'chat_id'    => $chatId,
                 'text'       => $text,
@@ -380,25 +380,6 @@ class GatherResultPersister
         } catch (Throwable $e) {
             log_message('error', '[GatherResultPersister] cargo note exception: ' . $e->getMessage());
         }
-    }
-
-    /** Ленивая инициализация Telegram-моста (memory feedback_taskhandler_telegram_init_in_tests). */
-    private function telegram(): Telegram
-    {
-        if ($this->telegram === null) {
-            try {
-                $this->telegram = new Telegram(
-                    (string) getenv('telegram.API_KEY'),
-                    (string) getenv('telegram.BOT_USERNAME')
-                );
-                Request::initialize($this->telegram);
-            } catch (TelegramException $e) {
-                log_message('error', '[GatherResultPersister] Telegram init: ' . $e->getMessage());
-                $this->telegram = new Telegram('invalid', 'invalid');
-            }
-        }
-
-        return $this->telegram;
     }
 
     /** @param array<string, mixed>|\App\Entities\CharacterEntity $character */

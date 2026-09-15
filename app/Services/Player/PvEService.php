@@ -185,7 +185,7 @@ class PvEService
         try {
             $this->notificationSender->send($updatedPlayerData, $finalText);
         } catch (\Throwable $e) {
-            log_message('warning', 'PvE notify failed (бой уже засчитан): ' . $e->getMessage());
+            log_message('error', 'PvE notify failed (бой уже засчитан): ' . $e->getMessage());
         }
 
         return [

@@ -7,6 +7,7 @@ namespace App\Services\PVE;
 use App\Models\TelegramUserModel;
 use App\Services\Notifications\BroadcastDeliveryClassifier;
 use App\Services\Telegram\Request;
+use App\Services\Telegram\TelegramBridge;
 
 /**
  * v0.51.89 (PvEService decomp Step 4) — extract Telegram notification
@@ -69,6 +70,11 @@ final class PveNotificationSender
         if (strlen($finalText) > self::MAX_TEXT_LENGTH) {
             log_message('warning', "Сообщение слишком длинное для Telegram! Обрезаем до " . self::MAX_TEXT_LENGTH . " символов.");
             $finalText = substr($finalText, 0, self::MAX_TEXT_LENGTH) . "...";
+        }
+
+        if (! TelegramBridge::ensure()) {
+            log_message('error', "PvE notify: мост Telegram не поднят, сообщение chat_id={$tgId} не отправлено");
+            return;
         }
 
         $result = Request::sendMessage([

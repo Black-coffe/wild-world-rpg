@@ -1,8 +1,8 @@
 ---
 story: cron-delivery-integrity-01
 spec: cron-delivery-integrity
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 tracer: true
@@ -50,11 +50,17 @@ model: opus
 - [ ] phpstan L9 чистый по тронутым файлам.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/`
+`vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Tracer
 Тонкий срез через слои: помощник → один потребитель (`BaseTaskHandler::telegram()`) → тест без ключа, до перевода остальных четырёх.
 
 ## Implementation notes
+- `app/Services/Telegram/TelegramBridge.php` (new): static `ensure(): bool` per contract; catches `Throwable`, logs `[TelegramBridge] Telegram init failed: <reason>`. Added two helpers beyond the contract: `instance(): ?Telegram` (the base classes' `telegram()` must still return an object) and `reset(): void` (test-only, the state is static).
+- `BaseTaskHandler` / `BaseObjectHandler`: `telegram()` now returns `?Telegram` (`ensure() ? instance() : null`), and the private field is gone. I chose `?Telegram` over `bool` because `tests/database/StandoffExpiryHandlerTest.php` overrides `telegram(): Telegram`. That override stays covariant, where `bool` would break it outside scope. `safeSend*` is unchanged (that is -03's job): if init fails, the send inside its `catch (\Throwable)` still logs a second line.
+- `DeathService`, `GatherResultPersister`, `LevelUpNotifier`: the private `telegram()` and its field are removed. `send` now starts with `if (! TelegramBridge::ensure()) return;`. On success the behaviour is the same.
+- Surprise: a failed `ensure()` is not cached, so every call retries and writes one `error` line. A cron with many recipients and no key will log one line per send attempt.
+- Tests: `TelegramBridgeTest` (empty key, malformed key, idempotent with a key that is valid in format only, `BaseTaskHandler::telegram()` without a key gives null and no throw) + `LevelUpNotifierTest::testRealSendWithoutKeyDoesNotThrow` (real `send()`, no double). The key is set via `putenv` and restored, so there is no dependence on `.env`.
+- Verification `tests/unit/Services/`: 1803 tests, 10 errors, all in `ResourceBankInsertRaceTest` (`Cannot drop table 'resources'` FK on the local test DB). That test is unrelated to Telegram. I did not check it against a baseline without my changes.
 
 ## Findings
