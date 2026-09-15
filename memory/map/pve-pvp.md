@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-11
+last-verified: 2026-09-15
 
 # Scout report: Бой (Services/PVE — и PvE, и PvP)
 
@@ -73,6 +73,13 @@ outbound: `Services/Player` (статы, смерть, дебаффы), моде
 Подробности — `mmorpg-vault/tech-writing/services/PvpStandoffService.md`.
 
 ## Gotchas
+- **(2026-09-15, cron-delivery-integrity) Авто-PvE крон терял бой-сообщения молча.**
+  `AutoPveHandler` → `PvEService::attack()` → `PveNotificationSender::send()` нигде в этой цепочке
+  не поднимал Telegram-мост; неинициализированный `Request::sendMessage` кидал исключение, которое
+  `PvEService::attack()` ловил и писал `warning 'PvE notify failed'` — ниже прод-порога логгера (4),
+  то есть невидимо, а игрок не получал ничего. Починено: `PveNotificationSender::send()` сам зовёт
+  `App\Services\Telegram\TelegramBridge::ensure()` перед отправкой; уровень лога поднят до `error`.
+  Подробности — `mmorpg-vault/tech-writing/services/{TelegramBridge,PveNotificationSender}.md`.
 - PvP «не работал никогда» (ADR-164): 0 боёв из 7641 — гейты доступа это не тумблер дуэлей.
   Прежде чем считать ветку живой — SELECT по таблице боёв, а не grep по коду.
 - `effect_log` фиксирует и лечение тоже: наличие записи ≠ был вред.

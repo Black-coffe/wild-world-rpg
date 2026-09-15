@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-03
+last-verified: 2026-09-15
 
 # Scout report: Telegram-поверхность
 
@@ -41,6 +41,12 @@ outbound: `Services/Player`, `Services/World`, `Services/Craft*`, `Services/Base
 - **Legacy Markdown** без экранирования `*` / `_` даёт 400 и тоже тихий no-send.
 - Ноль одиночных кнопок в ряду: 2–3 в строку, через общий нормализатор рядов.
 - PHPUnit не видит ни один из этих отказов — нужен Tier-3 smoke в живом Telegram.
+- **(2026-09-15) Мост поднимает точка отправки, не вызывающий.** `App\Services\Telegram\TelegramBridge::ensure()`
+  — единый идемпотентный подъём (`getenv('telegram.*')` → `Request::initialize`), никогда не бросает,
+  неудача = `false` + одна `error`-строка (не кэшируется). Сервисы вне webhook (крон/воркер) обязаны
+  звать его сами перед `Request::send*`/`edit*` — гейт `tests/unit/Config/TelegramSenderBridgeCoverageTest.php`
+  сканирует `app/Services/**` и роняет набор на новом сервисе без него. Подробности —
+  `mmorpg-vault/tech-writing/services/TelegramBridge.md`.
 
 ## Vault
 `mmorpg-vault/apps/telegram/index.md` · ноты handler'ов — `mmorpg-vault/tech-writing/handlers/`

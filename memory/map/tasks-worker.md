@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-03
+last-verified: 2026-09-15
 
 # Scout report: Фоновая обработка (cron → Worker → TaskHandlers)
 
@@ -31,6 +31,11 @@ outbound: почти все доменные сервисы + `Services/Notifica
 - **Worker ставит статус `completed` ДО вызова `handle()`** — completion-handler не должен
   полагаться на «задача ещё in_work».
 - В тестах не поднимать Telegram эйджерно: `telegram()` в конструкторе handler'а валит DB-тесты.
+- **(2026-09-15) `BaseTaskHandler::telegram()`/`BaseObjectHandler::telegram()` возвращают `?Telegram`**
+  через `App\Services\Telegram\TelegramBridge::ensure()` — раньше на неудаче здесь стоял `catch`,
+  создающий `new Telegram('invalid','invalid')`, которая сама бросала то же исключение, что ловилась
+  (класс-баг, закрыт `cron-delivery-integrity-01`; подробности — `memory/map/telegram.md`, нота
+  `mmorpg-vault/tech-writing/tasks/BaseTaskHandler.md`).
 - Эксклюзивные (🔒) задачи не стартуют поверх других эксклюзивных — симметрия ADR-167.
 - Ловушка (exploit-audit, `docs/specs/exploit-audit/REPORT.md` #9/#27, `EA-tasks-01`/`EA-tasks-02`):
   `character_tasks` несёт только `PRIMARY(id)`, никакого `UNIQUE` на эксклюзивном слоте — гейт
