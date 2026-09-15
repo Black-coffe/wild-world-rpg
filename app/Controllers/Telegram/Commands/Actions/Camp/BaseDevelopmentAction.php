@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers\Telegram\Commands\Actions\Camp;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\StartRobotGatheringAction;
 use App\Services\Bases\BaseCallbackSuffix;
 use App\Services\Bases\BaseScopeResolver;
 use App\Services\BuildingEffects\BuildingEffectsService;
@@ -80,13 +81,13 @@ final class BaseDevelopmentAction extends BaseAction
         if ($baseId !== null) {
             $resolved = $resolver->resolveForBase($charId, $currentCell, $baseId);
             if ($resolved['cell'] === null) {
-                return $this->refusal($chatId, $resolved['text']);
+                return $this->refusal($chatId, $resolved['text'], $baseId);
             }
             $cell = $resolved['cell'];
         } else {
             $legacy = $resolver->resolve($charId, $currentCell);
             if ($legacy['cell'] === null) {
-                return $this->refusal($chatId, (string) $legacy['text']);
+                return $this->refusal($chatId, (string) $legacy['text'], null);
             }
             $cell = $legacy['cell'];
         }
@@ -104,23 +105,32 @@ final class BaseDevelopmentAction extends BaseAction
 
         return MediaSender::editTextOrSend($this->navTarget() + [
             'chat_id'      => $chatId,
-            'text'         => $this->buildText($built),
+            'text'         => $this->buildText($built, StartRobotGatheringAction::baseLabel($charId, $cell)),
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => [
-                [['text' => '🏗 К базе', 'callback_data' => 'construction']],
+                [['text' => '🏗 К базе', 'callback_data' => $this->toBaseCallback($baseId)]],
                 [['text' => '◀️ Я', 'callback_data' => 'character']],
             ]]) ?: '{}',
         ]);
     }
 
-    /** story multibase-picker-06 — честный отказ (база чужая/неактивна/вне сигнала, либо ≥2 баз без выбора). */
-    private function refusal(int $chatId, string $text): ServerResponse
+    /** multibase-picker-11: `construction_b<id>`, если экран открыт с суффиксом; иначе голый `construction`. */
+    private function toBaseCallback(?int $baseId): string
+    {
+        return $baseId === null ? 'construction' : BaseCallbackSuffix::append('construction', $baseId);
+    }
+
+    /**
+     * story multibase-picker-06 — честный отказ (база чужая/неактивна/вне сигнала, либо ≥2 баз без выбора).
+     * multibase-picker-11: «🏗 К базе» несёт суффикс, если экран открыт с ним.
+     */
+    private function refusal(int $chatId, string $text, ?int $baseId): ServerResponse
     {
         return MediaSender::editTextOrSend($this->navTarget() + [
             'chat_id'      => $chatId,
             'text'         => $text,
             'reply_markup' => json_encode(['inline_keyboard' => [
-                [['text' => '🏗 К базе', 'callback_data' => 'construction']],
+                [['text' => '🏗 К базе', 'callback_data' => $this->toBaseCallback($baseId)]],
                 [['text' => '◀️ Я', 'callback_data' => 'character']],
             ]]) ?: '{}',
         ]);
@@ -128,10 +138,11 @@ final class BaseDevelopmentAction extends BaseAction
 
     /**
      * @param array<int,array<string,mixed>> $built
+     * @param string $baseLabel «Имя (x, y)» показанной базы (multibase-picker-11), уже markdown-safe
      */
-    private function buildText(array $built): string
+    private function buildText(array $built, string $baseLabel): string
     {
-        $text = "🏗 *Развитие базы*\n\n";
+        $text = "🏗 *Развитие базы*\n🏠 База: {$baseLabel}\n\n";
         if ($built === []) {
             return $text . "У тебя пока нет построек.\n\n_Разбей лагерь («База» → «🏕 Разбить лагерь») и строй: каждый уровень постройки усиливает её эффект._";
         }

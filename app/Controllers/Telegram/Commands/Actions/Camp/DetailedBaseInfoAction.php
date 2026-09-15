@@ -100,18 +100,42 @@ class DetailedBaseInfoAction extends BaseAction
         // Не на базе, проверяем сигнал вышки
         $coverageResult = $towerService->checkCoverage($characterId);
         if ($coverageResult['isCovered']) {
-            $claimedCellIdRaw = $claimedCell['id'] ?? null;
-            $claimedCellId    = is_numeric($claimedCellIdRaw) ? (int) $claimedCellIdRaw : 0;
+            // multibase-picker-11: база экрана — та, что выбирает `BaseScopeResolver::resolve()`
+            // (первая по id, которую покрывает ЕЁ Вышка), а не `findAllActiveCells()[0]`.
+            // Числа шапки и суффикс кнопок — этой же базы, иначе `resolveForBase()` отверг бы кнопки.
+            $resolved = (new BaseScopeResolver())->resolve($characterId, $currentCell);
+            if ($resolved['cell'] === null) {
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text'    => (string) $resolved['text'],
+                ]);
+            }
+
+            $screenBase = null;
+            foreach ($activeCells as $row) {
+                if (is_numeric($row['map_cell_id'] ?? null) && (int) $row['map_cell_id'] === $resolved['cell']) {
+                    $screenBase = $row;
+                    break;
+                }
+            }
+            $screenBaseId = is_array($screenBase) && is_numeric($screenBase['id'] ?? null) ? (int) $screenBase['id'] : 0;
+            if (! is_array($screenBase) || $screenBaseId === 0) {
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text'    => BaseScopeResolver::TEXT_AMBIGUOUS,
+                ]);
+            }
+
             // Покрывает вышка → можно дистанционно посмотреть постройки
             return $this->showBuildings(
                 $character,
-                $claimedCell,
+                $screenBase,
                 $mapModel,
                 $biomeModel,
                 $buildingModel,
                 $characterBuildingModel,
-                $coverageResult,
-                $claimedCellId
+                $this->coverageResultForBase($towerService, $characterId, $currentCell, $screenBaseId),
+                $screenBaseId
             );
         }
 

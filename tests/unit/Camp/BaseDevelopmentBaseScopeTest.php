@@ -105,10 +105,20 @@ final class BaseDevelopmentBaseScopeTest extends CIUnitTestCase
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 character_id INT NULL,
                 map_cell_id INT NULL,
+                camp_name VARCHAR(64) NULL,
                 claimed_at DATETIME NULL,
                 status VARCHAR(16) NULL DEFAULT "active"
             )
-        ', ['id', 'character_id', 'map_cell_id', 'status']);
+        ', ['id', 'character_id', 'map_cell_id', 'camp_name', 'status']);
+        // multibase-picker-11: `StartRobotGatheringAction::baseLabel()` читает координаты из `map`.
+        $this->createOwnTable('map', '
+            CREATE TABLE __TABLE__ (
+                id INT PRIMARY KEY,
+                cell_number INT NOT NULL,
+                coordinate_x INT NOT NULL,
+                coordinate_y INT NOT NULL
+            )
+        ', ['id', 'cell_number', 'coordinate_x', 'coordinate_y']);
 
         $cache = service('cache');
         if (is_object($cache) && method_exists($cache, 'clean')) {
@@ -127,7 +137,7 @@ final class BaseDevelopmentBaseScopeTest extends CIUnitTestCase
     }
 
     /** @var list<string> */
-    private const TABLES = ['telegram_users', 'characters', 'buildings', 'character_buildings', 'claimed_cells'];
+    private const TABLES = ['telegram_users', 'characters', 'buildings', 'character_buildings', 'claimed_cells', 'map'];
 
     private function db(): BaseConnection
     {
@@ -285,6 +295,55 @@ final class BaseDevelopmentBaseScopeTest extends CIUnitTestCase
 
         $response = (new BaseDevelopmentAction($this->cbq($tgId, 'baseDevelopment')))->handle();
         $this->assertStringContainsString('4/10', $this->textOf($response));
+    }
+
+    private function callbackOf(ServerResponse $response, string $buttonText): ?string
+    {
+        $result  = $response->getResult();
+        $raw     = is_object($result) ? $result->reply_markup : null;
+        $decoded = is_string($raw) ? json_decode($raw, true) : null;
+        foreach ((is_array($decoded) ? ($decoded['inline_keyboard'] ?? []) : []) as $row) {
+            foreach ((array) $row as $button) {
+                if (is_array($button) && ($button['text'] ?? null) === $buttonText) {
+                    return is_string($button['callback_data'] ?? null) ? $button['callback_data'] : null;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /** multibase-picker-11: с суффиксом «🏗 К базе» ведёт на ту же базу, экран называет её. */
+    public function testSuffixKeepsBaseOnToBaseButtonAndNamesTheBase(): void
+    {
+        $buildingId      = $this->seedBuilding('Ручная скважина', 'HandPump');
+        [$tgId, $charId] = $this->seedCharacter(200);
+        $this->seedBase($charId, 100);
+        $baseBId = $this->seedBase($charId, 200);
+        $this->db()->table('claimed_cells')->where('id', $baseBId)->update(['camp_name' => 'Северный']);
+        $this->db()->table('map')->insert(['id' => 200, 'cell_number' => 200, 'coordinate_x' => 20, 'coordinate_y' => 5]);
+        $this->seedCharacterBuilding($charId, $buildingId, 200, 2);
+
+        $response = (new BaseDevelopmentAction($this->cbq($tgId, 'baseDevelopment_b' . $baseBId)))->handle();
+
+        $this->assertSame('construction_b' . $baseBId, $this->callbackOf($response, '🏗 К базе'));
+        $this->assertStringContainsString('Северный (20, 5)', $this->textOf($response));
+        $this->assertStringContainsString('2/10', $this->textOf($response));
+    }
+
+    /** multibase-picker-11: без суффикса «🏗 К базе» остаётся голым `construction`; база всё равно названа. */
+    public function testNoSuffixKeepsBareToBaseButton(): void
+    {
+        $buildingId      = $this->seedBuilding('Ручная скважина', 'HandPump');
+        [$tgId, $charId] = $this->seedCharacter(100);
+        $this->seedBase($charId, 100);
+        $this->db()->table('map')->insert(['id' => 100, 'cell_number' => 100, 'coordinate_x' => 10, 'coordinate_y' => 3]);
+        $this->seedCharacterBuilding($charId, $buildingId, 100, 4);
+
+        $response = (new BaseDevelopmentAction($this->cbq($tgId, 'baseDevelopment')))->handle();
+
+        $this->assertSame('construction', $this->callbackOf($response, '🏗 К базе'));
+        $this->assertStringContainsString('База (10, 3)', $this->textOf($response));
     }
 
     public function testNoSuffixAmbiguousGetsLegacyAmbiguousText(): void

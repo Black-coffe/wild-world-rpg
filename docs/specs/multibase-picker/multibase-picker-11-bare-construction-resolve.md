@@ -1,8 +1,8 @@
 ---
 story: multibase-picker-11
 spec: multibase-picker
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -50,5 +50,10 @@ blocked_by: [multibase-picker-09, multibase-picker-10]
 `vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Implementation notes
+- `DetailedBaseInfoAction`: голый путь вне базы при `checkCoverage()` covered зовёт `resolve()`; `cell=null` → текст `resolve()` как есть. База экрана — строка `findAllActiveCells()` с `map_cell_id == resolve()['cell']`, шапка — `coverageResultForBase()` (строка `coverageByBase()` того же id), суффикс — её id. Ветки «на базе», «баз нет», «не покрыт» (`handleNotOnBasePhysically`) не тронуты.
+- INTERFACES: `resolve()` не возвращает `base_id` (только `cell`), а менять `BaseScopeResolver` запрещено non-goal → id выводится из `cell` по активным базам персонажа (1:1). Недостижимая ветка «клетка не нашлась» отвечает существующим `TEXT_AMBIGUOUS`, нового текста нет.
+- `BaseDevelopmentAction`: «🏗 К базе» = `construction_b<id>` при суффиксе, в т.ч. в `refusal()` (как велит story, :123); без суффикса голый `construction`. Шапка «🏠 База: Имя (x, y)» через `baseLabel($charId, $cell)` на обоих путях, где база определена. Запрос уровней не тронут.
+- `BaseDevelopmentBaseScopeTest`: схема получила `map` и `claimed_cells.camp_name` (их читает `baseLabel()`), +2 кейса. Новый `DetailedBaseInfoBareConstructionTest` — реальные сервисы, своя схема `dbbc_`, `fopen`-шим из `BuildingCardBaseScopeTest`.
+- Проверено подменой: с `DetailedBaseInfoAction` из HEAD кейс «только база-2» красный, кейс отказа зелёный на обеих версиях (текст байт в байт тот же).
 
 ## Findings
