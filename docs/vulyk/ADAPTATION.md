@@ -400,3 +400,23 @@ ls .claude/rules/example-api.md                   # должно отсутст�
 чистым откатом патча, upstream-изменений в них не было): `cycle.sh`, `lib.sh`, `vulyk-handoff.md`,
 блоки «Project path binding» в `lead-architect`/`drone-docs`; `handoff.*` и `example-api.md`
 удалены. Чек-лист §6 зелёный.
+
+## 14. Апгрейд 0.13.3 → 0.14.0 (15.09.2026, поставила сессия разработки VULYK)
+
+0.14.0 — anomaly telemetry, opt-in. Поставлено с `--telemetry off`: строка `Telemetry | off` в
+профиле `CLAUDE.vulyk.md`, Stop-хук `.claude/hooks/anomaly-scan.sh` пишет только локальный
+`memory/stats/anomalies.jsonl`, `/vulyk-evolve` ничего не отправляет. Seen-лист хука живёт в
+`.vulyk/telemetry/seen/` — каталог уже в `.gitignore` (§3) и вне rsync (§4). Инбокс `telemetry/`
+в хайвы не копируется — его здесь нет.
+
+**Откатилось и возвращено** — по чек-листу §6, но на этот раз upstream сам менял два файла,
+поэтому патчи наложены поверх, а не `checkout` из `HEAD`:
+- `scripts/lib.sh` → `is_paperwork_path()` теперь знает и upstream-новый `memory/stats/anomalies.jsonl`,
+  и наши `memory/stats/skills.json` + `memory/learnings/*` (одна строка `case`);
+- `scripts/cycle.sh` → `command_cell_exists()` снова читает обе конституции; upstream-правки
+  `commit_paperwork()` (anomalies.jsonl едет с каждым `--commit`) и `close-story` сохранены;
+- `.claude/commands/vulyk-handoff.md`, блоки «Project path binding» в `lead-architect`/`drone-docs`
+  → `checkout` из `HEAD` (чистые откаты);
+- `handoff.py`/`handoff.sh`, `.claude/rules/example-api.md` → удалены.
+
+Чек-лист §6 + §12 зелёный, `bash -n` обоих скриптов чистый.

@@ -43,7 +43,7 @@ is_paperwork_path() { # is_paperwork_path <repo-relative-path>
   case "$1" in
     docs/specs/*/plan.md|docs/specs/*/journal.md|docs/specs/*/council/*|docs/specs/*/brief.md| \
     memory/stats/human.jsonl|memory/stats/acceptance.jsonl|memory/stats/ship.jsonl|memory/stats/council.jsonl|memory/stats/scope.jsonl| \
-    memory/stats/skills.json|memory/learnings/*) return 0 ;;  # project adaptation: hive ledgers
+    memory/stats/anomalies.jsonl|memory/stats/skills.json|memory/learnings/*) return 0 ;;  # project adaptation: hive ledgers
     *) return 1 ;;
   esac
 }
