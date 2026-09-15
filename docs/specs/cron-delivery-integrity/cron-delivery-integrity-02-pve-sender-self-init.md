@@ -1,8 +1,8 @@
 ---
 story: cron-delivery-integrity-02
 spec: cron-delivery-integrity
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 tracer: false
@@ -43,5 +43,17 @@ model: sonnet
 `vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Implementation notes
+
+- `app/Services/PVE/PveNotificationSender.php` — `send()` зовёт `TelegramBridge::ensure()`
+  прямо перед `Request::sendMessage`; `false` → `error`-лог с `chat_id` и `return` без исключения
+  (образец — `LevelUpNotifier::send()`). Остальная логика (`blocked_at`-гигиена, обрезка текста,
+  lookup) не тронута.
+- `tests/unit/Services/PVE/PveNotificationSenderTest.php` — новый файл. Реальный `TelegramBridge`
+  без API-ключа (не двойник транспорта) доказывает и факт вызова `ensure()` (лог самого моста),
+  и то, что `send()` не бросает и не доходит до транспорта (`FakePveTelegramUserModel->calls`
+  остаётся пустым — `markBlocked`/`clearBlocked` не позваны). Отдельный тест на
+  `isRecipientBlocked()` как было — чистая функция, гигиена не менялась.
+- Живой Tier-3 прогон крона на preprod (ask из `## Requirements`) не запускался этим воркером —
+  вне доступа worker-code; для Queen/human-check.
 
 ## Findings
