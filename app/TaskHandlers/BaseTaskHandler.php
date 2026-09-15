@@ -105,7 +105,7 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
             ], $extra);
             $response = Request::sendMessage($payload);
             if (!$response->isOk()) {
-                log_message('warning', '[' . static::class . '] Telegram sendMessage not ok: '
+                log_message('error', '[' . static::class . '] Telegram sendMessage not ok: '
                     . $response->getDescription());
             }
         } catch (\Throwable $e) {
@@ -160,7 +160,7 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
             $response = \App\Services\Notifications\MediaSender::sendPhotoOrText($payload);
             if (!$response->isOk()) {
                 // (3) Реальный провал фото (media-off/длинный caption MediaSender отдаёт ok=true).
-                log_message('warning', '[' . static::class . '] Telegram sendPhoto not ok, degrading to text: '
+                log_message('error', '[' . static::class . '] Telegram sendPhoto not ok, degrading to text: '
                     . $response->getDescription());
                 $this->degradeToText($chatId, $caption, $extra);
             }
@@ -243,7 +243,7 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
             ], $extra);
             $response = Request::sendMessage($payload);
             if (!$response->isOk()) {
-                log_message('warning', '[' . static::class . '] degradeToText not ok: '
+                log_message('error', '[' . static::class . '] degradeToText not ok: '
                     . $response->getDescription());
             }
         } catch (\Throwable $e) {
