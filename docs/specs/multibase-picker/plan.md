@@ -113,6 +113,6 @@
 **Briefed:** <...>
 **Branch:** vulyk/multibase-picker
 **Checked:** <scripts/human-check.sh>
-**Council:** <scripts/cycle.sh judge>
+**Council:** RED round 2, 2026-09-15, at 7c6bc7d4, pack b5d957a52620 - red: 3
 **Council:** RED round 1, 2026-09-15, at 00a9a686, pack e51476922063 - red: 5
 **Shipped:** <...>
