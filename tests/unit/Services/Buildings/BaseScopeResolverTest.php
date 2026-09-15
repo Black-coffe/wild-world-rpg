@@ -78,6 +78,25 @@ final class BaseScopeResolverTest extends CIUnitTestCase
             {
                 return ['isCovered' => $this->isCovered];
             }
+
+            /** multibase-picker-09: resolve() выбирает покрытую базу — покрыта первая посеянная. */
+            public function coverageByBase(int $characterId, int $playerCell): array
+            {
+                $cells = new class () extends ClaimedCellModel {
+                    protected $table = BaseScopeResolverTest::T_CELLS;
+                };
+                $out = [];
+                foreach ($cells->findAllActiveCells($characterId) as $i => $base) {
+                    $out[] = [
+                        'base_id' => is_numeric($base['id'] ?? null) ? (int) $base['id'] : 0,
+                        'cell' => is_numeric($base['map_cell_id'] ?? null) ? (int) $base['map_cell_id'] : 0,
+                        'name' => '', 'x' => 0, 'y' => 0, 'towerLevel' => 1, 'distance' => 1, 'maxCoverage' => 100,
+                        'isCovered' => $this->isCovered && $i === 0,
+                    ];
+                }
+
+                return $out;
+            }
         };
     }
 

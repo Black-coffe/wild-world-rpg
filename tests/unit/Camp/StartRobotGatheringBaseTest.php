@@ -12,21 +12,24 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
+use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Telegram;
 
 /**
- * multibase-picker-05 — «Стоя на второй базе без ангара запустила робота
+ * multibase-picker-05/09 — «Стоя на второй базе без ангара запустила робота
  * промышленника. В какой локации — непонятно».
  *
- * Робот запускается только с базы, на которой стоит игрок и на которой есть СВОЯ
- * Мастерская робототехники (`character_buildings.map_cell_id`); клетка базы
- * запуска уходит в `task_settings.base_cell`; экран называет базу и координаты.
+ * База запуска (`StartRobotGatheringAction::launchBase()`): стоит на своей базе → она;
+ * иначе первая по `id` база, покрытая СВОЕЙ Вышкой, с СВОЕЙ Мастерской
+ * (`character_buildings.map_cell_id`). Непокрытая база не выбирается никогда. Клетка
+ * базы запуска уходит в `task_settings.base_cell`; экран называет базу и координаты.
  *
- * Реальный `handle()` на своей схеме под приватным префиксом `srgb_`
- * (паттерн `BuildingCardBaseScopeTest`). Успешный запуск в конце шлёт фото по
- * `base_url()` — в тест-стенде оно не открывается, поэтому успех проверяется по
- * записи задания в БД, а caption — через тот же `launchCaption()`/`baseLabel()`,
- * которыми его собирает `handle()`.
+ * Реальный `handle()` на своей схеме под приватным префиксом `srgb_` (паттерн
+ * `BuildingCardBaseScopeTest`); покрытие считает реальный `CommunicationTowerCoverageService`
+ * (Вышки посеяны на клетках баз, игрок на клетке 300 в 5 ходах от обеих). Успешный запуск
+ * в конце открывает фото по `base_url()` — единственное ожидаемое исключение
+ * `TelegramException` фото-транспорта; caption читается из самого действия
+ * (`LaunchCaptionSpy`), а не собирается в тесте вручную.
  *
  * @internal
  */
@@ -37,6 +40,9 @@ final class StartRobotGatheringBaseTest extends CIUnitTestCase
     protected $migrate = false;
 
     private const PREFIX = 'srgb_';
+
+    /** Клетка вне баз: (15, 15) — в 5 ходах от обеих баз, под Вышкой L1 любой из них. */
+    private const REMOTE_CELL = 300;
 
     /** @var array<string,string> таблица => колонки (порядок создания; дроп — в обратном). */
     private const TABLES = [
@@ -54,6 +60,7 @@ final class StartRobotGatheringBaseTest extends CIUnitTestCase
 
     private string $origPrefix = '';
     private int $workshopId = 0;
+    private int $towerId = 0;
     private int $robotId = 0;
 
     protected function setUp(): void
@@ -81,6 +88,8 @@ final class StartRobotGatheringBaseTest extends CIUnitTestCase
 
         $this->db()->table('buildings')->insert(['name_ru' => 'Мастерская робототехники', 'name_en' => 'RoboticsWorkshop']);
         $this->workshopId = (int) $this->db()->insertID();
+        $this->db()->table('buildings')->insert(['name_ru' => 'Вышка связи', 'name_en' => 'CommunicationTower']);
+        $this->towerId = (int) $this->db()->insertID();
         $this->db()->table('tasks')->insert(['name' => 'GatheringResourcesRobot', 'name_rus' => 'Робот-добытчик']);
         $this->db()->table('crafted_items')->insert([
             'name_rus' => 'Робот-промышленник', 'name_eng' => 'TestGathererRobot', 'durability_count' => 10,
@@ -89,6 +98,7 @@ final class StartRobotGatheringBaseTest extends CIUnitTestCase
         $this->db()->table('map')->insertBatch([
             ['id' => 100, 'cell_number' => 100, 'coordinate_x' => 10, 'coordinate_y' => 10, 'biome_id' => 1],
             ['id' => 200, 'cell_number' => 200, 'coordinate_x' => 20, 'coordinate_y' => 20, 'biome_id' => 2],
+            ['id' => self::REMOTE_CELL, 'cell_number' => self::REMOTE_CELL, 'coordinate_x' => 15, 'coordinate_y' => 15, 'biome_id' => 1],
         ]);
     }
 
@@ -117,8 +127,14 @@ final class StartRobotGatheringBaseTest extends CIUnitTestCase
         return Database::connect('tests');
     }
 
-    /** @return array{0:int,1:int} [telegram_id, character_id] */
-    private function seedPlayer(int $standingOn): array
+    /**
+     * Базы «Первая» (клетка 100, id меньше) и «Вторая» (200).
+     *
+     * @param list<int> $workshopCells клетки баз с Мастерской робототехники
+     * @param list<int> $towerCells    клетки баз с Вышкой связи L1
+     * @return array{0:int,1:int} [telegram_id, character_id]
+     */
+    private function seedPlayer(int $standingOn, array $workshopCells = [100], array $towerCells = []): array
     {
         $tgId = random_int(740_000_000, 749_999_999);
         $this->db()->table('telegram_users')->insert(['telegram_id' => $tgId]);
@@ -131,10 +147,16 @@ final class StartRobotGatheringBaseTest extends CIUnitTestCase
             ['character_id' => $charId, 'map_cell_id' => 100, 'claimed_at' => $now, 'status' => 'active', 'camp_name' => 'Первая'],
             ['character_id' => $charId, 'map_cell_id' => 200, 'claimed_at' => $now, 'status' => 'active', 'camp_name' => 'Вторая'],
         ]);
-        // Мастерская — только на базе «Первая».
-        $this->db()->table('character_buildings')->insert([
-            'character_id' => $charId, 'building_id' => $this->workshopId, 'map_cell_id' => 100, 'level' => 1,
-        ]);
+        foreach ($workshopCells as $cell) {
+            $this->db()->table('character_buildings')->insert([
+                'character_id' => $charId, 'building_id' => $this->workshopId, 'map_cell_id' => $cell, 'level' => 1,
+            ]);
+        }
+        foreach ($towerCells as $cell) {
+            $this->db()->table('character_buildings')->insert([
+                'character_id' => $charId, 'building_id' => $this->towerId, 'map_cell_id' => $cell, 'level' => 1,
+            ]);
+        }
         $this->db()->table('crafted_items_log')->insert([
             'character_id' => $charId, 'crafted_item_id' => $this->robotId, 'quantity' => 1, 'durability_count' => 10,
         ]);
@@ -168,15 +190,34 @@ final class StartRobotGatheringBaseTest extends CIUnitTestCase
         return is_string($text) ? $text : '';
     }
 
-    public function testLaunchFromBaseWithoutOwnWorkshopIsRefusedAndNamesBase(): void
+    /** Реальный запуск; ловится только исключение фото-транспорта. Возвращает caption действия. */
+    private function launch(int $tgId): string
     {
-        [$tgId, $charId] = $this->seedPlayer(200); // стоит на «Вторая», Мастерская — на «Первая»
+        $action = new LaunchCaptionSpy($this->cbq($tgId));
+        try {
+            $action->handle();
+        } catch (TelegramException | \ErrorException $e) {
+            // Фото экрана запуска открывается по base_url() — в тест-стенде недоступно:
+            // fopen() либо даёт warning (CI4 → ErrorException), либо Request::encodeFile() — TelegramException.
+            $this->assertStringContainsString('robot_gatherer.jpg', $e->getMessage(), 'ожидаемое исключение — только фото');
+        }
 
-        $response = (new StartRobotGatheringAction($this->cbq($tgId)))->handle();
-        $text     = $this->textOf($response);
+        return (string) $action->caption();
+    }
 
-        $this->assertStringContainsString('Вторая (20, 20)', $text, 'отказ называет эту базу и координаты');
-        $this->assertStringContainsString('нужна Мастерская робототехники на этой базе', $text);
+    /** @return array<string,mixed> */
+    private function taskSettings(int $charId): array
+    {
+        $row = $this->db()->table('character_tasks')->where('character_id', $charId)->get()->getRowArray();
+        $this->assertIsArray($row, 'задание создано');
+        $settings = json_decode((string) $row['task_settings'], true);
+        $this->assertIsArray($settings);
+
+        return $settings;
+    }
+
+    private function assertNoTask(int $charId): void
+    {
         $this->assertSame(0, $this->db()->table('character_tasks')->where('character_id', $charId)->countAllResults(), 'задание не создано');
         $this->assertSame(
             10,
@@ -185,30 +226,86 @@ final class StartRobotGatheringBaseTest extends CIUnitTestCase
         );
     }
 
+    public function testLaunchFromBaseWithoutOwnWorkshopIsRefusedAndNamesBase(): void
+    {
+        [$tgId, $charId] = $this->seedPlayer(200); // стоит на «Вторая», Мастерская — на «Первая»
+
+        $text = $this->textOf((new StartRobotGatheringAction($this->cbq($tgId)))->handle());
+
+        $this->assertStringContainsString('Вторая (20, 20)', $text, 'отказ называет эту базу и координаты');
+        $this->assertStringContainsString('нужна Мастерская робототехники на этой базе', $text);
+        $this->assertNoTask($charId);
+    }
+
     public function testLaunchFromBaseWithWorkshopSavesBaseCellAndNamesBase(): void
     {
         [$tgId, $charId] = $this->seedPlayer(100); // стоит на «Первая», где есть Мастерская
 
-        try {
-            (new StartRobotGatheringAction($this->cbq($tgId)))->handle();
-        } catch (\Throwable) {
-            // Фото экрана запуска открывается по base_url() — в тест-стенде недоступно;
-            // задание к этому моменту уже записано (см. докблок класса).
-        }
+        $caption = $this->launch($tgId);
 
-        $row = $this->db()->table('character_tasks')->where('character_id', $charId)->get()->getRowArray();
-        $this->assertIsArray($row, 'задание создано');
-        $settings = json_decode((string) $row['task_settings'], true);
-        $this->assertIsArray($settings);
+        $settings = $this->taskSettings($charId);
         $this->assertSame($this->robotId, $settings['crafted_item_id'] ?? null);
         $this->assertSame(100, $settings['base_cell'] ?? null, 'base_cell = клетка базы запуска');
-
-        $label = StartRobotGatheringAction::baseLabel($charId, 100);
-        $this->assertSame('Первая (10, 10)', $label);
-        $caption = StartRobotGatheringAction::launchCaption('Робот-промышленник', $label, 2, 1, '🗺 Он обходит *1* яч.', 0, 0);
         $this->assertStringContainsString('Первая (10, 10)', $caption, 'экран запуска называет базу и координаты');
         $this->assertLessThan(1024, mb_strlen($caption), 'caption влезает в лимит Telegram');
         $this->assertSame(0, substr_count($caption, '*') % 2, 'парные * — legacy Markdown не ломается');
+    }
+
+    public function testRemoteLaunchUsesTheOnlyCoveredBase(): void
+    {
+        // Вне баз; сигнал только от Вышки «Второй», Мастерская на ней.
+        [$tgId, $charId] = $this->seedPlayer(self::REMOTE_CELL, [200], [200]);
+
+        $caption = $this->launch($tgId);
+
+        $this->assertSame(200, $this->taskSettings($charId)['base_cell'] ?? null);
+        $this->assertStringContainsString('Вторая (20, 20)', $caption);
+        $this->assertStringNotContainsString('Первая', $caption);
+    }
+
+    public function testBothCoveredLaunchesFromCoveredBaseWithWorkshop(): void
+    {
+        [$tgId, $charId] = $this->seedPlayer(self::REMOTE_CELL, [200], [100, 200]);
+
+        $caption = $this->launch($tgId);
+
+        $this->assertSame(200, $this->taskSettings($charId)['base_cell'] ?? null, 'первая покрытая база без Мастерской пропущена');
+        $this->assertStringContainsString('Вторая (20, 20)', $caption);
+    }
+
+    public function testCoveredBaseWithoutWorkshopRefusesNamingIt(): void
+    {
+        // Покрывает только «Вторая», Мастерская только на непокрытой «Первой» — её не берём.
+        [$tgId, $charId] = $this->seedPlayer(self::REMOTE_CELL, [100], [200]);
+
+        $text = $this->textOf((new StartRobotGatheringAction($this->cbq($tgId)))->handle());
+
+        $this->assertSame(StartRobotGatheringAction::noWorkshopOnBaseMessage('Вторая (20, 20)'), $text);
+        $this->assertNoTask($charId);
+    }
+
+    public function testNoCoverageRefuses(): void
+    {
+        [$tgId, $charId] = $this->seedPlayer(self::REMOTE_CELL, [100, 200], []);
+
+        $text = $this->textOf((new StartRobotGatheringAction($this->cbq($tgId)))->handle());
+
+        $this->assertSame(StartRobotGatheringAction::TEXT_NOT_COVERED, $text);
+        $this->assertNoTask($charId);
+    }
+
+    public function testLaunchBaseHelperMatchesLaunchForActivatorScreen(): void
+    {
+        // RobotGathererActivator зовёт тот же launchBase(): та же база, что у запуска.
+        [, $charId] = $this->seedPlayer(self::REMOTE_CELL, [200], [100, 200]);
+        $this->assertSame(['cell' => 200, 'text' => null], StartRobotGatheringAction::launchBase($charId, self::REMOTE_CELL));
+
+        [, $charId2] = $this->seedPlayer(self::REMOTE_CELL, [100], [200]);
+        $this->assertSame(
+            ['cell' => 200, 'text' => StartRobotGatheringAction::noWorkshopOnBaseMessage('Вторая (20, 20)')],
+            StartRobotGatheringAction::launchBase($charId2, self::REMOTE_CELL),
+            'lock-экран называет покрытую базу'
+        );
     }
 
     public function testBaseLabelStripsMarkdownFromCampName(): void
@@ -217,5 +314,18 @@ final class StartRobotGatheringBaseTest extends CIUnitTestCase
         $this->db()->table('claimed_cells')->where('map_cell_id', 100)->update(['camp_name' => 'Ла_герь*']);
 
         $this->assertSame('Лагерь (10, 10)', StartRobotGatheringAction::baseLabel($charId, 100));
+    }
+}
+
+/**
+ * Читает caption экрана запуска, собранный самим `handle()`.
+ *
+ * @internal
+ */
+final class LaunchCaptionSpy extends StartRobotGatheringAction
+{
+    public function caption(): ?string
+    {
+        return $this->lastLaunchCaption;
     }
 }

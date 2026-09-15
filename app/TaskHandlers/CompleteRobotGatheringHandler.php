@@ -131,9 +131,11 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         }
         $usesLaunchBase = is_array($baseRow);
         if (!$usesLaunchBase) {
+            // multibase-picker-09: детерминированно — активная база с наименьшим `id`.
             $baseRow = $this->claimedCellModel
                 ->where('character_id', $character['id'])
                 ->where('status', 'active')
+                ->orderBy('id', 'ASC')
                 ->first();
         }
         if (!$baseRow) {

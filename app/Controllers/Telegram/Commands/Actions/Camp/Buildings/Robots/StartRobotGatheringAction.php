@@ -35,6 +35,13 @@ class StartRobotGatheringAction extends BaseAction
     protected $taskModel;
     protected RobotService $robotService;
 
+    /** multibase-picker-09: caption последнего экрана запуска (тест читает текст, собранный самим действием). */
+    protected ?string $lastLaunchCaption = null;
+
+    /** Отказ «ты не на базе и не под сигналом» — прежний текст гейта запуска. */
+    public const TEXT_NOT_COVERED = "Ты не находишься на своей базе, а вышка связи не покрывает твою позицию. "
+        . "Вернись на базу или в зону покрытия, чтобы запустить робота!";
+
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
@@ -93,10 +100,7 @@ class StartRobotGatheringAction extends BaseAction
 
             if (!$coverageResult['isCovered']) {
                 // Нет физического нахождения на базе и нет сигнала вышки
-                return $this->sendError(
-                    "Ты не находишься на своей базе, а вышка связи не покрывает твою позицию. "
-                    . "Вернись на базу или в зону покрытия, чтобы запустить робота!"
-                );
+                return $this->sendError(self::TEXT_NOT_COVERED);
             }
             // Если покрытие есть — продолжаем, как будто «виртуально» на базе
         }
@@ -138,23 +142,19 @@ class StartRobotGatheringAction extends BaseAction
         }
 
         // 4) База запуска и её Мастерская.
-        // multibase-picker-05: «стоя на второй базе без ангара запустила робота —
-        // в какой локации, непонятно». Робот работает у базы, с которой запущен:
-        // та, на которой стоит игрок (или под сигналом Вышки — BaseScopeResolver),
-        // и Мастерская обязана стоять именно на ней (`map_cell_id`).
+        // multibase-picker-05/09: робот работает у базы, с которой запущен — та, на
+        // которой стоит игрок, иначе первая ПОКРЫТАЯ своей Вышкой база с Мастерской
+        // (см. launchBase()). Чат сообщества 2026-08-24 (Torch0010): гейт Мастерской —
+        // здесь, до списания прочности, а не в completion-handler'е.
         $charIdInt   = is_numeric($characterId) ? (int) $characterId : 0;
         $cellRaw     = $character['cell_number'] ?? null;
         $currentCell = is_numeric($cellRaw) ? (int) $cellRaw : 0;
-        $scope       = (new BaseScopeResolver())->resolve($charIdInt, $currentCell);
-        $baseCell    = $scope['cell'];
-        if ($baseCell === null) {
-            return $this->sendError($scope['text'] ?? BaseScopeResolver::TEXT_AMBIGUOUS);
+        $launch      = self::launchBase($charIdInt, $currentCell);
+        $baseCell    = $launch['cell'];
+        if ($launch['text'] !== null || $baseCell === null) {
+            return $this->sendError($launch['text'] ?? self::TEXT_NOT_COVERED);
         }
-        $baseLabel = self::baseLabel($charIdInt, $baseCell);
-
-        // Чат сообщества 2026-08-24 (Torch0010): робот уходил БЕЗ мастерской, тратил
-        // прочность и возвращался с «Мастерская робототехники отсутствует». Гейт —
-        // здесь, до списания, а не в completion-handler'е.
+        $baseLabel        = self::baseLabel($charIdInt, $baseCell);
         $roboticsWorkshop = self::workshopAtBase($charIdInt, $baseCell);
         if ($roboticsWorkshop === null) {
             return $this->sendError(self::noWorkshopOnBaseMessage($baseLabel));
@@ -296,6 +296,7 @@ class StartRobotGatheringAction extends BaseAction
             (int) $sumQuantity,
             (int) $sumDurability
         );
+        $this->lastLaunchCaption = $text;
 
         // Кнопки для удобства
         $keyboard = [
@@ -353,6 +354,52 @@ class StartRobotGatheringAction extends BaseAction
             . "   — Роботов: *{$sumQuantity}* шт.\n"
             . "   — Общая прочность: *{$sumDurability}*\n\n"
             . "⛏ Ожидай окончания работы, пока робот соберёт всё возможное!";
+    }
+
+    /**
+     * multibase-picker-09: база запуска робота — общий выбор для запуска и экрана робота
+     * (`RobotGathererActivator`). Непокрытая база не выбирается никогда.
+     *  - игрок стоит на своей активной базе → она (нет Мастерской — `text` с отказом);
+     *  - иначе первая по `claimed_cells.id` база, покрытая СВОЕЙ Вышкой, с Мастерской;
+     *  - покрытые есть, Мастерской нет ни на одной → первая покрытая + отказ;
+     *  - покрытых нет → `cell=null`, текст `BaseScopeResolver::resolve()` (или прежний
+     *    «не на базе и не под сигналом», если resolve() отказа не дал — одна база).
+     * `text !== null` — запуск невозможен; `cell` тогда — база, которую назвать на экране.
+     *
+     * @return array{cell: int|null, text: string|null}
+     */
+    public static function launchBase(int $characterId, int $currentCell, ?CommunicationTowerCoverageService $tower = null): array
+    {
+        $onBase = (new ClaimedCellModel())
+            ->where('character_id', $characterId)
+            ->where('map_cell_id', $currentCell)
+            ->where('status', 'active')
+            ->first();
+        if (is_array($onBase)) {
+            $text = self::workshopAtBase($characterId, $currentCell) === null
+                ? self::noWorkshopOnBaseMessage(self::baseLabel($characterId, $currentCell))
+                : null;
+
+            return ['cell' => $currentCell, 'text' => $text];
+        }
+
+        $firstCovered = null;
+        foreach (($tower ?? new CommunicationTowerCoverageService())->coverageByBase($characterId, $currentCell) as $coverage) {
+            if (! $coverage['isCovered']) {
+                continue;
+            }
+            $firstCovered ??= $coverage['cell'];
+            if (self::workshopAtBase($characterId, $coverage['cell']) !== null) {
+                return ['cell' => $coverage['cell'], 'text' => null];
+            }
+        }
+        if ($firstCovered !== null) {
+            return ['cell' => $firstCovered, 'text' => self::noWorkshopOnBaseMessage(self::baseLabel($characterId, $firstCovered))];
+        }
+
+        $scope = (new BaseScopeResolver())->resolve($characterId, $currentCell);
+
+        return ['cell' => null, 'text' => $scope['text'] ?? self::TEXT_NOT_COVERED];
     }
 
     /**

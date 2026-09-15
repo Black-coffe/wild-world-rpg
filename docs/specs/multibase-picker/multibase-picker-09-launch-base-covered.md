@@ -1,8 +1,8 @@
 ---
 story: multibase-picker-09
 spec: multibase-picker
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -27,6 +27,7 @@ blocked_by: [multibase-picker-08]
 > обработчик заново проверяет, что база принадлежит персонажу, активна и доступна (игрок на ней или под её сигналом), иначе — честный отказ. Кнопка без идентификатора (из старых сообщений) работает по прежнему правилу `BaseScopeResolver`.
 
 ## Files
+- tests/unit/Services/Buildings/BaseScopeResolverTest.php
 - app/Services/Bases/BaseScopeResolver.php
 - app/Controllers/Telegram/Commands/Actions/Camp/Buildings/Robots/StartRobotGatheringAction.php
 - app/Controllers/Telegram/Commands/Actions/Camp/Buildings/Robots/RobotGathererActivator.php
@@ -57,5 +58,18 @@ blocked_by: [multibase-picker-08]
 `vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Implementation notes
+- `BaseScopeResolver::resolve()`, tower branch (variant B, approved): the `checkCoverage()` gate stays; when it says covered, the first `coverageByBase()` row with `isCovered` wins. The other branches, texts and return shape are unchanged. `BuildingCardBaseScopeTest` and `BuildingUpgradeBaseScopeTest` are untouched and green.
+- `tests/unit/Services/Buildings/BaseScopeResolverTest.php`: the only edit is a `coverageByBase()` override in the `towerCoverage()` double, which marks the first seeded base covered. No expectation changed.
+- `StartRobotGatheringAction::launchBase()` is the shared helper for launch and `RobotGathererActivator`. On a base: that base. Otherwise: the first covered base that has a Workshop. Covered but no Workshop anywhere: the first covered base plus the `noWorkshopOnBaseMessage` refusal. Nothing covered: `resolve()` text, falling back to `TEXT_NOT_COVERED` (the old launch-gate text, now a constant).
+- `RobotGathererActivator` picks the base through `launchBase()`. A covered base without a Workshop shows the robot screen for that base with the lock button, not a refusal.
+- `CompleteRobotGatheringHandler`: the fallback for old tasks now adds `orderBy('id','ASC')`.
+- Test for a successful launch: it reads the caption from the real `handle()` through the protected `lastLaunchCaption`, via the `LaunchCaptionSpy` subclass. It catches only `TelegramException|\ErrorException` and asserts the message names `robot_gatherer.jpg`. Surprise: on this stand the photo fails as a CI4 `ErrorException` (fopen 404 on example.com), not as a `TelegramException`.
+- `CompleteRobotGatheringNameTest`: 4/5 errors on a fresh DB (`buildings` table missing), identical on the HEAD version of the handler (checked by swapping the file in). Already failing before this story (see story 05), not a regression.
+INTERFACES: `StartRobotGatheringAction::launchBase(int $characterId, int $currentCell, ?CommunicationTowerCoverageService $tower = null): array{cell:int|null, text:string|null}` (public static); `StartRobotGatheringAction::TEXT_NOT_COVERED` (public const); `protected ?string $lastLaunchCaption`. The `workshopAtBase()` and `baseLabel()` signatures are unchanged.
 
 ## Findings
+- **Criterion 1 cannot be met without editing a test outside `## Files`.** Two existing test doubles extend `CommunicationTowerCoverageService`. Their constructors are empty and they override only `checkCoverage()`. Any tower branch that calls `coverageByBase()` hits the real method on uninitialised models and fails with `Error: Call to a member function where() on null`. Fresh DB `wildworld_ci_mbp09`, both variants run separately:
+  - **Variant A**, `coverageByBase()` only, no gate. 4 red: `Services/Buildings/BaseScopeResolverTest::testTowerCoverageResolvesFirstActiveBaseById` and `::testAmbiguousWithoutTowerCoverageKeepsPriorText`, `Player/BuildingUpgradeBaseScopeTest::testAmbiguousBaseReturnsAgreedMessageAndDoesNotApply`, and `Camp/BuildingCardBaseScopeTest::testAmbiguousBaseAsksToStandOnIt`. The last fails because `bcbs_map` does not exist, since the real `coverageByBase()` reads `map`.
+  - **Variant B**, the `checkCoverage()` gate is kept and `coverageByBase()` runs only when it says covered. `BuildingCardBaseScopeTest` and `BuildingUpgradeBaseScopeTest` are green. 1 red: `Services/Buildings/BaseScopeResolverTest::testTowerCoverageResolvesFirstActiveBaseById`. Its double says "covered" and has no `coverageByBase()`.
+- **Question for the Queen:** may this story add `tests/unit/Services/Buildings/BaseScopeResolverTest.php` to `## Files`? The only change would be in the `towerCoverage()` double: add a `coverageByBase()` override that marks the first seeded base covered. The test's asserted behaviour does not change: when both bases are covered it still expects base 1. I recommend this with variant B, because then `BuildingUpgradeBaseScopeTest` and `BuildingCardBaseScopeTest` stay untouched and green. The alternative is to remove resolver change 1 from the story and do only the launch helper (2), which needs no `resolve()` change. That leaves UNASKED (a) from council opus open for the other no-suffix paths.
+- `phpstan-baseline.neon`: I did not check it and did not touch it.

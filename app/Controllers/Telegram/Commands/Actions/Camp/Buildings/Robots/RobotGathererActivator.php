@@ -10,7 +10,6 @@ use App\Services\Player\RobotService;
 use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Bases\BaseCheckService;
-use App\Services\Bases\BaseScopeResolver;
 use App\Services\Coverage\CommunicationTowerCoverageService;
 
 /**
@@ -69,14 +68,16 @@ class RobotGathererActivator implements RobotActivatorInterface
             // Если покрытие есть — продолжаем код: считаем, что «виртуально» мы имеем доступ к базе
         }
 
-        // multibase-picker-05: база, с которой робот уйдёт (та же, что в StartRobotGatheringAction).
+        // multibase-picker-05/09: база, с которой робот уйдёт — тот же выбор, что в запуске
+        // (StartRobotGatheringAction::launchBase()). Покрытая база без Мастерской → экран
+        // называет её и показывает lock-кнопку; покрытых нет → отказ текстом.
         $currentCell = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
-        $scope       = (new BaseScopeResolver())->resolve((int) $characterId, $currentCell);
-        $baseCell    = $scope['cell'];
+        $launch      = StartRobotGatheringAction::launchBase((int) $characterId, $currentCell);
+        $baseCell    = $launch['cell'];
         if ($baseCell === null) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => $scope['text'] ?? BaseScopeResolver::TEXT_AMBIGUOUS,
+                'text'    => $launch['text'] ?? StartRobotGatheringAction::TEXT_NOT_COVERED,
             ]);
         }
 

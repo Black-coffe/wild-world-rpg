@@ -207,6 +207,27 @@ final class CompleteRobotGatheringBaseTest extends CIUnitTestCase
         $this->assertStringNotContainsString('Песок', $msg);
     }
 
+    public function testLegacyTaskPicksActiveBaseWithLowestId(): void
+    {
+        // multibase-picker-09 (lead-review minor 8): легаси-путь детерминирован — наименьший `id`.
+        // Вставка в обратном порядке: сначала id=9 («Первая», клетка 100), затем id=3 («Вторая», 200).
+        $this->db()->table('telegram_users')->insert(['telegram_id' => random_int(730_000_000, 739_999_999)]);
+        $tgUid = (int) $this->db()->insertID();
+        $this->db()->table('characters')->insert(['telegram_user_id' => $tgUid, 'cell_number' => 555, 'locale' => 'ru']);
+        $charId = (int) $this->db()->insertID();
+        $now = date('Y-m-d H:i:s');
+        $this->db()->table('claimed_cells')->insert(['id' => 9, 'character_id' => $charId, 'map_cell_id' => 100, 'claimed_at' => $now, 'status' => 'active', 'camp_name' => 'Первая']);
+        $this->db()->table('claimed_cells')->insert(['id' => 3, 'character_id' => $charId, 'map_cell_id' => 200, 'claimed_at' => $now, 'status' => 'active', 'camp_name' => 'Вторая']);
+        $this->seedWorkshop($charId, 200);
+        $task = $this->seedTask($tgUid, $charId, null);
+
+        $msg = $this->complete($task);
+
+        $this->assertStringContainsString('Вторая (20, 20)', $msg, 'активная база с наименьшим id');
+        $this->assertStringContainsString('Песок', $msg);
+        $this->assertStringNotContainsString('Шишка', $msg);
+    }
+
     public function testSavedBaseNoLongerActiveFallsBackToPriorRule(): void
     {
         [$tgUid, $charId] = $this->seedCharacterWithTwoBases();

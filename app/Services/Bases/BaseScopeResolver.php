@@ -64,11 +64,15 @@ class BaseScopeResolver
             return ['cell' => null, 'reason' => self::REASON_NO_BASES, 'text' => self::TEXT_NO_BASES];
         }
 
-        $coverage = $this->towerService->checkCoverage($characterId);
-        if (($coverage['isCovered'] ?? false) === true) {
-            $firstActiveCell = $activeCells[0]['map_cell_id'] ?? null;
-            if (is_numeric($firstActiveCell)) {
-                return ['cell' => (int) $firstActiveCell, 'reason' => null, 'text' => null];
+        // multibase-picker-09: первая по `id` база, которую покрывает ЕЁ СОБСТВЕННАЯ Вышка
+        // (раньше — первая активная, даже если игрока покрывала Вышка другой базы).
+        // `checkCoverage()` оставлен дешёвым гейтом: без сигнала вообще — сразу ambiguous.
+        $gate = $this->towerService->checkCoverage($characterId);
+        if (($gate['isCovered'] ?? false) === true) {
+            foreach ($this->towerService->coverageByBase($characterId, $currentCell) as $coverage) {
+                if ($coverage['isCovered']) {
+                    return ['cell' => $coverage['cell'], 'reason' => null, 'text' => null];
+                }
             }
         }
 
