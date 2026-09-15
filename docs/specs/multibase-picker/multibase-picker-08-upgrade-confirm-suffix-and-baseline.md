@@ -1,0 +1,48 @@
+---
+story: multibase-picker-08
+spec: multibase-picker
+status: todo
+returned:
+tier: 3
+worker: worker-code
+model: sonnet
+tracer: false
+wave: 3
+blocked_by: [multibase-picker-02, multibase-picker-03, multibase-picker-04, multibase-picker-06]
+---
+
+# Подтверждение апгрейда несёт базу; чистка phpstan-baseline
+
+## Goal
+Кнопка «Подтвердить» апгрейда (`confirm_upgrade_building_{id}`), которую строит `BuildingUpgradeMessageFormatter::askPrompt()`, несёт суффикс `_b<baseId>`, если запрос апгрейда пришёл с ним: `UpgradeBuildingAction::confirmUpgrade()` и `BuildingUpgradeValidator::validate(..., ?int $baseId)` (история 03) уже умеют его принимать, но сегодня клик по подтверждению теряет базу и уходит в легаси `resolve()` — под Вышкой апгрейд со второй базы применился бы к первой. Затем — единственная правка `phpstan-baseline.neon` за спеку: удалить записи, ставшие `ignore.unmatched` после историй 01–07, чтобы `phpstan` был зелёным.
+
+## Requirements
+> Кнопка базы в пикере и все кнопки, ведущие с экрана выбранной базы (карточки построек, «Поднять уровень», «🤖 Ангар», «Развитие базы», «Декор базы»), несут идентификатор базы в `callback_data` (≤64 байт, проверено тестом); обработчик заново проверяет, что база принадлежит персонажу, активна и доступна (игрок на ней или под её сигналом), иначе — честный отказ. Кнопка без идентификатора (из старых сообщений) работает по прежнему правилу `BaseScopeResolver`.
+> Гейты зелёные: `vendor/bin/phpunit --no-coverage --no-progress` и `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`, `php -l` миграций; tech-writing ноты в `mmorpg-vault/tech-writing/` обновлены для каждой тронутой сущности.
+
+## Files
+- app/Services/Player/BuildingUpgrade/BuildingUpgradeMessageFormatter.php
+- app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+- phpstan-baseline.neon
+- tests/unit/Camp/UpgradeConfirmBaseSuffixTest.php
+
+## Non-goals
+- Не менять `BuildingUpgradeValidator`, `BaseScopeResolver`, `BaseCallbackSuffix` — контракт уже есть.
+- В baseline только удалять устаревшие записи (и обновлять счётчики у тех же сообщений); новых подавлений не добавлять.
+- Не трогать карточки построек (история 03 закрыта).
+
+## Map slice
+`memory/map/bases.md` — живой путь апгрейда `CallbackPrefixDispatcher` → `UpgradeBuildingAction` → `BuildingUpgradeValidator`. История 03, `## Implementation notes` → `INTERFACES:`.
+
+## Acceptance criteria
+- [ ] `askPrompt()`, вызванный для запроса с базой, строит подтверждение `confirm_upgrade_building_<id>_b<baseId>` (через `BaseCallbackSuffix::append()`, ≤64 байт); без базы — байт в байт как раньше. `UpgradeConfirmBaseSuffixTest`.
+- [ ] Клик по такому подтверждению доходит до `validate(..., $baseId)` и меняет `level` строки `character_buildings` базы `baseId`, не трогая строку другой базы; чужая/неактивная/недоступная база → текст `unavailable`, ничего не меняется. `UpgradeConfirmBaseSuffixTest`.
+- [ ] `vendor/bin/phpstan analyse --memory-limit=512M --no-progress` — 0 ошибок; baseline изменён только удалением/уменьшением записей.
+- [ ] Тест строит свою схему сам.
+
+## Verification
+`vendor/bin/phpunit --no-coverage --no-progress`
+
+## Implementation notes
+
+## Findings
