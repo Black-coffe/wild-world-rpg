@@ -72,6 +72,6 @@
 Полный набор на общей `wildworld_tests` красный и без правок (FK `resources_bank`, `r.weight`) — это состояние машины, не регресс. Гонять на свежей пустой БД:
 
 ```
-mysql -uroot -e "DROP DATABASE IF EXISTS wildworld_ci_mbp; CREATE DATABASE wildworld_ci_mbp CHARACTER SET utf8mb4;"
+/c/laragon/bin/mysql/mysql-8.0.30-winx64/bin/mysql.exe -uroot -e "DROP DATABASE IF EXISTS wildworld_ci_mbp; CREATE DATABASE wildworld_ci_mbp CHARACTER SET utf8mb4;"
 env "database.tests.database=wildworld_ci_mbp" vendor/bin/phpunit --no-coverage --no-progress
 ```
