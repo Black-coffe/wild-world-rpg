@@ -119,6 +119,11 @@ final class BaseCampDecorService
      * Резолв claimed_cells-строки для декора: указанная база (cellNumber) или первая
      * активная (fallback). ADR-095 Фаза 1b — cell-aware декор для мульти-бэйс.
      *
+     * story multibase-picker-06: `$cellNumber` теперь приходит из
+     * `BaseScopeResolver::resolveForBase()`/`resolve()` (суффикс `_b<id>` в
+     * `callback_data`, проверенный на принадлежность/активность/доступность) — этот
+     * метод не меняется, он уже cell-aware по своей прежней сигнатуре.
+     *
      * @return array<string,mixed>|null
      */
     private function resolveCell(int $charId, ?int $cellNumber): ?array

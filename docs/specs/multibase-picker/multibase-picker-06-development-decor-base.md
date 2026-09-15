@@ -1,8 +1,8 @@
 ---
 story: multibase-picker-06
 spec: multibase-picker
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: sonnet
@@ -48,4 +48,13 @@ blocked_by: [multibase-picker-01]
 
 ## Implementation notes
 
+- `BaseDevelopmentAction.php`: parses `_b<id>` suffix via `BaseCallbackSuffix::split()`; with suffix → `BaseScopeResolver::resolveForBase()`, without → `resolve()`; query now filters `cb.map_cell_id = $cell` (was `MAX(level)` grouped only by `character_id`). Null `cell` (unavailable/no_bases/ambiguous) → new `refusal()` helper shows the reason text, no query runs.
+- `BaseCampDecorAction.php`: same resolve-first pattern before any regex dispatch — an `unavailable`/`no_bases`/`ambiguous` outcome returns immediately, so no `setCamp*()` write ever fires for a base the check rejected. Every button the screen emits (`campDecorName/Flag/Hearth/Furniture/Pet`, `campSetX_<idx>`, `campDecor` back, `Base` back) carries the suffix forward via new `withSuffix()` helper — no multistep text-input state exists here (all flows are inline-keyboard clicks), so suffix survival is purely button-chaining, not conversation-state.
+- `BaseCampDecorService.php`: no functional change — `resolveCell(cellNumber)` was already cell-aware (ADR-095 1b); only doc comment updated to note the caller now feeds it a vetted cell from `BaseScopeResolver`. Left in `## Files` per story but touched non-functionally.
+- INTERFACES: suffix survives decor's multi-screen flow purely through `BaseCallbackSuffix::append()` on every generated `callback_data`, not through stored state — matches contract (no conversation state to protect).
+- Tests seed their own private-prefixed schema (`bdbs_*`, `bcdc_*`), same DDL pattern as `BuildingCardBaseScopeTest`. Decor test also needs a `game_settings` table + `housing.decoration.enabled=1` row (killswitch), since `GameSettingsService` degrades to `false` when the table is missing.
+- Suffix-base access still requires `on_base` or tower coverage per `resolveForBase()` contract — tests simulate a player moving between bases (like `BuildingCardBaseScopeTest`) rather than building towers/map rows, to keep schema minimal.
+
 ## Findings
+
+phpstan: 8 known `ignore.unmatched` for `CommunicationTowerCoverageService` occurred as expected. 10 additional errors reported in `app/Services/BaseService.php` (missing iterable value types, `Cannot cast mixed to int`, `basePicker()` undefined) — that file is not in this story's `## Files` (owned by story 02) and was not touched here; reporting per instructions, not fixed.

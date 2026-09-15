@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controllers\Telegram\Commands\Actions\Camp;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Services\Bases\BaseCallbackSuffix;
+use App\Services\Bases\BaseScopeResolver;
 use App\Services\BuildingEffects\BuildingEffectsService;
 use App\Services\Notifications\MediaSender;
 use App\Services\PVE\DefenseStructureService;
@@ -23,6 +25,11 @@ use App\Services\Telegram\Request;
  * ТЕКУЩИЙ эффект + что даёт СЛЕДУЮЩИЙ уровень (реюз BuildingEffectsService::effectAtLevel).
  *
  * Read-only, аддитивный (не трогает основной экран базы), edit-in-place. Media-off самодостаточен.
+ *
+ * story multibase-picker-06 — экран показывает постройки ВЫБРАННОЙ базы, не `MAX(level)`
+ * по всем базам персонажа сразу. Суффикс `_b<id>` (см. {@see BaseCallbackSuffix}) в
+ * `callback_data` → {@see BaseScopeResolver::resolveForBase()}, `unavailable` — честный
+ * отказ вместо чужих уровней. Без суффикса — прежнее правило {@see BaseScopeResolver::resolve()}.
  */
 final class BaseDevelopmentAction extends BaseAction
 {
@@ -66,11 +73,31 @@ final class BaseDevelopmentAction extends BaseAction
 
         $charId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
 
-        // Активный уровень здания для эффектов = MAX(level) по типу (как resolveBuildingLevel).
+        [, $baseId]  = BaseCallbackSuffix::split((string) $this->callbackQuery->getData());
+        $currentCell = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
+        $resolver    = new BaseScopeResolver();
+
+        if ($baseId !== null) {
+            $resolved = $resolver->resolveForBase($charId, $currentCell, $baseId);
+            if ($resolved['cell'] === null) {
+                return $this->refusal($chatId, $resolved['text']);
+            }
+            $cell = $resolved['cell'];
+        } else {
+            $legacy = $resolver->resolve($charId, $currentCell);
+            if ($legacy['cell'] === null) {
+                return $this->refusal($chatId, (string) $legacy['text']);
+            }
+            $cell = $legacy['cell'];
+        }
+
+        // Активный уровень здания для эффектов = MAX(level) в пределах ВЫБРАННОЙ базы
+        // (раньше — по всем базам персонажа сразу, story multibase-picker-06).
         $rows = Database::connect()->table('character_buildings cb')
             ->select('b.name_en AS name_en, b.name_ru AS name_ru, MAX(cb.level) AS lvl')
             ->join('buildings b', 'b.id = cb.building_id', 'inner')
             ->where('cb.character_id', $charId)
+            ->where('cb.map_cell_id', $cell)
             ->groupBy('b.id')
             ->get();
         $built = $rows === false ? [] : $rows->getResultArray();
@@ -79,6 +106,19 @@ final class BaseDevelopmentAction extends BaseAction
             'chat_id'      => $chatId,
             'text'         => $this->buildText($built),
             'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode(['inline_keyboard' => [
+                [['text' => '🏗 К базе', 'callback_data' => 'construction']],
+                [['text' => '◀️ Я', 'callback_data' => 'character']],
+            ]]) ?: '{}',
+        ]);
+    }
+
+    /** story multibase-picker-06 — честный отказ (база чужая/неактивна/вне сигнала, либо ≥2 баз без выбора). */
+    private function refusal(int $chatId, string $text): ServerResponse
+    {
+        return MediaSender::editTextOrSend($this->navTarget() + [
+            'chat_id'      => $chatId,
+            'text'         => $text,
             'reply_markup' => json_encode(['inline_keyboard' => [
                 [['text' => '🏗 К базе', 'callback_data' => 'construction']],
                 [['text' => '◀️ Я', 'callback_data' => 'character']],
