@@ -418,6 +418,8 @@ final class BasePickerTest extends CIUnitTestCase
      * lead-review round 1, minor 3 — ровно одна база под сигналом, но её строка
      * не нашлась (`findBaseRow()` вернул null, гонка/удалённая запись): ответ не
      * должен утверждать, что баз несколько, над одной кнопкой/без кнопок вовсе.
+     * lead-review round 2, minor 5 — ответ не должен звать «встань на базу или
+     * подойди под сигнал Вышки» (база и так покрыта): равен новому тексту-повтору.
      * `BaseService::claimedCellModel` подменяется через reflection на модель,
      * у которой `find()` для этого id намеренно возвращает null — остальные
      * методы (`findAllActiveCells`, `findActiveCell`) идут в реальную таблицу.
@@ -457,7 +459,11 @@ final class BasePickerTest extends CIUnitTestCase
         $text      = $this->textOf($response);
         $callbacks = array_column($this->buttonsOf($response), 'callback_data');
 
-        $this->assertStringNotContainsString('сразу несколько', $text, 'текст не должен утверждать про несколько баз над одной/нулём кнопок');
+        // lead-review раунд 2, minor 5 — база и так покрыта, отказ не должен звать
+        // «встань на неё или подойди под сигнал Вышки» (это неверно для этой ветки).
+        $this->assertSame('Не удалось открыть базу — нажми «🏠 База» ещё раз.', $text);
+        $this->assertStringNotContainsString('Вышки', $text, 'ответ не должен велеть подойти под сигнал Вышки');
+        $this->assertStringNotContainsString('встань', $text, 'ответ не должен велеть вставать на базу');
         $this->assertEmpty(array_filter($callbacks, static fn (string $c): bool => str_starts_with($c, 'Base_b')), 'кнопки несуществующей строки базы быть не должно');
     }
 

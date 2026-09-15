@@ -286,8 +286,13 @@ final class HangarBaseScopeTest extends CIUnitTestCase
         $callbacks = $this->callbacksOf($response);
 
         $this->assertStringContainsString('🤖 *Ангар автоматизации*', $text, 'это хаб, не голый отказ');
-        $this->assertStringContainsString('🔒', $text);
-        $this->assertStringContainsString('Мастерская робототехники', $text);
+        // lead-review раунд 2, minor 4 — lock-текст своего reason (нет баз) и путь к
+        // Мастерской проверяются целиком, а не подстрокой «🔒».
+        $this->assertStringContainsString(
+            "🔒 *Ангар закрыт — базы нет*\n\nСначала разбей лагерь: без базы негде поставить Мастерскую робототехники.",
+            $text
+        );
+        $this->assertStringContainsString('Построй Мастерскую: 🏠 База → 🏗 Строить → 🤖 Мастерская робототехники.', $text);
         $this->assertStringContainsString('Роботы:', $text);
         $this->assertStringContainsString('Дроны:', $text);
         $this->assertNotSame(BaseScopeResolver::TEXT_NO_BASES, $text, 'не голый отказ resolve()');
@@ -312,7 +317,13 @@ final class HangarBaseScopeTest extends CIUnitTestCase
         $callbacks = $this->callbacksOf($response);
 
         $this->assertStringContainsString('🤖 *Ангар автоматизации*', $text, 'это хаб, не голый отказ');
-        $this->assertStringContainsString('🔒', $text);
+        // lead-review раунд 2, minor 4 — lock-текст своего reason (несколько баз вне
+        // сигнала) и путь к Мастерской проверяются целиком, а не подстрокой «🔒».
+        $this->assertStringContainsString(
+            "🔒 *Ангар закрыт — рядом нет твоей базы*\n\nВстань на базу или подойди под сигнал её Вышки связи — Ангар покажет Мастерскую именно той базы.",
+            $text
+        );
+        $this->assertStringContainsString('Построй Мастерскую: 🏠 База → 🏗 Строить → 🤖 Мастерская робототехники.', $text);
         $this->assertStringNotContainsString('Первая', $text, 'ни одна база не называется местной');
         $this->assertStringNotContainsString('Вторая', $text, 'ни одна база не называется местной');
         $this->assertStringNotContainsString('уровень 5', $text, 'уровень Мастерской не показывается без базы в охвате');

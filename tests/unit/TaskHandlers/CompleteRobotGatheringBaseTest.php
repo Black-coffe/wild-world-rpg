@@ -47,6 +47,17 @@ final class CompleteRobotGatheringBaseTest extends CIUnitTestCase
         'crafted_items'       => 'id INT AUTO_INCREMENT PRIMARY KEY, name_rus VARCHAR(255) NULL, name_eng VARCHAR(255) NULL',
     ];
 
+    /**
+     * lead-review раунд 2, minor 2 — `claimed_cells` намеренно на MyISAM: InnoDB
+     * кластеризует строки по PRIMARY KEY, так что скан без `ORDER BY` физически идёт
+     * по возрастанию `id` даже без индекса — `testLegacyTaskPicksActiveBaseWithLowestId`
+     * вставляет id=9 затем id=3 и остался бы случайно зелёным без фикса. MyISAM хранит
+     * строки в порядке вставки (heap), поэтому скан без `orderBy('id','ASC')` отдаёт
+     * первой строку id=9 («Первая») — тест красный без фикса, зелёный с ним (проверено
+     * временным удалением строки, см. Implementation notes).
+     */
+    private const ENGINES = ['claimed_cells' => 'MyISAM'];
+
     private string $origPrefix = '';
     private int $workshopId = 0;
 
@@ -57,8 +68,9 @@ final class CompleteRobotGatheringBaseTest extends CIUnitTestCase
         $this->origPrefix = $this->db()->getPrefix();
         $this->db()->setPrefix(self::PREFIX);
         foreach (self::TABLES as $table => $cols) {
+            $engine = self::ENGINES[$table] ?? 'InnoDB';
             $this->db()->query('DROP TABLE IF EXISTS ' . self::PREFIX . $table);
-            $this->db()->query('CREATE TABLE ' . self::PREFIX . $table . " ({$cols}) DEFAULT CHARSET=utf8mb4");
+            $this->db()->query('CREATE TABLE ' . self::PREFIX . $table . " ({$cols}) ENGINE={$engine} DEFAULT CHARSET=utf8mb4");
         }
         self::resetBuildingCache();
 

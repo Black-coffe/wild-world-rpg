@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Camp;
 
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\RobotGathererActivator;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\StartRobotGatheringAction;
 use App\Models\BuildingModel;
+use App\Models\CraftedItemsLogModel;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -14,6 +16,7 @@ use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Telegram;
+use ReflectionMethod;
 
 /**
  * multibase-picker-05/09 — «Стоя на второй базе без ангара запустила робота
@@ -27,8 +30,10 @@ use Longman\TelegramBot\Telegram;
  * Реальный `handle()` на своей схеме под приватным префиксом `srgb_` (паттерн
  * `BuildingCardBaseScopeTest`); покрытие считает реальный `CommunicationTowerCoverageService`
  * (Вышки посеяны на клетках баз, игрок на клетке 300 в 5 ходах от обеих). Успешный запуск
- * в конце открывает фото по `base_url()` — единственное ожидаемое исключение
- * `TelegramException` фото-транспорта; caption читается из самого действия
+ * в конце открывает фото по `base_url()` — единственные ожидаемые исключения
+ * `TelegramException` и `\ErrorException` фото-транспорта (lead-review раунд 2, minor 6:
+ * `fopen()` в тест-стенде даёт warning → CI4 конвертирует в `ErrorException`,
+ * `Request::encodeFile()` — в `TelegramException`); caption читается из самого действия
  * (`LaunchCaptionSpy`), а не собирается в тесте вручную.
  *
  * @internal
@@ -306,6 +311,47 @@ final class StartRobotGatheringBaseTest extends CIUnitTestCase
             StartRobotGatheringAction::launchBase($charId2, self::REMOTE_CELL),
             'lock-экран называет покрытую базу'
         );
+    }
+
+    /**
+     * lead-review раунд 2, minor 3 — экран `RobotGathererActivator` обязан выбирать
+     * ту же базу запуска, что и `launchBase()`. Сценарий: вне базы, покрыта только
+     * «Вторая», Мастерская на ней. `activate()` реально запускается; ответ `activate()`
+     * самого недостижим для теста (та же сетевая ловушка, что и `launch()` выше —
+     * `Request::encodeFile()` вычисляется как аргумент вызова `MediaSender::sendPhotoOrText()`
+     * ДО отправки, значит бросает исключение прежде, чем `ServerResponse` вернётся; в
+     * `RobotGathererActivator`, в отличие от `StartRobotGatheringAction`, нет протектед-поля
+     * вроде `lastLaunchCaption`, а Non-goals этой истории запрещают его добавлять). Поэтому
+     * имя базы проверяется рендером `buildCaption()` — того же приватного метода, который
+     * `activate()` вызывает с тем же `$baseCell` (established reflection-паттерн
+     * `RobotReachSingleSourceTest`), с `$baseCell`, взятым из РЕАЛЬНОГО `launchBase()`.
+     */
+    public function testActivatorRunsAndNamesSameBaseAsLaunchHelper(): void
+    {
+        [$tgId, $charId] = $this->seedPlayer(self::REMOTE_CELL, [200], [200]);
+        $character = ['id' => $charId, 'cell_number' => self::REMOTE_CELL];
+
+        try {
+            (new RobotGathererActivator($this->robotId))->activate($tgId, $character);
+            $this->fail('Ожидалось исключение от encodeFile(base_url(...)) — в тест-стенде фото недостижимо.');
+        } catch (TelegramException | \ErrorException $e) {
+            $this->assertStringContainsString('robot_gatherer.jpg', $e->getMessage(), 'исключение обязано быть от рендера экрана активации, не от другой ошибки');
+        }
+
+        $launch = StartRobotGatheringAction::launchBase($charId, self::REMOTE_CELL);
+        $this->assertSame(200, $launch['cell'], 'launchBase() выбирает покрытую базу «Вторая»');
+
+        $activator = new RobotGathererActivator($this->robotId);
+        $method    = new ReflectionMethod($activator, 'buildCaption');
+        $method->setAccessible(true);
+        $logRows = (new CraftedItemsLogModel())
+            ->where('character_id', $charId)
+            ->where('crafted_item_id', $this->robotId)
+            ->where('quantity >', 0)
+            ->findAll();
+        $caption = $method->invoke($activator, $charId, $logRows, $launch['cell']);
+
+        $this->assertStringContainsString('Вторая (20, 20)', $caption, 'экран активации называет ту же базу, что launchBase()');
     }
 
     public function testBaseLabelStripsMarkdownFromCampName(): void

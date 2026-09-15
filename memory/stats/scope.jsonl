@@ -171,3 +171,4 @@
 {"ts":"2026-09-15T10:49:29Z","story":"multibase-picker-09-launch-base-covered","declared":8,"changed":14,"out_of_scope":6}
 {"ts":"2026-09-15T10:53:01Z","story":"multibase-picker-10-hangar-hub-no-base","declared":4,"changed":5,"out_of_scope":1}
 {"ts":"2026-09-15T11:24:46Z","story":"multibase-picker-11-bare-construction-resolve","declared":4,"changed":10,"out_of_scope":6}
+{"ts":"2026-09-15T11:27:59Z","story":"multibase-picker-12-review-minors-tests","declared":5,"changed":5,"out_of_scope":0}

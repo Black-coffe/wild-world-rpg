@@ -36,6 +36,14 @@ class BaseService
     private const PHOTO_NOT_ON_BASE = 'uploads/telegram/camp/an_empty_area.jpg';
     private const PHOTO_BASE        = 'uploads/telegram/camp/base_with_its_buildings.jpg';
 
+    /**
+     * lead-review раунд 2, minor 5 — единственная покрытая база не нашлась строкой
+     * (гонка/удалённая запись): просьба встать на базу/подойти под сигнал (как
+     * {@see BaseScopeResolver::TEXT_UNAVAILABLE}) тут неверна — база и так покрыта,
+     * дело не в положении игрока. Простой повтор действия.
+     */
+    private const TEXT_PICKER_ROW_MISSING = 'Не удалось открыть базу — нажми «🏠 База» ещё раз.';
+
     protected ClaimedCellModel $claimedCellModel;
     protected CommunicationTowerCoverageService $towerCoverageService;
     protected CampCheckService $campCheck;
@@ -175,7 +183,9 @@ class BaseService
             // multibase-picker-10 minor 3 — единственная покрытая база не нашлась
             // строкой (гонка/удалённая запись): честный отказ, а не basePicker(),
             // который над одной кнопкой написал бы «сразу несколько баз».
-            return $this->sendMessage($chatId, ['text' => BaseScopeResolver::TEXT_UNAVAILABLE], $editMessageId);
+            // lead-review раунд 2, minor 5 — TEXT_UNAVAILABLE звал «встань на базу
+            // или подойди под сигнал Вышки», а база и так покрыта: простой повтор.
+            return $this->sendMessage($chatId, ['text' => self::TEXT_PICKER_ROW_MISSING], $editMessageId);
         }
 
         return $this->sendMessage($chatId, $this->formatter->basePicker($coverage), $editMessageId);
