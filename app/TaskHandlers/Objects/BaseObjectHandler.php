@@ -2,8 +2,8 @@
 
 namespace App\TaskHandlers\Objects;
 
-use Longman\TelegramBot\Exception\TelegramException;
 use App\Services\Telegram\Request;
+use App\Services\Telegram\TelegramBridge;
 use Longman\TelegramBot\Telegram;
 
 /**
@@ -27,22 +27,10 @@ use Longman\TelegramBot\Telegram;
  */
 abstract class BaseObjectHandler
 {
-    private ?Telegram $telegram = null;
-
-    protected function telegram(): Telegram
+    /** Подъём — {@see TelegramBridge::ensure()}: при неудаче null, без исключения. */
+    protected function telegram(): ?Telegram
     {
-        if ($this->telegram === null) {
-            $apiKey   = (string) getenv('telegram.API_KEY');
-            $username = (string) getenv('telegram.BOT_USERNAME');
-            try {
-                $this->telegram = new Telegram($apiKey, $username);
-                Request::initialize($this->telegram);
-            } catch (TelegramException $e) {
-                log_message('error', '[' . static::class . '] Telegram init: ' . $e->getMessage());
-                $this->telegram = new Telegram('invalid', 'invalid');
-            }
-        }
-        return $this->telegram;
+        return TelegramBridge::ensure() ? TelegramBridge::instance() : null;
     }
 
     /**

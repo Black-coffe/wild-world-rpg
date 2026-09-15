@@ -150,3 +150,6 @@
 {"ts":"2026-09-13T17:51:37Z","story":"angela-second-base-bugs-04-verdicts-in-brief","declared":1,"changed":8,"out_of_scope":7}
 {"ts":"2026-09-13T17:54:26Z","story":"angela-second-base-bugs-06-findallactivecells-coverage","declared":2,"changed":6,"out_of_scope":5}
 {"ts":"2026-09-13T18:24:36Z","story":"angela-second-base-bugs-07-honest-refusal-and-remote-base","declared":21,"changed":21,"out_of_scope":0}
+{"ts":"2026-09-14T21:15:29Z","story":"cron-delivery-integrity-01-telegram-bridge-helper","declared":8,"changed":11,"out_of_scope":3}
+{"ts":"2026-09-14T21:16:18Z","story":"cron-delivery-integrity-01-telegram-bridge-helper","declared":8,"changed":12,"out_of_scope":4}
+{"ts":"2026-09-15T06:00:51Z","story":"cron-delivery-integrity-01-telegram-bridge-helper","declared":8,"changed":12,"out_of_scope":4}

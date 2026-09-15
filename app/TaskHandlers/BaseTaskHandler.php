@@ -3,8 +3,8 @@
 namespace App\TaskHandlers;
 
 use App\TaskHandlers\Contracts\TaskHandlerInterface;
-use Longman\TelegramBot\Exception\TelegramException;
 use App\Services\Telegram\Request;
+use App\Services\Telegram\TelegramBridge;
 use Longman\TelegramBot\Telegram;
 
 /**
@@ -28,30 +28,18 @@ use Longman\TelegramBot\Telegram;
  */
 abstract class BaseTaskHandler implements TaskHandlerInterface
 {
-    private ?Telegram $telegram = null;
-
     /**
      * Lazy-getter Telegram-объекта. Не инициализируется пока не нужен —
      * экономит для handler'ов, которые только пишут в БД без отправки
      * сообщений (HealthRegenerationHandler, ResourceBankUpdateHandler,
      * etc.).
+     *
+     * Подъём — {@see TelegramBridge::ensure()}: при неудаче null и одна error-строка,
+     * без исключения (раньше аварийная ветка сама бросала).
      */
-    protected function telegram(): Telegram
+    protected function telegram(): ?Telegram
     {
-        if ($this->telegram === null) {
-            $apiKey   = (string) getenv('telegram.API_KEY');
-            $username = (string) getenv('telegram.BOT_USERNAME');
-            try {
-                $this->telegram = new Telegram($apiKey, $username);
-                Request::initialize($this->telegram);
-            } catch (TelegramException $e) {
-                log_message('error', '[' . static::class . '] Telegram init: ' . $e->getMessage());
-                // Возвращаем «пустышку», чтобы дальнейший код не падал.
-                // safeSend* всё равно проверяет результат.
-                $this->telegram = new Telegram('invalid', 'invalid');
-            }
-        }
-        return $this->telegram;
+        return TelegramBridge::ensure() ? TelegramBridge::instance() : null;
     }
 
     /**
