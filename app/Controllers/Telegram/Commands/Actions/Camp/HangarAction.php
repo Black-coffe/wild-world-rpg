@@ -84,6 +84,13 @@ final class HangarAction extends BaseAction
         } else {
             $scope    = $resolver->resolve($charId, $currentCell);
             $baseCell = $scope['cell'];
+            if ($baseCell === null) {
+                // multibase-picker-10 (lead-review Major 1) — голый `hangar` без базы
+                // в охвате (нет баз ИЛИ 2+ базы вне базы и вне сигнала) остаётся хабом
+                // ADR-120, не голым отказом: инвентарь роботов/дронов + lock-объяснение,
+                // ни одна база не называется местной.
+                return $this->renderNoBaseHub($chatId, $charId, $scope['reason'] ?? null);
+            }
         }
 
         if ($baseCell === null) {
@@ -165,6 +172,57 @@ final class HangarAction extends BaseAction
         $text .= "*Роботы:*\n" . $this->robotsBlock($charId) . "\n";
         $text .= "*Дроны:*\n" . $this->dronesBlock($charId, $workshopLevel, $service);
 
+        $rows = $this->automationRows($service, $baseId);
+
+        return MediaSender::editTextOrSend($this->navTarget() + [
+            'chat_id'      => $chatId,
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode(['inline_keyboard' => $rows]) ?: '{}',
+        ]);
+    }
+
+    /**
+     * multibase-picker-10 (lead-review Major 1) — «голый» хаб: игрок без единой
+     * базы в охвате (нет баз вовсе, или 2+ базы вне текущей и вне сигнала).
+     * Инвентарь роботов/дронов — как в обычном хабе (это имущество персонажа,
+     * не базы), но вместо строки Мастерской — честный lock, и НИ ОДНА база не
+     * называется местной, уровень Мастерской не показывается (ask 4).
+     */
+    private function renderNoBaseHub(int $chatId, int $charId, ?string $reason): ServerResponse
+    {
+        $service = new DroneService();
+
+        $lockLine = $reason === BaseScopeResolver::REASON_NO_BASES
+            ? "🔒 *Ангар закрыт — базы нет*\n\nСначала разбей лагерь: без базы негде поставить Мастерскую робототехники."
+            : "🔒 *Ангар закрыт — рядом нет твоей базы*\n\nВстань на базу или подойди под сигнал её Вышки связи — Ангар покажет Мастерскую именно той базы.";
+
+        $text = "🤖 *Ангар автоматизации*\n"
+            . "{$lockLine}\n"
+            . "Построй Мастерскую: 🏠 База → 🏗 Строить → 🤖 Мастерская робототехники.\n\n";
+
+        $text .= "*Роботы:*\n" . $this->robotsBlock($charId) . "\n";
+        $text .= "*Дроны:*\n" . $this->dronesBlock($charId, 0, $service);
+
+        $rows = $this->automationRows($service, null);
+
+        return MediaSender::editTextOrSend($this->navTarget() + [
+            'chat_id'      => $chatId,
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode(['inline_keyboard' => $rows]) ?: '{}',
+        ]);
+    }
+
+    /**
+     * Кнопки хаба: роботы, включённые типы дронов, крафт-страховка и «🏠 База».
+     * `$baseId === null` (нет базы в охвате) → «🏠 База» без суффикса — ведёт
+     * на пикер/единственную базу, а не выдумывает суффикс несуществующей базы.
+     *
+     * @return list<list<array{text:string, callback_data:string}>>
+     */
+    private function automationRows(DroneService $service, ?int $baseId): array
+    {
         $rows   = [];
         $rows[] = [['text' => '🤖 Роботы', 'callback_data' => 'AllRobots']];
 
@@ -193,12 +251,7 @@ final class HangarAction extends BaseAction
             ['text' => '🏠 База',              'callback_data' => $this->withBaseSuffix('Base', $baseId)],
         ];
 
-        return MediaSender::editTextOrSend($this->navTarget() + [
-            'chat_id'      => $chatId,
-            'text'         => $text,
-            'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode(['inline_keyboard' => $rows]) ?: '{}',
-        ]);
+        return $rows;
     }
 
     /**

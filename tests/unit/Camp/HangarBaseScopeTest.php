@@ -251,4 +251,73 @@ final class HangarBaseScopeTest extends CIUnitTestCase
         $this->assertStringContainsString('Единственная (10, 10)', $text);
         $this->assertStringContainsString('уровень 3', $text);
     }
+
+    /** @return list<string> callback_data'ы всех кнопок ответа. */
+    private function callbacksOf(ServerResponse $response): array
+    {
+        $result  = $response->getResult();
+        $raw     = is_object($result) ? $result->reply_markup : null;
+        $decoded = is_string($raw) ? json_decode($raw, true) : null;
+        if (! is_array($decoded) || ! isset($decoded['inline_keyboard']) || ! is_array($decoded['inline_keyboard'])) {
+            return [];
+        }
+        $callbacks = [];
+        foreach ($decoded['inline_keyboard'] as $row) {
+            foreach ((array) $row as $button) {
+                if (is_array($button) && isset($button['callback_data']) && is_string($button['callback_data'])) {
+                    $callbacks[] = $button['callback_data'];
+                }
+            }
+        }
+
+        return $callbacks;
+    }
+
+    /**
+     * multibase-picker-10 (lead-review Major 1) — голый `hangar` у персонажа БЕЗ
+     * баз остаётся хабом ADR-120 (инвентарь + lock-объяснение), а не голым отказом.
+     */
+    public function testBareHangarWithNoBasesRendersHubNotPlainRefusal(): void
+    {
+        [$tgId] = $this->seedPlayer(777);
+
+        $response = (new HangarAction($this->cbq($tgId, 'hangar')))->handle();
+        $text      = $this->textOf($response);
+        $callbacks = $this->callbacksOf($response);
+
+        $this->assertStringContainsString('🤖 *Ангар автоматизации*', $text, 'это хаб, не голый отказ');
+        $this->assertStringContainsString('🔒', $text);
+        $this->assertStringContainsString('Мастерская робототехники', $text);
+        $this->assertStringContainsString('Роботы:', $text);
+        $this->assertStringContainsString('Дроны:', $text);
+        $this->assertNotSame(BaseScopeResolver::TEXT_NO_BASES, $text, 'не голый отказ resolve()');
+        $this->assertContains('AllRobots', $callbacks, 'кнопка на роботов есть — не голый отказ');
+        $this->assertContains('craftInsuranceList', $callbacks);
+        $this->assertContains('Base', $callbacks, 'без базы суффикс не выдумывается');
+    }
+
+    /**
+     * multibase-picker-10 — голый `hangar`, 2 активные базы, игрок вне обеих и вне
+     * сигнала: хаб с инвентарём и lock-строкой, но НИ ОДНА база не названа местной,
+     * уровень Мастерской не показывается (ask 4).
+     */
+    public function testBareHangarWithTwoBasesOutOfSignalRendersHubNamingNoBase(): void
+    {
+        [$tgId, $charId] = $this->seedPlayer(999); // вне обеих баз и вне сигнала
+        $this->seedTwoBases($charId);
+        $this->seedWorkshop($charId, 100, 5); // Мастерская есть, но не на базе, куда попал бы resolve()
+
+        $response = (new HangarAction($this->cbq($tgId, 'hangar')))->handle();
+        $text      = $this->textOf($response);
+        $callbacks = $this->callbacksOf($response);
+
+        $this->assertStringContainsString('🤖 *Ангар автоматизации*', $text, 'это хаб, не голый отказ');
+        $this->assertStringContainsString('🔒', $text);
+        $this->assertStringNotContainsString('Первая', $text, 'ни одна база не называется местной');
+        $this->assertStringNotContainsString('Вторая', $text, 'ни одна база не называется местной');
+        $this->assertStringNotContainsString('уровень 5', $text, 'уровень Мастерской не показывается без базы в охвате');
+        $this->assertNotSame(BaseScopeResolver::TEXT_AMBIGUOUS, $text, 'не голый отказ resolve()');
+        $this->assertContains('AllRobots', $callbacks);
+        $this->assertContains('Base', $callbacks);
+    }
 }

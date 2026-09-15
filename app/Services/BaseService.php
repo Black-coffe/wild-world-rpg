@@ -171,6 +171,11 @@ class BaseService
                 $coverageResult = $this->adaptCoverageRow($covered[0]);
                 return $this->showBaseBuildings($chatId, $characterRow, $claimedCell, $coverageResult, $editMessageId, $baseId);
             }
+
+            // multibase-picker-10 minor 3 — единственная покрытая база не нашлась
+            // строкой (гонка/удалённая запись): честный отказ, а не basePicker(),
+            // который над одной кнопкой написал бы «сразу несколько баз».
+            return $this->sendMessage($chatId, ['text' => BaseScopeResolver::TEXT_UNAVAILABLE], $editMessageId);
         }
 
         return $this->sendMessage($chatId, $this->formatter->basePicker($coverage), $editMessageId);

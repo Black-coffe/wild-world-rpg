@@ -169,3 +169,4 @@
 {"ts":"2026-09-15T10:09:46Z","story":"multibase-picker-04-hangar-per-base","declared":2,"changed":4,"out_of_scope":2}
 {"ts":"2026-09-15T10:19:28Z","story":"multibase-picker-08-upgrade-confirm-suffix-and-baseline","declared":4,"changed":4,"out_of_scope":0}
 {"ts":"2026-09-15T10:49:29Z","story":"multibase-picker-09-launch-base-covered","declared":8,"changed":14,"out_of_scope":6}
+{"ts":"2026-09-15T10:53:01Z","story":"multibase-picker-10-hangar-hub-no-base","declared":4,"changed":5,"out_of_scope":1}

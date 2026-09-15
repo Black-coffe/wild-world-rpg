@@ -412,6 +412,55 @@ final class BasePickerTest extends CIUnitTestCase
         $this->assertLessThanOrEqual(64, strlen($devCb));
     }
 
+    // ── minor 3: единственная покрытая база без строки ────────────────────────
+
+    /**
+     * lead-review round 1, minor 3 — ровно одна база под сигналом, но её строка
+     * не нашлась (`findBaseRow()` вернул null, гонка/удалённая запись): ответ не
+     * должен утверждать, что баз несколько, над одной кнопкой/без кнопок вовсе.
+     * `BaseService::claimedCellModel` подменяется через reflection на модель,
+     * у которой `find()` для этого id намеренно возвращает null — остальные
+     * методы (`findAllActiveCells`, `findActiveCell`) идут в реальную таблицу.
+     */
+    public function testExactlyOneCoveredBaseWithMissingRowDoesNotClaimSeveralBases(): void
+    {
+        $this->addMapCell(100, 10, 10);
+        $this->addMapCell(200, 20, 20);
+        $this->addMapCell(300, 11, 11); // рядом с базой-1 — под сигналом, вне сигнала базы-2
+
+        [$tgId, $charId] = $this->seedCharacter(300);
+        $baseId = $this->addBase($charId, 100, 'Первая', 1); // единственная ПОКРЫТАЯ
+        $this->addBase($charId, 200, 'Вторая', null); // активная, но без Вышки — не покрыта (2+ баз, чтобы попасть в showBasePicker())
+
+        $service = new \App\Services\BaseService();
+        $prop    = new \ReflectionProperty(\App\Services\BaseService::class, 'claimedCellModel');
+        $prop->setAccessible(true);
+        $prop->setValue($service, new class($baseId) extends \App\Models\ClaimedCellModel {
+            public function __construct(private readonly int $missingId)
+            {
+                parent::__construct();
+            }
+
+            public function find($id = null)
+            {
+                if (is_numeric($id) && (int) $id === $this->missingId) {
+                    return null;
+                }
+
+                return parent::find($id);
+            }
+        });
+
+        $response = $service->showBaseInfo($tgId, ['id' => $charId, 'cell_number' => 300]);
+        $this->assertTrue($response->isOk());
+
+        $text      = $this->textOf($response);
+        $callbacks = array_column($this->buttonsOf($response), 'callback_data');
+
+        $this->assertStringNotContainsString('сразу несколько', $text, 'текст не должен утверждать про несколько баз над одной/нулём кнопок');
+        $this->assertEmpty(array_filter($callbacks, static fn (string $c): bool => str_starts_with($c, 'Base_b')), 'кнопки несуществующей строки базы быть не должно');
+    }
+
     // ── media-off: пикер полон без картинки ───────────────────────────────────
 
     public function testBasePickerTextCarriesAllInfoWithoutPhoto(): void

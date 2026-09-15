@@ -1,8 +1,8 @@
 ---
 story: multibase-picker-10
 spec: multibase-picker
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: sonnet
@@ -55,4 +55,37 @@ lead-review Major 1. Голый `hangar` приходит из `CraftInsuranceLi
 
 ## Implementation notes
 
+- `HangarAction.php`: bare `hangar` when `resolve()` yields `cell===null` (no base / ambiguous)
+  now calls new `renderNoBaseHub()` instead of a plain refusal — same robots/drones inventory
+  blocks as the normal hub, a lock-line keyed on `reason` (`REASON_NO_BASES` vs other), and the
+  build-path text. No base named, no workshop level shown (`workshopLevel=0` passed into
+  `dronesBlock()` only for the gate-hint rendering, never surfaced as a real level).
+- Extracted the hub's button rows (`🤖 Роботы` / drone types / `📦 Крафт-страховка` / `🏠 База`)
+  into a shared private `automationRows(DroneService, ?int $baseId)`, reused by `renderHangar()`
+  and `renderNoBaseHub()` — avoids duplicating the killswitch-gated drone button logic.
+  `renderNoBaseHub()` passes `baseId=null` so `🏠 База` carries no suffix (nothing to suffix with).
+- Suffixed `hangar_b<id>` path and the single-base `resolve()` path are untouched (still call the
+  old `renderLocked`/`renderHangar` as before).
+- `BaseService.php` minor 3: in `showBasePicker()`, when exactly one covered base's `findBaseRow()`
+  returns null, the code no longer falls through to `formatter->basePicker($coverage)` (whose text
+  says "сразу несколько баз" whenever `$covered !== []`, regardless of count) — it now returns
+  `BaseScopeResolver::TEXT_UNAVAILABLE` directly, matching the honest "0 buttons" case. Did not
+  touch `BaseServiceMessageFormatter` per Non-goals.
+- Tests: `HangarBaseScopeTest` gained two cases (no bases at all; 2 bases outside signal) asserting
+  the hub renders with buttons and no base/level leak. `BasePickerTest` gained one case for minor 3,
+  using reflection to swap `BaseService::claimedCellModel` with an anonymous subclass whose `find()`
+  returns null for the target base id (simulates the race/deleted-row) while other model methods
+  delegate to `parent::`.
+
+INTERFACES: `HangarAction` gained private methods `renderNoBaseHub()` and `automationRows()` (no
+public API change). No other signature changes.
+
 ## Findings
+
+- phpstan (project-wide) has 3 pre-existing errors in `StartRobotGatheringAction.php`
+  (`launchBase()`, `TEXT_NOT_COVERED`, `$lastLaunchCaption`) — outside this story's `## Files`
+  (owned by the parallel story 09). `phpstan` scoped to this story's two files (`HangarAction.php`,
+  `BaseService.php`) is 0 errors. Did not touch `phpstan-baseline.neon` per constraint.
+- Guide/tips verdict: no new player-facing mechanic here — this restores existing ADR-120 hub
+  reachability that a prior story broke; guide/tip coverage for the multi-base picker is already
+  owned by story 07 per plan.md's asks map.
