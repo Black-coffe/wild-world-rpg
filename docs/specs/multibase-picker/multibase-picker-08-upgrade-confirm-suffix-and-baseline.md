@@ -1,8 +1,8 @@
 ---
 story: multibase-picker-08
 spec: multibase-picker
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: sonnet
@@ -44,5 +44,12 @@ blocked_by: [multibase-picker-02, multibase-picker-03, multibase-picker-04, mult
 `vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Implementation notes
+
+- `BuildingUpgradeMessageFormatter::askPrompt()` — added 9th optional param `?int $baseId = null`; when set, confirm button's `callback_data` is `BaseCallbackSuffix::append("confirm_upgrade_building_{$buildingId}", $baseId)`; `null` (or omitted) keeps the exact legacy string (`assertSame` on full payload proves byte-identity).
+- `UpgradeBuildingAction::askForUpgrade()` — passes its already-parsed `$baseId` (from `BaseCallbackSuffix::split()`, story 03) straight into `askPrompt()`. `confirmUpgrade()` needed no change — it already parsed the suffix from `## Files` history (story 03).
+- `phpstan-baseline.neon` — removed all 8 `offsetAccess.nonOffsetAccessible` entries for `CommunicationTowerCoverageService.php` (all reported `ignore.unmatched`); kept the still-matching `missingType.iterableValue` entry for the same file untouched. `phpstan analyse` → 0 errors.
+- `tests/unit/Camp/UpgradeConfirmBaseSuffixTest.php` — new, own `ucbs_` schema (pattern from `BuildingCardBaseChoiceTest`). Two formatter-level tests (no DB) prove the suffix/no-suffix button contract; two DB-level tests drive the real `UpgradeBuildingAction::confirmUpgrade()` (own prefixed tables) to prove the confirm click reaches `validate(..., $baseId)` and only touches that base's row, and that foreign/inactive base suffixes get `BaseScopeResolver::TEXT_UNAVAILABLE` with no row change.
+- Test buildings are seeded with `name_en=''` deliberately — `HandPump` is present in `Config\Endgame::$buildingFactionMap`, which would route `confirmUpgrade()`'s endgame hook into the real (unprefixed-in-this-schema) `faction_endgame_scores` table; empty `name_en` short-circuits `EndgameProgressionService::recordBuildingUpgrade()` before any query, keeping the test's `## Files` scope untouched.
+- `PoolAdoptionRepairUpgradeTest` named in the task's verification list does not exist anywhere in the repo (`Grep`/`Glob` both empty) — skipped; not part of `## Files`, no code was written that would need it.
 
 ## Findings

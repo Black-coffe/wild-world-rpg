@@ -3,6 +3,7 @@
 namespace App\Services\Player\BuildingUpgrade;
 
 use App\Models\ResourceModel;
+use App\Services\Bases\BaseCallbackSuffix;
 
 /**
  * v0.51.58 (UpgradeBuildingAction decomp Step 2) — extract Markdown templates
@@ -94,7 +95,8 @@ class BuildingUpgradeMessageFormatter
         int $requiredCharLvl,
         int $requiredGold,
         array $requirementResources,
-        array|\App\Entities\CharacterEntity $character
+        array|\App\Entities\CharacterEntity $character,
+        ?int $baseId = null
     ): array {
         $msg  = "Вы хотите поднять *{$buildingNameRu}* с уровня {$currentLevel} на уровень {$nextLevel}?";
         $msg .= "\n\nТребуется:\n";
@@ -108,10 +110,15 @@ class BuildingUpgradeMessageFormatter
         }
         $msg .= "\nПодтвердите апгрейд?";
 
+        $confirmCallback = "confirm_upgrade_building_{$buildingId}";
+        if ($baseId !== null) {
+            $confirmCallback = BaseCallbackSuffix::append($confirmCallback, $baseId);
+        }
+
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '✅ Подтвердить', 'callback_data' => "confirm_upgrade_building_{$buildingId}"],
+                    ['text' => '✅ Подтвердить', 'callback_data' => $confirmCallback],
                     ['text' => '❌ Отмена',     'callback_data' => 'Base'],
                 ],
             ],

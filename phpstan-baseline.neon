@@ -10789,54 +10789,6 @@ parameters:
 			path: app/Services/Bases/CampCheckService.php
 
 		-
-			message: '#^Cannot access offset ''cell_number'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Coverage/CommunicationTowerCoverageService.php
-
-		-
-			message: '#^Cannot access offset ''coordinate_x'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Coverage/CommunicationTowerCoverageService.php
-
-		-
-			message: '#^Cannot access offset ''coordinate_x'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Coverage/CommunicationTowerCoverageService.php
-
-		-
-			message: '#^Cannot access offset ''coordinate_y'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Coverage/CommunicationTowerCoverageService.php
-
-		-
-			message: '#^Cannot access offset ''coordinate_y'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Coverage/CommunicationTowerCoverageService.php
-
-		-
-			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Coverage/CommunicationTowerCoverageService.php
-
-		-
-			message: '#^Cannot access offset ''level'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Coverage/CommunicationTowerCoverageService.php
-
-		-
-			message: '#^Cannot access offset ''map_cell_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Coverage/CommunicationTowerCoverageService.php
-
-		-
 			message: '#^Method App\\Services\\Coverage\\CommunicationTowerCoverageService\:\:checkCoverage\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1

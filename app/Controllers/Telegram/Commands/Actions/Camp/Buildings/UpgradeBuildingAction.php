@@ -134,7 +134,8 @@ class UpgradeBuildingAction extends BaseAction
             (int) $req['level'],
             (int) $req['gold'],
             $req['resources'],
-            $character
+            $character,
+            $baseId
         ));
     }
 
