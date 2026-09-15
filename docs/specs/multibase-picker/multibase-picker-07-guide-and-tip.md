@@ -1,8 +1,8 @@
 ---
 story: multibase-picker-07
 spec: multibase-picker
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: sonnet
@@ -41,5 +41,10 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Implementation notes
+
+- `GuideCatalog.php`: раздел `base` расширен двумя параграфами (Вышка связи/пикер баз; робот у своей Мастерской), без цифр — number-gate `GuideCatalogTest::testBaseSectionMentionsSingleBuildingDemolishWithoutRefund` остался зелёным.
+- `2026-12-07-110000_SeedMultibasePickerTip.php`: идемпотентный совет `title_en='MultibasePicker'`, категория `общие`, тон Роби, без чисел. `game_tips` уже в `WipeManifest` (KEEP) — новой таблицы/колонки нет, классификация не требуется.
+- `MultibasePickerGuideTipTest.php`: своя приватная схема `game_tips` через `DatabaseTestTrait`/`Database::connect('tests')`; мигрирует явным `require_once` + `new SeedMultibasePickerTip()` (миграции исключены из composer classmap — обычный `use` без require не находит класс), проверяет идемпотентность двойного `up()` и `down()` по `title_en`.
+- Не трогал `phpstan-baseline.neon`, `WipeManifest`, другие разделы `base` (04.09/10.09).
 
 ## Findings
