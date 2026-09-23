@@ -95,3 +95,13 @@ env "database.tests.database=wildworld_ci_bi0923" vendor/bin/phpunit --no-covera
 - Queen, 2026-09-23, после волны 1: `phpstan-baseline.neon` — файл story 04. В baseline лежали три ошибки phpstan ровно на баг фермы (`is_array()` с `ResourceEntity` «always false») — фикс story 04 делает их `ignore.unmatched`, их надо удалить. Там же едут удалённые story 03 записи для выпиленных захардкоженных методов `QuestsInfo` (60 строк) — оба удаления честные, один файл = одна story.
 - Planner, 2026-09-23, после RED раунда 1 (`council/round-1`): ask 5 RED у sonnet-seat. Литерал `git grep -n "Одеть" -- app` непуст, 4 хита в миграциях `2026-10-24-100000_SeedArmorScreenTip.php` и `2026-12-08-100000_FixArmorScreenTipNadet.php`. Opus-seat поставил GREEN «по намерению», haiku-seat — N/A. Нарезана история `bugs-info-0923-06-nadet-migrations`, волна 2, `blocked_by: [bugs-info-0923-05]`. Остальные asks не RED ни у одного места, новых историй не требуют. UNASKED opus-seat (админ-генератор карты 1..1000, faction lock у карточки квеста, markdown в списке квестов) в фиксы не взяты: ни один ask их не требует. Это кандидаты в отдельную спеку, решает владелец.
 **Shipped:** v0.51.670, 2026-09-23, at 4c941dd3 - merged to develop, publish pending (preprod smoke → tag)
+
+## Tier-3 smoke (ask 7) — preprod-testbot, 2026-09-23, v0.51.670 до тега
+
+Автономный POST callback'ов на вебхук testbot от tg 6995661239 (char 491), ответы бота прочитаны глазами в Telegram Web; все тапы `http=200`, `player_action_log.status=ok`.
+- `questInfo_id5` → карточка «Захват Бункера» (описание, «доступен с 15-го уровня», «Награда: 5 000 золото», «К списку квестов» / «Я»); легаси `questInfo_Explore30Cells` → карточка; `questInfo_id99999` → «Такой квест не найден…» с кнопкой назад.
+- `gearArmorDetail_17` → кнопка «Надеть»; совет `ArmorScreen` в БД — «кнопка *Надеть* или *Снять*» (миграция 2026-12-08-100000 применена).
+- `resourcesCrafting` → «Мясо дикого кабана | 2 шт. — не применяется, выводится из обращения ↳ Еда и питьё, которые работают: Аптечка → Провизия».
+- `exploredMap` → «Твои границы: X 0–806, Y 0–930» (ноль в окне).
+- `strategicSearch` на Старой ферме (карта id 856616, выдана Мотыга) → «Добытые ресурсы: — Зерновые культуры … — Фрукты … — Древесина … — Глина … — Вода …».
+Хвост на следующий круг: `StrategicObjectService::activeStrategicOnCell()` отсекает `cellNumber <= 0` — клетка (0,0) того же класса «ноль вне мира».

@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-14
+last-verified: 2026-09-23
 
 # Scout report: Мир и карта (Services/World)
 
@@ -25,6 +25,10 @@ inbound: `MapCommand`, action-handler'ы перемещения и развед�
 outbound: модели мира, `Services/Player` (позиция, вес), `Services/Coverage`.
 
 ## Gotchas
+- **Координаты мира — 0..999 по обеим осям**, не 1..1000. `ExploredMapService::WORLD_MIN/WORLD_MAX`
+  (bugs-info-0923-01); до фикса картинка «Что я открыл» теряла ряд и столбец 0.
+- `ResourceModel` отдаёт `ResourceEntity`: имя ресурса — `instanceof ResourceEntity` + `->name`,
+  не `is_array()` (`StrategicLootHandler`, bugs-info-0923-04).
 - **(2026-09-13, angela-second-base-bugs-01) `TextMapService` — все активные базы, не одна.**
   `buildMapOnly()` использует `ClaimedCellModel::findAllActiveCells($characterId)` и рисует 🏕 на
   КАЖДОЙ активной базе в окне 12×12 (раньше — одна случайная запись через `first()` без
