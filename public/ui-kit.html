@@ -1554,6 +1554,46 @@ section.block:first-of-type { border-top: 0; }
   .ww-chart .ww-chart-label { grid-column: 1 / -1; font-size: 13px; }
   .ww-chart.is-compare .ww-chart-values { text-align: left; }
 }
+/* ============================================================
+   AUTH (зеркало wildworld-ui.css) — форма входа, уведомления, кнопки провайдеров, строки
+   способов входа (web-accounts-p0). Поля — штатные .field/.label/
+   .input/.error-msg: ошибку рисует сервер классом .field.has-error.
+   Всё работает без JS.
+   ============================================================ */
+.auth-form { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 440px; }
+.auth-form .auth-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+
+.notice { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; background: var(--bg-elev-1); border: 1px solid var(--border); border-left: 3px solid var(--info); color: var(--text); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.notice .notice-title { font-family: var(--font-display); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--info); }
+.notice.error { border-left-color: var(--danger-hi); }
+.notice.error .notice-title { color: var(--danger-hi); }
+.notice.ok { border-left-color: var(--success); }
+.notice.ok .notice-title { color: var(--success); }
+
+.provider-list { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 440px; }
+.provider-btn { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 8px 14px; background: var(--bg-elev-1); color: var(--text); border: 1px solid var(--border-strong); font-family: var(--font-display); font-size: 14px; letter-spacing: .1em; text-transform: uppercase; text-align: left; text-decoration: none; cursor: pointer; transition: border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease); }
+.provider-btn:hover { border-color: var(--accent); color: var(--accent); }
+.provider-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.provider-btn .provider-mark { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid currentColor; font-family: var(--font-mono); font-size: 13px; letter-spacing: 0; }
+.provider-btn .provider-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.provider-btn .provider-state { flex: 0 0 auto; font-family: var(--font-mono); font-size: 11px; letter-spacing: .04em; text-transform: none; }
+.provider-btn.is-unavailable { background: transparent; color: var(--text-muted); border-style: dashed; border-color: var(--border-strong); cursor: not-allowed; }
+.provider-btn.is-unavailable:hover { border-color: var(--border-strong); color: var(--text-muted); }
+.provider-note { margin: -4px 0 0; font-size: 12px; line-height: 1.45; color: var(--text-dim); }
+
+.identity-list { border: 1px solid var(--border); background: var(--bg-elev-1); }
+.identity-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.identity-row:last-child { border-bottom: 0; }
+.identity-row .provider-mark { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid var(--border-strong); color: var(--accent); font-family: var(--font-mono); font-size: 13px; }
+.identity-row .identity-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.identity-row .identity-provider { font-family: var(--font-display); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--text); }
+.identity-row .identity-subject { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); overflow-wrap: anywhere; }
+.identity-row .identity-action { display: flex; gap: 8px; }
+.identity-row .identity-action form { margin: 0; }
+@media (max-width: 480px) {
+  .identity-row { grid-template-columns: auto minmax(0, 1fr); }
+  .identity-row .identity-action { grid-column: 1 / -1; }
+}
 </style>
 </head>
 
@@ -1597,6 +1637,7 @@ section.block:first-of-type { border-top: 0; }
     <a href="#foundation" data-close="drawer">Основы</a>
     <a href="#atoms" data-close="drawer">Атомы</a>
     <a href="#forms" data-close="drawer">Формы</a>
+    <a href="#auth" data-close="drawer">Вход</a>
     <a href="#game" data-close="drawer">Игровые</a>
     <a href="#nav" data-close="drawer">Навигация</a>
     <a href="#disclosure" data-close="drawer">Раскрытия</a>
@@ -1932,6 +1973,67 @@ section.block:first-of-type { border-top: 0; }
           <span class="ico" aria-hidden="true">🔎</span>
           <input type="text" id="search-q" class="input search-input" placeholder="Найти айтем, биом, NPC…" autocomplete="off">
           <div class="search-results" id="search-out"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     §3·A AUTH — вход на сайт: форма, уведомления, провайдеры, способы входа
+============================================================ -->
+<section id="auth" class="block">
+  <div class="container">
+    <div class="section-head">
+      <div><span class="num">§ 03·A</span><h2 class="mt-1 mb-0">Вход — форма, уведомления, провайдеры</h2></div>
+      <div class="desc">Страницы аккаунта. Без JS: ошибки и уведомления рисует сервер. Недоступный провайдер — пунктир, слово «недоступно» и пояснение под кнопкой, а не только цвет.</div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card stack">
+        <div class="notice info"><span class="notice-title">Инфо</span>Войди почтой и паролем или кодом из бота: команда /web.</div>
+        <div class="notice error" role="alert"><span class="notice-title">Ошибка</span>Неверная почта или пароль.</div>
+        <div class="notice ok" role="status"><span class="notice-title">Готово</span>Способ входа добавлен.</div>
+
+        <form class="auth-form" action="#auth" method="post">
+          <div class="field">
+            <label class="label" for="a-email">Почта</label>
+            <input id="a-email" class="input" type="email" name="email" autocomplete="email" placeholder="you@example.com">
+          </div>
+          <div class="field has-error">
+            <label class="label" for="a-pass">Пароль</label>
+            <input id="a-pass" class="input" type="password" name="password" autocomplete="current-password" aria-invalid="true" aria-describedby="a-pass-err">
+            <div class="error-msg" id="a-pass-err">Минимум 8 символов.</div>
+          </div>
+          <label class="check"><input type="checkbox" name="remember" checked> <span class="box"></span> Запомнить меня</label>
+          <div class="auth-actions">
+            <button class="btn primary" type="submit">Войти</button>
+            <a class="btn ghost" href="#auth">Забыл пароль</a>
+          </div>
+        </form>
+      </div>
+
+      <div class="card stack">
+        <div class="label">Войти через</div>
+        <div class="provider-list">
+          <a class="provider-btn" href="#auth"><span class="provider-mark" aria-hidden="true">G</span><span class="provider-name">Google</span></a>
+          <span class="provider-btn is-unavailable" aria-disabled="true"><span class="provider-mark" aria-hidden="true">Я</span><span class="provider-name">Яндекс ID</span><span class="provider-state">недоступно</span></span>
+          <p class="provider-note">Вход через Яндекс ещё не подключён. Войди почтой или кодом из бота.</p>
+          <a class="provider-btn" href="#auth"><span class="provider-mark" aria-hidden="true">TG</span><span class="provider-name">Telegram</span></a>
+        </div>
+
+        <div class="label">Способы входа</div>
+        <div class="identity-list">
+          <div class="identity-row">
+            <span class="provider-mark" aria-hidden="true">@</span>
+            <div class="identity-main"><span class="identity-provider">Почта</span><span class="identity-subject">very.long.address.for.wrap.check@example.com</span></div>
+            <div class="identity-action"><form action="#auth" method="post"><button class="btn sm ghost" type="submit">Отвязать</button></form></div>
+          </div>
+          <div class="identity-row">
+            <span class="provider-mark" aria-hidden="true">TG</span>
+            <div class="identity-main"><span class="identity-provider">Telegram</span><span class="identity-subject">id 25</span></div>
+            <div class="identity-action"><span class="badge">последний</span></div>
+          </div>
         </div>
       </div>
     </div>

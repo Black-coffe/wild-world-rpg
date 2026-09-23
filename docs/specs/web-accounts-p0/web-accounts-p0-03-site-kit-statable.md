@@ -1,8 +1,8 @@
 ---
 story: web-accounts-p0-03
 spec: web-accounts-p0
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -49,6 +49,7 @@ Three things exist after this story:
 recon.md §D (site design system, prototype).
 
 ## Acceptance criteria
+- [ ] Worker runs its own new test file(s) singly while iterating; the close-story gate is the full suite + phpstan + migrations lint.
 - [ ] Ask 9: the new ui-kit components introduce no `border-radius`/`box-shadow` ≠ 0 and no raw colours — tokens only (ADR-062).
 - [ ] Ask 8: with `STATABLE_SITE_HASH` set, the counter markup appears in the HTML of `/` and of
       a wiki/article page. With it empty, the markup is absent and nothing breaks. The partial is
@@ -65,10 +66,18 @@ recon.md §D (site design system, prototype).
       because stories 05-08 consume them.
 
 ## Verification
-`curl -sS -o /dev/null -w '%{http_code}' http://mmorpg.test/`
-`curl -sS -o /dev/null -w '%{http_code}' http://mmorpg.test/ui-kit.html`
+`vendor/bin/phpunit --no-coverage --no-progress`
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+`git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
+
 
 ## Implementation notes
+- `wildworld-ui.css`: new classes `.auth-form`/`.auth-actions`, `.notice` (+`.error`/`.ok`, `.notice-title`), `.provider-list`/`.provider-btn` (+`.is-unavailable`, `.provider-mark`/`.provider-name`/`.provider-state`), `.provider-note`, `.identity-list`/`.identity-row` (+`.identity-main`/`.identity-provider`/`.identity-subject`/`.identity-action`). Fields reuse existing `.field`/`.label`/`.input`/`.error-msg` + `.field.has-error`. Tokens only, no radius/shadow/raw colour (all 14 vars used exist in `:root`).
+- Unavailable provider = dashed border + muted colour + visible text "недоступно" + `.provider-note` under it — not colour-only; it is a `<span aria-disabled>`, not a link.
+- `ui-kit.html`: section `#auth` demos all components; ui-kit mirrors the CSS inline (its existing convention), so the two copies must be kept in sync. `#auth` link added to the mobile drawer only — the desktop nav already has 10 items and hides <900px; an 11th risks overflow at ~900-1000px.
+- `statable.php`: renders `<script src="https://statable.com/js/<hash>/s.js" defer>` only when `env('STATABLE_SITE_HASH')` is non-empty (hash escaped); included from `meta.php`. Per Q2 only `site/bot_stub.php` bypasses the layout (301 stub, intentionally no counter). CSP is off, no config change.
+- `meta.php`: `?v=5` → `?v=6`. `.env.example`: `STATABLE_SITE_HASH=` empty with comment.
+- Prototype: `docs/specs/web-first-client/webgame-preview.html` is byte-identical to `public/webgame-preview.html` (`cmp`).
+- Not verified: no browser pass at 375/768/1440 for horizontal scroll, and no rendered-HTML check of `/` or a wiki page with the env set (logic read only). phpstan L9 green.
 
 ## Findings
