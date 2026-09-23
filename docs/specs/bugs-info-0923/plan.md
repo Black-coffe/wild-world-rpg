@@ -88,10 +88,10 @@ env "database.tests.database=wildworld_ci_bi0923" vendor/bin/phpunit --no-covera
 **Checked:** <written by scripts/human-check.sh after the owner has looked - stage 05, and the override for stage 04+05. /vulyk-ship refuses without either this or a GREEN **Council:** line.>
 **Council:** RED round 1, 2026-09-23, at d7c1eb9e, pack 1803240603db - red: 5
 **Council:** GREEN round 2, 2026-09-23, at ce81431e, pack e9d9813cabcd
-**Shipped:** <written by scripts/ship-check.sh --record - stage 06: the published version, and where>
 
 
 ## Plan deltas
 
 - Queen, 2026-09-23, после волны 1: `phpstan-baseline.neon` — файл story 04. В baseline лежали три ошибки phpstan ровно на баг фермы (`is_array()` с `ResourceEntity` «always false») — фикс story 04 делает их `ignore.unmatched`, их надо удалить. Там же едут удалённые story 03 записи для выпиленных захардкоженных методов `QuestsInfo` (60 строк) — оба удаления честные, один файл = одна story.
 - Planner, 2026-09-23, после RED раунда 1 (`council/round-1`): ask 5 RED у sonnet-seat. Литерал `git grep -n "Одеть" -- app` непуст, 4 хита в миграциях `2026-10-24-100000_SeedArmorScreenTip.php` и `2026-12-08-100000_FixArmorScreenTipNadet.php`. Opus-seat поставил GREEN «по намерению», haiku-seat — N/A. Нарезана история `bugs-info-0923-06-nadet-migrations`, волна 2, `blocked_by: [bugs-info-0923-05]`. Остальные asks не RED ни у одного места, новых историй не требуют. UNASKED opus-seat (админ-генератор карты 1..1000, faction lock у карточки квеста, markdown в списке квестов) в фиксы не взяты: ни один ask их не требует. Это кандидаты в отдельную спеку, решает владелец.
+**Shipped:** v0.51.670, 2026-09-23, at 4c941dd3 - merged to develop, publish pending (preprod smoke → tag)
