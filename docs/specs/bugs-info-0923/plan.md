@@ -1,0 +1,83 @@
+# Пять неотвеченных баг-репортов Bugs-info (plan)
+
+**Tier:** 3 · **Spec slug:** `bugs-info-0923` · **Brief:** [brief.md](brief.md)
+**Governed by:** ADR-020 (media-off), ADR-024 (баланс в `GameSettings`), ADR-127/134 (guide/tips — вердикт «нет» в ask 6), ADR-185 (вывод food-предметов — решён, ветка `vulyk/craft-shelf-coverage` не влита), ADR-088 (квесты), ADR-009 (tech-writing)
+**Depends on:** `develop` на `2c081b94`; ничего из неслитой `vulyk/craft-shelf-coverage` не берётся
+
+## Goal
+Закрыть пять баг-репортов из треда Bugs-info, каждый своей историей, всеми в одной волне. (1) Картинка изученной карты считает мир 1..1000, а на самом деле он 0..999: нулевые ряд и столбец не рисуются, окно может выйти за край. Исправляем окно и сдвиг в пиксели, текстовую сетку у `Y=1` закрепляем тестом. (2) Три food-предмета из «Крафтовых предметов» не применяются нигде. Честная пометка «не применяется, выводится из обращения» и путь к живой провизии (Answers 1). Сам вывод с компенсацией остаётся за ADR-185. (3) Список квестов открывает карточку только у четырёх захардкоженных квестов. Делаем одну карточку из БД для любого квеста, новую кнопку по `quests.id`, старые кнопки `questInfo_<title_en>` продолжают работать, на неизвестный квест даём честный отказ. (4) Находка стратегического объекта печатает `name_en`, потому что `is_array()` проверяет `ResourceEntity`. Читаем сущность правильно и проверяем четыре кандидата-двойника. (5) «Одеть» → «Надеть» на карточках брони и оружия.
+
+**Выбранный подход и отклонённый.**
+- **Еда.** Принято: пометка на экране по `type='food'`, без миграции и без смены `status`. Отклонено: вывести предметы из обращения здесь, то есть слить или повторить `craft-shelf-coverage`. Это компенсация игрокам и миграция данных, решение ADR-185 со своей неслитой веткой. Владелец в Answers 1 оставил его там. Цена принятого: временная пометка, которую уберёт слияние ADR-185, и возможный текстовый конфликт в `CraftedResourcesAction.php` при слиянии (открытый вопрос 5).
+- **Квесты.** Принято: одна карточка из строки `quests` для всех квестов. Отклонено: дописать захардкоженные карточки для остальных квестов. Это та же ловушка, что сейчас: каждый новый квест снова молча падает в список.
+
+## Assumptions
+
+- Queen, 2026-09-23: неслитая `vulyk/craft-shelf-coverage` правит `CraftedResourcesAction.php` (+38/−6) — при её будущем вливании будет конфликт с пометкой story 02; решать тогда, пометку не откатывать молча.
+- Queen, 2026-09-23: «Одеть» найден и вне двух gear-файлов (`ToggleEquip*Action`, сид совета `ArmorScreen`) — story 05 расширена, см. её Queen delta.
+- `verify-gap` wave-check'а ×5 — ложное срабатывание (полный набор не пересекает `## Files` по пути), как в `multibase-picker`.
+- **Тир 3.** Пять независимых дефектов в пяти модулях: мир, крафт-экран, квесты, TaskHandler объектов, профиль. Каждая история размером с Tier 1, но спека в целом cross-cutting. Бриф уже объявил Tier 3, значит, полный совет: `council-haiku`, `council-sonnet`, `council-opus` + `lead-review`.
+- **Мир на проде — тоже 0..999 по обеим осям.** Разведка смотрела только testbot (открытый вопрос 2).
+- **Пометка еды — только на экране «Крафтовые предметы».** Экраны `ProvisionAction` и `PharmacyAction` не трогаются. Строка пути дословно из ask 2: «🎒 Инвентарь → 🥣 Провизия». Воркер 02 сверяет, что эти подписи кнопок есть в коде. Если нет — в INTERFACES, текст не выдумывается.
+- **Новая кнопка квеста: `questInfo_id<quests.id>`.** Префикс `questInfo_` прежний, поэтому маршрут в `app/Config/CallbackRoutes.php` не меняется. Если маршрут окажется точным, а не префиксным, воркер 03 останавливается и сообщает об этом (файл не в его `## Files`).
+- **У четырёх прежних квестов карточка не теряет того, что было.** Если у захардкоженных карточек были кнопки действия (например, `questStart…`), общая карточка оставляет их этим квестам. Другим квестам новые кнопки действий не выдумываются.
+- **`Одеть` в `app/` встречается только в двух gear-файлах.** Grep по каталогу в моём окружении не работает. Подсчёт по файлу даёт 4 вхождения в `GearArmorDetailAction.php` (открытый вопрос 1).
+- **Tech-writing (ask 6, вторая половина) — `drone-docs` после мерджа, не история.** Ноты в `mmorpg-vault/tech-writing/` для каждого тронутого класса: `ExploredMapService`, `TextMapService` (если тронут), `CraftedResourcesAction`, `QuestsInfo`, `StrategicLootHandler`, исправленные двойники, `GearArmorDetailAction`, `GearWeaponDetailAction`. Queen закрывает это до `/vulyk-ship`.
+- **Живой Tier-3 (ask 7) — Queen после мерджа и деплоя на preprod-testbot**, тест-чар `telegram_user_id=25`, вебхук или Telegram Web. Результат записывается в этот файл, в `## Plan deltas`. На проде Tier-3 не гоняем.
+- **Ответы в треде (Answers 2) — Queen после прод-смока**: реплай на каждый из 5 багов и на вопрос Анжелы про роботов, с аккаунта Main, с номером версии.
+- **`## Verification` каждой истории — полный набор + phpstan.** Одиночный тест-файл назван в `## Acceptance criteria`. Причина: `cycle.sh close-story` сверяет строку `## Verification` с ячейкой `## Commands` байт в байт (`command_cell_exists`, `scripts/cycle.sh:1455-1475`). Ячейка одиночного файла содержит плейсхолдер `<Path>` и конкретному пути не совпадёт никогда. Предупреждение `wave-check` `verify-gap` на этих строках ложное: там путь к бинарнику, а не к исходникам. Так же было в `multibase-picker`.
+
+## Stories
+
+**Wave 1** — все пять параллельно, `## Files` не пересекаются, `blocked_by: []`
+- `bugs-info-0923-01-map-zero-row` — картинка изученной карты рисует мир 0..999; тест на (0,0)/(999,999) и на ряд `Y=0` в текстовой сетке. **model: opus.**
+- `bugs-info-0923-02-food-marker` — пометка «не применяется, выводится из обращения» и путь к Провизии у `type='food'` в «Крафтовых предметах». **model: opus.**
+- `bugs-info-0923-03-quest-card` — карточка любого квеста из БД, кнопка `questInfo_id<id>`, легаси `questInfo_<title_en>`, честный отказ. **model: opus.**
+- `bugs-info-0923-04-loot-names-ru` — русские имена ресурсов в находке стратегического объекта + вердикт по четырём двойникам. **model: opus.**
+- `bugs-info-0923-05-nadet-label` — «Одеть» → «Надеть» на карточках брони и оружия. model: sonnet.
+
+**Merge pass.** Все пять проходят neighbour-тест: общих файлов и общей ментальной модели нет. История 05 по payback-тесту на бумаге тонкая, но ни с какой другой историей не граничит: gear-файлы профиля ни у кого не лежат. Она идёт на sonnet, то есть дёшево, и даёт отдельный коммит, на который ссылается реплай игроку. Кандидаты-двойники ask 4 влиты в историю 04, а не выделены: тот же класс дефекта, та же ментальная модель («строка `ResourceModel` — сущность»), а поодиночке каждый не окупает себя.
+
+| Ask | Кто закрывает |
+|---|---|
+| 1 | `bugs-info-0923-01` |
+| 2 | `bugs-info-0923-02` |
+| 3 | `bugs-info-0923-03` |
+| 4 | `bugs-info-0923-04` (StrategicLoot + вердикт по каждому двойнику в story) |
+| 5 | `bugs-info-0923-05` |
+| 6 | гейты — `## Integration gate` (каждая история несёт свой тест); tech-writing — `drone-docs` после мерджа (Assumptions); вердикты guide/tips/онбординг «нет» и discoverability «новых входов нет» зафиксированы в брифе, историй не требуют |
+| 7 | Queen: Tier-3 на preprod-testbot после мерджа и деплоя, результат — в `## Plan deltas` (Assumptions) |
+
+## Contracts
+Между историями интерфейсов нет: пять историй не зовут код друг друга. Ниже — внешние формы, на которые опираются старые сообщения игроков и Tier-3 смоук (ask 7):
+- **Callback карточки квеста (история 03).** Новая кнопка: `questInfo_id<quests.id>`, например `questInfo_id17`, `strlen ≤ 64`. Легаси-кнопка `questInfo_<title_en>` тоже принимается: остаток после ПЕРВОГО префикса `questInfo_` целиком, без `explode('_')`. Форма `id<N>` распознаётся только при полном совпадении остатка с `^id(\d+)$`, всё остальное считается `title_en`. Неизвестный id или `title_en` → текст отказа + кнопка «назад к списку». Префикс маршрута не меняется.
+- **Пометка еды (история 02).** Рядом с именем каждого предмета `type='food'` стоит текст «не применяется, выводится из обращения». Под блоком еды — строка с путём «🎒 Инвентарь → 🥣 Провизия». Смоук ищет эти две подстроки.
+- **Подпись кнопки экипировки (история 05)** — «Надеть». `callback_data` не меняется.
+
+## Integration gate
+После волны 1, на свежей пустой тест-БД (общая `wildworld_tests` красная без правок — состояние машины, не регресс):
+```
+/c/laragon/bin/mysql/mysql-8.0.30-winx64/bin/mysql.exe -uroot -e "DROP DATABASE IF EXISTS wildworld_ci_bi0923; CREATE DATABASE wildworld_ci_bi0923 CHARACTER SET utf8mb4;"
+env "database.tests.database=wildworld_ci_bi0923" vendor/bin/phpunit --no-coverage --no-progress
+```
+`vendor/bin/phpstan analyse --memory-limit=512M --no-progress`; `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null` (миграций нет, строка — формальность ask 6); `git grep -n "Одеть" -- app` пуст. Перед диспатчем — `bash scripts/wave-check.sh docs/specs/bugs-info-0923`.
+
+## Открытые вопросы (разведка для Queen, не блокируют волну 1)
+1. `git grep -n "Одеть" -- app tests`: есть ли вхождения вне `Profile/GearArmorDetailAction.php` и `Profile/GearWeaponDetailAction.php`, включая тест, который проверяет подпись кнопки? Если есть — дельта с расширением `## Files` истории 05 до диспатча.
+2. Прод, read-only: `SELECT MIN(coordinate_x), MAX(coordinate_x), MIN(coordinate_y), MAX(coordinate_y) FROM map;` — ожидается 0/999/0/999, как на testbot.
+3. Ask 7, «принудительная находка Старой фермы» на testbot: какой путь запускает `StrategicLootHandler` (строка `character_tasks`, `php spark`-команда)? Нужен до смоука, не до сборки.
+4. `app/Config/CallbackRoutes.php`: маршрут `questInfo` — префиксный? Воркер 03 сверяет сам и сообщает, если нет.
+5. `git diff --stat develop...vulyk/craft-shelf-coverage -- app/Controllers/Telegram/Commands/Actions/CraftedResourcesAction.php`: если ветка ADR-185 правит тот же файл, при её слиянии пометку истории 02 нужно снять вручную.
+
+## Descoped
+
+*(empty)*
+
+## Plan deltas
+
+**Approved:** <owner, date - stage 02, the unconditional gate. /vulyk-build refuses without this line.>
+**Briefed:** via grill, Andrei, 2026-09-23
+**Branch:** <written by /vulyk-build before wave 1 - stage 03: the branch every story commit lives on>
+**Checked:** <written by scripts/human-check.sh after the owner has looked - stage 05, and the override for stage 04+05. /vulyk-ship refuses without either this or a GREEN **Council:** line.>
+**Council:** <written by scripts/cycle.sh judge/escalate - stages 04+05: "<GREEN|RED|ESCALATE|STALE> round <N>, <date>, at <sha7>, pack <fp12>[ - red: 2,5]", appended once per round.>
+**Shipped:** <written by scripts/ship-check.sh --record - stage 06: the published version, and where>
