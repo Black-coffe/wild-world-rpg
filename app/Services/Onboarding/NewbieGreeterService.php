@@ -84,8 +84,11 @@ class NewbieGreeterService
      * валидной свободной клетки).
      *
      * @param array<int|string, mixed> $spawnCell map-row спавна (coordinate_x/y)
+     * @param int|null                 $chatId    чат бота для маркера в action_log; null — персонаж
+     *                                            без Telegram (web-accounts-p0-04): встречающий
+     *                                            ставится, `chat_id` маркера = NULL
      */
-    public function placeGreeterForNewChar(int $charId, array $spawnCell, int $chatId, bool $withNavHint = true): ?string
+    public function placeGreeterForNewChar(int $charId, array $spawnCell, ?int $chatId, bool $withNavHint = true): ?string
     {
         if ($charId <= 0 || ! $this->enabled() || $this->alreadyPlaced($charId)) {
             return null;
@@ -116,7 +119,7 @@ class NewbieGreeterService
             }
 
             $this->insertSpawn($npcId, $landCell);
-            $this->writeMarker($charId, $chatId);
+            $this->writeMarker($charId, $chatId ?? 0);
 
             return $this->buildGreeterNarrative($label, $arrow, $withNavHint);
         }
@@ -242,12 +245,13 @@ class NewbieGreeterService
         ]);
     }
 
+    /** $chatId = 0 — чата нет (персонаж без Telegram): пишется NULL. Telegram chat id 0 не бывает. */
     protected function writeMarker(int $charId, int $chatId): void
     {
         // action_status строго из enum('Pending','Completed','Skipped','REJECTED').
         $this->logModel()->insert([
             'character_id'  => $charId,
-            'chat_id'       => $chatId,
+            'chat_id'       => $chatId === 0 ? null : $chatId,
             'action_name'   => self::PLACED_FLAG,
             'action_status' => 'Completed',
             'description'   => 'ADR-144 S2: размещён встречающий-нейтрал у спавна новичка',

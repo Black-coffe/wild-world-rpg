@@ -71,10 +71,14 @@ class StarterKitService
     /**
      * Выдать стартовый набор новому персонажу.
      *
+     * @param int|null $chatId чат бота для флага в action_log; null — персонаж без Telegram
+     *                          (web-accounts-p0-04): набор выдаётся, `chat_id` флага = NULL.
+     *                          Сам сервис ничего не отправляет — текст шлёт вызывающий.
+     *
      * @return string|null текст сообщения Роби (Markdown) или null, если набор
      *                     выключен / уже выдан / нечего выдавать.
      */
-    public function grant(int $charId, int $tgUserId, int $chatId): ?string
+    public function grant(int $charId, ?int $tgUserId, ?int $chatId): ?string
     {
         if ($charId <= 0 || ! $this->enabled()) {
             return null;
@@ -98,7 +102,7 @@ class StarterKitService
             return null;
         }
 
-        $this->writeGrantedFlag($charId, $chatId);
+        $this->writeGrantedFlag($charId, $chatId ?? 0);
 
         return $this->buildRobiText($granted);
     }
@@ -133,13 +137,14 @@ class StarterKitService
         $this->resourceModel()->addOrIncreaseResource($charId, $resourceId, $amount);
     }
 
+    /** $chatId = 0 — чата нет (персонаж без Telegram): пишется NULL. Telegram chat id 0 не бывает. */
     protected function writeGrantedFlag(int $charId, int $chatId): void
     {
         // action_status строго из enum('Pending','Completed','Skipped','REJECTED') —
         // STRICT_TRANS_TABLES на проде валит INSERT с любым другим значением.
         $this->logModel()->insert([
             'character_id'  => $charId,
-            'chat_id'       => $chatId,
+            'chat_id'       => $chatId === 0 ? null : $chatId,
             'action_name'   => self::GRANTED_FLAG,
             'action_status' => 'Completed',
             'description'   => 'ADR-104 onboarding: выдан стартовый набор выжившего',

@@ -8629,20 +8629,8 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Profile/ToggleInsuranceAction.php
 
 		-
-			message: '#^Cannot access offset ''cell_number'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/StartCommand.php
-
-		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/StartCommand.php
-
-		-
-			message: '#^Parameter \#1 \$id of method CodeIgniter\\Model\:\:update\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, int\|string\|false given\.$#'
-			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/StartCommand.php
 

@@ -1,8 +1,8 @@
 ---
 story: web-accounts-p0-04
 spec: web-accounts-p0
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -33,7 +33,8 @@ that call needs the Telegram payload. `StarterKitService` and `NewbieGreeterServ
 - app/Services/Onboarding/StarterKitService.php
 - app/Services/Onboarding/NewbieGreeterService.php
 - tests/database/CharacterProvisioningServiceTest.php
-
+- tests/unit/Services/Onboarding/OnboardingNavLabelConsistencyTest.php
+- phpstan-baseline.neon
 ## Non-goals
 - No web controller, form or route. The web caller is story 08.
 - Do not change the starting numbers (gold, stats, health), the spawn biome list or the order of
@@ -68,5 +69,17 @@ that call needs the Telegram payload. `StarterKitService` and `NewbieGreeterServ
 
 
 ## Implementation notes
+- New `app/Services/Player/CharacterProvisioningService.php`: `create(string,?int,?int,?int): int` does the old `StartCommand` writes in the old order, with account attach added right after the name fallback (`attachCharacter` when `$accountId` is given, else `ensureForTelegram`). `lastTexts()` returns `spawned`/`singleScreen`/kit/signal/greeter texts for the bot's first screen, so the `create()` signature stays as the story says. It sends nothing.
+- `StartCommand`: the new-character branch calls the service and keeps the keyboard, texts, sends and the referral call. The referral now runs after spawn/kit/bait/greeter instead of before spawn. The story itself keeps referral in the command, and it writes only the referral edge. `mintDistinctName` delegates to the service (tests and `AutoGenerateNameAction` still reference it). Removed the unused `MapModel`/`BiomeModel` imports.
+- `StarterKitService::grant` / `NewbieGreeterService::placeGreeterForNewChar` take `?int $chatId` (grant also `?int $tgUserId`, which it never used). The protected seams `writeGrantedFlag`/`writeMarker` keep `int $chatId` because test doubles in `tests/unit` override them with `int`, and widening the parent type would fatal. Null goes in as 0 and the seam writes NULL (Telegram has no chat id 0).
+- Hardcoded start numbers (gold 1000, health/tired 100, stats 0.01, experience 0.01), spawn biomes [1,2,3,5,6,7,8,9] and Y>=900 moved into the service unchanged, per Non-goals. Not migrated to GameSettings.
+- `tests/database/CharacterProvisioningServiceTest.php` builds its schema from real migrations. 3 tests: the bot path against the pre-refactor fixture plus a telegram identity; the web-only path (NULL chat_id flags, no telegram_users row); the `Путник-{id}` fallback for both callers. Green 3/3 runs. The spawn sits at Y=900 so the bait and greeter cells fall outside the spawn pool. Surprise: an earlier fixture with those cells at Y>=900 let the random spawn land on them.
+- Plan-delta follow-up: `OnboardingNavLabelConsistencyTest::testStartCommandPassesSingleScreenContextToSections` now scans `CharacterProvisioningService.php` (StartCommand no longer passes singleScreen, the service computes it, so there is nothing to assert in StartCommand). Removed the two `ignore.unmatched` StartCommand entries from `phpstan-baseline.neon`; phpstan reports no errors.
+- Not covered by a DB test: `StartCommand::execute` itself (it needs a Telegram message), so the referral call and the existing-player branch are only checked as unchanged code, not executed.
 
 ## Findings
+**NEEDS_CONTEXT: two files outside `## Files` must change for the gates to go green:**
+1. `tests/unit/Services/Onboarding/OnboardingNavLabelConsistencyTest.php::testStartCommandPassesSingleScreenContextToSections` source-scans `StartCommand.php` for `placeBaitForNewChar(... ! $singleScreen` / `placeGreeterForNewChar(... ! $singleScreen`. Those calls moved into `CharacterProvisioningService.php` (which still passes `! $singleScreen`), so this test is now red. It was the only failure in `tests/unit/Services/Onboarding` + `tests/unit/Controllers/Telegram` (388 tests). Proposed fix: point the scan at `app/Services/Player/CharacterProvisioningService.php`. May I add this file to the story?
+2. `phpstan-baseline.neon`: two `StartCommand.php` entries (`offset 'cell_number'`, `update() ... int|string|false given`) belonged to the moved code and now report `ignore.unmatched`. Proposed fix: delete those two entries. The new service adds no phpstan errors. May I add this file to the story?
+Full suite not run: a parallel session is editing the same tree (story 05 files: AccountSession, AccountAuth, Filters/Routes). Its phpstan errors (`App\Controllers\AccountSession` not found, `AccountSession.php:242`) are not from this story.
+Re-dispatch 2026-09-23: `## Files` and plan deltas still carry no answer to 1-2, so the story stays NEEDS_CONTEXT. Existing edits are intact. Own test: 2 green runs out of 3. The failing run hit "Failed to open the referenced table 'characters'" while the parallel session was using the shared `wildworld_tests` DB. The source-scan test is still red.
