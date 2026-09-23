@@ -1,8 +1,8 @@
 ---
 story: bugs-info-0923-01
 spec: bugs-info-0923
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -47,5 +47,9 @@ blocked_by: []
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `ExploredMapService.php`: окно вынесено в `public window(minX,maxX,minY,maxY)`, зажим `WORLD_MIN=0..WORLD_MAX=WORLD_SIDE-1` (было `1..1000`); отрисовка вынесена в `public drawImage(window, cells, ?px, ?py): ?\GdImage` без БД, `renderPng` = summary → window → SELECT → drawImage → PNG. Поле `PAD=2` стало константой. Формат/размер картинки не менялся.
+- `TextMapService.php`: не тронут — закреплено тестом (ряд `Y=0` у игрока на `Y=1` рисуется клетками мира на нетронутом коде).
+- `MapZeroEdgeTest`: 4 теста; при возврате старого зажима `max(1)/min(WORLD_SIDE)` краснеют все 3 теста картинки (проверено откатом), текстовый — зелёный на обеих версиях, как и ожидалось.
+- Полный `phpunit`: 618 errors / 11 failures, все — гонка схемы в общей `wildworld_tests` (`Table 'characters' already exists`, `Cannot drop table 'characters' referenced by FK`), вероятно параллельные прогоны других story; ни одного падения в World/Map. `tests/unit/Services/World` (64) и `tests/unit/World` (7) зелёные. phpstan: 24 ошибки только в `QuestsInfo.php` и `StrategicLootHandler.php` (чужие незакоммиченные правки), по двум файлам story — 0.
 
 ## Findings

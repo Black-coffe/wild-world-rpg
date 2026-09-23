@@ -34,6 +34,17 @@ final class ExploredMapService
     /** Сторона мира в клетках. */
     public const WORLD_SIDE = 1000;
 
+    /**
+     * Границы координат мира: 0..999 по обеим осям (как `MAP_MIN=0` у движения и
+     * проверка «за краем» в `TextMapService`). Раньше окно зажималось в 1..1000 —
+     * ряд и столбец 0 не рисовались никогда (баг-репорт 23.09.2026 «ордината 0»).
+     */
+    public const WORLD_MIN = 0;
+    public const WORLD_MAX = self::WORLD_SIDE - 1;
+
+    /** Поля вокруг открытой области, в клетках: без них край выглядит обрезанным. */
+    private const PAD = 2;
+
     /** Максимальная сторона картинки в пикселях. */
     private const CANVAS_MAX = 900;
 
@@ -144,12 +155,82 @@ final class ExploredMapService
             return null;
         }
 
-        // Поля вокруг открытой области: без них край выглядит обрезанным.
-        $pad  = 2;
-        $minX = max(1, $summary['min_x'] - $pad);
-        $maxX = min(self::WORLD_SIDE, $summary['max_x'] + $pad);
-        $minY = max(1, $summary['min_y'] - $pad);
-        $maxY = min(self::WORLD_SIDE, $summary['max_y'] + $pad);
+        $window = $this->window($summary['min_x'], $summary['max_x'], $summary['min_y'], $summary['max_y']);
+
+        $db    = Database::connect();
+        $query = $db->query(
+            'SELECT m.coordinate_x AS x, m.coordinate_y AS y, m.biome_id AS biome_id
+             FROM explored_cells e
+             INNER JOIN map m ON m.cell_number = e.map_cell_id
+             WHERE e.character_id = ?
+             LIMIT ' . self::ROW_LIMIT,
+            [$characterId]
+        );
+
+        if (! $query instanceof \CodeIgniter\Database\BaseResult) {
+            return null;
+        }
+
+        $cells = [];
+        foreach ($query->getResultArray() as $cell) {
+            $cells[] = [
+                'x'        => $this->asInt($cell['x'] ?? null),
+                'y'        => $this->asInt($cell['y'] ?? null),
+                'biome_id' => $this->asInt($cell['biome_id'] ?? null),
+            ];
+        }
+
+        $im = $this->drawImage($window, $cells, $playerX, $playerY);
+        if ($im === null) {
+            return null;
+        }
+
+        $dir = WRITEPATH . 'tmp_map/';
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0777, true);
+        }
+
+        $file = $dir . 'explored_' . $characterId . '.png';
+        if (! imagepng($im, $file)) {
+            imagedestroy($im);
+            return null;
+        }
+        imagedestroy($im);
+
+        return is_file($file) ? $file : null;
+    }
+
+    /**
+     * Окно картинки: границы исследованного плюс поля, зажатые в мир 0..999.
+     *
+     * @return array{min_x: int, max_x: int, min_y: int, max_y: int}
+     */
+    public function window(int $minX, int $maxX, int $minY, int $maxY): array
+    {
+        return [
+            'min_x' => max(self::WORLD_MIN, $minX - self::PAD),
+            'max_x' => min(self::WORLD_MAX, $maxX + self::PAD),
+            'min_y' => max(self::WORLD_MIN, $minY - self::PAD),
+            'max_y' => min(self::WORLD_MAX, $maxY + self::PAD),
+        ];
+    }
+
+    /**
+     * Рисует окно без БД: клетки вне окна пропускаются, игрок — поверх всего.
+     *
+     * @param array{min_x: int, max_x: int, min_y: int, max_y: int} $window
+     * @param list<array{x: int, y: int, biome_id: int}>             $cells
+     */
+    public function drawImage(array $window, array $cells, ?int $playerX = null, ?int $playerY = null): ?\GdImage
+    {
+        if (! function_exists('imagecreatetruecolor')) {
+            return null;
+        }
+
+        $minX = $window['min_x'];
+        $maxX = $window['max_x'];
+        $minY = $window['min_y'];
+        $maxY = $window['max_y'];
 
         $cols = $maxX - $minX + 1;
         $rows = $maxY - $minY + 1;
@@ -174,30 +255,15 @@ final class ExploredMapService
         imagefilledrectangle($im, 0, 0, $canvasW - 1, $canvasH - 1, $unknown);
         imagefilledrectangle($im, 0, 0, $canvasW - 1, $canvasH - 1, $unopened);
 
-        $db    = Database::connect();
-        $query = $db->query(
-            'SELECT m.coordinate_x AS x, m.coordinate_y AS y, m.biome_id AS biome_id
-             FROM explored_cells e
-             INNER JOIN map m ON m.cell_number = e.map_cell_id
-             WHERE e.character_id = ?
-             LIMIT ' . self::ROW_LIMIT,
-            [$characterId]
-        );
-
-        if (! $query instanceof \CodeIgniter\Database\BaseResult) {
-            imagedestroy($im);
-            return null;
-        }
-
         $allocated = [];
-        foreach ($query->getResultArray() as $cell) {
-            $x = $this->asInt($cell['x'] ?? null);
-            $y = $this->asInt($cell['y'] ?? null);
+        foreach ($cells as $cell) {
+            $x = $cell['x'];
+            $y = $cell['y'];
             if ($x < $minX || $x > $maxX || $y < $minY || $y > $maxY) {
                 continue;
             }
 
-            $biomeId = $this->asInt($cell['biome_id'] ?? null);
+            $biomeId = $cell['biome_id'];
             if (! isset($allocated[$biomeId])) {
                 [$r, $g, $b] = BiomePalette::for($biomeId);
                 $allocated[$biomeId] = (int) imagecolorallocate($im, $r, $g, $b);
@@ -227,19 +293,7 @@ final class ExploredMapService
             );
         }
 
-        $dir = WRITEPATH . 'tmp_map/';
-        if (! is_dir($dir)) {
-            @mkdir($dir, 0777, true);
-        }
-
-        $file = $dir . 'explored_' . $characterId . '.png';
-        if (! imagepng($im, $file)) {
-            imagedestroy($im);
-            return null;
-        }
-        imagedestroy($im);
-
-        return is_file($file) ? $file : null;
+        return $im;
     }
 
     private function asInt(mixed $value): int
