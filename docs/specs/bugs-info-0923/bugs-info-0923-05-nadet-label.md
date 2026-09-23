@@ -1,8 +1,8 @@
 ---
 story: bugs-info-0923-05
 spec: bugs-info-0923
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: sonnet
@@ -48,5 +48,12 @@ Queen delta (2026-09-23, после grep): «Одеть» живёт ещё в `
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- `GearArmorDetailAction.php`, `GearWeaponDetailAction.php`: кнопка `'Одеть'` → `'Надеть'`, комментарии тоже поправлены; `callback_data` не тронут.
+- `ToggleEquipArmorAction.php:174`, `ToggleEquipWeaponAction.php:183`: текст кнопки после переключения `'Одеть'` → `'Надеть'`.
+- Новая миграция `2026-12-08-100000_FixArmorScreenTipNadet.php`: `UPDATE ... SET content = REPLACE(content, '*Одеть*', '*Надеть*')` по `title_en='ArmorScreen'`, `down()` — обратная замена. Сид `2026-10-24-100000_SeedArmorScreenTip.php` не тронут (по указанию Queen delta).
+- `git grep -n "Одеть" -- app` находит только строку внутри старого сида `2026-10-24-100000_SeedArmorScreenTip.php:42` — ожидаемо (Queen delta это явно предвидела, поэтому acceptance-строка «grep пуст» выше по файлу устарела относительно delta).
+- Тестов, закрепляющих подпись кнопки или текст тайпа, не найдено (`grep -rln "Одеть\|Надеть" tests/` — только `tests/_support/Community/provenance-corpus.php`, статический корпус, уже ждёт «Надеть», ассертов на код не делает).
+- Полный phpunit-прогон: 2 незатронутых падения (`BiomeGatherProfileServiceTest`, `SpecializationServiceTest`) и фон ~427 ошибок — не в файлах story, пре-существующее состояние параллельной волны (другие story правят `CraftedResourcesAction.php`, `QuestsInfo.php`, `ExploredMapService.php`, `StrategicLootHandler.php` одновременно).
+- phpstan: 24 pre-existing ошибки вне файлов story (`QuestsInfo.php`, `StrategicLootHandler.php`) — ноль ошибок в тронутых файлах.
 
 ## Findings

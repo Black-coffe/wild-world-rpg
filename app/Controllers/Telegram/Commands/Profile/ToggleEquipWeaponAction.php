@@ -180,7 +180,7 @@ class ToggleEquipWeaponAction extends BaseAction
             . "{$extraNote}\n";
 
         // Кнопка — переключатель
-        $toggleButtonText = $newEquippedState ? "Снять" : "Одеть";
+        $toggleButtonText = $newEquippedState ? "Снять" : "Надеть";
         $toggleCallback   = "toggleEquipWeapon_{$charWeaponId}";
 
         // Кнопка «⚔️ Экип» → возвращение к меню экипировки

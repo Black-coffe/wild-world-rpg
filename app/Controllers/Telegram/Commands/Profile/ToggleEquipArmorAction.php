@@ -170,8 +170,8 @@ class ToggleEquipArmorAction extends BaseAction
             . "• 🕵️ Скрытность: *{$stealthMod}*\n"
             . "• 🎖 Редкость: *{$rarity}*\n";
 
-        // Обновляем текст кнопки (если сняли — будет "Одеть", если надели — "Снять")
-        $toggleButtonText = $currentlyEquipped ? 'Одеть' : 'Снять';
+        // Обновляем текст кнопки (если сняли — будет "Надеть", если надели — "Снять")
+        $toggleButtonText = $currentlyEquipped ? 'Надеть' : 'Снять';
         $toggleCallback   = "toggleEquipArmor_{$charOutfitId}";
 
         // Кнопка "назад" в меню брони
