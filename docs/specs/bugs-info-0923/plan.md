@@ -87,6 +87,7 @@ env "database.tests.database=wildworld_ci_bi0923" vendor/bin/phpunit --no-covera
 **Branch:** vulyk/bugs-info-0923
 **Checked:** <written by scripts/human-check.sh after the owner has looked - stage 05, and the override for stage 04+05. /vulyk-ship refuses without either this or a GREEN **Council:** line.>
 **Council:** RED round 1, 2026-09-23, at d7c1eb9e, pack 1803240603db - red: 5
+**Council:** GREEN round 2, 2026-09-23, at ce81431e, pack e9d9813cabcd
 **Shipped:** <written by scripts/ship-check.sh --record - stage 06: the published version, and where>
 
 
