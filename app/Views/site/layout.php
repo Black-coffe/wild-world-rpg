@@ -104,7 +104,25 @@ $metaData = [
     'jsonLd'      => $jsonLd,
 ];
 // CTA-ссылки шапки/подвала несут src-метку атрибуции ($tgLink выше остаётся голым — он идёт в schema.org sameAs).
-$headerData = ['navCats' => $navCats, 'uri' => $uri, 'tgLink' => $social->botStart('src_site_header')];
+// web-accounts-p0-08 (ADR-188) — состояние входа в шапке: «Войти» или имя персонажа → /account.
+// Сессию трогаем только если браузер уже несёт cookie сессии или remember-me: анонимный визит
+// (и поисковый робот) не должен заводить файл сессии на каждой странице.
+$authLabel = null;
+$request   = service('request');
+if ($request instanceof \CodeIgniter\HTTP\IncomingRequest
+    && ($request->getCookie(config(\Config\Session::class)->cookieName) !== null
+        || $request->getCookie(config(\Config\Accounts::class)->rememberCookie) !== null)) {
+    try {
+        $current = (new \App\Services\Web\AccountSession())->current();
+        if ($current !== null) {
+            $character = (new \App\Services\Web\AccountService())->characterForAccount($current['account_id']);
+            $authLabel = is_string($character['name'] ?? null) && $character['name'] !== '' ? $character['name'] : 'Аккаунт';
+        }
+    } catch (\Throwable) {
+        $authLabel = null; // БД/сессия недоступны — шапка остаётся с «Войти», страница рендерится.
+    }
+}
+$headerData = ['navCats' => $navCats, 'uri' => $uri, 'tgLink' => $social->botStart('src_site_header'), 'authLabel' => $authLabel];
 $footerData = ['navCats' => $navCats, 'tgLink' => $social->botStart('src_site_footer'), 'groupLink' => $groupLink];
 ?><!DOCTYPE html>
 <html lang="ru" data-theme="ash">

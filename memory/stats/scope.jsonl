@@ -192,3 +192,4 @@
 {"ts":"2026-09-23T18:49:29Z","story":"web-accounts-p0-04-provisioning","declared":7,"changed":27,"out_of_scope":20}
 {"ts":"2026-09-23T18:54:10Z","story":"web-accounts-p0-05-auth-core","declared":16,"changed":18,"out_of_scope":2}
 {"ts":"2026-09-23T19:20:03Z","story":"web-accounts-p0-07-oauth-cabinet","declared":12,"changed":26,"out_of_scope":14}
+{"ts":"2026-09-23T19:24:54Z","story":"web-accounts-p0-08-registration","declared":11,"changed":13,"out_of_scope":2}
