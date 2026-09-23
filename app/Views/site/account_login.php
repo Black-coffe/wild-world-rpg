@@ -1,6 +1,7 @@
 <?php
 /**
- * web-accounts-p0-05 (ADR-188) — вход на сайт.
+ * web-accounts-p0-05 (ADR-188) — вход на сайт. Story 07: кнопки Google / Яндекс (partial
+ * `account_oauth_buttons`; без env — видны как «недоступно», не ссылками).
  *
  * Форма email+пароль рисуется ВСЕГДА (не зависит ни от флагов, ни от env) — это путь, который
  * доступен всегда. Telegram Login Widget — дополнительно, если задан бот (единственный JS страницы).
@@ -23,7 +24,7 @@ $botUsername = is_string($botUsername ?? null) ? $botUsername : '';
     <div class="container">
         <div class="section-head">
             <div><h1 class="mt-1 mb-0">Вход</h1></div>
-            <div class="desc">Один аккаунт на все способы входа: почта с паролем или Telegram.</div>
+            <div class="desc">Один аккаунт на все способы входа: почта с паролем, Telegram, Google или Яндекс.</div>
         </div>
 
         <div class="grid grid-2">
@@ -64,6 +65,9 @@ $botUsername = is_string($botUsername ?? null) ? $botUsername : '';
                         <p class="provider-note">Вход через Telegram сейчас не настроен. Войди почтой и паролем.</p>
                     </div>
                 <?php endif ?>
+
+                <div class="label">Войти через Google или Яндекс</div>
+                <?= view('site/account_oauth_buttons', ['oauthMode' => 'login']) ?>
             </div>
         </div>
     </div>
