@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
+use App\Services\Web\AccountService;
+use App\Services\Web\AccountSession;
 use App\Services\Web\TelegramLoginVerifier;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Database;
@@ -14,10 +15,10 @@ use Config\Services;
 /**
  * ADR-061 — Telegram Login Widget callback + logout.
  *
- * Виджет на /map шлёт GET-запрос со своими params (id, first_name, ..., hash).
- * Проверяем HMAC через TelegramLoginVerifier, маппим telegram_id → telegram_users
- * → characters, кладём в CI4-сессию `tg_user_id` (= telegram_users.id), редиректим
- * обратно на /map.
+ * Виджет (/map, /account/login, профиль…) шлёт GET-запрос со своими params (id, first_name, ..., hash).
+ * Проверяем HMAC через TelegramLoginVerifier, маппим telegram_id → telegram_users → аккаунт
+ * через его telegram-identity (ADR-188) и входим через AccountSession (ключи account_id,
+ * character_id, legacy tg_user_id). Уже вошедший в другой аккаунт — привязка по правилу A2.
  *
  * Other-player visibility НЕ открывается этим контроллером — только own position
  * (см. Map::data() me-block).
@@ -69,30 +70,57 @@ class TelegramLogin extends BaseController
 
         $tgUserPk = (int) $tgUser['id'];
 
-        // CI4-сессия. Регенерим session_id (anti-fixation).
+        // ADR-188 (web-accounts-p0-05): вход идёт через telegram-identity аккаунта.
+        $accounts        = new AccountService();
+        $accountSession  = new AccountSession(accounts: $accounts);
+        $telegramAccount = $accounts->ensureForTelegram($tgUserPk);
+        $current         = $accountSession->current();
+        $status          = 'auth=ok';
+
+        if ($current !== null && $current['account_id'] !== $telegramAccount) {
+            // Уже вошёл в другой аккаунт → привязка по правилу плана A2.
+            $merged = $this->linkTelegram($accounts, $current['account_id'], $telegramAccount);
+            if ($merged === null) {
+                return redirect()->to('/account?auth=link_refused')->withCookies();
+            }
+            $telegramAccount = $merged;
+            $status          = 'auth=linked';
+        }
+
+        // Новый id сессии (anti-fixation) + account_id/character_id/tg_user_id.
+        $accountSession->login($telegramAccount);
         $session = Services::session();
-        $session->regenerate(true);
-        $session->set('tg_user_id', $tgUserPk);
         $session->set('tg_first_name', $firstName);
         $session->set('tg_username', $username);
 
-        // Соединяем character (опционально — может ещё не быть)
-        $character = (new CharacterModel())->where('telegram_user_id', $tgUserPk)->first();
-        if (is_array($character) && isset($character['id']) && is_numeric($character['id'])) {
-            $session->set('character_id', (int) $character['id']);
-        }
-
-        return redirect()->to($this->withParam($next, 'auth=ok'));
+        return redirect()->to($this->withParam($next, $status))->withCookies();
     }
 
     public function logout(): ResponseInterface
     {
-        $next    = $this->safeNext(is_scalar($this->request->getPost('next') ?? null) ? (string) $this->request->getPost('next') : null);
-        $session = Services::session();
-        $session->remove(['tg_user_id', 'tg_first_name', 'tg_username', 'character_id']);
-        $session->regenerate(true);
+        $next = $this->safeNext(is_scalar($this->request->getPost('next') ?? null) ? (string) $this->request->getPost('next') : null);
+        (new AccountSession())->logout();
 
-        return redirect()->to($this->withParam($next, 'auth=logged_out'));
+        return redirect()->to($this->withParam($next, 'auth=logged_out'))->withCookies();
+    }
+
+    /**
+     * Правило A2: аккаунт без персонажа вливается в аккаунт с персонажем; два разных персонажа —
+     * отказ (null). Возвращает аккаунт, в котором оказался вход.
+     */
+    private function linkTelegram(AccountService $accounts, int $currentAccount, int $telegramAccount): ?int
+    {
+        $currentHasChar  = $accounts->characterForAccount($currentAccount) !== null;
+        $telegramHasChar = $accounts->characterForAccount($telegramAccount) !== null;
+
+        if (! $currentHasChar) {
+            return $accounts->mergeInto($currentAccount, $telegramAccount) ? $telegramAccount : null;
+        }
+        if (! $telegramHasChar) {
+            return $accounts->mergeInto($telegramAccount, $currentAccount) ? $currentAccount : null;
+        }
+
+        return null;
     }
 
     /**

@@ -1,8 +1,8 @@
 ---
 story: web-accounts-p0-05
 spec: web-accounts-p0
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -93,5 +93,16 @@ The site has one login system keyed by `account_id`. The APIs of `AccountSession
 
 
 ## Implementation notes
+- Files: `AccountSession`, `AccountAuthService`, `AccountThrottleFilter` (new); `AccountAuth`, `AccountCabinet` controllers + `account_login`/`account_cabinet` views (new); `Filters.php` alias `accountThrottle`; `Routes.php` whole `/account` group (declared before the root catch-all); `TelegramLogin`, `Map`, `Profile/Achievements/BattlesController` read the session via `AccountSession`; tests `AccountSessionTest` (7), `AccountAuthTest` (9).
+- Remember-me: selector 24 hex + validator 64 hex, only sha256 stored; the token row is deleted on every presentation (valid → re-issued, invalid/expired/stolen → cookie expired), `affectedRows()===1` makes parallel reuse single-winner. Cookie Secure follows `Config\Cookie::$secure` (true in production), HttpOnly, Lax.
+- Deviation: `logout()` removes the keys and regenerates the session id instead of `session->destroy()` (destroy warns under MockSession and kills flash for the redirect); same security effect.
+- `current()` checks the account row still exists (an account merged away on another device logs out). Legacy `tg_user_id`-only sessions are upgraded via `ensureForTelegram` once; an unknown `tg_user_id` clears the keys.
+- Widget (A2): always `ensureForTelegram` first, then if logged into another account: no-char account merges into the char account; char account + Telegram without char → the Telegram account merges into the current one; two characters → `/account?auth=link_refused`. Widget on `/account/login` passes `next=/account`.
+- Throttle 429 renders `site/account_login` with the notice for every guarded path (no generic notice view in Files); per-identifier bucket keys on POST `email` or `code`.
+- `AccountAuthService::setEmailPassword`: same account + same email = password change; account already holding a different email → `account_has_email`.
+- Not verified: browser pass at 375/768/1440 (no-scroll, console) — views use only story-03 classes and no inline styles; left for the Queen's Tier-2 pass.
+- Gates: my two test files green; full suite 4278 tests, 1 failure `OnboardingNavLabelConsistencyTest::testStartCommandPassesSingleScreenContextToSections`, and phpstan 2 `ignore.unmatched` in `StartCommand.php` — both from story 04's uncommitted `StartCommand.php` in the shared tree (not touched here). Migrations lint OK.
+- Re-dispatch 2026-09-23: no code changes. Story 04's worker ran `CharacterProvisioningServiceTest` against `wildworld_tests` at the same time, so my DB tests failed randomly ("table doesn't exist/already exists"). Run alone they are green (16/145). Gates were unchanged: 4278 tests / 1 failure in the StartCommand-only source-scan test, phpstan 2 `ignore.unmatched` in StartCommand, lint OK.
+- CSRF test non-vacuity: with `account/*` added to the csrf `except` list the test went red on `account/login` (logout was not separately exercised in that run).
 
 ## Findings

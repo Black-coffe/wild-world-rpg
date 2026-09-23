@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Services\Player\AchievementService;
+use App\Services\Web\AccountSession;
 use CodeIgniter\Controller;
 
 /**
@@ -88,11 +89,10 @@ class AchievementsController extends Controller
     private function authContext(): array
     {
         $session = session();
-        $tgId    = $session->get('tg_user_id');
-        $authed  = is_numeric($tgId) && (int) $tgId > 0;
-
-        $charIdRaw   = $session->get('character_id');
-        $characterId = ($authed && is_numeric($charIdRaw)) ? (int) $charIdRaw : 0;
+        // ADR-188: вход — это аккаунт (email/виджет/legacy tg_user_id-сессия, см. AccountSession).
+        $current     = (new AccountSession())->current();
+        $authed      = $current !== null;
+        $characterId = $current['character_id'] ?? 0;
 
         $name = '';
         if ($authed) {
