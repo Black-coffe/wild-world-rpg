@@ -1,8 +1,8 @@
 ---
 story: bugs-info-0923-03
 spec: bugs-info-0923
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -49,5 +49,11 @@ blocked_by: []
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `QuestsInfo.php`: четыре захардкоженных `sendQuestInfo*` удалены; новые public static `cardTail()` (хвост после первого `questInfo_`), `buildCard()` (карточка/отказ из строки `quests`), `generateQuestKeyboard()` стала static и шлёт `questInfo_id<id>`. Кнопки карточки: «📜 К списку квестов» (`questInfo`) + «◀️ Я» (`character`) одним рядом. У прежних четырёх карточек кнопок действия не было — ничего не потеряно.
+- Маршрут: `CallbackRoutes::$exactRoutes` матчит первый сегмент до `_`, так что `questInfo_id17` и `questInfo_<title_en>` идут в тот же класс — файл не тронут.
+- Экранирование: `MarkdownSafe::name/text` (вырезают `*_`[]`` — legacy Markdown без backslash-эскейпа). Награда: `reward` + подпись типа (gold/experience/items как в ActiveQuests), число форматируется с пробелом тысяч.
+- Вне `## Files`: из `phpstan-baseline.neon` удалены 10 записей про удалённые методы/старую сигнатуру `generateQuestKeyboard` (иначе `ignore.unmatched` роняет phpstan). Больше ничего.
+- Тест требует миграции через `require_once` (файлы с датой не автозагружаются); `quests` создаётся/дополняется `prerequisite_quest` только если их нет, и откатывается в tearDown.
+- Список (`title_ru` в тексте списка) по-прежнему не экранируется — вне скоупа; тот же класс бага, что и в карточке.
 
 ## Findings

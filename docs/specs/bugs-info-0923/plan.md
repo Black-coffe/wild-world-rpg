@@ -10,6 +10,7 @@
 **Выбранный подход и отклонённый.**
 - **Еда.** Принято: пометка на экране по `type='food'`, без миграции и без смены `status`. Отклонено: вывести предметы из обращения здесь, то есть слить или повторить `craft-shelf-coverage`. Это компенсация игрокам и миграция данных, решение ADR-185 со своей неслитой веткой. Владелец в Answers 1 оставил его там. Цена принятого: временная пометка, которую уберёт слияние ADR-185, и возможный текстовый конфликт в `CraftedResourcesAction.php` при слиянии (открытый вопрос 5).
 - **Квесты.** Принято: одна карточка из строки `quests` для всех квестов. Отклонено: дописать захардкоженные карточки для остальных квестов. Это та же ловушка, что сейчас: каждый новый квест снова молча падает в список.
+- **Ask 5, раунд 1 (история 06).** Принято: исправить текст самого старого сида и переписать fix-миграцию на `UPDATE` полного текста совета без старого слова. После этого `git grep` пуст честно. Отклонено: (а) замаскировать литерал в `REPLACE` (`\u{041E}`, конкатенация) — это обход проверки, а не фикс, и совет его заметит; (б) судить ask «по намерению», как сделал opus-seat, — буквальную проверку ask'а может снять только владелец, planner — нет. Цена принятого: правится уже применённая миграция, что на свежей БД безопасно, а на живых БД ни на что не влияет. `UPDATE` полного текста затирает ручную правку совета ArmorScreen из админки, если такая была (открытый вопрос 6).
 
 ## Assumptions
 
@@ -26,6 +27,7 @@
 - **Живой Tier-3 (ask 7) — Queen после мерджа и деплоя на preprod-testbot**, тест-чар `telegram_user_id=25`, вебхук или Telegram Web. Результат записывается в этот файл, в `## Plan deltas`. На проде Tier-3 не гоняем.
 - **Ответы в треде (Answers 2) — Queen после прод-смока**: реплай на каждый из 5 багов и на вопрос Анжелы про роботов, с аккаунта Main, с номером версии.
 - **`## Verification` каждой истории — полный набор + phpstan.** Одиночный тест-файл назван в `## Acceptance criteria`. Причина: `cycle.sh close-story` сверяет строку `## Verification` с ячейкой `## Commands` байт в байт (`command_cell_exists`, `scripts/cycle.sh:1455-1475`). Ячейка одиночного файла содержит плейсхолдер `<Path>` и конкретному пути не совпадёт никогда. Предупреждение `wave-check` `verify-gap` на этих строках ложное: там путь к бинарнику, а не к исходникам. Так же было в `multibase-picker`.
+- **Раунд 1, ask 5 (история 06):** миграция `2026-12-08-100000_FixArmorScreenTipNadet` ещё не выезжала ни на preprod, ни на прод: ветка не влита. Поэтому её можно переписать на месте, новая миграция не нужна. Её `down()` становится no-op: это текстовая правка данных, откатывать её не на что.
 
 ## Stories
 
@@ -36,7 +38,10 @@
 - `bugs-info-0923-04-loot-names-ru` — русские имена ресурсов в находке стратегического объекта + вердикт по четырём двойникам. **model: opus.**
 - `bugs-info-0923-05-nadet-label` — «Одеть» → «Надеть» на карточках брони и оружия. model: sonnet.
 
-**Merge pass.** Все пять проходят neighbour-тест: общих файлов и общей ментальной модели нет. История 05 по payback-тесту на бумаге тонкая, но ни с какой другой историей не граничит: gear-файлы профиля ни у кого не лежат. Она идёт на sonnet, то есть дёшево, и даёт отдельный коммит, на который ссылается реплай игроку. Кандидаты-двойники ask 4 влиты в историю 04, а не выделены: тот же класс дефекта, та же ментальная модель («строка `ResourceModel` — сущность»), а поодиночке каждый не окупает себя.
+**Wave 2** — фиксы после RED раунда 1 совета, одна история на каждый нерешённый ask
+- `bugs-info-0923-06-nadet-migrations` — ask 5: старое слово уходит из сида ArmorScreen и из fix-миграции (полный `UPDATE` текста, `down()` no-op), после истории `git grep -n "Одеть" -- app` пуст. `blocked_by: [bugs-info-0923-05]`. model: sonnet.
+
+**Merge pass.** Все пять проходят neighbour-тест: общих файлов и общей ментальной модели нет. История 05 по payback-тесту на бумаге тонкая, но ни с какой другой историей не граничит: gear-файлы профиля ни у кого не лежат. Она идёт на sonnet, то есть дёшево, и даёт отдельный коммит, на который ссылается реплай игроку. Кандидаты-двойники ask 4 влиты в историю 04, а не выделены: тот же класс дефекта, та же ментальная модель («строка `ResourceModel` — сущность»), а поодиночке каждый не окупает себя. История 06 граничит с 05 по файлу fix-миграции, но 05 уже `done`, а 06 идёт в другой волне. По правилам это вопрос последовательности, а не слияния.
 
 | Ask | Кто закрывает |
 |---|---|
@@ -44,7 +49,7 @@
 | 2 | `bugs-info-0923-02` |
 | 3 | `bugs-info-0923-03` |
 | 4 | `bugs-info-0923-04` (StrategicLoot + вердикт по каждому двойнику в story) |
-| 5 | `bugs-info-0923-05` |
+| 5 | `bugs-info-0923-05` (подписи кнопок) + `bugs-info-0923-06` (миграции, `git grep` пуст — RED раунда 1) |
 | 6 | гейты — `## Integration gate` (каждая история несёт свой тест); tech-writing — `drone-docs` после мерджа (Assumptions); вердикты guide/tips/онбординг «нет» и discoverability «новых входов нет» зафиксированы в брифе, историй не требуют |
 | 7 | Queen: Tier-3 на preprod-testbot после мерджа и деплоя, результат — в `## Plan deltas` (Assumptions) |
 
@@ -53,6 +58,7 @@
 - **Callback карточки квеста (история 03).** Новая кнопка: `questInfo_id<quests.id>`, например `questInfo_id17`, `strlen ≤ 64`. Легаси-кнопка `questInfo_<title_en>` тоже принимается: остаток после ПЕРВОГО префикса `questInfo_` целиком, без `explode('_')`. Форма `id<N>` распознаётся только при полном совпадении остатка с `^id(\d+)$`, всё остальное считается `title_en`. Неизвестный id или `title_en` → текст отказа + кнопка «назад к списку». Префикс маршрута не меняется.
 - **Пометка еды (история 02).** Рядом с именем каждого предмета `type='food'` стоит текст «не применяется, выводится из обращения». Под блоком еды — строка с путём «🎒 Инвентарь → 🥣 Провизия». Смоук ищет эти две подстроки.
 - **Подпись кнопки экипировки (история 05)** — «Надеть». `callback_data` не меняется.
+- **Текст совета ArmorScreen (истории 05 → 06).** Строка `game_tips` с `title_en='ArmorScreen'`: после всех миграций `content` совпадает байт в байт с текстом исправленного сида и содержит «*Надеть*». Ключ, категория и остальной текст остаются прежними.
 
 ## Integration gate
 После волны 1, на свежей пустой тест-БД (общая `wildworld_tests` красная без правок — состояние машины, не регресс):
@@ -60,7 +66,7 @@
 /c/laragon/bin/mysql/mysql-8.0.30-winx64/bin/mysql.exe -uroot -e "DROP DATABASE IF EXISTS wildworld_ci_bi0923; CREATE DATABASE wildworld_ci_bi0923 CHARACTER SET utf8mb4;"
 env "database.tests.database=wildworld_ci_bi0923" vendor/bin/phpunit --no-coverage --no-progress
 ```
-`vendor/bin/phpstan analyse --memory-limit=512M --no-progress`; `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null` (миграций нет, строка — формальность ask 6); `git grep -n "Одеть" -- app` пуст. Перед диспатчем — `bash scripts/wave-check.sh docs/specs/bugs-info-0923`.
+`vendor/bin/phpstan analyse --memory-limit=512M --no-progress`; `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null` (миграций нет, строка — формальность ask 6); `git grep -n "Одеть" -- app` пуст. Перед диспатчем — `bash scripts/wave-check.sh docs/specs/bugs-info-0923`. После волны 2 тот же гейт гоняется ещё раз, и `git grep` обязан быть пуст буквально.
 
 ## Открытые вопросы (разведка для Queen, не блокируют волну 1)
 1. `git grep -n "Одеть" -- app tests`: есть ли вхождения вне `Profile/GearArmorDetailAction.php` и `Profile/GearWeaponDetailAction.php`, включая тест, который проверяет подпись кнопки? Если есть — дельта с расширением `## Files` истории 05 до диспатча.
@@ -68,6 +74,7 @@ env "database.tests.database=wildworld_ci_bi0923" vendor/bin/phpunit --no-covera
 3. Ask 7, «принудительная находка Старой фермы» на testbot: какой путь запускает `StrategicLootHandler` (строка `character_tasks`, `php spark`-команда)? Нужен до смоука, не до сборки.
 4. `app/Config/CallbackRoutes.php`: маршрут `questInfo` — префиксный? Воркер 03 сверяет сам и сообщает, если нет.
 5. `git diff --stat develop...vulyk/craft-shelf-coverage -- app/Controllers/Telegram/Commands/Actions/CraftedResourcesAction.php`: если ветка ADR-185 правит тот же файл, при её слиянии пометку истории 02 нужно снять вручную.
+6. Прод, read-only, до мерджа: `SELECT content FROM game_tips WHERE title_en='ArmorScreen';` совпадает с текстом старого сида? Если совет правили в админке, полный `UPDATE` истории 06 затрёт эту правку. Тогда Queen пишет дельту: история 06 переносит правку в текст сида.
 
 ## Descoped
 
@@ -77,7 +84,14 @@ env "database.tests.database=wildworld_ci_bi0923" vendor/bin/phpunit --no-covera
 
 **Approved:** <owner, date - stage 02, the unconditional gate. /vulyk-build refuses without this line.>
 **Briefed:** via grill, Andrei, 2026-09-23
-**Branch:** <written by /vulyk-build before wave 1 - stage 03: the branch every story commit lives on>
+**Branch:** vulyk/bugs-info-0923
 **Checked:** <written by scripts/human-check.sh after the owner has looked - stage 05, and the override for stage 04+05. /vulyk-ship refuses without either this or a GREEN **Council:** line.>
-**Council:** <written by scripts/cycle.sh judge/escalate - stages 04+05: "<GREEN|RED|ESCALATE|STALE> round <N>, <date>, at <sha7>, pack <fp12>[ - red: 2,5]", appended once per round.>
+**Council:** RED round 1, 2026-09-23, at d7c1eb9e, pack 1803240603db - red: 5
+**Council:** GREEN round 2, 2026-09-23, at ce81431e, pack e9d9813cabcd
 **Shipped:** <written by scripts/ship-check.sh --record - stage 06: the published version, and where>
+
+
+## Plan deltas
+
+- Queen, 2026-09-23, после волны 1: `phpstan-baseline.neon` — файл story 04. В baseline лежали три ошибки phpstan ровно на баг фермы (`is_array()` с `ResourceEntity` «always false») — фикс story 04 делает их `ignore.unmatched`, их надо удалить. Там же едут удалённые story 03 записи для выпиленных захардкоженных методов `QuestsInfo` (60 строк) — оба удаления честные, один файл = одна story.
+- Planner, 2026-09-23, после RED раунда 1 (`council/round-1`): ask 5 RED у sonnet-seat. Литерал `git grep -n "Одеть" -- app` непуст, 4 хита в миграциях `2026-10-24-100000_SeedArmorScreenTip.php` и `2026-12-08-100000_FixArmorScreenTipNadet.php`. Opus-seat поставил GREEN «по намерению», haiku-seat — N/A. Нарезана история `bugs-info-0923-06-nadet-migrations`, волна 2, `blocked_by: [bugs-info-0923-05]`. Остальные asks не RED ни у одного места, новых историй не требуют. UNASKED opus-seat (админ-генератор карты 1..1000, faction lock у карточки квеста, markdown в списке квестов) в фиксы не взяты: ни один ask их не требует. Это кандидаты в отдельную спеку, решает владелец.

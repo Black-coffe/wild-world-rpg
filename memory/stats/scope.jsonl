@@ -172,3 +172,11 @@
 {"ts":"2026-09-15T10:53:01Z","story":"multibase-picker-10-hangar-hub-no-base","declared":4,"changed":5,"out_of_scope":1}
 {"ts":"2026-09-15T11:24:46Z","story":"multibase-picker-11-bare-construction-resolve","declared":4,"changed":10,"out_of_scope":6}
 {"ts":"2026-09-15T11:27:59Z","story":"multibase-picker-12-review-minors-tests","declared":5,"changed":5,"out_of_scope":0}
+{"ts":"2026-09-23T14:10:46Z","story":"bugs-info-0923-01-map-zero-row","declared":3,"changed":18,"out_of_scope":16}
+{"ts":"2026-09-23T14:14:11Z","story":"bugs-info-0923-05-nadet-label","declared":5,"changed":19,"out_of_scope":14}
+{"ts":"2026-09-23T14:18:24Z","story":"bugs-info-0923-01-map-zero-row","declared":3,"changed":20,"out_of_scope":18}
+{"ts":"2026-09-23T14:21:20Z","story":"bugs-info-0923-02-food-marker","declared":2,"changed":16,"out_of_scope":14}
+{"ts":"2026-09-23T14:24:18Z","story":"bugs-info-0923-03-quest-card","declared":2,"changed":13,"out_of_scope":11}
+{"ts":"2026-09-23T14:27:17Z","story":"bugs-info-0923-04-loot-names-ru","declared":8,"changed":10,"out_of_scope":7}
+{"ts":"2026-09-23T14:30:15Z","story":"bugs-info-0923-05-nadet-label","declared":5,"changed":6,"out_of_scope":1}
+{"ts":"2026-09-23T14:47:39Z","story":"bugs-info-0923-06-nadet-migrations","declared":2,"changed":3,"out_of_scope":1}

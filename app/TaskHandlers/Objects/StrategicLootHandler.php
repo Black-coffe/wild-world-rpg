@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\TaskHandlers\Objects;
 
 use App\Attributes\HandlerKey;
+use App\Entities\ResourceEntity;
 use App\Models\BiomeWorldObjectMapModel;
 use App\Models\CharacterModel;
 use App\Models\CraftedItemsLogModel;
@@ -179,9 +180,11 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
         if (!empty($foundItems['resources'])) {
             $msg .= "📦 *Добытые ресурсы:*\n";
             foreach ($foundItems['resources'] as $resName => $qty) {
+                // ResourceModel::$returnType = ResourceEntity (не массив): is_array() тут всегда
+                // было ложно, и в находку утекал сырой name_en («Crops» вместо «Зерновые культуры»).
                 $resRow = $this->resourceModel->where('name_en', $resName)->first();
-                $resNameRus = is_array($resRow) && isset($resRow['name']) && is_string($resRow['name'])
-                    ? $resRow['name']
+                $resNameRus = $resRow instanceof ResourceEntity && $resRow->name !== ''
+                    ? $resRow->name
                     : $resName;
                 $msg .= "— *{$resNameRus}*: {$qty} шт.\n";
             }

@@ -1,8 +1,8 @@
 ---
 story: bugs-info-0923-04
 spec: bugs-info-0923
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -34,6 +34,7 @@ blocked_by: []
 - app/Services/Player/BuildingUpgrade/BuildingUpgradeValidator.php
 - tests/unit/TaskHandlers/StrategicLootResourceNamesTest.php
 - tests/unit/Camp/ResourceEntityTwinsTest.php
+- phpstan-baseline.neon
 
 ## Non-goals
 - Двойника не переписывать «заодно»: правка только там, где строка `ResourceModel` читается неверно (`is_array()` / `['name']` на сущности). Остальное — вердикт «чисто».
@@ -57,5 +58,15 @@ blocked_by: []
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `app/TaskHandlers/Objects/StrategicLootHandler.php:185` — исправлено: `is_array($resRow)` → `$resRow instanceof ResourceEntity && $resRow->name !== ''`; незнакомый ключ остаётся сырым.
+- `tests/unit/TaskHandlers/StrategicLootResourceNamesTest.php` — новый; `CREATE TEMPORARY TABLE resources` затеняет реальную таблицу только для соединения (строки 45/48/2/13/17), отправку перехватывает наследник через `safeSendPhoto`. Оба теста красные на HEAD-версии хендлера (проверено подменой файла), зелёные на новой.
+- Двойники (все четыре чисты, `ResourceEntityTwinsTest` не создан):
+  - `PlantCropActionStart.php:72` — чисто: raw builder `getRowArray()`, не `ResourceModel`.
+  - `RobotRepairConfirmAction.php:69` — чисто: `CharacterResourceModel` (`returnType='array'`), join-строка — массив.
+  - `CargoDroneSendAction.php:109` — чисто: raw `$db->query()->getRowArray()`.
+  - `BuildingUpgradeValidator.php:180` — чисто: сущность переводится в массив `$row->toArray()` до `is_array`/`['name']`.
+- Сюрприз: фикс оставляет 3 записи `phpstan-baseline.neon` без совпадений (`ignore.unmatched`, non-ignorable) — строки ~16186 (`is_array() with ResourceEntity|null`), ~16270 (`Offset 'name' on *NEVER*`), ~16294 (`Result of && is always false`, count 2) для `StrategicLootHandler.php`. Baseline не в Files story — не тронут.
+- Repair: `phpstan-baseline.neon` добавлен в Files (план-дельта); все 3 обесцененные записи удалены целиком (не decrement — весь count каждой записи стал недостижим). `vendor/bin/phpstan analyse --memory-limit=512M --no-progress` → `[OK] No errors`.
+- `tests/unit/Camp/ResourceEntityTwinsTest.php` не создан: все четыре двойника оказались «чисто» (см. выше), а Non-goals прямо запрещает создавать файл в этом случае.
 
 ## Findings

@@ -7135,66 +7135,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestsInfo.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\QuestsInfo\:\:generateQuestKeyboard\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestsInfo.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\QuestsInfo\:\:generateQuestKeyboard\(\) has parameter \$quests with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestsInfo.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\QuestsInfo\:\:sendQuestInfoExplore300Cells\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestsInfo.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\QuestsInfo\:\:sendQuestInfoExplore300Cells\(\) has parameter \$chatId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestsInfo.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\QuestsInfo\:\:sendQuestInfoExplore30Cells\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestsInfo.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\QuestsInfo\:\:sendQuestInfoExplore30Cells\(\) has parameter \$chatId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestsInfo.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\QuestsInfo\:\:sendQuestInfoExploreAllBiomes\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestsInfo.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\QuestsInfo\:\:sendQuestInfoExploreAllBiomes\(\) has parameter \$chatId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestsInfo.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\QuestsInfo\:\:sendQuestInfoFirstAidkitBasic\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestsInfo.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\QuestsInfo\:\:sendQuestInfoFirstAidkitBasic\(\) has parameter \$chatId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestsInfo.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\QuestsInfo\:\:sendTelegramMessage\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
@@ -16243,12 +16183,6 @@ parameters:
 			path: app/TaskHandlers/Objects/StrategicLootHandler.php
 
 		-
-			message: '#^Call to function is_array\(\) with App\\Entities\\ResourceEntity\|null will always evaluate to false\.$#'
-			identifier: function.impossibleType
-			count: 1
-			path: app/TaskHandlers/Objects/StrategicLootHandler.php
-
-		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -16327,12 +16261,6 @@ parameters:
 			path: app/TaskHandlers/Objects/StrategicLootHandler.php
 
 		-
-			message: '#^Offset ''name'' on \*NEVER\* in isset\(\) always exists and is not nullable\.$#'
-			identifier: isset.offset
-			count: 1
-			path: app/TaskHandlers/Objects/StrategicLootHandler.php
-
-		-
 			message: '#^Parameter \#1 \$itemName of method App\\Models\\CraftedItemsLogModel\:\:getItemByNameEngAndCharacterId\(\) expects string, mixed given\.$#'
 			identifier: argument.type
 			count: 1
@@ -16348,12 +16276,6 @@ parameters:
 			message: '#^Parameter \#3 \$requiredTools of method App\\TaskHandlers\\Objects\\StrategicLootHandler\:\:sendInsufficientToolsMessage\(\) expects array, mixed given\.$#'
 			identifier: argument.type
 			count: 1
-			path: app/TaskHandlers/Objects/StrategicLootHandler.php
-
-		-
-			message: '#^Result of && is always false\.$#'
-			identifier: booleanAnd.alwaysFalse
-			count: 2
 			path: app/TaskHandlers/Objects/StrategicLootHandler.php
 
 		-

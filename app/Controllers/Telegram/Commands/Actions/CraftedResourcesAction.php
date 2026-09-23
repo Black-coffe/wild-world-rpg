@@ -62,6 +62,18 @@ class CraftedResourcesAction extends BaseAction
         4 => 'Фермеры',
     ];
 
+    /**
+     * bugs-info-0923-02: предметы `crafted_items.type='food'` нигде не применяются —
+     * Аптечка и Провизия читают только `type='drug'`. Экран обязан сказать это честно,
+     * а не молча показывать «еду», которую некуда деть. Признак — `type`, не имена.
+     * Вывод из обращения с компенсацией — ADR-185, не здесь.
+     * Подписи пути сверены с кнопками: `💊 Аптечка` (экран персонажа, callback `pharmacy`)
+     * → `🍲 Провизия` (PharmacyAction, callback `provision`). Без `*`/`_` — Markdown-safe.
+     */
+    private const FOOD_MARKER = 'не применяется, выводится из обращения';
+
+    private const FOOD_PATH_LINE = '↳ Еда и питьё, которые работают: 💊 Аптечка → 🍲 Провизия';
+
     protected $craftedItemsLogModel;
     protected $craftedItemsModel;
 
@@ -85,27 +97,13 @@ class CraftedResourcesAction extends BaseAction
 
         $mode = $this->parseSortMode((string) $this->callbackQuery->getData());
 
-        // price нужен для сортировки «по стоимости» (value = price * quantity).
-        $craftedItemsLogs = $this->craftedItemsLogModel
-            ->select('crafted_items_log.quantity, crafted_items.name_rus, crafted_items.type, crafted_items.price')
-            ->join('crafted_items', 'crafted_items.id = crafted_items_log.crafted_item_id')
-            ->where('crafted_items_log.character_id', $character['id'])
-            ->orderBy('crafted_items_log.id', 'DESC') // базовый порядок для группировки (по свежести)
-            ->findAll();
+        $rows = $this->loadRows($character['id']);
 
-        if (empty($craftedItemsLogs)) {
+        if ($rows === []) {
             $text = "🤷‍♂️ *Не переживай, друг!* Твои усилия в крафтинге всё ещё впереди.\n\n"
                 . "Просто выбери рецепт и начни создавать что-то великолепное! 🗝️💎\n\n"
                 . "И помни, каждый великий мастер начинал с малого! 🌟";
             return $this->reply($text, $mode, $character);
-        }
-
-        // Нормализуем строки к массиву + добавляем ключ `name` (= name_rus) для InventorySortService.
-        $rows = [];
-        foreach ($craftedItemsLogs as $item) {
-            $r = is_array($item) ? $item : (array) $item;
-            $r['name'] = $r['name_rus'] ?? '';
-            $rows[] = $r;
         }
 
         $text = ($mode === self::MODE_TYPE)
@@ -113,6 +111,31 @@ class CraftedResourcesAction extends BaseAction
             : $this->renderFlat($rows, $mode);
 
         return $this->reply($text, $mode, $character);
+    }
+
+    /**
+     * Строки склада крафта персонажа: массивы с `name` (= name_rus) для InventorySortService.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function loadRows(mixed $characterId): array
+    {
+        // price нужен для сортировки «по стоимости» (value = price * quantity).
+        $craftedItemsLogs = $this->craftedItemsLogModel
+            ->select('crafted_items_log.quantity, crafted_items.name_rus, crafted_items.type, crafted_items.price')
+            ->join('crafted_items', 'crafted_items.id = crafted_items_log.crafted_item_id')
+            ->where('crafted_items_log.character_id', $characterId)
+            ->orderBy('crafted_items_log.id', 'DESC') // базовый порядок для группировки (по свежести)
+            ->findAll();
+
+        $rows = [];
+        foreach ($craftedItemsLogs as $item) {
+            $r = is_array($item) ? $item : (array) $item;
+            $r['name'] = $r['name_rus'] ?? '';
+            $rows[] = $r;
+        }
+
+        return $rows;
     }
 
     private function parseSortMode(string $callbackData): string
@@ -171,6 +194,9 @@ class CraftedResourcesAction extends BaseAction
                 foreach ($groupedItems[$type] as $item) {
                     $textGroup .= $this->line($item);
                 }
+                if ($type === 'food') {
+                    $textGroup .= self::FOOD_PATH_LINE . "\n";
+                }
                 $textParts[] = $textGroup . "\n";
                 unset($groupedItems[$type]);
             }
@@ -199,8 +225,13 @@ class CraftedResourcesAction extends BaseAction
         $sorted = InventorySortService::sortRows($rows, $mode);
 
         $text = "*Твои созданные предметы* (" . $this->modeLabel($mode) . "):\n\n";
+        $hasFood = false;
         foreach ($sorted as $item) {
             $text .= $this->line($item);
+            $hasFood = $hasFood || (($item['type'] ?? null) === 'food');
+        }
+        if ($hasFood) {
+            $text .= "\n" . self::FOOD_PATH_LINE . "\n";
         }
 
         return $text . "\n*Продолжай в том же духе и твои навыки станут легендарными!*";
@@ -216,7 +247,9 @@ class CraftedResourcesAction extends BaseAction
         $name = is_string($item['name_rus'] ?? null) ? $item['name_rus'] : '';
         $qty  = is_numeric($item['quantity'] ?? null) ? (int) $item['quantity'] : 0;
 
-        return "📦 *{$name}* | " . number_format($qty) . " шт.\n";
+        $marker = (($item['type'] ?? null) === 'food') ? ' — ' . self::FOOD_MARKER : '';
+
+        return "📦 *{$name}* | " . number_format($qty) . " шт.{$marker}\n";
     }
 
     private function modeLabel(string $mode): string

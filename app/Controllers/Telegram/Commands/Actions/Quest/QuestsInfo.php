@@ -8,9 +8,19 @@ use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 use App\Models\QuestModel;
 use App\Models\CharacterModel;
+use App\Services\Display\MarkdownSafe;
 
 class QuestsInfo extends BaseAction
 {
+    private const PREFIX = 'questInfo_';
+
+    /** Подписи типов награды — те же, что в ActiveQuests/AvailableQuests. */
+    private const REWARD_TYPES = [
+        'gold'       => 'золото',
+        'experience' => 'опыт',
+        'items'      => 'предметы',
+    ];
+
     public function handle(): ServerResponse
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
@@ -32,23 +42,17 @@ class QuestsInfo extends BaseAction
             ]);
         }
 
-        $callbackData = $this->callbackQuery->getData();
-        $params = explode('_', $callbackData);
+        // bugs-info-0923-03: карточка ЛЮБОГО квеста строится из строки `quests`.
+        // Кнопка `questInfo_id<id>` (новая) или `questInfo_<title_en>` (старые сообщения).
+        $tail = self::cardTail((string) $this->callbackQuery->getData());
+        if ($tail !== null) {
+            $card = self::buildCard($tail, $questModel);
+
+            return $this->sendTelegramMessage($chatId, $card['text'], $card['keyboard']);
+        }
 
         // Получаем список всех квестов
         $quests = $questModel->findAll();
-
-        if(isset($params[1])){
-            if ($params[1] == "Explore30Cells") {
-                return $this->sendQuestInfoExplore30Cells($chatId);
-            }elseif ($params[1] == "ExploreAllBiomes") {
-                return $this->sendQuestInfoExploreAllBiomes($chatId);
-            }elseif ($params[1] == "Explore300Cells") {
-                return $this->sendQuestInfoExplore300Cells($chatId);
-            }elseif ($params[1] == "FirstAidkitBasic") {
-                return $this->sendQuestInfoFirstAidkitBasic($chatId);
-            }
-        }
 
         if (empty($quests)) {
             $text = "В игре отсутствуют квесты. Проверьте позже!";
@@ -60,17 +64,27 @@ class QuestsInfo extends BaseAction
             }
             $text .= "\n_Выберите квест 👇, чтобы получить подробную информацию_";
         }
-        $keyboard = $this->generateQuestKeyboard($quests);
+        $keyboard = self::generateQuestKeyboard($quests);
         // Отправляем сообщение с информацией о квестах
         return $this->sendTelegramMessage($chatId, $text, $keyboard);
     }
 
-    private function generateQuestKeyboard($quests)
+    /**
+     * @param array<mixed> $quests
+     * @return array{inline_keyboard: list<list<array{text: string, callback_data: string}>>}
+     */
+    public static function generateQuestKeyboard(array $quests): array
     {
         $keyboard = ['inline_keyboard' => []];
         $row = [];
         foreach ($quests as $quest) {
-            $row[] = ['text' => $quest['title_ru'], 'callback_data' => 'questInfo_' . $quest['title_en']];
+            if (! is_array($quest)) {
+                continue;
+            }
+            $row[] = [
+                'text'          => self::str($quest['title_ru'] ?? ''),
+                'callback_data' => self::PREFIX . 'id' . self::int($quest['id'] ?? 0),
+            ];
             if (count($row) == 2) {
                 $keyboard['inline_keyboard'][] = $row;
                 $row = [];
@@ -116,56 +130,103 @@ class QuestsInfo extends BaseAction
         ]);
     }
 
-    // Метод для отправки информации о квесте "Изучить 30 ячеек"
-    private function sendQuestInfoFirstAidkitBasic($chatId)
+    /**
+     * Хвост callback'а после ПЕРВОГО `questInfo_` целиком (title_en может содержать `_`).
+     * null — это не кнопка карточки (голый `questInfo` → список).
+     */
+    public static function cardTail(string $callbackData): ?string
     {
-        $text = "*🔍 Крафт: Аптечки базовой*\n\n";
-        $text .= "📜 *Описание* 📜\n_Создай крафтовый, медицинский предмет_ *Аптечка базовая* _и как вознаграждение получи 1500 золотых монет. Кроме награды, ты окунешься в мир крафта и поймешь механику взаимосвязанных крафтовых предметов._\n*Важно!* _Не просто создай аптечку,но чтобы она побыла в инвентаре пару минут, тогда применится награда и закроется квест_\n\n";
-        $text .= "🔒 *Условия*: Доступен с *3-го* уровня персонажа.\n\n";
-        $text .= "🏆 *Награды*: 1 500 золотых монет.\n\n";
-        $text .= "🔄 *Одноразовый*\n\n";
-        $text .= "⏳ *Имеет срок выполнения или бессрочный*: Бессрочный";
+        if (! str_starts_with($callbackData, self::PREFIX)) {
+            return null;
+        }
+        $tail = substr($callbackData, strlen(self::PREFIX));
 
-        return $this->sendTelegramMessage($chatId, $text);
+        return $tail === '' ? null : $tail;
     }
 
-    // Метод для отправки информации о квесте "Изучить 30 ячеек"
-    private function sendQuestInfoExplore30Cells($chatId)
+    /**
+     * Карточка квеста по хвосту callback'а: `id<N>` — по id, иначе — по title_en.
+     * Неизвестный квест → честный отказ с кнопкой «назад к списку».
+     *
+     * @return array{text: string, keyboard: array{inline_keyboard: list<list<array{text: string, callback_data: string}>>}}
+     */
+    public static function buildCard(string $tail, QuestModel $questModel): array
     {
-        $text = "*🔍 Изучить 30 ячеек*\n\n";
-        $text .= "📜 *Описание* 📜\n_Исследуйте 30 различных ячеек на карте мира и получите за это вознаграждение в виде 1000 золотых монет! Квест может быть выполнен в любое время начиная с первого уровня игры!_\n\n";
-        $text .= "🔒 *Условия*: Доступен с *1-го* уровня персонажа.\n\n";
-        $text .= "🏆 *Награды*: 1 000 золотых монет.\n\n";
-        $text .= "🔄 *Одноразовый*\n\n";
-        $text .= "⏳ *Имеет срок выполнения или бессрочный*: Бессрочный";
+        $keyboard = ['inline_keyboard' => [[
+            ['text' => '📜 К списку квестов', 'callback_data' => 'questInfo'],
+            ['text' => '◀️ Я', 'callback_data' => 'character'],
+        ]]];
 
-        return $this->sendTelegramMessage($chatId, $text);
+        $quest = self::findQuest($tail, $questModel);
+        if ($quest === null) {
+            return [
+                'text'     => "❓ Такой квест не найден — возможно, его убрали из игры.\n\nВернитесь к списку квестов 👇",
+                'keyboard' => $keyboard,
+            ];
+        }
+
+        $title = MarkdownSafe::name(self::str($quest['title_ru'] ?? ''), 'Квест');
+        $text  = "*📜 {$title}*\n\n";
+
+        $description = trim(MarkdownSafe::text(self::str($quest['description'] ?? '')));
+        if ($description !== '') {
+            $text .= "*Описание*\n{$description}\n\n";
+        }
+
+        $minLevel = $quest['min_level'] ?? null;
+        $text .= $minLevel !== null
+            ? '🔒 *Условия*: доступен с ' . self::int($minLevel) . "-го уровня персонажа.\n"
+            : "🔒 *Условия*: без ограничения по уровню.\n";
+
+        $prereq = trim(self::str($quest['prerequisite_quest'] ?? ''));
+        if ($prereq !== '') {
+            $prev      = $questModel->where('title_en', $prereq)->orderBy('id', 'ASC')->first();
+            $prevTitle = is_array($prev) ? self::str($prev['title_ru'] ?? $prereq) : $prereq;
+            $text     .= '⛓ *Сначала завершите*: ' . MarkdownSafe::name($prevTitle, 'предыдущий квест') . "\n";
+        }
+
+        $text .= "\n🏆 *Награда*: " . self::rewardLine($quest);
+
+        return ['text' => $text, 'keyboard' => $keyboard];
     }
 
-    // Метод для отправки информации о квесте "Изучить 30 ячеек"
-    private function sendQuestInfoExplore300Cells($chatId)
+    /**
+     * @return array<mixed>|null
+     */
+    private static function findQuest(string $tail, QuestModel $questModel): ?array
     {
-        $text = "*🔍 Изучить 300 ячеек*\n\n";
-        $text .= "📜 *Описание* 📜\n_Исследуйте 300 различных ячеек на карте мира и получите за это вознаграждение в виде 10 000 золотых монет!\n Также по+ 2  единицы к опыту,  силе, ловкости и интеллекту.\nКвест может быть выполнен в любое время начиная с 10-го уровня игры!_\n\n";
-        $text .= "🔒 *Условия*: Доступен с *10-го* уровня персонажа.\n\n";
-        $text .= "🏆 *Награды*: 10 000 золотых монет.\n\n";
-        $text .= "🔄 *Одноразовый*\n\n";
-        $text .= "⏳ *Имеет срок выполнения или бессрочный*: Бессрочный";
+        if (preg_match('/^id(\d+)$/', $tail, $m) === 1) {
+            $row = $questModel->find((int) $m[1]);
+        } else {
+            $row = $questModel->where('title_en', $tail)->orderBy('id', 'ASC')->first();
+        }
 
-        return $this->sendTelegramMessage($chatId, $text);
+        return is_array($row) ? $row : null;
     }
 
-    // Метод для отправки информации о квесте "Изучить все биомы"
-    private function sendQuestInfoExploreAllBiomes($chatId)
+    /**
+     * @param array<mixed> $quest
+     */
+    private static function rewardLine(array $quest): string
     {
-        $text = "*🌎 Изучить все биомы*\n\n";
-        $text .= "📜 *Описание* 📜\n_Исследуйте все биомы, доступные на карте мира. Всего их есть 9 штук, как только вы хотя бы раз увидите каждый из  них вы получите награду!_\n\n";
-        $text .= "🔒 *Условия*: Доступен с *1-го* уровня персонажа.\n\n";
-        $text .= "🏆 *Награды*: 2 опыта.\n\n";
-        $text .= "🔄 *Одноразовый*\n\n";
-        $text .= "⏳ *Имеет срок выполнения или бессрочный*: Бессрочный";
+        $reward = $quest['reward'] ?? null;
+        $type   = self::str($quest['reward_type'] ?? '');
+        $label  = self::REWARD_TYPES[$type] ?? MarkdownSafe::text($type);
 
-        return $this->sendTelegramMessage($chatId, $text);
+        if ($reward === null || $reward === '') {
+            return $label !== '' ? $label : 'не указана';
+        }
+
+        return trim(number_format(self::int($reward), 0, '', ' ') . ' ' . $label);
     }
 
+    private static function str(mixed $value): string
+    {
+        return is_scalar($value) ? (string) $value : '';
+    }
+
+    private static function int(mixed $value): int
+    {
+        return is_numeric($value) ? (int) $value : 0;
+    }
 }
