@@ -108,3 +108,5 @@
 {"v":1,"ts":"2026-09-23T13:34:30Z","code":"scope_breach","value":6,"threshold":0,"vulyk":"0.16.0","tier":0,"model":"","agent":"","spec":"","story":"multibase-picker-11-bare-construction-resolve","ref":"scope:multibase-picker-11-bare-construction-resolve"}
 {"v":1,"ts":"2026-09-23T14:17:43Z","code":"scope_breach","value":16,"threshold":0,"vulyk":"0.16.0","tier":0,"model":"","agent":"","spec":"","story":"bugs-info-0923-01-map-zero-row","ref":"scope:bugs-info-0923-01-map-zero-row"}
 {"v":1,"ts":"2026-09-23T14:17:43Z","code":"scope_breach","value":14,"threshold":0,"vulyk":"0.16.0","tier":0,"model":"","agent":"","spec":"","story":"bugs-info-0923-05-nadet-label","ref":"scope:bugs-info-0923-05-nadet-label"}
+{"v":1,"ts":"2026-09-23T14:25:03Z","code":"scope_breach","value":14,"threshold":0,"vulyk":"0.16.0","tier":0,"model":"","agent":"","spec":"","story":"bugs-info-0923-02-food-marker","ref":"scope:bugs-info-0923-02-food-marker"}
+{"v":1,"ts":"2026-09-23T14:25:03Z","code":"scope_breach","value":11,"threshold":0,"vulyk":"0.16.0","tier":0,"model":"","agent":"","spec":"","story":"bugs-info-0923-03-quest-card","ref":"scope:bugs-info-0923-03-quest-card"}
