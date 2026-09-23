@@ -481,7 +481,15 @@ class SettingsAction extends BaseAction
                 : ['text' => '📻 Включить сводку',   'callback_data' => 'nodeAnnounceOn']];
         }
 
-        $rows[] = [['text' => '🔙 Назад', 'callback_data' => 'characterActions']];
+        // web-accounts-p0-06 (ADR-188) — вход на сайт: код приходит отдельным сообщением
+        // ({@see WebLinkCodeAction}); тот же код выдаёт /web. Кнопка — в одном ряду с «Назад».
+        $text .= "\n\n🌐 Игра на сайте: кнопка ниже или /web — Роби пришлёт одноразовый код "
+            . "для входа на wildworld.fun.";
+
+        $rows[] = [
+            ['text' => '🌐 Играть на сайте', 'callback_data' => WebLinkCodeAction::CALLBACK],
+            ['text' => '🔙 Назад', 'callback_data' => 'characterActions'],
+        ];
         $keyboard = ['inline_keyboard' => $rows];
 
         return [

@@ -1,8 +1,8 @@
 ---
 story: web-accounts-p0-06
 spec: web-accounts-p0
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -87,6 +87,12 @@ recon.md §D (command auto-discovery, `BotMenuService::commandList()`).
 
 
 ## Implementation notes
+- 2026-09-23 · worker-code (resumed after plan delta). Files: new `LinkCodeService`, `WebCommand`, `WebLinkCodeAction`, `AccountLink`, `site/account_link.php`, `SeedWebLinkTip`, `tests/database/LinkCodeServiceTest.php`; edited `SettingsAction::buildScreen()` (text line + `🌐 Играть на сайте` in the same row as `🔙 Назад`), `CallbackRoutes` (`webLinkCode`), `BotMenuService::commandList()` (`web`), `GuideCatalog` (section `web`, group `meta`, before `chat`).
+- `SettingsCommand.php` needed no change: it renders `SettingsAction::buildScreen()`, so the button shows on /settings, the `settings` callback and the «настройки» text alike.
+- `commandList()` has no version constant, so nothing to bump; menu goes live via post-deploy `php spark bot:setcommands` (plan A9c).
+- Contract extension (plan delta): `LinkCodeService::link(string $code, ?int $currentAccountId): array{status, message, account_id}` peeks the code first (readable reason: not found / used / expired), refuses an account with another character BEFORE spending the code, then claims via `redeem()` and merges with `AccountService::mergeInto()`.
+- Expiry and `used_at` use the DB clock (`NOW()`, `DATE_ADD`), not PHP time. Invalidation of older codes = DELETE of the character's unused rows, so an old code reads as "not found; only the last one works".
+- Tip category `настройки` (entry point is the settings screen). Verdicts: guide = yes (section `web`), tip = yes (`WebLinkCode`). Tech-writing notes for the new service/handler/controller are drone-docs' job, not written here.
 
 ## Findings
 - 2026-09-23 · worker-code · NEEDS_CONTEXT (nothing implemented). Question for the planner: may

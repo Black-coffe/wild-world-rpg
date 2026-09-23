@@ -117,3 +117,5 @@
 {"v":1,"ts":"2026-09-23T18:23:52Z","code":"scope_breach","value":8,"threshold":0,"vulyk":"0.16.0","tier":0,"model":"","agent":"","spec":"","story":"web-accounts-p0-03-site-kit-statable","ref":"scope:web-accounts-p0-03-site-kit-statable"}
 {"v":1,"ts":"2026-09-23T18:48:56Z","code":"scope_breach","value":7,"threshold":0,"vulyk":"0.16.0","tier":0,"model":"","agent":"","spec":"","story":"web-accounts-p0-05-auth-core","ref":"scope:web-accounts-p0-05-auth-core"}
 {"v":1,"ts":"2026-09-23T18:59:08Z","code":"scope_breach","value":20,"threshold":0,"vulyk":"0.16.0","tier":0,"model":"","agent":"","spec":"","story":"web-accounts-p0-04-provisioning","ref":"scope:web-accounts-p0-04-provisioning"}
+{"v":1,"ts":"2026-09-23T19:31:04Z","code":"scope_breach","value":14,"threshold":0,"vulyk":"0.16.0","tier":0,"model":"","agent":"","spec":"","story":"web-accounts-p0-07-oauth-cabinet","ref":"scope:web-accounts-p0-07-oauth-cabinet"}
+{"v":1,"ts":"2026-09-23T19:31:04Z","code":"scope_breach","value":2,"threshold":0,"vulyk":"0.16.0","tier":0,"model":"","agent":"","spec":"","story":"web-accounts-p0-08-registration","ref":"scope:web-accounts-p0-08-registration"}

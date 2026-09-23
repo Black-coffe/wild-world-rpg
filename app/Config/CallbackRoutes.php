@@ -136,6 +136,8 @@ class CallbackRoutes extends BaseConfig
         // ADR-137 «Узлы» — тумблер «Сводка по Узлам» (kill-дайджест боссов).
         'nodeAnnounceOn'                  => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         'nodeAnnounceOff'                 => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
+        // web-accounts-p0-06 (ADR-188) — «🌐 Играть на сайте»: одноразовый код для /account/link.
+        'webLinkCode'                     => \App\Controllers\Telegram\Commands\Actions\WebLinkCodeAction::class,
         // 'character' route handled by inline shortcut у CallbackqueryCommand
         // (calls CharacterService::showCharacterInfo з equipment info — НЕ
         // CharacterAction). CharacterAction.php був dead code, видалено v0.51.79.
