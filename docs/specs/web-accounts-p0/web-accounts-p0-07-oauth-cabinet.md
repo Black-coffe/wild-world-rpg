@@ -63,6 +63,7 @@ keep.
 `memory/map/website.md`; recon.md §D, §E (library facts, Yandex endpoints, env var names).
 
 ## Acceptance criteria
+- [ ] Worker runs its own new test file(s) singly while iterating; the close-story gate is the full suite + phpstan + migrations lint.
 - [ ] Ask 9: cabinet views use only `wildworld-ui.css` tokens; no horizontal scroll at 375/768/1440.
 - [ ] Ask 15: the callback rejects a missing or mismatched `state` (a test for each provider).
       The Yandex authorize URL carries `code_challenge` + `code_challenge_method=S256`, the token
@@ -84,10 +85,10 @@ keep.
       (unit test with a mocked HTTP client).
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/unit/YandexOAuthProviderTest.php`
-`vendor/bin/phpunit --no-coverage --no-progress tests/database/AccountCabinetTest.php`
-`curl -sS -o /dev/null -w '%{http_code}' http://mmorpg.test/account/login`
+`vendor/bin/phpunit --no-coverage --no-progress`
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+`git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
+
 
 ## Implementation notes
 

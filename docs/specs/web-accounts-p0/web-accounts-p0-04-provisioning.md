@@ -47,6 +47,7 @@ that call needs the Telegram payload. `StarterKitService` and `NewbieGreeterServ
 `memory/map/onboarding.md`, `memory/map/telegram.md`; recon.md §A (line map of `StartCommand`).
 
 ## Acceptance criteria
+- [ ] Worker runs its own new test file(s) singly while iterating; the close-story gate is the full suite + phpstan + migrations lint.
 - [ ] Ask 14: `/start` for a new Telegram user produces the same rows as before. The DB test
       compares against a pre-refactor fixture: `characters` columns, spawn cell in an allowed biome
       with y ≥ 900, onboarding chain, starter-kit items plus its `action_log` row with the chat id,
@@ -61,8 +62,10 @@ that call needs the Telegram payload. `StarterKitService` and `NewbieGreeterServ
       for bot players when `referral.enabled`.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/database/CharacterProvisioningServiceTest.php`
+`vendor/bin/phpunit --no-coverage --no-progress`
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+`git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
+
 
 ## Implementation notes
 

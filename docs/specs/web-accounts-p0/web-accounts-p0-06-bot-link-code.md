@@ -58,6 +58,7 @@ linking the character. A daily tip about linking is seeded.
 recon.md §D (command auto-discovery, `BotMenuService::commandList()`).
 
 ## Acceptance criteria
+- [ ] Worker runs its own new test file(s) singly while iterating; the close-story gate is the full suite + phpstan + migrations lint.
 - [ ] Ask 11: `/web` is added to `BotMenuService::commandList()` (the command menu) AND a button opens it from the settings screen.
 - [ ] Ask 11: the code message states, in text only (no photo, readable with media off): the code, where to enter it (`wildworld.fun/account/link`), and how long it is valid (from `Config\Accounts`).
 - [ ] Ask 9: `/account/link` uses only `wildworld-ui.css` tokens; no horizontal scroll at 375 px.
@@ -78,10 +79,10 @@ recon.md §D (command auto-discovery, `BotMenuService::commandList()`).
       `/account/link` uses story-03 components and has no horizontal scroll at 375/768/1440.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/database/LinkCodeServiceTest.php`
-`git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
-`curl -sS -o /dev/null -w '%{http_code}' http://mmorpg.test/account/link`
+`vendor/bin/phpunit --no-coverage --no-progress`
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+`git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
+
 
 ## Implementation notes
 

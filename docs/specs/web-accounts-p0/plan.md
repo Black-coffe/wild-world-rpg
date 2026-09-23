@@ -183,6 +183,9 @@ The Queen's manual Tier-2/3 pass follows: `/account/*` at 375/768/1440 with a cl
 
 ## Plan deltas
 
+- 2026-09-23 · trigger: story 02 return report — fixes removed errors that 13 `phpstan-baseline.neon` entries matched (phpstan fails on unmatched entries). Decision: `phpstan-baseline.neon` added to story 02 `## Files` (no other wave-1 story lists it). Tail recorded: StrategicLootHandler:165,303, BaseRelocationCompletionHandler:146, BaseFullRelocationCompletionHandler:200 still call `find(null)` for web-only characters — harmless (no throw, no send), left for Phase 1.
+- 2026-09-23 · trigger: driver stop `close-story exit 2 — verification not in ## Commands` on story 01 (per-file phpunit and curl lines are not byte-exact `## Commands` cells). Decision: every story's `## Verification` = full suite + phpstan + migrations lint (exact cells); workers still run their own test files while iterating; curl lines dropped (exit 0 even on HTTP 500 — vacuous; views are checked by the council and the Queen's Tier-2 pass). Rejected: editing the constitution's Commands table for one spec.
+
 **Approved:** Andrei, 2026-09-23
 **Briefed:** <written by scripts/cycle.sh briefed - stage 01+02 on the straight-through path (--go, Tier 1): "via grill, <owner>, <date>" (or "via grill (assumed)" / "via mini-brief"). Alternative to **Approved:** above.>
 **Branch:** vulyk/web-accounts-p0

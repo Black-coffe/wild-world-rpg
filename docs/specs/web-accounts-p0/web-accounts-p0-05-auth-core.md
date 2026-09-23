@@ -66,6 +66,7 @@ The site has one login system keyed by `account_id`. The APIs of `AccountSession
 `memory/map/website.md`; recon.md §D (session readers with line numbers, CSRF, filters).
 
 ## Acceptance criteria
+- [ ] Worker runs its own new test file(s) singly while iterating; the close-story gate is the full suite + phpstan + migrations lint.
 - [ ] Ask 6: every account form (`/account/login`, `/account/logout`, code entry) is protected by the global CSRF filter — a POST without the token is rejected (test).
 - [ ] Ask 9: the new views use only `wildworld-ui.css` tokens/classes (no inline colours, radii, shadows); at 375 px no horizontal scroll (`document.documentElement.scrollWidth <= innerWidth`).
 - [ ] Ask 6: a login with "remember me" survives session expiry. A new session is restored from
@@ -86,10 +87,10 @@ The site has one login system keyed by `account_id`. The APIs of `AccountSession
       scroll at 375/768/1440, and render without JS apart from the widget.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/database/AccountSessionTest.php`
-`vendor/bin/phpunit --no-coverage --no-progress tests/database/AccountAuthTest.php`
-`curl -sS -o /dev/null -w '%{http_code}' http://mmorpg.test/account/login`
+`vendor/bin/phpunit --no-coverage --no-progress`
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+`git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
+
 
 ## Implementation notes
 

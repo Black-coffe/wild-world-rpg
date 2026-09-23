@@ -58,6 +58,7 @@ success. The site header shows "Войти" or the character name linking to `/a
 `memory/map/admin.md` (GameSettings 60 s cache); recon.md §A (name rule), §D (Email config).
 
 ## Acceptance criteria
+- [ ] Worker runs its own new test file(s) singly while iterating; the close-story gate is the full suite + phpstan + migrations lint.
 - [ ] Ask 9: registration / character-creation views use only `wildworld-ui.css` tokens; no horizontal scroll at 375/768/1440.
 - [ ] Ask 4: with the flag off, `POST /account/register` and `POST /account/character` create no
       rows and render the closed-beta explanation. With the flag on, they create an account (an
@@ -74,10 +75,10 @@ success. The site header shows "Войти" or the character name linking to `/a
       reset pages have no horizontal scroll at 375/768/1440 and use only story-03 components.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/database/AccountRegistrationTest.php`
-`vendor/bin/phpunit --no-coverage --no-progress tests/database/PasswordResetServiceTest.php`
-`curl -sS -o /dev/null -w '%{http_code}' http://mmorpg.test/account/register`
+`vendor/bin/phpunit --no-coverage --no-progress`
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+`git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
+
 
 ## Implementation notes
 

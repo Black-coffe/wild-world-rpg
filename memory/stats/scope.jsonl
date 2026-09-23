@@ -185,3 +185,6 @@
 {"ts":"2026-09-23T18:11:18Z","story":"web-accounts-p0-01-accounts-core","declared":12,"changed":53,"out_of_scope":41}
 {"ts":"2026-09-23T18:15:23Z","story":"web-accounts-p0-02-worker-null-tg","declared":8,"changed":39,"out_of_scope":15}
 {"ts":"2026-09-23T18:19:15Z","story":"web-accounts-p0-03-site-kit-statable","declared":6,"changed":14,"out_of_scope":8}
+{"ts":"2026-09-23T18:23:15Z","story":"web-accounts-p0-01-accounts-core","declared":12,"changed":8,"out_of_scope":8}
+{"ts":"2026-09-23T18:23:15Z","story":"web-accounts-p0-02-worker-null-tg","declared":8,"changed":9,"out_of_scope":9}
+{"ts":"2026-09-23T18:23:16Z","story":"web-accounts-p0-03-site-kit-statable","declared":6,"changed":9,"out_of_scope":9}
