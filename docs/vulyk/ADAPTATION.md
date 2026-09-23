@@ -420,3 +420,21 @@ ls .claude/rules/example-api.md                   # должно отсутст�
 - `handoff.py`/`handoff.sh`, `.claude/rules/example-api.md` → удалены.
 
 Чек-лист §6 + §12 зелёный, `bash -n` обоих скриптов чистый.
+
+## 15. Апгрейд 0.14.0 → 0.16.0 (23.09.2026, по слову владельца)
+
+0.15.0 — укрепление драйвера (повтор клерка через `status`, самоотмеченный `close-story`, taint
+по имени story-файла). 0.16.0 — Opus 5.5 как рабочая лошадь: воркеры, дроны, планировщик и
+librarian в frontmatter теперь `opus`, а `effort:` снова учитывается (дроны `low`, воркеры
+`medium`, гейт `high`). `TOP_MODEL` по ADR-012 рамки называет гейт; у нас пин `opus` в `CLAUDE.md`
+остаётся, `top-model.sh --explain` → `decided by: constitution`.
+
+**Откатилось и возвращено:** блоки «Project path binding» в `lead-architect`/`drone-docs`
+(вставлены поверх нового frontmatter), `vulyk-handoff.md` — `checkout` из `HEAD`,
+`command_cell_exists()` в `scripts/cycle.sh` — снова читает обе конституции; `handoff.py/sh` и
+`.claude/rules/example-api.md` удалены. `is_paperwork_path()` патчить больше не нужно: с 0.15.0
+upstream сам знает `memory/stats/skills.json` и `memory/learnings/*.md`.
+
+**Ручной остаток для владельца:** таблица «The model ladder» в `CLAUDE.vulyk.md` всё ещё
+описывает воркеров и дронов на `sonnet` — с 0.16.0 это не так; сверить с
+`diff CLAUDE.vulyk.md ~/.vulyk/src/CLAUDE.md` и слить руками.

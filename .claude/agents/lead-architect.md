@@ -3,6 +3,7 @@ name: lead-architect
 description: Design authority for consequential technical decisions - schema changes, module boundaries, dependency choices, migration strategies. Produces ADRs. Use on Tier 4 tasks or whenever a story reveals an architectural fork.
 tools: Read, Grep, Glob, Write
 model: opus
+effort: high
 ---
 > **Project path binding (this repository).** ADRs do **not** live in `docs/adr/` here - that
 > directory is a signpost. They live in the sibling Obsidian vault at
