@@ -4,7 +4,7 @@ namespace App\TaskHandlers;
 
 use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
-use App\Models\TelegramUserModel;
+use App\Services\Telegram\TelegramChatResolver;
 use App\Models\ClaimedCellModel;
 use App\Models\ExploredCellsModel;
 use App\Services\Player\Death\DeathMessageBuilder;
@@ -215,15 +215,12 @@ class DeathRouletteHandler extends BaseTaskHandler
      */
     private function sendDeathMessage(array|\App\Entities\CharacterEntity $character, array $deathResult): void
     {
-        $telegramUserModel = new TelegramUserModel();
-        $telegramUser = $telegramUserModel->find($character['telegram_user_id']);
-
-        if (!$telegramUser) {
-            log_message('error', 'Не найден телеграм-пользователь для character_id=' . $character['id']);
+        // Смерть и потери уже применены. Web-only персонаж без Telegram (ADR-188) → уведомление пропускаем
+        // (find(null) вернул бы ВСЕ строки telegram_users).
+        $chatId = (new TelegramChatResolver())->chatIdForCharacter((int) $character['id']);
+        if ($chatId === null) {
             return;
         }
-
-        $chatId = $telegramUser['telegram_id'];
 
         // Понятное death-уведомление: причина (рулетка + последнее damage-событие/голод),
         // потери + их причина (страховка / база / без базы), как не допустить. См.

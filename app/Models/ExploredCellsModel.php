@@ -20,11 +20,14 @@ class ExploredCellsModel extends Model
      * Вызывается при любой смене позиции: одиночный шаг (`MoveCharacterToDirectionAction`),
      * тик марша (ADR-019 §3), телепорт, респаун, создание персонажа.
      *
+     * `$telegramUserId` = null — web-only персонаж без Telegram (web-accounts-p0, ADR-188):
+     * строка пишется с `telegram_user_id = NULL`; все чтения идут по `character_id`.
+     *
      * @return int количество НОВО раскрытых клеток
      */
     public function revealAround(
         int $characterId,
-        int $telegramUserId,
+        ?int $telegramUserId,
         int $centerX,
         int $centerY,
         ?int $characterLevel = null,

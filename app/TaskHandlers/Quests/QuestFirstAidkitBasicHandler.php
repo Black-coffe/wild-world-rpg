@@ -9,6 +9,7 @@ use App\Models\QuestStepsModel;
 use App\Models\CraftedItemsModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\TelegramUserModel;
+use App\Services\Telegram\TelegramChatResolver;
 use App\Services\Endgame\EndgameProgressionService;
 use App\TaskHandlers\BaseTaskHandler;
 
@@ -77,10 +78,13 @@ class QuestFirstAidkitBasicHandler extends BaseTaskHandler
                 $this->characterModel->increaseGold($characterId, 1500);
 
                 // Send completion message
-                $telegramUserId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
+                // Награда уже выдана. Web-only персонаж без Telegram (ADR-188) → chat null, сообщение пропускаем.
+                $telegramUserId = (new TelegramChatResolver())->chatIdForCharacter((int) $characterId);
                 $message = "🌟 *Поздравляем!*\n\nТы успешно скрафтил свою первую аптечку!\nТвой запас золота вырос на *1500* единиц.\nНовые приключения уже ждут тебя!";
 
-                $this->sendMessage($telegramUserId, $message);
+                if ($telegramUserId !== null) {
+                    $this->sendMessage($telegramUserId, $message);
+                }
             }
         }
     }

@@ -7,6 +7,7 @@ use App\Models\CharacterBuildingModel;
 use App\Models\CharacterModel;
 use App\Models\ClaimedCellModel;
 use App\Models\TelegramUserModel;
+use App\Services\Telegram\TelegramChatResolver;
 use App\Models\TeleportBeaconModel;
 use DateTime;
 use DateInterval;
@@ -815,13 +816,13 @@ class TaxCollectionHandler extends BaseTaskHandler
      */
     protected function sendTelegramNotification(array|\App\Entities\CharacterEntity $character, string $message): void
     {
-        $telegramUserModel = new TelegramUserModel();
-        $tgUser = $telegramUserModel->find($character['telegram_user_id']);
-        if (!$tgUser) {
+        // Web-only персонаж без Telegram (ADR-188) → null, уведомление пропускаем (find(null) вернул бы ВСЕ строки).
+        $chatId = (new TelegramChatResolver())->chatIdForCharacter((int) $character['id']);
+        if ($chatId === null) {
             return;
         }
 
-        $this->safeSendMessage($tgUser['telegram_id'], $message, ['parse_mode' => 'Markdown']);
+        $this->safeSendMessage($chatId, $message, ['parse_mode' => 'Markdown']);
     }
 
     /**
@@ -829,13 +830,12 @@ class TaxCollectionHandler extends BaseTaskHandler
      */
     protected function sendTelegramNotificationPhoto(array|\App\Entities\CharacterEntity $character, string $caption): void
     {
-        $telegramUserModel = new TelegramUserModel();
-        $tgUser = $telegramUserModel->find($character['telegram_user_id']);
-        if (!$tgUser) {
+        $chatId = (new TelegramChatResolver())->chatIdForCharacter((int) $character['id']);
+        if ($chatId === null) {
             return;
         }
 
         $imagePath = base_url('uploads/telegram/camp/tax_for_building.png');
-        $this->safeSendPhoto($tgUser['telegram_id'], $imagePath, $caption, ['parse_mode' => 'Markdown']);
+        $this->safeSendPhoto($chatId, $imagePath, $caption, ['parse_mode' => 'Markdown']);
     }
 }

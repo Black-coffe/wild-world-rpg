@@ -14449,12 +14449,6 @@ parameters:
 			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
 
 		-
-			message: '#^Cannot access offset ''telegram_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
-
-		-
 			message: '#^Cannot access offset ''x'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -14863,18 +14857,6 @@ parameters:
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
 
 		-
-			message: '#^Parameter \#1 \$telegramUserId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
-
-		-
-			message: '#^Parameter \#3 \$characterId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
-
-		-
 			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:\$characterModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -14924,18 +14906,6 @@ parameters:
 
 		-
 			message: '#^Parameter \#1 \$characterId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:updateOrCreateOutfit\(\) expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
-
-		-
-			message: '#^Parameter \#1 \$telegramUserId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
-
-		-
-			message: '#^Parameter \#3 \$characterId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
@@ -14995,18 +14965,6 @@ parameters:
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
 
 		-
-			message: '#^Parameter \#1 \$telegramUserId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
-
-		-
-			message: '#^Parameter \#3 \$characterId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
-
-		-
 			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:\$characterModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -15061,18 +15019,6 @@ parameters:
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
 
 		-
-			message: '#^Parameter \#1 \$telegramUserId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
-
-		-
-			message: '#^Parameter \#3 \$characterId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
-
-		-
 			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:\$characterModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -15110,12 +15056,6 @@ parameters:
 
 		-
 			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:notifyUser\(\) has parameter \$craftedItem with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:notifyUser\(\) has parameter \$telegramUserId with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
@@ -15170,12 +15110,6 @@ parameters:
 
 		-
 			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:notifyUser\(\) has parameter \$craftedItem with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
-
-		-
-			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:notifyUser\(\) has parameter \$telegramUserId with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
@@ -15248,12 +15182,6 @@ parameters:
 
 		-
 			message: '#^Cannot access offset ''name'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/DeathRouletteHandler.php
-
-		-
-			message: '#^Cannot access offset ''telegram_id'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/TaskHandlers/DeathRouletteHandler.php
@@ -16796,12 +16724,6 @@ parameters:
 
 		-
 			message: '#^Cannot access offset ''tax_cost'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/TaskHandlers/TaxCollectionHandler.php
-
-		-
-			message: '#^Cannot access offset ''telegram_id'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 2
 			path: app/TaskHandlers/TaxCollectionHandler.php

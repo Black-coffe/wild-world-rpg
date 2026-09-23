@@ -8,6 +8,7 @@ use App\Models\QuestStepsModel;
 use App\Models\CharacterModel;
 use App\Models\ExploredCellsModel;
 use App\Models\TelegramUserModel;
+use App\Services\Telegram\TelegramChatResolver;
 use App\Services\Endgame\EndgameProgressionService;
 use App\TaskHandlers\BaseTaskHandler;
 
@@ -76,8 +77,11 @@ class QuestExplore300CellsHandler extends BaseTaskHandler
 
                     // Отправляем сообщение о завершении квеста
                     $message = "🎉 *Поздравляем!* Квест '*Изучить 300 ячеек*' успешно завершен! Ты заслужил награду в *10000 золотых монет* и значительно увеличил свои навыки!\n\nПразднуй свою победу, герой! Новые приключения уже ждут тебя!";
-                    $telegramUserId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
-                    $this->sendMessage($telegramUserId, $message);
+                    // Награда уже выдана. Web-only персонаж без Telegram (ADR-188) → chat null, сообщение пропускаем.
+                    $telegramUserId = (new TelegramChatResolver())->chatIdForCharacter((int) $step['character_id']);
+                    if ($telegramUserId !== null) {
+                        $this->sendMessage($telegramUserId, $message);
+                    }
                 }
             }
         }

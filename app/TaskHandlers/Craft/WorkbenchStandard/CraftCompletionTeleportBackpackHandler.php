@@ -8,6 +8,7 @@ use App\Models\CharacterTaskModel;
 use App\Models\CraftedItemsModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\TelegramUserModel;
+use App\Services\Telegram\TelegramChatResolver;
 use App\TaskHandlers\BaseTaskHandler;
 
 /**
@@ -102,7 +103,7 @@ class CraftCompletionTeleportBackpackHandler extends BaseTaskHandler
         );
 
         // 5) Отправляем уведомление в Telegram
-        $this->notifyUser($task['telegram_user_id'], $craftedItem, $task['character_id']);
+        $this->notifyUser($craftedItem, $task['character_id']);
     }
 
     /**
@@ -134,14 +135,13 @@ class CraftCompletionTeleportBackpackHandler extends BaseTaskHandler
         }
     }
 
-    private function notifyUser($telegramUserId, $craftedItem, $characterId): void
+    private function notifyUser($craftedItem, $characterId): void
     {
-        $telegramUser = $this->telegramUserModel->find($telegramUserId);
-        if (!$telegramUser) {
-            log_message('error', "Не найден TelegramUser c ID={$telegramUserId}");
+        // Предмет уже выдан. Web-only персонаж без Telegram (ADR-188) → уведомление пропускаем.
+        $tgId = (new TelegramChatResolver())->chatIdForCharacter(is_numeric($characterId) ? (int) $characterId : 0);
+        if ($tgId === null) {
             return;
         }
-        $tgId = $telegramUser['telegram_id'];
 
         $existingLog = $this->craftedItemsLogModel->where([
             'character_id'    => $characterId,
