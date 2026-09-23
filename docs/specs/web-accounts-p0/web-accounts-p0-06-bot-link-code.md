@@ -43,6 +43,8 @@ linking the character. A daily tip about linking is seeded.
 - app/Controllers/AccountLink.php
 - app/Views/site/account_link.php
 - tests/database/LinkCodeServiceTest.php
+- app/Controllers/Telegram/Commands/Actions/SettingsAction.php
+- app/Config/CallbackRoutes.php
 
 ## Non-goals
 - No change to the reply keyboard or the ADR-150 main grid. The button goes on the settings
@@ -87,3 +89,27 @@ recon.md §D (command auto-discovery, `BotMenuService::commandList()`).
 ## Implementation notes
 
 ## Findings
+- 2026-09-23 · worker-code · NEEDS_CONTEXT (nothing implemented). Question for the planner: may
+  story 06 `## Files` add these two files?
+  1. `app/Controllers/Telegram/Commands/Actions/SettingsAction.php`: the settings screen, meaning
+     its text and `inline_keyboard` rows, is built in `SettingsAction::buildScreen()` (around line 363).
+     `SettingsCommand.php` only sends what that method returns. The same screen also opens from the
+     `settings` callback and from the reply-menu text «настройки» (`GenericmessageCommand`). A
+     button added only in `SettingsCommand` would show on `/settings` and nowhere else. That breaks
+     Ask 11, and the story's own stop rule applies ("if that screen is rendered elsewhere, stop").
+  2. `app/Config/CallbackRoutes.php`: callback dispatch goes only through
+     `CallbackRoutes::$exactRoutes`/`$prefixRoutes` (`resolve()`, around line 591). There is no
+     convention-based fallback. Without a route entry such as `'webLinkCode' => WebLinkCodeAction::class`,
+     the new `WebLinkCodeAction` cannot be reached from any button.
+  The row normalizer is `App\Services\Telegram\KeyboardNormalizer`, applied inside
+  `App\Services\Telegram\Request::send*`. It needs no file change.
+  Design note for when this resumes: the plan contract is `redeem(string): ?array`. To give
+  readable failure reasons and to refuse before the code is spent (plan A2), I intend to add
+  `LinkCodeService::link(string $code, ?int $currentAccountId)`, which returns a status (login,
+  merged, refused or invalid) with a message. It checks the refuse branch first, then claims
+  the code through `redeem()`.
+- 2026-09-23 · worker-code (re-dispatch) · still NEEDS_CONTEXT. The story was sent again, but
+  `## Files` is unchanged, and neither plan.md nor journal.md answers the question above. plan.md
+  Q4 ("Story 06 keeps its Files") was written before this finding. Nothing implemented. Resuming
+  needs `SettingsAction.php` and `app/Config/CallbackRoutes.php` added to `## Files`, or an
+  explicit ruling that the button may show on `/settings` only.
