@@ -1,8 +1,8 @@
 ---
 story: bugs-info-0923-02
 spec: bugs-info-0923
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -46,5 +46,12 @@ blocked_by: []
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `CraftedResourcesAction.php`: consts `FOOD_MARKER`, `FOOD_PATH_LINE`; `line()` appends « — не применяется, выводится из обращения» for `type='food'`; food block in `renderGrouped()` ends with the path line; `renderFlat()` adds it once if any food row. The DB read moved out of `handle()` into private `loadRows()` so the test can exercise the real query; behaviour is unchanged.
+- The path label differs from the story: there is no Provision button on «🎒 Инвентарь». The real route is `💊 Аптечка` (character screen, `pharmacy`) → `🍲 Провизия` (PharmacyAction, `provision`). No «🥣» exists in the code. The line reads «↳ Еда и питьё, которые работают: 💊 Аптечка → 🍲 Провизия».
+- Caption ≤1024 does not apply: the screen sends plain text via `MediaSender::editTextOrSend`, not a photo. The test asserts Markdown safety instead: even `*` count and no `_`.
+- `CraftedResourcesFoodMarkerTest.php` builds its schema from the two 2024-04-16 migrations with FK checks off, and needs `resetDataCache()` after raw DROP (CI4 caches listTables).
+- Mutation check: blanking the marker turns the test red with 2 failures.
+- `CraftedItemTypeApplicationCoverageTest` does not exist anywhere in the repo, so that AC could not be checked. The adjacent `CraftedItemTypeHeadingCoverageTest` stays green.
+- The full phpunit suite was NOT run: other workers have uncommitted edits in the tree and share `wildworld_tests`, and my early runs collided with them ("table already exists"). Full phpstan shows 13 errors, all in other workers' files (`QuestsInfo.php`, `StrategicLootHandler.php`). The action file alone is clean.
 
 ## Findings
