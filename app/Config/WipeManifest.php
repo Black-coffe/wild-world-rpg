@@ -140,6 +140,19 @@ class WipeManifest extends BaseConfig
             ],
             'note' => 'Аккаунты игроков (id/telegram_id/имена/префы/blocked_at/acquisition_source остаются — атрибуция интейка историческая, переживает вайп; чистим указатели на удалённые сообщения + last_seen)',
         ],
+        // web-accounts-p0 (ADR-188): корень игрока вне Telegram — идёт следом за telegram_users.
+        // characters.account_id НЕ входит в characterResetValues: после вайпа персонаж остаётся
+        // в своём аккаунте (идентичность, как telegram_user_id).
+        'accounts'             => [
+            'strategy' => self::IDENTITY_RESET,
+            'reset'    => ['last_login_at' => null],
+            'note'     => 'Web-аккаунты (ADR-188): аккаунт и его персонаж переживают вайп; обнуляем last_login_at',
+        ],
+        'account_identities'   => [
+            'strategy' => self::IDENTITY_RESET,
+            'reset'    => ['last_used_at' => null],
+            'note'     => 'Способы входа аккаунта (email/google/yandex/telegram, ADR-188) остаются — иначе игрок потеряет вход; обнуляем last_used_at',
+        ],
 
         // ─────────────────────────────────────────────────────────────
         // 🔵 CHARACTER_RESET — characters: сброс прогресса с сохранением id+name+префов
@@ -203,7 +216,9 @@ class WipeManifest extends BaseConfig
         'oracle_markets'       => ['strategy' => self::TRANSIENT, 'note' => 'Экземпляры рынков «Оракул острова» (ADR-133) — крон пересоздаёт каждый цикл'],
         'oracle_outcomes'      => ['strategy' => self::TRANSIENT, 'note' => 'Исходы рынков «Оракул острова» (ADR-133) — привязаны к oracle_markets, пересоздаются'],
         'boss_kill_announce_queue' => ['strategy' => self::TRANSIENT, 'note' => 'Очередь анонсов о повергнутых узлах (ADR-137 WB11) — наполняется kill-путём, потребляется дайджест-кроном; без player-связи'],
-        'queue_jobs'           => ['strategy' => self::TRANSIENT, 'note' => 'Очередь фоновых заданий'],
+        'account_tokens'       => ['strategy' => self::TRANSIENT, 'note' => 'Remember-me и токены сброса пароля (ADR-188) — после вайпа игрок просто входит заново'],
+        'account_link_codes'   => ['strategy' => self::TRANSIENT, 'note' => 'Одноразовые коды входа из бота (ADR-188), TTL 10 минут'],
+        'queue_jobs'           => ['strategy' => self::TRANSIENT,'note' => 'Очередь фоновых заданий'],
         'queue_jobs_failed'    => ['strategy' => self::TRANSIENT, 'note' => 'Проваленные фоновые задания'],
         'telegram_updates_seen' => ['strategy' => self::TRANSIENT, 'note' => 'Дедуп повторной доставки Telegram-апдейтов по update_id (ADR-181) — без player-связи, ретенция чистится telegram-updates:cleanup'],
 

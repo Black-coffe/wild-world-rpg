@@ -68,6 +68,7 @@ class CharacterModel extends Model
         'low_health_warns_today', // health-warning-backoff-01 — счётчик предупреждений за сутки
         'low_health_warns_day',   // health-warning-backoff-01 — за какие сутки считается low_health_warns_today
         'health_warnings_enabled', // health-warning-backoff-03 — opt-out тумблер (default 1, как daily_tips_enabled)
+        'account_id',             // web-accounts-p0-01 (ADR-188) — аккаунт-владелец персонажа (accounts.id)
     ];
 
     protected $useTimestamps = true;

@@ -1,8 +1,8 @@
 ---
 story: web-accounts-p0-01
 spec: web-accounts-p0
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -52,6 +52,7 @@ later story builds on. The schema and the constants follow plan.md `## Contracts
 `memory/map/admin.md` (WipeManifest, GameSettings gotchas); recon.md §B.
 
 ## Acceptance criteria
+- [ ] Worker runs its own new test file(s) singly while iterating; the close-story gate is the full suite + phpstan + migrations lint.
 - [ ] Ask 1: after `migrate`, every character with a non-null `telegram_user_id` has `account_id`
       set. Its account has exactly one identity (`telegram`, subject = `telegram_users.telegram_id`).
       Re-running the backfill section is idempotent.
@@ -70,10 +71,10 @@ later story builds on. The schema and the constants follow plan.md `## Contracts
       `ls app/Database/Migrations | tail` and confirm the prefixes are unique and latest.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/database/AccountsSchemaTest.php`
-`vendor/bin/phpunit --no-coverage --no-progress tests/unit/Config/WipeManifestCoverageTest.php`
-`git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
+`vendor/bin/phpunit --no-coverage --no-progress`
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+`git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
+
 
 ## Tracer
 Thinnest slice through all persistence layers: real migration classes (the create migrations for
@@ -83,5 +84,13 @@ Thinnest slice through all persistence layers: real migration classes (the creat
 report it on the INTERFACES line before wave 2 starts.
 
 ## Implementation notes
+- Migrations 2026-12-10-100001/2/3 (prefixes confirmed free; newest before was 2026-12-08-100000). Schema exactly per plan `## Contracts`; `account_link_codes.character_id` is INT(5) UNSIGNED to match `characters.id` for the FK.
+- 100002: duplicate check runs first and throws with `telegram_users.id` / `characters.id` lists, nothing altered. UNIQUE/column adds are existence-guarded; `backfill()` is public so the test re-runs it (idempotent: skips `account_id IS NOT NULL`, reuses an existing telegram identity).
+- Surprise: adding UNIQUE(characters.telegram_user_id) makes MySQL drop the implicit FK index, so `down()` re-adds a plain `characters_telegram_user_id_foreign` key in the same ALTER before dropping the UNIQUE (otherwise "needed in a foreign key constraint").
+- 100003: `web.open_registration`, category `world`, bool default 0, idempotent insert.
+- WipeManifest: accounts/account_identities IDENTITY_RESET (reset `last_login_at`/`last_used_at` - the coverage test requires a non-empty reset), tokens/link codes TRANSIENT. Manifest does not track columns; `characters.account_id` is kept out of `characterResetValues` (survives wipe) and noted in a comment.
+- AccountService: raw builder on an injectable `BaseConnection`; `unlinkIdentity`/`mergeInto` lock the account row(s) `FOR UPDATE` in a transaction; `addIdentity` pre-checks and also catches the UNIQUE race; `ensureForTelegram` rolls back its fresh account if the identity insert loses a race. Throws InvalidArgumentException for an unknown `telegram_users.id`.
+- Contract unchanged by backfill/UNIQUE. Full-repo phpstan shows 13 `ignore.unmatched` errors in `app/TaskHandlers/*` from the parallel story 02 working tree; 0 errors in this story's files.
+- Test DB: earlier failing runs of my own test left `characters/game_settings/telegram_users` in `wildworld_tests` (empty before); I dropped those three to restore the empty state.
 
 ## Findings

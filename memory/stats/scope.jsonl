@@ -180,3 +180,6 @@
 {"ts":"2026-09-23T14:27:17Z","story":"bugs-info-0923-04-loot-names-ru","declared":8,"changed":10,"out_of_scope":7}
 {"ts":"2026-09-23T14:30:15Z","story":"bugs-info-0923-05-nadet-label","declared":5,"changed":6,"out_of_scope":1}
 {"ts":"2026-09-23T14:47:39Z","story":"bugs-info-0923-06-nadet-migrations","declared":2,"changed":3,"out_of_scope":1}
+{"ts":"2026-09-23T18:00:39Z","story":"web-accounts-p0-01-accounts-core","declared":12,"changed":44,"out_of_scope":32}
+{"ts":"2026-09-23T18:11:10Z","story":"web-accounts-p0-01-accounts-core","declared":12,"changed":53,"out_of_scope":41}
+{"ts":"2026-09-23T18:11:18Z","story":"web-accounts-p0-01-accounts-core","declared":12,"changed":53,"out_of_scope":41}
