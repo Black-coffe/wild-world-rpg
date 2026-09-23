@@ -110,3 +110,4 @@
 {"v":1,"ts":"2026-09-23T14:17:43Z","code":"scope_breach","value":14,"threshold":0,"vulyk":"0.16.0","tier":0,"model":"","agent":"","spec":"","story":"bugs-info-0923-05-nadet-label","ref":"scope:bugs-info-0923-05-nadet-label"}
 {"v":1,"ts":"2026-09-23T14:25:03Z","code":"scope_breach","value":14,"threshold":0,"vulyk":"0.16.0","tier":0,"model":"","agent":"","spec":"","story":"bugs-info-0923-02-food-marker","ref":"scope:bugs-info-0923-02-food-marker"}
 {"v":1,"ts":"2026-09-23T14:25:03Z","code":"scope_breach","value":11,"threshold":0,"vulyk":"0.16.0","tier":0,"model":"","agent":"","spec":"","story":"bugs-info-0923-03-quest-card","ref":"scope:bugs-info-0923-03-quest-card"}
+{"v":1,"ts":"2026-09-23T14:33:49Z","code":"scope_breach","value":7,"threshold":0,"vulyk":"0.16.0","tier":0,"model":"","agent":"","spec":"","story":"bugs-info-0923-04-loot-names-ru","ref":"scope:bugs-info-0923-04-loot-names-ru"}
