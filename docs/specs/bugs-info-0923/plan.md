@@ -81,3 +81,8 @@ env "database.tests.database=wildworld_ci_bi0923" vendor/bin/phpunit --no-covera
 **Checked:** <written by scripts/human-check.sh after the owner has looked - stage 05, and the override for stage 04+05. /vulyk-ship refuses without either this or a GREEN **Council:** line.>
 **Council:** <written by scripts/cycle.sh judge/escalate - stages 04+05: "<GREEN|RED|ESCALATE|STALE> round <N>, <date>, at <sha7>, pack <fp12>[ - red: 2,5]", appended once per round.>
 **Shipped:** <written by scripts/ship-check.sh --record - stage 06: the published version, and where>
+
+
+## Plan deltas
+
+- Queen, 2026-09-23, после волны 1: `phpstan-baseline.neon` — файл story 04. В baseline лежали три ошибки phpstan ровно на баг фермы (`is_array()` с `ResourceEntity` «always false») — фикс story 04 делает их `ignore.unmatched`, их надо удалить. Там же едут удалённые story 03 записи для выпиленных захардкоженных методов `QuestsInfo` (60 строк) — оба удаления честные, один файл = одна story.
