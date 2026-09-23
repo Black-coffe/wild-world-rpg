@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Database;
 
 use App\Controllers\AccountAuth;
+use App\Controllers\AccountLink;
 use App\Database\Migrations\CreateAccountsTables;
 use App\Database\Migrations\CreateCharactersTable;
 use App\Database\Migrations\CreateSiteCategoriesTable;
@@ -27,7 +28,8 @@ use Config\Services;
 
 /**
  * web-accounts-p0-05 (ADR-188) — вход email+пароль, лимит попыток, CSRF на формах аккаунта,
- * страница входа (форма email всегда), Telegram-виджет как identity (правило A2).
+ * страница входа (форма email всегда), Telegram-виджет как identity. Story 09: привязка виджетом —
+ * только по одноразовому nonce кабинета, без слияний; после отвязки Telegram — без теневого аккаунта.
  *
  * @internal
  */
@@ -215,21 +217,105 @@ final class AccountAuthTest extends CIUnitTestCase
         $this->assertSame($tgUser, $session->get('tg_user_id'));
     }
 
-    public function testWidgetLinkWhileLoggedInWithoutCharacterMergesIntoCharacterAccount(): void
+    /**
+     * Story 09 (#1): a logged-in visitor's bare callback is refused; nothing merges or moves.
+     */
+    public function testWidgetCallbackWhileLoggedInWithoutCharacterIsRefusedAndMovesNothing(): void
     {
         $auth       = new AccountAuthService(null, $this->conn);
-        $webAccount = $auth->registerWithEmail('merge@example.com', 'longenough');
+        $webAccount = $auth->registerWithEmail('nomerge@example.com', 'longenough');
         $this->assertIsInt($webAccount);
-        $tgUser = $this->insertTelegramUser(900003002);
-        $charId = $this->insertCharacter($tgUser);
+        $tgUser      = $this->insertTelegramUser(900003002);
+        $charId      = $this->insertCharacter($tgUser);
+        $charAccount = (new AccountService($this->conn))->ensureForTelegram($tgUser);
+        $before      = $this->identitySnapshot();
+
         $result = $this->withSession(['account_id' => $webAccount])->get('login/telegram/callback', $this->widgetPayload(900003002) + ['next' => '/account']);
 
+        $result->assertRedirectTo('/account?auth=link_unconfirmed');
+        $this->assertSame($webAccount, Services::session()->get('account_id'), 'session stays');
+        $this->assertNull(Services::session()->get('character_id'));
+        $this->assertSame($before, $this->identitySnapshot(), 'no identity moved or added');
+        $this->assertSame($webAccount, $auth->verifyPassword('nomerge@example.com', 'longenough'));
+        $this->assertSame($charAccount, $this->accountOfCharacter($charId));
+    }
+
+    public function testWidgetCallbackWhileLoggedInWithCharacterWithoutValidNonceChangesNothing(): void
+    {
+        $accounts = new AccountService($this->conn);
+        $ownTg    = $this->insertTelegramUser(900003010);
+        $this->insertCharacter($ownTg);
+        $current = $accounts->ensureForTelegram($ownTg);
+        $this->insertTelegramUser(900003011); // a spare Telegram: no identity, no character
+        $before         = $this->identitySnapshot();
+        $accountsBefore = $this->conn->table('accounts')->countAllResults();
+
+        $cases = [
+            'no nonce'     => [[], null],
+            'wrong nonce'  => [['link_nonce' => 'forged'], 'minted-a'],
+            'reused nonce' => [['link_nonce' => 'minted-b'], null],
+        ];
+        foreach ($cases as $label => [$extra, $sessionNonce]) {
+            $session = ['account_id' => $current];
+            if ($sessionNonce !== null) {
+                $session['tg_link_nonce'] = $sessionNonce;
+            }
+            $result = $this->withSession($session)->get('login/telegram/callback', $this->widgetPayload(900003011) + $extra);
+
+            $result->assertRedirectTo('/account?auth=link_unconfirmed');
+            $this->assertSame($current, Services::session()->get('account_id'), "{$label}: session stays");
+            $this->assertNull(Services::session()->get('tg_link_nonce'), "{$label}: nonce is spent");
+            $this->assertSame($before, $this->identitySnapshot(), "{$label}: identities unchanged");
+            $this->assertSame($accountsBefore, $this->conn->table('accounts')->countAllResults(), "{$label}: no account created");
+        }
+    }
+
+    public function testCabinetNonceLinksUnownedTelegramOnceAndRefusesOwnedByAnother(): void
+    {
+        $_SERVER['telegram.BOT_USERNAME'] = $_ENV['telegram.BOT_USERNAME'] = 'wildworldrpg_bot';
+        $auth    = new AccountAuthService(null, $this->conn);
+        $current = $auth->registerWithEmail('nonce@example.com', 'longenough');
+        $this->assertIsInt($current);
+        $this->insertTelegramUser(900003020);
+
+        $page  = $this->withSession(['account_id' => $current])->get('account');
+        $nonce = Services::session()->get('tg_link_nonce');
+        $this->assertIsString($nonce);
+        $this->assertStringContainsString($nonce, (string) $page->response()->getBody(), 'nonce rides in the widget auth URL');
+
+        $result = $this->withSession(['account_id' => $current, 'tg_link_nonce' => $nonce])
+            ->get('login/telegram/callback', $this->widgetPayload(900003020) + ['next' => '/account', 'link_nonce' => $nonce]);
+
         $result->assertRedirectTo('/account?auth=linked');
-        $charAccount = (new AccountService($this->conn))->ensureForTelegram($tgUser);
-        $this->assertNotSame($webAccount, $charAccount);
-        $this->assertSame($charAccount, $auth->verifyPassword('merge@example.com', 'longenough'), 'email moved to character account');
-        $this->assertSame(0, $this->conn->table('accounts')->where('id', $webAccount)->countAllResults());
-        $this->assertSame($charId, Services::session()->get('character_id'));
+        $accounts = new AccountService($this->conn);
+        $this->assertSame($current, $accounts->findByIdentity('telegram', '900003020'));
+        $this->assertSame($current, Services::session()->get('account_id'));
+        $this->assertNull(Services::session()->get('tg_link_nonce'), 'nonce is single-use');
+
+        // The same nonce again: already consumed, nothing changes.
+        $linked = $accounts->identities($current);
+        $again  = $this->withSession(['account_id' => $current])
+            ->get('login/telegram/callback', $this->widgetPayload(900003020) + ['link_nonce' => $nonce]);
+        $again->assertRedirectTo('/account?auth=ok');
+        $this->assertSame($linked, $accounts->identities($current));
+
+        // Owned by another account: refused, both accounts unchanged.
+        $other = $auth->registerWithEmail('nonce-other@example.com', 'longenough');
+        $this->assertIsInt($other);
+        $beforeOther = $accounts->identities($other);
+        $refused     = $this->withSession(['account_id' => $other, 'tg_link_nonce' => 'n-other'])
+            ->get('login/telegram/callback', $this->widgetPayload(900003020) + ['link_nonce' => 'n-other']);
+
+        $refused->assertRedirectTo('/account?auth=link_refused');
+        $this->assertSame($other, Services::session()->get('account_id'));
+        $this->assertSame($linked, $accounts->identities($current));
+        $this->assertSame($beforeOther, $accounts->identities($other));
+
+        // Already owned by the current account, valid nonce: no-op.
+        $noop = $this->withSession(['account_id' => $current, 'tg_link_nonce' => 'n-own'])
+            ->get('login/telegram/callback', $this->widgetPayload(900003020) + ['link_nonce' => 'n-own']);
+        $noop->assertRedirectTo('/account?auth=link_already');
+        $this->assertSame($linked, $accounts->identities($current));
     }
 
     public function testWidgetLinkRefusedWhenBothAccountsHaveCharacters(): void
@@ -240,11 +326,61 @@ final class AccountAuthTest extends CIUnitTestCase
         $current = $accounts->ensureForTelegram($otherTg);
         $tgUser  = $this->insertTelegramUser(900003004);
         $this->insertCharacter($tgUser);
-        $result = $this->withSession(['account_id' => $current])->get('login/telegram/callback', $this->widgetPayload(900003004));
+        $target = $accounts->ensureForTelegram($tgUser);
+        $result = $this->withSession(['account_id' => $current, 'tg_link_nonce' => 'n1'])
+            ->get('login/telegram/callback', $this->widgetPayload(900003004) + ['link_nonce' => 'n1']);
 
         $result->assertRedirectTo('/account?auth=link_refused');
         $this->assertSame($current, Services::session()->get('account_id'), 'still logged into own account');
         $this->assertSame(1, $this->conn->table('account_identities')->where('account_id', $current)->countAllResults());
+        $this->assertSame($target, $accounts->findByIdentity('telegram', '900003004'));
+    }
+
+    /**
+     * Story 09 (#5): after the telegram identity is unlinked, a widget login makes no shadow account.
+     */
+    public function testWidgetLoginAfterTelegramUnlinkCreatesNoAccountAndSaysUnlinked(): void
+    {
+        $accounts = new AccountService($this->conn);
+        $tgUser   = $this->insertTelegramUser(900003030);
+        $charId   = $this->insertCharacter($tgUser);
+        $account  = $accounts->ensureForTelegram($tgUser);
+        $this->assertTrue($accounts->addIdentity($account, 'email', 'unlinked@example.com', password_hash('x', PASSWORD_DEFAULT)));
+        $tgIdentity = (int) $accounts->identities($account)[0]['id'];
+        $this->assertTrue($accounts->unlinkIdentity($account, $tgIdentity));
+        $accountsBefore = $this->conn->table('accounts')->countAllResults();
+        $identities     = $accounts->identities($account);
+
+        $result = $this->get('login/telegram/callback', $this->widgetPayload(900003030) + ['next' => '/map']);
+
+        $result->assertRedirectTo('/account/link?auth=tg_unlinked');
+        $this->assertSame($accountsBefore, $this->conn->table('accounts')->countAllResults(), 'no accounts row');
+        $this->assertNull(Services::session()->get('account_id'));
+        $this->assertSame($account, $this->accountOfCharacter($charId));
+        $this->assertSame($identities, $accounts->identities($account));
+
+        $page = (string) $this->get('account/link', ['auth' => 'tg_unlinked'])->response()->getBody();
+        $this->assertStringContainsString(esc(AccountLink::MSG_TG_UNLINKED), $page);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function identitySnapshot(): array
+    {
+        $out = [];
+        foreach ($this->conn->table('account_identities')->orderBy('id')->get()->getResultArray() as $r) {
+            $out[] = $r['id'] . ':' . $r['account_id'] . ':' . $r['provider'] . ':' . $r['subject'];
+        }
+
+        return $out;
+    }
+
+    private function accountOfCharacter(int $characterId): ?int
+    {
+        $row = $this->conn->table('characters')->select('account_id')->where('id', $characterId)->get()->getRowArray();
+
+        return is_array($row) && is_numeric($row['account_id'] ?? null) ? (int) $row['account_id'] : null;
     }
 
     /**

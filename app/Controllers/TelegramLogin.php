@@ -18,7 +18,9 @@ use Config\Services;
  * Виджет (/map, /account/login, профиль…) шлёт GET-запрос со своими params (id, first_name, ..., hash).
  * Проверяем HMAC через TelegramLoginVerifier, маппим telegram_id → telegram_users → аккаунт
  * через его telegram-identity (ADR-188) и входим через AccountSession (ключи account_id,
- * character_id, legacy tg_user_id). Уже вошедший в другой аккаунт — привязка по правилу A2.
+ * character_id, legacy tg_user_id). Уже вошедший посетитель — только привязка из кабинета по
+ * одноразовому `link_nonce` (story 09, F1): без него ничего не меняется, слияний нет.
+ * Telegram отвязан от аккаунта персонажа — вход не создаёт новый аккаунт (A3).
  *
  * Other-player visibility НЕ открывается этим контроллером — только own position
  * (см. Map::data() me-block).
@@ -32,10 +34,11 @@ class TelegramLogin extends BaseController
             return redirect()->to('/map?auth=bad_payload');
         }
 
-        // ADR-092 Фаза 3: куда вернуть после входа (по умолчанию /map). `next` НЕ подписан
-        // Telegram'ом → убираем ДО verify (иначе попадёт в data_check_string и сломает подпись).
+        // ADR-092 Фаза 3: куда вернуть после входа (по умолчанию /map). `next` и `link_nonce` НЕ
+        // подписаны Telegram'ом → убираем ДО verify (иначе попадут в data_check_string и сломают подпись).
         $next = $this->safeNext(is_scalar($payload['next'] ?? null) ? (string) $payload['next'] : null);
-        unset($payload['next']);
+        $linkNonce = is_string($payload['link_nonce'] ?? null) ? $payload['link_nonce'] : null;
+        unset($payload['next'], $payload['link_nonce']);
 
         $verifier = new TelegramLoginVerifier();
         $result   = $verifier->verify($payload);
@@ -70,30 +73,31 @@ class TelegramLogin extends BaseController
 
         $tgUserPk = (int) $tgUser['id'];
 
-        // ADR-188 (web-accounts-p0-05): вход идёт через telegram-identity аккаунта.
-        $accounts        = new AccountService();
-        $accountSession  = new AccountSession(accounts: $accounts);
-        $telegramAccount = $accounts->ensureForTelegram($tgUserPk);
-        $current         = $accountSession->current();
-        $status          = 'auth=ok';
+        $accounts       = new AccountService();
+        $accountSession = new AccountSession(accounts: $accounts);
+        $current        = $accountSession->current();
 
-        if ($current !== null && $current['account_id'] !== $telegramAccount) {
-            // Уже вошёл в другой аккаунт → привязка по правилу плана A2.
-            $merged = $this->linkTelegram($accounts, $current['account_id'], $telegramAccount);
-            if ($merged === null) {
-                return redirect()->to('/account?auth=link_refused')->withCookies();
-            }
-            $telegramAccount = $merged;
-            $status          = 'auth=linked';
+        if ($current !== null) {
+            // ADR-188 инв. 4 (story 09, F1): уже вошедший — только привязка, начатая этой сессией
+            // (nonce из кабинета). Способ входа никогда не переезжает между аккаунтами.
+            return redirect()->to('/account?auth=' . $this->link($accounts, $accountSession, $current['account_id'], $tgId, $linkNonce))
+                ->withCookies();
+        }
+
+        // ADR-188: вход идёт через telegram-identity аккаунта.
+        $accountId = $accounts->accountForTelegramLogin($tgUserPk);
+        if ($accountId === null) {
+            // Telegram отвязан от аккаунта персонажа (A3): новый пустой аккаунт не создаём.
+            return redirect()->to('/account/link?auth=tg_unlinked')->withCookies();
         }
 
         // Новый id сессии (anti-fixation) + account_id/character_id/tg_user_id.
-        $accountSession->login($telegramAccount);
+        $accountSession->login($accountId);
         $session = Services::session();
         $session->set('tg_first_name', $firstName);
         $session->set('tg_username', $username);
 
-        return redirect()->to($this->withParam($next, $status))->withCookies();
+        return redirect()->to($this->withParam($next, 'auth=ok'))->withCookies();
     }
 
     public function logout(): ResponseInterface
@@ -105,22 +109,26 @@ class TelegramLogin extends BaseController
     }
 
     /**
-     * Правило A2: аккаунт без персонажа вливается в аккаунт с персонажем; два разных персонажа —
-     * отказ (null). Возвращает аккаунт, в котором оказался вход.
+     * Callback виджета у вошедшего посетителя. Без верного одноразового nonce ничего не меняется.
+     * С nonce: свободный Telegram добавляется к текущему аккаунту, свой — no-op, чужой — отказ.
+     * Возвращает код уведомления кабинета (`?auth=`).
      */
-    private function linkTelegram(AccountService $accounts, int $currentAccount, int $telegramAccount): ?int
+    private function link(AccountService $accounts, AccountSession $session, int $currentAccount, int $tgId, ?string $nonce): string
     {
-        $currentHasChar  = $accounts->characterForAccount($currentAccount) !== null;
-        $telegramHasChar = $accounts->characterForAccount($telegramAccount) !== null;
+        $subject = (string) $tgId;
+        $owner   = $accounts->findByIdentity('telegram', $subject);
 
-        if (! $currentHasChar) {
-            return $accounts->mergeInto($currentAccount, $telegramAccount) ? $telegramAccount : null;
+        if (! $session->consumeTelegramLinkNonce($nonce)) {
+            return $owner === $currentAccount ? 'ok' : 'link_unconfirmed';
         }
-        if (! $telegramHasChar) {
-            return $accounts->mergeInto($telegramAccount, $currentAccount) ? $currentAccount : null;
+        if ($owner === $currentAccount) {
+            return 'link_already';
+        }
+        if ($owner !== null) {
+            return 'link_refused';
         }
 
-        return null;
+        return $accounts->addIdentity($currentAccount, 'telegram', $subject) ? 'linked' : 'link_refused';
     }
 
     /**

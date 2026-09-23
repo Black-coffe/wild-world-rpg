@@ -26,7 +26,8 @@ use InvalidArgumentException;
  * (ротация). Неверный validator при живом selector'е = кража → токен удаляется.
  *
  * Legacy: сессия, где есть только `tg_user_id` (вход виджетом до P0), апгрейдится до аккаунта
- * через {@see AccountService::ensureForTelegram()} — игрок не разлогинивается.
+ * через {@see AccountService::accountForTelegramLogin()} — игрок не разлогинивается. Если Telegram
+ * отвязан от аккаунта персонажа, ключи снимаются: новый пустой аккаунт не создаётся.
  */
 class AccountSession
 {
@@ -34,8 +35,11 @@ class AccountSession
     public const KEY_CHARACTER = 'character_id';
     public const KEY_TG_USER   = 'tg_user_id';
 
+    /** Одноразовый nonce привязки Telegram-виджетом из кабинета (story 09, F1). */
+    public const KEY_TG_LINK_NONCE = 'tg_link_nonce';
+
     /** Всё, что снимает logout (включая отображаемое имя из виджета). */
-    private const ALL_KEYS = ['account_id', 'character_id', 'tg_user_id', 'tg_first_name', 'tg_username'];
+    private const ALL_KEYS = ['account_id', 'character_id', 'tg_user_id', 'tg_first_name', 'tg_username', 'tg_link_nonce'];
 
     private AccountService $accounts;
 
@@ -83,19 +87,23 @@ class AccountSession
             if ($this->accountExists($accountId)) {
                 return $this->snapshot($accountId);
             }
-            // Аккаунт исчез (влит в другой на другом устройстве) — сессия больше ничего не значит.
+            // Аккаунт исчез (удалён) — сессия больше ничего не значит.
             $session->remove(self::ALL_KEYS);
         } else {
             $tgUserId = self::toInt($session->get(self::KEY_TG_USER));
             if ($tgUserId !== null && $tgUserId > 0) {
                 try {
-                    $upgraded = $this->accounts->ensureForTelegram($tgUserId);
+                    $upgraded = $this->accounts->accountForTelegramLogin($tgUserId);
+                } catch (InvalidArgumentException) {
+                    $upgraded = null;
+                }
+                if ($upgraded !== null) {
                     $this->writeKeys($upgraded);
 
                     return $this->snapshot($upgraded);
-                } catch (InvalidArgumentException) {
-                    $session->remove(self::ALL_KEYS);
                 }
+                // Telegram-вход отвязан (A3) или пользователя нет — сессия ничего не значит.
+                $session->remove(self::ALL_KEYS);
             }
         }
 
@@ -119,6 +127,32 @@ class AccountSession
         if ($accountId !== null && $accountId > 0) {
             $this->writeKeys($accountId);
         }
+    }
+
+    /**
+     * Новый одноразовый nonce привязки Telegram (кабинет кладёт его в auth-URL виджета).
+     * Заменяет прежний: живёт только последний отрисованный виджет.
+     */
+    public function mintTelegramLinkNonce(): string
+    {
+        $nonce = bin2hex(random_bytes(16));
+        $this->session()->set(self::KEY_TG_LINK_NONCE, $nonce);
+
+        return $nonce;
+    }
+
+    /**
+     * Гасит nonce сессии при любой попытке и сверяет его с присланным. true — совпал
+     * (callback начат этой сессией); повтор, чужой или пустой nonce — false.
+     */
+    public function consumeTelegramLinkNonce(?string $presented): bool
+    {
+        $session = $this->session();
+        $stored  = $session->get(self::KEY_TG_LINK_NONCE);
+        $session->remove(self::KEY_TG_LINK_NONCE);
+
+        return is_string($stored) && $stored !== '' && is_string($presented) && $presented !== ''
+            && hash_equals($stored, $presented);
     }
 
     /** Выход: ключи сессии сняты, id сессии новый, remember-токен удалён, cookie просрочена. */

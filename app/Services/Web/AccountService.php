@@ -18,7 +18,7 @@ use RuntimeException;
  * Инварианты:
  *   - `(provider, subject)` принадлежит ровно одному аккаунту (UNIQUE в БД + проверка здесь);
  *   - у аккаунта нельзя отвязать последний способ входа;
- *   - аккаунт с персонажем нельзя влить в другой (P0: один персонаж на аккаунт).
+ *   - способ входа никогда не переходит из аккаунта в аккаунт: слияний нет (ADR-188, инв. 4).
  *
  * Telegram-subject = `telegram_users.telegram_id` десятичной строкой.
  */
@@ -203,35 +203,30 @@ class AccountService
     }
 
     /**
-     * Переносит способы входа `from` в `into` и удаляет `from` (его токены уходят каскадом).
-     * false — `from` владеет персонажем, аккаунты совпадают или одного из них нет.
+     * Аккаунт для входа через Telegram (виджет, апгрейд legacy-сессии): аккаунт, которому
+     * принадлежит telegram-identity. null — identity нет, но персонаж этого Telegram-пользователя
+     * уже сидит на аккаунте (Telegram отвязан, A3): новый пустой аккаунт не создаётся, иначе он
+     * тихо заслонил бы аккаунт персонажа. Иначе — {@see ensureForTelegram()}.
      */
-    public function mergeInto(int $fromAccountId, int $intoAccountId): bool
+    public function accountForTelegramLogin(int $telegramUserId): ?int
     {
-        if ($fromAccountId === $intoAccountId) {
-            return false;
+        $row = $this->row('SELECT telegram_id FROM telegram_users WHERE id = ?', [$telegramUserId]);
+        $raw = $row['telegram_id'] ?? null;
+        if (! is_numeric($raw)) {
+            throw new InvalidArgumentException("AccountService: telegram_users.id={$telegramUserId} not found");
         }
 
-        $this->db->transBegin();
-        $locked = $this->rows(
-            'SELECT id FROM accounts WHERE id IN (?, ?) ORDER BY id FOR UPDATE',
-            [$fromAccountId, $intoAccountId]
+        $accountId = $this->findByIdentity('telegram', (string) $raw);
+        if ($accountId !== null) {
+            return $accountId;
+        }
+
+        $attached = $this->row(
+            'SELECT id FROM characters WHERE telegram_user_id = ? AND account_id IS NOT NULL LIMIT 1',
+            [$telegramUserId]
         );
-        $ownsCharacter = $this->row('SELECT id FROM characters WHERE account_id = ? LIMIT 1', [$fromAccountId]) !== null;
 
-        if (count($locked) !== 2 || $ownsCharacter) {
-            $this->db->transRollback();
-
-            return false;
-        }
-
-        $this->db->table('account_identities')
-            ->where('account_id', $fromAccountId)
-            ->update(['account_id' => $intoAccountId]);
-        $this->db->table('accounts')->where('id', $fromAccountId)->delete();
-        $this->db->transCommit();
-
-        return true;
+        return $attached !== null ? null : $this->ensureForTelegram($telegramUserId);
     }
 
     /**

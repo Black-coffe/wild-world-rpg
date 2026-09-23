@@ -29,7 +29,7 @@ use Config\Services;
 /**
  * web-accounts-p0-06 (ADR-188) — одноразовый код из бота: хранится только sha256, срабатывает
  * один раз (повтор, просрочка, старый код после нового — отказ с понятной причиной), атомарное
- * погашение, правило A2 (вход / слияние / отказ без траты кода), страница /account/link,
+ * погашение, правило link после F1 (вход / no-op / отказ без траты кода, слияний нет), страница /account/link,
  * сообщение бота и вход с экрана настроек.
  *
  * Схема — исполнением настоящих миграций. Глобальный CSRF снят на время теста (он проверен в
@@ -179,7 +179,7 @@ final class LinkCodeServiceTest extends CIUnitTestCase
         $this->assertSame(LinkCodeService::MSG_NOT_FOUND, $result['message']);
     }
 
-    // --- Ask 3: правило A2 ----------------------------------------------------------------------
+    // --- Ask 3: правило link (F1) -------------------------------------------------------------
 
     public function testLoggedOutRedeemLogsIntoCharacterAccountAndLandsOnAccount(): void
     {
@@ -196,21 +196,46 @@ final class LinkCodeServiceTest extends CIUnitTestCase
         $this->assertNull($this->service()->redeem($code), 'the code is spent');
     }
 
-    public function testLoggedInAccountWithoutCharacterIsMergedIntoCharacterAccount(): void
+    /**
+     * Story 09 (#2): no merge branch. Logged into any other account, the code is refused and stays unspent.
+     */
+    public function testLoggedInAccountWithoutCharacterIsRefusedAndCodeStillLogsInWhenLoggedOut(): void
     {
         $accounts = new AccountService($this->conn);
         $charId   = $this->insertCharacter($this->insertTelegramUser(900005006));
         $target   = $accounts->ensureForCharacter($charId);
         $webOnly  = $accounts->createAccount('web');
-        $this->assertTrue($accounts->addIdentity($webOnly, 'email', 'lnkcode-merge@example.com', password_hash('x', PASSWORD_DEFAULT)));
+        $this->assertTrue($accounts->addIdentity($webOnly, 'email', 'lnkcode-nomerge@example.com', password_hash('x', PASSWORD_DEFAULT)));
         $code = $this->service()->issue($charId)['code'];
 
         $result = $this->service()->link($code, $webOnly);
 
-        $this->assertSame(LinkCodeService::STATUS_MERGED, $result['status']);
-        $this->assertSame($target, $result['account_id']);
-        $this->assertSame($target, $accounts->findByIdentity('email', 'lnkcode-merge@example.com'));
-        $this->assertSame(0, $this->conn->table('accounts')->where('id', $webOnly)->countAllResults(), 'merged account is gone');
+        $this->assertSame(LinkCodeService::STATUS_REFUSED, $result['status']);
+        $this->assertSame(LinkCodeService::MSG_OTHER, $result['message']);
+        $this->assertNull($result['account_id']);
+        $this->assertSame($webOnly, $accounts->findByIdentity('email', 'lnkcode-nomerge@example.com'), 'nothing moved');
+        $this->assertSame(1, $this->conn->table('accounts')->where('id', $webOnly)->countAllResults());
+
+        $loggedOut = $this->service()->link($code, null);
+        $this->assertSame(LinkCodeService::STATUS_LOGIN, $loggedOut['status'], 'the refused code was not spent');
+        $this->assertSame($target, $loggedOut['account_id']);
+    }
+
+    public function testLoggedIntoTheCharacterAccountIsNoOpAndCodeIsNotSpent(): void
+    {
+        $accounts = new AccountService($this->conn);
+        $charId   = $this->insertCharacter($this->insertTelegramUser(900005009));
+        $target   = $accounts->ensureForCharacter($charId);
+        $this->assertNotNull($target);
+        $code = $this->service()->issue($charId)['code'];
+
+        $result = $this->withSession(['account_id' => $target])->post('account/link', ['code' => $code]);
+
+        $result->assertRedirectTo('/account');
+        $this->assertSame($target, Services::session()->get('account_id'));
+        $row = $this->conn->table('account_link_codes')->where('code_hash', hash('sha256', $code))->get()->getRowArray();
+        $this->assertIsArray($row);
+        $this->assertNull($row['used_at'], 'no-op does not spend the code');
     }
 
     public function testLoggedInAccountWithOtherCharacterIsRefusedAndCodeIsNotSpent(): void

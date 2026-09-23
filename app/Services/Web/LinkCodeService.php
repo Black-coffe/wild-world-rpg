@@ -17,10 +17,10 @@ use RuntimeException;
  * В `account_link_codes` лежит только sha256 нормализованного кода. Новый код удаляет прежние
  * неиспользованные коды того же персонажа. Срок жизни и время — по часам БД (`NOW()`).
  *
- * Правило плана A2 ({@see link()}):
+ * Правило {@see link()} (story 09, F1 — слияний нет, ADR-188 инв. 4):
  *   - гость → вход в аккаунт персонажа;
- *   - вошёл в аккаунт без персонажа → его способы входа вливаются в аккаунт персонажа;
- *   - вошёл в аккаунт с другим персонажем → отказ, код НЕ тратится.
+ *   - вошёл в аккаунт персонажа → no-op, код НЕ тратится;
+ *   - вошёл в любой другой аккаунт → отказ «выйди и введи снова», код НЕ тратится.
  */
 class LinkCodeService
 {
@@ -28,15 +28,15 @@ class LinkCodeService
     public const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
     public const STATUS_LOGIN   = 'login';
-    public const STATUS_MERGED  = 'merged';
+    public const STATUS_NOOP    = 'noop';
     public const STATUS_REFUSED = 'refused';
     public const STATUS_INVALID = 'invalid';
 
     public const MSG_NOT_FOUND = 'Такого кода нет. Проверь буквы или запроси новый в боте: /web. Если ты уже запрашивал код ещё раз, работает только последний.';
     public const MSG_USED      = 'Этот код уже использован. Запроси новый в боте: /web.';
     public const MSG_EXPIRED   = 'Срок действия кода истёк. Запроси новый в боте: /web.';
-    public const MSG_OTHER     = 'Ты вошёл в аккаунт с другим персонажем. Выйди из него и введи код снова.';
-    public const MSG_FAILED    = 'Не удалось привязать персонажа. Запроси новый код в боте: /web.';
+    public const MSG_OTHER     = 'Ты вошёл на сайте в другой аккаунт. Выйди из него и введи код снова — код ещё действует.';
+    public const MSG_NOOP      = 'Этот персонаж уже привязан к аккаунту, в который ты вошёл.';
 
     /** @var BaseConnection<object, object> */
     private BaseConnection $db;
@@ -125,8 +125,8 @@ class LinkCodeService
     }
 
     /**
-     * Правило A2 целиком. Отказ проверяется ДО траты кода. `account_id` — аккаунт, в который
-     * вызывающий должен войти (`AccountSession::login()`), null — при отказе.
+     * Вход по коду. Отказ и no-op решаются ДО траты кода. `account_id` — аккаунт, в который
+     * вызывающий должен войти (`AccountSession::login()`); при no-op — текущий, null — при отказе.
      *
      * @return array{status:string, message:string, account_id:?int}
      */
@@ -147,14 +147,13 @@ class LinkCodeService
             return self::fail(self::STATUS_INVALID, self::MSG_EXPIRED);
         }
 
-        $characterId = self::toInt($peek['character_id'] ?? null) ?? 0;
-        $targetId    = $this->accounts->ensureForCharacter($characterId);
-        $merge       = false;
-        if ($currentAccountId !== null && $currentAccountId !== $targetId) {
-            if ($this->accounts->characterForAccount($currentAccountId) !== null) {
+        if ($currentAccountId !== null) {
+            $characterId = self::toInt($peek['character_id'] ?? null) ?? 0;
+            if ($this->accounts->ensureForCharacter($characterId) !== $currentAccountId) {
                 return self::fail(self::STATUS_REFUSED, self::MSG_OTHER);
             }
-            $merge = true;
+
+            return ['status' => self::STATUS_NOOP, 'message' => self::MSG_NOOP, 'account_id' => $currentAccountId];
         }
 
         $claimed = $this->redeem($code);
@@ -162,21 +161,8 @@ class LinkCodeService
             // Гонка: код потратил параллельный запрос или он истёк между проверкой и UPDATE.
             return self::fail(self::STATUS_INVALID, self::MSG_USED);
         }
-        $accountId = $claimed['account_id'];
 
-        if ($merge && $currentAccountId !== null) {
-            if (! $this->accounts->mergeInto($currentAccountId, $accountId)) {
-                return self::fail(self::STATUS_REFUSED, self::MSG_FAILED);
-            }
-
-            return [
-                'status'     => self::STATUS_MERGED,
-                'message'    => 'Персонаж привязан: твои способы входа теперь ведут к нему.',
-                'account_id' => $accountId,
-            ];
-        }
-
-        return ['status' => self::STATUS_LOGIN, 'message' => 'Ты вошёл в аккаунт персонажа.', 'account_id' => $accountId];
+        return ['status' => self::STATUS_LOGIN, 'message' => 'Ты вошёл в аккаунт персонажа.', 'account_id' => $claimed['account_id']];
     }
 
     /** Верхний регистр, без пробелов и дефисов — как бы игрок ни перепечатал код. */

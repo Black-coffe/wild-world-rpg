@@ -131,6 +131,29 @@ final class AccountSessionTest extends CIUnitTestCase
         $this->assertSame($current['account_id'], $this->accountOfCharacter($charId));
     }
 
+    /**
+     * Story 09 (#5): a legacy session of a Telegram user whose identity was unlinked comes back logged out.
+     */
+    public function testLegacyTelegramOnlySessionAfterUnlinkIsLoggedOutWithoutShadowAccount(): void
+    {
+        $accounts = new AccountService($this->conn);
+        $tgUser   = $this->insertTelegramUser(900002010);
+        $charId   = $this->insertCharacter($tgUser);
+        $account  = $accounts->ensureForTelegram($tgUser);
+        $this->assertTrue($accounts->addIdentity($account, 'email', 'legacy-unlinked@example.com', password_hash('x', PASSWORD_DEFAULT)));
+        $this->assertTrue($accounts->unlinkIdentity($account, (int) $accounts->identities($account)[0]['id']));
+        $accountsBefore = $this->conn->table('accounts')->countAllResults();
+        $identities     = $accounts->identities($account);
+        Services::session()->set('tg_user_id', $tgUser);
+
+        $this->assertNull($this->sessionService()->current());
+        $this->assertNull(Services::session()->get('tg_user_id'), 'legacy keys cleared');
+        $this->assertNull(Services::session()->get('account_id'));
+        $this->assertSame($accountsBefore, $this->conn->table('accounts')->countAllResults(), 'no shadow account');
+        $this->assertSame($account, $this->accountOfCharacter($charId));
+        $this->assertSame($identities, $accounts->identities($account));
+    }
+
     public function testRememberedLoginSurvivesSessionExpiryAndRotatesToken(): void
     {
         $tgUser    = $this->insertTelegramUser(900002003);

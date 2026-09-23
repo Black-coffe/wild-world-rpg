@@ -23,7 +23,9 @@ class AccountCabinet extends BaseController
     private const AUTH_NOTICES = [
         'ok'                => ['ok', 'Ты вошёл в аккаунт.'],
         'linked'            => ['ok', 'Telegram привязан к аккаунту.'],
-        'link_refused'      => ['error', 'Этот Telegram уже связан с другим персонажем. Один аккаунт — один персонаж.'],
+        'link_refused'      => ['error', 'Этот Telegram уже привязан к другому аккаунту игры. Способ входа не переносится между аккаунтами: сначала отвяжи его там.'],
+        'link_already'      => ['ok', 'Этот Telegram уже привязан к твоему аккаунту.'],
+        'link_unconfirmed'  => ['error', 'Привязка Telegram не подтверждена: начни её кнопкой Telegram на этой странице. Если хочешь войти другим аккаунтом, сначала выйди.'],
         'email_added'       => ['ok', 'Почта и пароль сохранены — теперь можно входить ими.'],
         'unlinked'          => ['ok', 'Способ входа отвязан.'],
         'unlink_last'       => ['error', self::MSG_LAST_IDENTITY],
@@ -117,6 +119,7 @@ class AccountCabinet extends BaseController
         $character  = $accounts->characterForAccount($accountId);
         $identities = $accounts->identities($accountId);
         $rawBot     = env('telegram.BOT_USERNAME');
+        $bot        = is_string($rawBot) ? ltrim($rawBot, '@') : '';
 
         $providers = [];
         foreach ($identities as $identity) {
@@ -130,7 +133,11 @@ class AccountCabinet extends BaseController
             'hasCharacter'  => $character !== null,
             'identities'    => $identities,
             'linked'        => array_values(array_unique($providers)),
-            'botUsername'   => is_string($rawBot) ? ltrim($rawBot, '@') : '',
+            'botUsername'   => $bot,
+            // Story 09 (F1): привязка виджетом засчитывается только с этим одноразовым nonce.
+            'linkNonce'     => ! in_array('telegram', $providers, true) && $bot !== ''
+                ? (new AccountSession())->mintTelegramLinkNonce()
+                : '',
             'notice'        => null,
             'emailError'    => null,
             'emailValue'    => '',

@@ -26,7 +26,7 @@ use RuntimeException;
  * `game_settings` — только если их нет, и дропаются только созданные этим тестом) плюс три
  * новые миграции спеки. Проверяет: backfill (аккаунт + одна telegram-identity на персонажа,
  * идемпотентно), отказ миграции на дублях, `AccountService` (идемпотентный ensureForTelegram,
- * отказы addIdentity/unlinkIdentity/mergeInto), сид `web.open_registration`.
+ * отказы addIdentity/unlinkIdentity, accountForTelegramLogin после отвязки), сид `web.open_registration`.
  *
  * @internal
  */
@@ -149,7 +149,7 @@ final class AccountsSchemaTest extends CIUnitTestCase
         $this->assertSame($char, (int) ($svc->characterForAccount($first)['id'] ?? 0));
     }
 
-    public function testIdentityRulesRefuseTakenLastAndCharacterOwningMerge(): void
+    public function testIdentityRulesRefuseTakenAndLastIdentity(): void
     {
         $this->linkMigration()->up();
         $tg   = $this->insertTelegramUser(900000030);
@@ -169,19 +169,42 @@ final class AccountsSchemaTest extends CIUnitTestCase
         $this->assertFalse($svc->unlinkIdentity($webOnly, $emailId));
         $this->assertCount(1, $svc->identities($webOnly));
 
-        // `from` owns a character — refused.
-        $this->assertFalse($svc->mergeInto($withChar, $webOnly));
-
-        // Account without character merges into the character's account.
-        $this->assertTrue($svc->mergeInto($webOnly, $withChar));
+        // No merges (story 09, F1): a second identity is added directly to the character's account.
+        $this->assertTrue($svc->addIdentity($withChar, 'email', 'b@example.test', password_hash('x', PASSWORD_DEFAULT), 'b@example.test'));
         $this->assertCount(2, $svc->identities($withChar));
-        $this->assertSame(0, $this->conn->table('accounts')->where('id', $webOnly)->countAllResults());
+        $this->assertSame(1, $this->conn->table('accounts')->where('id', $webOnly)->countAllResults());
+        $emailId = (int) $svc->identities($withChar)[1]['id'];
 
         // Now two identities — unlinking one is allowed, the last one again is not.
         $this->assertTrue($svc->unlinkIdentity($withChar, $emailId));
         $tgIdentityId = (int) $svc->identities($withChar)[0]['id'];
         $this->assertFalse($svc->unlinkIdentity($withChar, $tgIdentityId));
         $this->assertSame($withChar, $this->accountOf($char));
+    }
+
+    public function testTelegramLoginAfterUnlinkFindsNoAccountAndCreatesNone(): void
+    {
+        $this->linkMigration()->up();
+        $tg   = $this->insertTelegramUser(900000031);
+        $char = $this->insertCharacter($tg);
+        $svc  = new AccountService($this->conn);
+
+        $account = $svc->ensureForTelegram($tg);
+        $this->assertSame($account, $svc->accountForTelegramLogin($tg), 'identity present: its account');
+
+        $this->assertTrue($svc->addIdentity($account, 'email', 'c@example.test', password_hash('x', PASSWORD_DEFAULT), 'c@example.test'));
+        $tgIdentity = (int) $svc->identities($account)[0]['id'];
+        $this->assertTrue($svc->unlinkIdentity($account, $tgIdentity));
+        $accountsBefore = $this->conn->table('accounts')->countAllResults();
+
+        $this->assertNull($svc->accountForTelegramLogin($tg));
+        $this->assertSame($accountsBefore, $this->conn->table('accounts')->countAllResults(), 'no shadow account');
+        $this->assertSame($account, $this->accountOf($char));
+        $this->assertNotNull($svc->findByIdentity('email', 'c@example.test'));
+
+        // A Telegram user with neither identity nor character behaves as before (ensureForTelegram).
+        $fresh = $this->insertTelegramUser(900000032);
+        $this->assertSame($svc->accountForTelegramLogin($fresh), $svc->findByIdentity('telegram', '900000032'));
     }
 
     public function testCharacterModelAllowsAccountId(): void

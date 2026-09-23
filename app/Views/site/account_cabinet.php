@@ -10,6 +10,7 @@
  * @var list<array<string, mixed>>        $identities
  * @var list<string>                      $linked       провайдеры, уже привязанные к аккаунту
  * @var string                            $botUsername
+ * @var string                            $linkNonce    одноразовый nonce привязки Telegram (story 09)
  * @var array{0:string,1:string}|null     $notice       [ok|error, текст]
  * @var string|null                       $emailError
  * @var string                            $emailValue
@@ -19,6 +20,7 @@ $hasCharacter  = ($hasCharacter ?? false) === true;
 $identities    = is_array($identities ?? null) ? $identities : [];
 $linked        = is_array($linked ?? null) ? $linked : [];
 $botUsername   = is_string($botUsername ?? null) ? $botUsername : '';
+$linkNonce     = is_string($linkNonce ?? null) ? $linkNonce : '';
 $notice        = is_array($notice ?? null) ? $notice : null;
 $emailError    = is_string($emailError ?? null) ? $emailError : null;
 $emailValue    = is_string($emailValue ?? null) ? $emailValue : '';
@@ -154,7 +156,7 @@ $canUnlink   = count($identities) > 1;
             .filter(function(k){ return user[k] !== null && user[k] !== undefined; })
             .map(function(k){ return encodeURIComponent(k) + '=' + encodeURIComponent(user[k]); })
             .join('&');
-        window.location.href = <?= json_encode(base_url('login/telegram/callback'), JSON_UNESCAPED_SLASHES) ?> + '?' + qs + '&next=' + encodeURIComponent('/account');
+        window.location.href = <?= json_encode(base_url('login/telegram/callback'), JSON_UNESCAPED_SLASHES) ?> + '?' + qs + '&next=' + encodeURIComponent('/account') + '&link_nonce=' + encodeURIComponent(<?= json_encode($linkNonce) ?>);
     };
     var slot = document.getElementById('tg-login-slot');
     if (!slot) return;
