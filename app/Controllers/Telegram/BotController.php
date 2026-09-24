@@ -3,11 +3,10 @@
 namespace App\Controllers\Telegram;
 
 use CodeIgniter\Controller;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Telegram;
 use App\Services\Community\CommunityIngestService;
 use App\Services\Community\CommunityModerationService;
 use App\Services\Telegram\Request;
+use App\Services\Telegram\UpdatePipeline;
 
 class BotController extends Controller
 {
@@ -15,16 +14,8 @@ class BotController extends Controller
 
     public function __construct()
     {
-        $API_KEY = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            // Регистрация команд
-            $this->telegram->addCommandsPath(__DIR__ . '/Commands');
-
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
+        // web-bridge-p1-05 — сборка Telegram живёт в UpdatePipeline::telegram() (её же берёт /play).
+        $this->telegram = UpdatePipeline::telegram();
     }
 
     /**
@@ -80,101 +71,11 @@ class BotController extends Controller
             return $this->response->setStatusCode(200)->setBody('');
         }
 
-        // E6 (ADR-108) Фаза 1 — достаём telegram_id ДО обработки, проставляем last_seen
-        // ПОСЛЕ (в finally). Порядок важен: во время handle() код видит ПРЕДЫДУЩЕЕ
-        // значение last_seen (основа digest «пока тебя не было», Ф2). Defensive — stamp
-        // не должен влиять на обработку апдейта.
-        $telegramUserId = is_array($update)
-            ? \App\Services\Player\LastSeenService::extractTelegramId($update)
-            : null;
-
-        // ADR-168 — снять метку источника с callback_data ДО всего остального: и firehose, и
-        // Longman обязаны увидеть уже очищенную строку. Метка (`gather~cmp`) отвечает на вопрос
-        // «с какого экрана нажали», на который ADR-148 в одиночку ответить не мог. 🔴 Снятие
-        // безусловно (кнопки живут в истории чата вечно), простановка — под killswitch.
-        $actionOrigin = null;
-        if (is_array($update)) {
-            [$update, $actionOrigin, $originStripped] = \App\Services\Logging\ActionOrigin::stripUpdate($update);
-            \App\Services\Logging\ActionOrigin::set($actionOrigin);
-
-            // Longman читает php://input САМ, а не наш $update, поэтому очищенную строку ему
-            // надо отдать явно. Трогаем ввод ТОЛЬКО когда апдейт реально очищен: непомеченный
-            // трафик (весь легаси) идёт прежним путём, без json-раундтрипа.
-            // 🔴 Условие — на ФАКТЕ очистки, а не на валидности метки: мусорный хвост тоже
-            // срезается, и без перезаписи Longman получил бы строку, которой роутер не знает
-            // (мёртвая кнопка + firehose, разошедшийся с реальностью). Поймано Tier-3 14.08.
-            if ($originStripped && $this->telegram !== null) {
-                $reencoded = json_encode($update, JSON_UNESCAPED_UNICODE);
-                if (is_string($reencoded)) {
-                    $this->telegram->setCustomInput($reencoded);
-                }
-            }
-        }
-
-        // ADR-148 — firehose ВСЕХ прямых действий игрока. begin() парсит «что/кто/откуда» из
-        // сырого апдейта (1 апдейт = 1 действие); commit() в finally пишет ровно одну строку с
-        // исходом. 🔴 Defensive — захват не влияет на обработку апдейта; не-player апдейты
-        // (channel_post, my_chat_member, …) сами отсеиваются в begin() → commit() no-op.
-        if (is_array($update)) {
-            \App\Services\Logging\PlayerActionLogger::current()->begin($update);
-            // ADR-168 — источник нажатия в отдельную колонку. ПОСЛЕ begin(): он сбрасывает
-            // состояние захвата. action_name/raw_input остаются легаси-сравнимыми с историей.
-            \App\Services\Logging\PlayerActionLogger::current()->setOrigin($actionOrigin);
-            // ADR-148 (расширение) — сигнал ДОСТАВКИ. Без него firehose знал только про
-            // роутинг и писал 'ok', пока экраны лавки крафта 2.5 месяца уходили в пустоту.
-            // Ставится ПОСЛЕ begin(): счётчики отправок живут внутри текущего захвата.
-            \App\Services\Logging\TelegramDeliveryProbe::install();
-        }
-
-        // E6 (ADR-108) Ф2 — оффлайн-digest «пока тебя не было». ДО handle() (last_seen
-        // ещё ПРЕДЫДУЩИЙ; стамп в finally ПОСЛЕ → следующее взаимодействие свежее =
-        // естественный one-shot per возврат). Dormant под killswitch; defensive.
-        if ($telegramUserId !== null && is_array($update)) {
-            $chatId = \App\Services\Player\LastSeenService::extractChatId($update) ?? $telegramUserId;
-            try {
-                (new \App\Services\Player\ReturnDigestService())->maybeSendDigest($telegramUserId, $chatId);
-            } catch (\Throwable $e) {
-                log_message('error', '[Bot.webhook] returnDigest: ' . $e->getMessage());
-            }
-            // E6 (ADR-108) Ф3 — стрик входа: награда на ПЕРВОМ взаимодействии нового дня.
-            // ДО handle() → карточка Перса (если это первое действие) покажет обновлённую серию.
-            try {
-                (new \App\Services\Player\LoginStreakService())->maybeReward($telegramUserId, $chatId);
-            } catch (\Throwable $e) {
-                log_message('error', '[Bot.webhook] loginStreak: ' . $e->getMessage());
-            }
-            // E8 (ADR-109) Ф2 — ежедневные задания: ленивое назначение набора за день при
-            // первом контакте + one-shot интро-подсказка новичку (just-in-time). Dormant под
-            // killswitch quests.daily.enabled; defensive — фон не должен ломать обработку апдейта.
-            try {
-                (new \App\Services\Quest\DailyTaskService())->ensureForTelegramUser($telegramUserId, $chatId);
-            } catch (\Throwable $e) {
-                log_message('error', '[Bot.webhook] dailyTasks: ' . $e->getMessage());
-            }
-        }
-
-        try {
-            $this->dispatchToTelegram();
-        } catch (TelegramException $e) {
-            // Текущее поведение: логируем и глотаем TelegramException.
-            log_message('error', $e->getMessage());
-            \App\Services\Logging\PlayerActionLogger::current()->markError($e->getMessage());
-        } catch (\Throwable $e) {
-            // ADR-148 — прочие исключения (TypeError и т.п.) помечаем 'error' и ПРОБРАСЫВАЕМ
-            // дальше (поведение как раньше — наверх к обработчику фреймворка).
-            \App\Services\Logging\PlayerActionLogger::current()->markError($e->getMessage());
-            throw $e;
-        } finally {
-            if ($telegramUserId !== null) {
-                (new \App\Services\Player\LastSeenService())->stampByTelegramId($telegramUserId);
-            }
-            // ADR-148 — записать строку firehose (defensive; no-op если begin() не активировал
-            // захват, killswitch выключен или уже закоммичено). Выполняется и при исключении.
-            \App\Services\Logging\PlayerActionLogger::current()->commit();
-            // ADR-168 — холдер источника живёт ровно один апдейт (гигиена: процесс может
-            // переиспользоваться, и чужая метка не должна протечь в следующее действие).
-            \App\Services\Logging\ActionOrigin::reset();
-        }
+        // web-bridge-p1-05 (ADR-189 §1) — всё после гейтов (LastSeen, ADR-168 strip, firehose,
+        // E6/E8-хуки, диспетч, finally) — в общем конвейере; порядок шагов прежний. Диспетч —
+        // через seam dispatchToTelegram(), его переопределяют тест-спаи контроллера.
+        (new UpdatePipeline($this->telegram, fn () => $this->dispatchToTelegram()))
+            ->run(is_array($update) ? $update : null, UpdatePipeline::SOURCE_TELEGRAM);
     }
 
     /**

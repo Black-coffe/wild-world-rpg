@@ -1,8 +1,8 @@
 ---
 story: web-bridge-p1-05
 spec: web-bridge-p1
-status: todo
-returned: NEEDS_CONTEXT
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -101,6 +101,13 @@ are valid Longman input:
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- `UpdatePipeline` (new): `__construct(?Telegram, ?callable $dispatch)`, `static telegram(): ?Telegram` (nullable, like the old constructor that left `$telegram` null on `TelegramException`), `run(?array $update, string $source): bool`. `null` update = undecodable body: dispatch only, same as the old `is_array` branches. Returns `false` on a swallowed error; `'telegram'` still rethrows a non-Telegram `Throwable` (Queen Q2).
+- Dispatch: `BotController` passes `fn () => $this->dispatchToTelegram()`, so the five spy tests stay unchanged. With no callable, `'web'` dispatches through `Telegram::processUpdate(new Update(...))` (not php://input), and `'telegram'` through `handle()`.
+- `DeliveryContext` actor = `LastSeenService::extractChatId($update)`, reset in an outer `finally` that also covers the pre-dispatch steps.
+- `BotController::__construct` now calls `UpdatePipeline::telegram()`. The two phpstan-baseline entries for `string|false` → `Telegram` constructor no longer matched, so I removed them.
+- Guards (Q1): `LastSeenService` extract and stamp, `LoginStreakService`, `ReturnDigestService`, `DailyTaskService` → `positive OR VirtualChat::is()`. I reverted each of the 5 guards separately, and `UpdatePipelineTest` went red each time.
+- Surprise: the synthetic `guide` callback's chat-less `answerCallbackQuery` reached api.telegram.org once during iteration: fake token, 401 → `status=error`. The test now pre-installs the probe and swaps the Longman client for an "ok" stub. In `/play`, story 07's `BridgeClient` must catch this.
+- `SyntheticUpdateFactory`: the embedded screen message has no `from`, because no handler reads it. Photo screens carry a 1x1 `photo` marker + caption. The `bot_command` entity length is in UTF-16 units.
 
 ## Findings
 - **Q1 (blocks Ask 6): the hooks and the stamp reject a virtual id, and their files are not in `## Files`.**

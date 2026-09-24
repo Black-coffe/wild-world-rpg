@@ -823,18 +823,6 @@ parameters:
 			path: app/Controllers/Telegram/BotController.php
 
 		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/BotController.php
-
-		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/BotController.php
-
-		-
 			message: '#^Property App\\Controllers\\Telegram\\BotController\:\:\$telegram has no type specified\.$#'
 			identifier: missingType.property
 			count: 1

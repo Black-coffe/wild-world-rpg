@@ -42,7 +42,8 @@ class LastSeenService
             $from = $wrapper['from'] ?? null;
             if (is_array($from) && isset($from['id']) && is_numeric($from['id'])) {
                 $id = (int) $from['id'];
-                if ($id > 0) {
+                // web-bridge-p1-05 (ADR-189): виртуальный id сайта тоже игрок.
+                if ($id > 0 || \App\Services\Web\VirtualChat::is($id)) {
                     return $id;
                 }
             }
@@ -122,7 +123,7 @@ class LastSeenService
      */
     public function stampByTelegramId(int $telegramId): void
     {
-        if ($telegramId <= 0) {
+        if ($telegramId <= 0 && ! \App\Services\Web\VirtualChat::is($telegramId)) {
             return;
         }
         try {

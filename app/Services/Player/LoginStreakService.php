@@ -43,7 +43,7 @@ class LoginStreakService
      */
     public function maybeReward(int $telegramId, int $chatId): void
     {
-        if ($telegramId <= 0 || $chatId === 0 || ! $this->enabled()) {
+        if (($telegramId <= 0 && ! \App\Services\Web\VirtualChat::is($telegramId)) || $chatId === 0 || ! $this->enabled()) {
             return;
         }
 

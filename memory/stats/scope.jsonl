@@ -206,3 +206,4 @@
 {"ts":"2026-09-24T15:53:13Z","story":"web-bridge-p1-04-delivery-capture","declared":14,"changed":23,"out_of_scope":10}
 {"ts":"2026-09-24T15:53:39Z","story":"web-bridge-p1-04-delivery-capture","declared":14,"changed":24,"out_of_scope":11}
 {"ts":"2026-09-24T15:58:25Z","story":"web-bridge-p1-06-play-views","declared":6,"changed":9,"out_of_scope":3}
+{"ts":"2026-09-24T16:23:46Z","story":"web-bridge-p1-05-update-pipeline","declared":10,"changed":13,"out_of_scope":3}
