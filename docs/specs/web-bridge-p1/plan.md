@@ -44,10 +44,13 @@ Confirm or veto at the approval stop:
   screen or inbox item of that character. Text and commands stay free-form, as in Telegram.
   Reason: a browser can post any string, while in Telegram a player can only press what the bot
   sent. This supports Ask 6, «игрок может управлять только своим персонажем».
+  *Round 3 (story 12):* the button must sit on the very message whose `message_id` the callback
+  carries.
 - **A4. "Background" means a send to anyone who is not the actor of the current interactive
   request** (ADR-189 §5). In Worker, cron and spark everything is background. Replies to the
   actor are never copied. A linked player acting on `/play` gets no Telegram message for that
   act. `edit*`/`delete*` are dropped for a virtual chat and not copied for a linked one.
+  *Round 3:* this holds for real-range message ids only. Synthetic-range ids follow A16.
 - **A5. "Linked player" for the inbox copy means a bot player who has used the site**
   (`accounts.last_login_at IS NOT NULL`). Without this, about 700 bot-only players would
   accumulate unread rows. ADR-189 does not define the term. *Owner to confirm.*
@@ -69,6 +72,9 @@ Confirm or veto at the approval stop:
   because the tip and the guide ship while the flag is still off.
 - **A12. A photo is shown only if its file is under `public/` or the send carried an http(s)
   URL.** Otherwise the screen shows the caption alone, which is complete under media-off.
+  *Amended in round 3 (manual review #13):* this includes a photo sent as a Telegram `file_id`
+  string. The seam cannot resolve a `file_id` to a file, so that screen shows the caption alone.
+  A `src` is never protocol-relative (story 13).
 - **A13. First visit with no stored state dispatches a synthetic `/start`** to get the dock and a
   first screen. If Q7 finds side effects for an existing character, the bootstrap becomes
   `/menu` (plan delta).
@@ -76,6 +82,18 @@ Confirm or veto at the approval stop:
   the P0 review minors, and the fix that keeps virtual rows out of broadcast "reachable in
   Telegram" statistics (ADR-189 «−», open risk). Ask 12 is the Queen's preprod walk.
 - **A15. F1–F3 stay as they are** (brief Answer 4). Only the texts change.
+- **A16. A synthetic-range `message_id` exists only on the web (round 3, story 11; *owner to
+  confirm*).** A background `edit*`/`delete*` whose `message_id` is ≥ `firstMessageId` never goes
+  to Telegram, whether the chat is virtual or linked. An edit is applied to that character's
+  web copy in place (screen or history). With the flag on, it is also upserted as one unread
+  inbox item per `message_id`. The caller gets `ok:true`. Consequence: a linked player who
+  starts a march on `/play` follows its progress on the site (the bell, the inbox, the screen)
+  and not in Telegram. Any new `send*` the caller makes still goes to Telegram and gets the
+  mirror (Ask 4).
+- **A17. `web_play_intents` keeps a 24 h dedup window (round 3, story 12).** Older rows are pruned
+  on insert, and the window is measured on the DB clock. The value is infrastructure
+  (`Config\WebPlay::intentRetentionHours`, A8). A double-submit or a network retry arrives
+  within seconds, so 24 h is ample.
 
 ### Recon questions for `drone-scout` (answer before the named wave)
 - **Q2 (W2, 04/05).** What does the group filter at `BotController.php:77` test? List every place
@@ -154,8 +172,26 @@ direct `Longman\…\Request` imports into story 04 (ADR-189 «не провер�
   «откроют / пока заглушка», «Играть» in the header named as the way in. Files:
   `WebLinkCodeAction`, `GuideCatalog`, the migration, `WebPlayTextsTest`.
 
-**Ask coverage:** 1→05,07 · 2→01,04,07 · 3→02,04,06,09 · 4→04,06,07 · 5→04,05 · 6→01,05,07 ·
-7→01,03,07 · 8→03,10 · 9→03,06,08 · 10→02,06 · 11→01 · 12→07 + integration gate (Queen Tier-3).
+**Wave 6 (round 3 repair: manual review, owner decision 2026-09-24)**. All three stories run
+`model: opus`, and their files are disjoint.
+- `web-bridge-p1-11-background-edit-of-web-message` (Asks 2, 3, 4, 5; review #1, #6): a
+  background edit or delete of a synthetic-range id never reaches Telegram (A16). An edit patches
+  the web copy in place and upserts one unread inbox item. `applyCapture` and the new
+  `patchMessage` write under one concurrency guard. Files: `WebDelivery`, `WebScreenStore`,
+  `WebInboxService`, `WebDeliveryTest`, `WebInboxServiceTest`, new `WebScreenStoreTest`.
+- `web-bridge-p1-12-act-guard-message-scoped` (Ask 6; review #5, #7, #11): a callback is accepted
+  only when its `data` is on the message its `message_id` names. The whitelist test covers
+  another character's message. Intents are pruned on insert with a 24 h window (A17). Files:
+  `WebActService`, `Config\WebPlay`, `WebActServiceTest`.
+- `web-bridge-p1-13-play-client-error-path` (Asks 1, 3, 6; review #2, #9, #10): JSON 400/429
+  bodies are handled in place with the fresh token. PRG is reached only on a network or parse
+  failure, after a token refresh. A failed bootstrap still renders `/play` with the alert. A
+  photo `src` is never protocol-relative. Files: `Play`, `AccountThrottleFilter`,
+  `_play/state.php`, `wildworld-play.js`, `PlayControllerTest`, `PlayViewsTest`.
+
+**Ask coverage:** 1→05,07,13 · 2→01,04,07,11 · 3→02,04,06,09,11,13 · 4→04,06,07,11 · 5→04,05,11 ·
+6→01,05,07,12,13 · 7→01,03,07 · 8→03,10 · 9→03,06,08 · 10→02,06 · 11→01 · 12→07 + integration
+gate (Queen Tier-3).
 
 **Verdicts (already Asks):**
 - guide: yes, section `web` extended (Ask 8).
@@ -166,6 +202,9 @@ direct `Longman\…\Request` imports into story 04 (ADR-189 «не провер�
 - balance: no new numbers.
 - WipeManifest (Ask 11): `web_inbox` PLAYER_DATA; `web_play_state` PLAYER_DATA;
   `web_play_intents` TRANSIENT. Virtual rows fall under `telegram_users` IDENTITY_RESET.
+- Round 3: none of the three repair stories adds a player-visible feature, table or column, so the
+  guide, tip, onboarding and WipeManifest verdicts are unchanged. Tip: no, it is a fix to web
+  play delivery.
 
 ## Contracts
 
@@ -184,6 +223,7 @@ taken, shifts to the next free one and reports it.
   `SeedWebLinkTip`, idempotent; `down()` restores the old text)
 - 10: `2026-12-11-100011_WebPlayTipTrueInBothFlagStates.php` (UPDATE by `title_en='WebLinkCode'`,
   idempotent; `down()` restores `UpdateWebLinkTipForWebPlay::NEW_CONTENT`)
+- Round 3 (11–13): no migrations.
 
 **Schema (01)**
 - `web_play_state`: `character_id` PK FK→characters CASCADE, `next_message_id` BIGINT NOT NULL
@@ -217,6 +257,7 @@ taken, shifts to the next free one and reports it.
   overrides the derived one. `web` is in `VALID_SOURCES`.
 - `Config\WebPlay` (01): `historySize=10`, `inboxKeep=200`, `inboxPollSeconds=30`,
   `inboxPollMinSeconds=10`, `actsPerMinute=60`, `inboxReadsPerMinute=12`, `textMaxLength=4096`.
+  Round 3 (12) adds `intentRetentionHours=24` (A17).
 - `App\Services\Web\TelegramMarkupRenderer` (02): `static toHtml(?string $text, ?string $parseMode): string`.
   It escapes first and allows only `b i u s code pre a[href=http(s)]` and `<br>`. It never
   throws.
@@ -232,6 +273,10 @@ taken, shifts to the next free one and reports it.
       `{ok:true,result:{message_id,…}}`;
     - virtual chat: write to the inbox (or drop an edit/delete) and return a synthetic ok;
     - otherwise: `parent::send()`, then the linked-mirror hook.
+  - Round 3 (11), which runs before the virtual/otherwise cases: a background `edit*`/`delete*`
+    with `message_id ≥ firstMessageId` to a chat that resolves to a character never reaches
+    `parent::send()`. An edit calls `WebScreenStore::patchMessage` and, with the flag on,
+    `WebInboxService::upsertEdit`. The seam returns a synthetic `ok:true` (A16).
 - `App\Services\Web\BridgeClient` (04): `new BridgeClient(ClientInterface $delegate, int $actorChatId)`.
   Actor-chat or chat-less requests that bypassed the seam become caption-only captures and are
   not sent. Every other request goes to the delegate.
@@ -246,12 +291,19 @@ taken, shifts to the next free one and reports it.
     promotes it to the current screen; an edit on the current screen stays in place)
   - `findMessage(int $characterId, int $messageId): ?Msg`
   - `callbackAllowed(int $characterId, string $data): bool` (screens + inbox)
+  - Round 3 (11): `patchMessage(int $characterId, int $messageId, Msg $msg): bool` patches the
+    message in place in the screen or history and never promotes it. It returns false when the
+    message is not there. `applyCapture` and `patchMessage` do their read-modify-write under one
+    guard, so concurrent writers of one character lose no update.
 - `App\Services\Web\WebInboxService` (04):
   - `append(int $characterId, array $msg, string $source): int`
   - `unreadCount(int $characterId): int`
   - `latest(int $characterId, int $limit): list<array{msg, created_at, read}>`
   - `markAllRead(int $characterId): void`
   - `findMessage(int $characterId, int $messageId): ?Msg`
+  - Round 3 (11): `upsertEdit(int $characterId, int $messageId, Msg $msg, string $source): void`
+    keeps one row per `(character_id, message_id)`. It replaces the payload and sets
+    `read_at = NULL`, and inserts the row when there is none.
 - `App\Services\Telegram\UpdatePipeline` (05):
   - `static telegram(): Telegram` (built as `BotController` does)
   - `run(array $update, string $source): void`: `'telegram'|'web'`. It never throws. It sets
@@ -262,6 +314,9 @@ taken, shifts to the next free one and reports it.
   - Both set `chat.type='private'`, and `from`/`chat` come from `$identity` only.
 - `App\Services\Web\WebActService` (07): `act(int $accountId, int $characterId, array $intent): array{state, alert:?string, unread:int}`,
   where `$intent = {intent_id, kind: callback|text|command, data, message_id?}`.
+  Round 3 (12): a callback's `data` must be on a button of the `Msg` that its `message_id`
+  resolves to for that character. Each new intent row prunes the rows older than
+  `intentRetentionHours`.
 - `App\Services\Web\AccountSession` (08): a one-shot return target. It stores only the exact path
   `/play`, and `AccountCabinet::index` is its only reader. Story 08 reports the method names on
   its INTERFACES line.
@@ -284,9 +339,9 @@ in or not. The login redirect applies only while the flag is on.
 
 | Method + path | Controller::method | Response |
 |---|---|---|
-| GET `/play` | `Play::index` | `site/play`, or `site/play_stub` (flag off, logged in or not / no character); logged out with flag on → `/account/login` + return target `/play` (08) |
-| POST `/play/act` | `Play::act` | with `Accept: application/json` → `{html, unread, alert, csrf}`; otherwise 303 → `/play` |
-| GET `/play/inbox` | `Play::inbox` | JSON `{unread, html}` |
+| GET `/play` | `Play::index` | `site/play`, or `site/play_stub` (flag off, logged in or not / no character); logged out with flag on → `/account/login` + return target `/play` (08); a failed bootstrap still renders `site/play` with the alert (13) |
+| POST `/play/act` | `Play::act` | with `Accept: application/json` → 200 `{html, unread, alert, csrf}`; 400 reject `{html, unread, alert, csrf}`; 429 throttle `{alert, csrf}` (13); otherwise 303 → `/play` |
+| GET `/play/inbox` | `Play::inbox` | JSON `{unread, html, csrf}` (`csrf` added in 13) |
 | POST `/play/inbox/read` | `Play::markRead` | JSON `{unread:0}` |
 
 Filters: `accountThrottle:play` on both POSTs and `accountThrottle:inbox` on GET inbox. CSRF is
@@ -343,6 +398,16 @@ names on its INTERFACES line. The Queen pastes them here before wave 2.
   `TipService` change. `GuideCatalog` would lose its "read-only catalog" shape, and every text
   would need two variants and two tests. The cost: while the flag is off, the texts cannot say
   "not yet"; the `/play` stub and the cabinet lock line say that instead.
+- **Chosen (11): the seam absorbs every background edit of a synthetic-range id into the web copy
+  and the inbox (A16).** It fixes the march and also any edit-first caller that review did not
+  grep (review "Not verified" item 2), with no handler edits. **Rejected: id mapping.** The first
+  background edit would send one real Telegram message and store a synthetic→real id map, and
+  later edits would be rewritten to the real id. That keeps a linked player's march progress in
+  Telegram, but it needs a new table or column (WipeManifest, retention). It also still leaves the
+  web-only player with nothing unless the web path is built anyway. **Rejected too: patching
+  `MarchingTaskHandler`/`MarchAction`** to store the fallback id. That covers one caller, and the
+  virtual-chat `ok` still hides the edit from a web-only player. The cost of the choice: a linked
+  player follows a march started on `/play` on the site, not in Telegram.
 
 ## Integration gate
 `vendor/bin/phpunit --no-coverage --no-progress`
@@ -358,6 +423,13 @@ run sequentially on the shared `wildworld_tests`. After wave 3:
   5 and R5 (`editOrSend` fallback after synthetic ids). Nginx and app logs show no Telegram
   request with a virtual-range chat id and no guard `error` line (Ask 2).
 
+After wave 6 (round 3), the Tier-2 and Tier-3 walks add:
+- **Tier-2:** a stale button (made stale from a second tab) and a throttle hit each show the
+  alert in place. Neither shows the 403 page.
+- **Tier-3:** both characters start a march from `/play`. The web-only character's bell and inbox
+  show one item that updates as the march advances. The linked player gets no new Telegram
+  message per step. Photo screens render on preprod (see the round-3 note in plan deltas).
+
 ## Descoped
 
 *(empty)*
@@ -371,6 +443,14 @@ run sequentially on the shared `wildworld_tests`. After wave 3:
 - 2026-09-24 · trigger: council round 1 RED on Ask 9 (seat opus: `Play::gate()` checks the login before the flag, so an anonymous flag-off visitor gets `/account/login` instead of the stub, and nothing returns them to `/play` after login; seat haiku: prod header has no `/play`, because the reviewed commit is not deployed there). Decision: fix story `web-bridge-p1-08` in wave 4, which puts the flag first and adds a session return target consumed by the cabinet. Haiku's finding is environmental (it walked prod), so no story addresses it. Rejected: amending story 07 in place (it is `done`, and a new story keeps the scope gate and the review slot honest).
 
 - 2026-09-24 · trigger: council round 2 RED on Asks 3 and 8 (seat opus; sonnet GREEN, haiku N/A environmental, review ABSENT). Ask 3: `WebScreenStore::applyCapture` patches an edit of a history message in place, so a tap on a past screen answered by an edit leaves the main screen unchanged. Ask 8: the story-03 texts are static and say «когда откроют / пока там заглушка», so they turn false the moment the owner flips `web.play_enabled` without a deploy. Decision: wave 5, one story per ask — `web-bridge-p1-09` (promote a history edit to the screen) and `web-bridge-p1-10` (wording true in both flag states, new tip migration `100011`). Files are disjoint. Rejected: amending stories 04/03 in place (both `done`); read-only history (see Tradeoffs); flag-aware texts (see Tradeoffs). Opus's UNASKED notes (no header bell, no backlog while the flag is off, Telegram-only flows for web-only players) are covered by A6/A10/A14 or out of scope and get no story.
+
+- 2026-09-24 · trigger: council round 3 ESCALATE (env; the review seat was empty in all rounds), owner reopen, and the manual lead-review `council/manual-review.md` (PASS, findings 1–13). Owner decision (Andrei, brief «After escalation»): fix before ship. Decision: wave 6 with three disjoint `model: opus` stories. `web-bridge-p1-11` takes #1 and #6: both write `web_play_state`, so the concurrency guard has to cover the new background patch. `web-bridge-p1-12` takes #5, #7 and #11, all in `WebActService`. `web-bridge-p1-13` takes #2, #9 and #10, all on `Play`, the throttle and the client. New assumptions A16 and A17 go to the owner. A3, A4 and A12 are amended in place. Rejected: one story per finding (nine stories, and #6/#1 plus #9/#2 would collide on `WebScreenStore` and `Play.php`); a single repair story (it mixes the transport with the client JS and serializes three independent fixes).
+  - **#3 dropped** (owner): prod `player_action_log` = 68 741 rows / 20 MB and `action_log` = 9 592 rows, so the `100005` ALTER takes seconds and needs no scheduling.
+  - **#4 accepted:** a non-integer `chat_id` (`@channel`) is treated as chatless by `BridgeClient`. No game code sends to a channel username today, and ADR-189 «Revisit when» already requires a range check when a group or channel send appears.
+  - **#8 accepted, dependency documented here:** a mirror copy for a linked player allocates its id through `WebScreenStore::ensureRow`, which creates an empty `web_play_state` row for a player who never opened `/play`. `bootstrap()` keys on an empty screen and history, not on whether the row exists, so this is harmless. The row costs one small row per site-using linked player (A5).
+  - **#12 recorded on story 01 `## Files`:** `tests/database/CharacterProvisioningServiceTest.php` is the test that goes with story 01's provisioning change. Story 01's glob `tests/database/*Provisioning*Test.php` already matches it. It is named explicitly here for the Law 3 trace.
+  - **#13:** A12 is amended to name `file_id` photos as caption-only.
+  - **Note (Queen local Tier-2, 2026-09-24):** the bridge works end to end for a web-only character. Register → character → `/play` → daily-task screens, history, dock. No horizontal scroll at 375/768/1440, and the console is clean. Photo screens fail locally only because the single-threaded `php spark serve` cannot `fopen` its own URL. This is to be proved on the preprod Tier-3 (integration gate, after wave 6). No story.
 
 **Approved:** Andrei, 2026-09-24 (A0–A15 as written, incl. A3, A5, A6, A10)
 **Briefed:** <written by scripts/cycle.sh briefed - alternative to **Approved:**>
