@@ -69,7 +69,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
 
 <!-- Дизайн-система (ADR-062) -->
-<link rel="stylesheet" href="<?= base_url('assets/css/wildworld-ui.css') ?>?v=6">
+<link rel="stylesheet" href="<?= base_url('assets/css/wildworld-ui.css') ?>?v=7">
 
 <!-- Статистика трафика (Statable; пусто в env — ничего) -->
 <?= view('site/_layout/statable') ?>

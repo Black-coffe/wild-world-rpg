@@ -1594,6 +1594,100 @@ section.block:first-of-type { border-top: 0; }
   .identity-row { grid-template-columns: auto minmax(0, 1fr); }
   .identity-row .identity-action { grid-column: 1 / -1; }
 }
+/* ============================================================
+   PLAY (зеркало wildworld-ui.css) — игра в браузере /play (web-bridge-p1, ADR-062 flat).
+   Экран = ответ бота; правка сообщения заменяет экран. Подпись к фото
+   всегда видна под картинкой (media-off). Работает без JS: кнопки — формы.
+   ============================================================ */
+.play-shell { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; width: 100%; min-width: 0; }
+@media (min-width: 980px) {
+  .play-shell { grid-template-columns: minmax(0, 1fr) 300px; align-items: start; }
+}
+.play-screen { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.play-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.play-bar-title { font-family: var(--font-display); font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+
+/* Сообщение: текст, фото с подписью */
+.play-msg { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 14px; background: var(--bg-elev-1); border: 1px solid var(--border); border-left: 3px solid var(--accent-lo); }
+.play-msg.is-current { border-left-color: var(--accent); }
+.play-msg-text { font-size: 15px; line-height: 1.55; color: var(--text); overflow-wrap: anywhere; }
+.play-msg-text b, .play-msg-caption b { color: var(--text); font-weight: 700; }
+.play-msg-text a, .play-msg-caption a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.play-msg-text a:hover, .play-msg-caption a:hover { color: var(--accent-hi); }
+.play-msg-text code, .play-msg-caption code { font-family: var(--font-mono); font-size: 13px; background: var(--bg-elev-2); border: 1px solid var(--border); padding: 1px 5px; color: var(--accent); }
+.play-msg-text pre, .play-msg-caption pre { margin: 6px 0; padding: 10px 12px; max-width: 100%; overflow-x: auto; background: var(--bg-base); border: 1px solid var(--border); font-family: var(--font-mono); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.play-msg-text pre code, .play-msg-caption pre code { background: none; border: 0; padding: 0; color: var(--text); }
+.play-msg-figure { margin: 0; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); background: var(--bg-base); }
+.play-msg-figure img { display: block; width: 100%; height: auto; max-height: 420px; object-fit: cover; }
+.play-msg-caption { padding: 12px 14px; font-size: 15px; line-height: 1.55; color: var(--text); border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.play-msg-time { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+
+/* Inline-клавиатура: ряд = ряд бота, 2–3 кнопки в ряд */
+.play-kb { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.play-kb-row { display: flex; gap: 6px; min-width: 0; }
+.play-kb-row form { display: contents; }
+.play-kb-btn { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 8px 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--bg-elev-2); color: var(--text); border: 1px solid var(--border-strong); font-family: var(--font-body); font-size: 14px; font-weight: 600; line-height: 1.25; text-align: center; text-decoration: none; overflow-wrap: anywhere; cursor: pointer; transition: border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease); }
+.play-kb-btn:hover { border-color: var(--accent); color: var(--accent); }
+.play-kb-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.play-kb-btn.is-url::after { content: "↗"; font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }
+.play-kb-btn.is-disabled, .play-kb-btn:disabled { background: transparent; color: var(--text-muted); border-style: dashed; cursor: not-allowed; }
+.play-kb-btn.is-disabled:hover, .play-kb-btn:disabled:hover { border-color: var(--border-strong); color: var(--text-muted); }
+
+/* Нижний док (reply-меню бота): липкий, переносится, safe-area */
+.play-dock { position: sticky; bottom: 0; z-index: 40; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); background: var(--bg-surface); border-top: 1px solid var(--border-strong); min-width: 0; }
+.play-dock form { display: contents; }
+.play-dock-btn { flex: 1 1 calc(33.333% - 6px); min-width: 0; min-height: 44px; padding: 6px 8px; display: inline-flex; align-items: center; justify-content: center; background: var(--bg-elev-1); color: var(--text); border: 1px solid var(--border); font-family: var(--font-display); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; text-align: center; text-decoration: none; overflow-wrap: anywhere; cursor: pointer; }
+.play-dock-btn:hover { border-color: var(--accent); color: var(--accent); }
+.play-dock-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.play-dock-btn.is-active { border-color: var(--accent); color: var(--accent); }
+
+/* Лента истории: компактно, старые экраны приглушены */
+.play-history { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); background: var(--bg-elev-1); }
+.play-history-head { padding: 10px 12px; border-bottom: 1px solid var(--border); font-family: var(--font-display); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-dim); }
+.play-history-list { list-style: none; margin: 0; padding: 0; }
+.play-history-item { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-bottom: 1px solid var(--border-faint); font-size: 13px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+.play-history-item:last-child { border-bottom: 0; }
+.play-history-item time { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+.play-history-item.is-older { opacity: .55; }
+.play-history-item.is-mine { color: var(--accent); }
+
+/* Строка ввода текста (force-reply) */
+.play-input { display: flex; gap: 6px; min-width: 0; }
+.play-input .input { flex: 1 1 auto; min-width: 0; }
+.play-input .btn { flex: 0 0 auto; }
+.play-input-hint { margin: 0 0 6px; font-size: 13px; color: var(--text-dim); overflow-wrap: anywhere; }
+
+/* Колокол с непрочитанным */
+.play-bell { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex: 0 0 44px; background: var(--bg-elev-1); color: var(--text-dim); border: 1px solid var(--border-strong); font-size: 18px; text-decoration: none; cursor: pointer; }
+.play-bell:hover { border-color: var(--accent); color: var(--accent); }
+.play-bell:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.play-bell-count { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; display: none; align-items: center; justify-content: center; background: var(--danger); color: var(--text); font-family: var(--font-mono); font-size: 11px; font-weight: 700; line-height: 1; }
+.play-bell.is-unread { color: var(--accent); border-color: var(--accent); }
+.play-bell.is-unread .play-bell-count { display: inline-flex; }
+
+/* Входящие */
+.play-inbox { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); background: var(--bg-elev-1); min-width: 0; }
+.play-inbox-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 12px 10px 14px; border-bottom: 1px solid var(--border-faint); border-left: 3px solid transparent; color: var(--text-dim); }
+.play-inbox-item:last-child { border-bottom: 0; }
+.play-inbox-title { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; min-width: 0; }
+.play-inbox-time { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.play-inbox-body { grid-column: 1 / -1; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.play-inbox-item.is-unread { border-left-color: var(--accent); background: var(--bg-elev-2); color: var(--text); }
+.play-inbox-item.is-unread .play-inbox-title { font-weight: 700; }
+.play-inbox-empty { padding: 14px; font-size: 13px; color: var(--text-muted); }
+
+/* Всплывашка ответа кнопки (answerCallbackQuery): тост и alert */
+.play-alert { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; background: var(--bg-elev-2); border: 1px solid var(--border-strong); border-left: 3px solid var(--info); color: var(--text); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.play-alert-title { font-family: var(--font-display); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--info); }
+.play-alert.is-alert { border-color: var(--warning); border-left-color: var(--warning); background: var(--bg-elev-3); }
+.play-alert.is-alert .play-alert-title { color: var(--warning); }
+.play-alert .btn { align-self: flex-end; }
+
+/* Замок / заглушка: фича недоступна и почему */
+.play-lock { display: flex; flex-direction: column; gap: 6px; padding: 14px; background: transparent; border: 1px dashed var(--border-strong); color: var(--text-dim); overflow-wrap: anywhere; }
+.play-lock-title { font-family: var(--font-display); font-size: 14px; letter-spacing: .1em; text-transform: uppercase; color: var(--text); }
+.play-lock-why { font-size: 14px; line-height: 1.5; }
+.play-lock-path { font-family: var(--font-mono); font-size: 12px; color: var(--accent); }
 </style>
 </head>
 
@@ -2033,6 +2127,119 @@ section.block:first-of-type { border-top: 0; }
             <span class="provider-mark" aria-hidden="true">TG</span>
             <div class="identity-main"><span class="identity-provider">Telegram</span><span class="identity-subject">id 25</span></div>
             <div class="identity-action"><span class="badge">последний</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     §3·B PLAY — игра в браузере /play (web-bridge-p1)
+============================================================ -->
+<section id="play" class="block">
+  <div class="container">
+    <div class="section-head">
+      <div><span class="num">§ 03·B</span><h2 class="mt-1 mb-0">Игра в браузере — экран, кнопки, док, входящие</h2></div>
+      <div class="desc">Экран /play: ответ бота — это экран, правка сообщения заменяет его. Подпись к фото всегда под картинкой и несёт весь смысл. Кнопки — формы, всё работает без JS.</div>
+    </div>
+
+    <div class="play-shell">
+      <div class="play-screen">
+        <div class="play-bar">
+          <span class="play-bar-title">ВОРОН-7 · клетка 432</span>
+          <a class="play-bell is-unread" href="#play-inbox" aria-label="Входящие: 3 непрочитанных"><span aria-hidden="true">🔔</span><span class="play-bell-count">3</span></a>
+        </div>
+
+        <div class="play-alert" role="status"><span class="play-alert-title">Ответ кнопки</span>Дрон уже в пути.</div>
+
+        <article class="play-msg is-current">
+          <figure class="play-msg-figure">
+            <img src="og-default.jpg" width="800" height="450" alt="Скважина у заброшенной станции">
+            <figcaption class="play-msg-caption"><b>🚰 Скважина</b><br>Вода: <b>12/40</b>. Насос изношен — прочность <code>31%</code>.<br>Набрать воду займёт 2 мин. Нужна пустая фляга.</figcaption>
+          </figure>
+          <div class="play-kb">
+            <div class="play-kb-row">
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">💧 Набрать</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🔧 Починить</button></form>
+            </div>
+            <div class="play-kb-row">
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🗺 Карта</button></form>
+              <button class="play-kb-btn is-disabled" type="button" disabled>🔒 Фильтр (нужно: Верстак 2)</button>
+              <a class="play-kb-btn is-url" href="#play">Гайд</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="play-msg">
+          <div class="play-msg-text"><b>Сообщение без фото.</b> Текст бота: <i>курсив</i>, <u>подчёркнутое</u>, <s>зачёркнутое</s>, <code>/web</code>, <a href="#play">ссылка</a>.<pre>Блок pre: очень-длинная-строка-без-пробелов-должна-переноситься-и-не-давать-горизонтальный-скролл</pre></div>
+          <span class="play-msg-time">12:04</span>
+        </article>
+
+        <form class="play-input-form" action="#play" method="post">
+          <p class="play-input-hint">Бот ждёт ответ: введи имя для базы.</p>
+          <div class="play-input">
+            <input class="input" type="text" name="text" placeholder="Например, Северный пост" aria-label="Ответ боту">
+            <button class="btn primary" type="submit">Отправить</button>
+          </div>
+        </form>
+
+        <div class="play-alert is-alert" role="alert"><span class="play-alert-title">Внимание</span>Недостаточно выносливости: нужно 10, есть 4.<form action="#play" method="get"><button class="btn sm" type="submit">OK</button></form></div>
+
+        <div class="play-lock">
+          <span class="play-lock-title">🔒 Рынок</span>
+          <span class="play-lock-why">Доступен с 5 уровня. Сейчас: 3.</span>
+          <span class="play-lock-path">Как открыть: задания Роби → опыт</span>
+        </div>
+
+        <nav class="play-dock" aria-label="Меню игры">
+          <form action="#play" method="post"><button class="play-dock-btn is-active" type="submit">Карта</button></form>
+          <form action="#play" method="post"><button class="play-dock-btn" type="submit">Персонаж</button></form>
+          <form action="#play" method="post"><button class="play-dock-btn" type="submit">Рюкзак</button></form>
+          <form action="#play" method="post"><button class="play-dock-btn" type="submit">База</button></form>
+          <form action="#play" method="post"><button class="play-dock-btn" type="submit">Задания</button></form>
+          <form action="#play" method="post"><button class="play-dock-btn" type="submit">Ещё</button></form>
+        </nav>
+      </div>
+
+      <aside class="play-history" aria-label="История экранов">
+        <div class="play-history-head">История</div>
+        <ol class="play-history-list">
+          <li class="play-history-item"><time>12:05</time>🚰 Скважина: вода 12/40</li>
+          <li class="play-history-item is-mine"><time>12:05</time>» Карта</li>
+          <li class="play-history-item is-older"><time>12:01</time>Дрон вернулся: 3 металла</li>
+          <li class="play-history-item is-older"><time>11:58</time>Караван прибыл на клетку 431</li>
+        </ol>
+      </aside>
+    </div>
+
+    <div class="grid grid-2 mt-3">
+      <div class="card stack">
+        <h3 id="play-inbox">Входящие</h3>
+        <ul class="play-inbox">
+          <li class="play-inbox-item is-unread"><span class="play-inbox-title">⚔ На базу напали</span><time class="play-inbox-time">12:03</time><span class="play-inbox-body">Отбито: 2 из 3 атак. Склад цел.</span></li>
+          <li class="play-inbox-item is-unread"><span class="play-inbox-title">🚁 Дрон вернулся</span><time class="play-inbox-time">12:01</time><span class="play-inbox-body">Найдено: металл ×3.</span></li>
+          <li class="play-inbox-item"><span class="play-inbox-title">📦 Крафт готов</span><time class="play-inbox-time">вчера</time><span class="play-inbox-body">Фляга ×1 лежит в рюкзаке.</span></li>
+        </ul>
+        <ul class="play-inbox"><li class="play-inbox-empty">Входящих нет.</li></ul>
+      </div>
+      <div class="card stack">
+        <h3>Колокол — состояния</h3>
+        <div class="row">
+          <a class="play-bell" href="#play-inbox" aria-label="Входящие: нет новых"><span aria-hidden="true">🔔</span><span class="play-bell-count">0</span></a>
+          <a class="play-bell is-unread" href="#play-inbox" aria-label="Входящие: 12 непрочитанных"><span aria-hidden="true">🔔</span><span class="play-bell-count">12</span></a>
+          <a class="play-bell is-unread" href="#play-inbox" aria-label="Входящие: больше 99"><span aria-hidden="true">🔔</span><span class="play-bell-count">99+</span></a>
+        </div>
+        <h3>Кнопки — состояния</h3>
+        <div class="play-kb">
+          <div class="play-kb-row">
+            <button class="play-kb-btn" type="button">Обычная</button>
+            <button class="play-kb-btn is-disabled" type="button" disabled>🔒 Недоступна</button>
+          </div>
+          <div class="play-kb-row">
+            <a class="play-kb-btn is-url" href="#play">Внешняя ссылка</a>
+            <button class="play-kb-btn" type="button">Очень длинная подпись кнопки, которая переносится</button>
+            <button class="play-kb-btn" type="button">Три</button>
           </div>
         </div>
       </div>
