@@ -6,3 +6,4 @@
 - 2026-09-23T19:46:39Z · 04-council:open · round 1 opened, court at C:/laragon/www/mmorpg/.vulyk/court/web-accounts-p0/round-1 · next: dispatch:haiku,sonnet,opus,review
 - 2026-09-23T20:25:41Z · 04-council:RED · round 1 verdict RED at 32aaafc7 pack 14c02cf5e190 · next: repair
 - 2026-09-24T07:58:34Z · 04-council:open · round 2 opened, court at C:/laragon/www/mmorpg/.vulyk/court/web-accounts-p0/round-2 · next: dispatch:haiku,sonnet,opus,review
+- 2026-09-24T08:29:47Z · 04-council:ESCALATE · round 2 verdict ESCALATE at 4d1fa180 pack 1ed6015b3754 · next: escalated

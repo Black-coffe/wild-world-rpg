@@ -213,4 +213,13 @@ The Queen's manual Tier-2/3 pass follows: `/account/*` at 375/768/1440 with a cl
 **Branch:** vulyk/web-accounts-p0
 **Checked:** <written by scripts/human-check.sh after the owner has looked - stage 05, and the override for stage 04+05. /vulyk-ship refuses without either this or a GREEN **Council:** line.>
 **Council:** RED round 1, 2026-09-23, at 32aaafc7, pack 14c02cf5e190
+**Council:** ESCALATE round 2, 2026-09-24, at 4d1fa180, pack 1ed6015b3754
 **Shipped:** <written by scripts/ship-check.sh --record - stage 06: the published version, and where>
+
+## Needs a human
+- reason: env · round 2 · 2026-09-24
+- sonnet: docs/specs/web-accounts-p0/council/round-2/sonnet.attempt-1.md
+- sonnet: docs/specs/web-accounts-p0/council/round-2/sonnet.attempt-2.md
+- opus: docs/specs/web-accounts-p0/council/round-2/opus.attempt-1.md
+- opus: docs/specs/web-accounts-p0/council/round-2/opus.attempt-2.md
+- seats: docs/specs/web-accounts-p0/council/round-2/
