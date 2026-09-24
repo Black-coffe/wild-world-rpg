@@ -7,12 +7,13 @@ namespace Tests\Unit\Web;
 use App\Controllers\AccountCabinet;
 use App\Controllers\Telegram\Commands\Actions\WebLinkCodeAction;
 use App\Database\Migrations\UpdateWebLinkTipForWebPlay;
+use App\Database\Migrations\WebPlayTipTrueInBothFlagStates;
 use App\Services\Onboarding\GuideCatalog;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
  * web-bridge-p1-03 — тексты `/web`, совета и `/guide web` говорят правду (код не привязывает
- * чужой вход, «выйди из другого входа и введи код»), игра на сайте описана условно; «Играть»
+ * чужой вход, «выйди из другого входа и введи код»), игра на сайте описана верно при любом web.play_enabled (p1-10); «Играть»
  * виден в шапке сайта и в кабинете.
  *
  * @internal
@@ -30,9 +31,27 @@ final class WebPlayTextsTest extends CIUnitTestCase
             $this->assertStringNotContainsStringIgnoringCase($promise, $text, "{$where}: old link promise «{$promise}»");
         }
         $this->assertStringContainsString(self::INSTRUCTION, $text, "{$where}: log-out-first instruction");
-        $this->assertStringContainsString('«Играть»', $text, "{$where}: web play mention");
-        $this->assertMatchesRegularExpression('/[Кк]огда игру на сайте откроют/u', $text, "{$where}: web play is conditional");
+        $this->assertStringContainsString('«Играть» в шапке', $text, "{$where}: «Играть» in the site header is the way in");
+        $this->assertTrueInBothFlagStates($text, $where);
     }
+
+    /**
+     * web-bridge-p1-10 (Ask 8) — текст не утверждает ни «закрыто / скоро / заглушка», ни «уже открыто»:
+     * `web.play_enabled` переключается в админке без деплоя.
+     */
+    private function assertTrueInBothFlagStates(string $text, string $where): void
+    {
+        foreach (self::FLAG_STATE_CLAIMS as $claim) {
+            $this->assertDoesNotMatchRegularExpression($claim, $text, "{$where}: flag-state claim {$claim}");
+        }
+        $this->assertStringContainsString('сейчас нельзя, страница сама', $text, "{$where}: /play itself explains a closed state");
+    }
+
+    /** @var list<string> утверждения о состоянии флага (закрыто / скоро / уже открыто) */
+    private const FLAG_STATE_CLAIMS = [
+        '/откро(?:ют|ется|ем)/iu', '/открыт[аоы]?\b/iu', '/заглушк/iu', '/скоро/iu', '/\bпока\b/iu', '/ещё не/iu', '/еще не/iu',
+        '/появится/iu', '/запустят/iu', '/уже (?:можно|доступн|работает)/iu', '/теперь можно/iu',
+    ];
 
     private function assertMarkdownBalanced(string $text, string $where): void
     {
@@ -64,14 +83,35 @@ final class WebPlayTextsTest extends CIUnitTestCase
         $this->assertMarkdownBalanced($body, 'guide web');
     }
 
+    public function testTipFlagStateMigrationUpdatesByTitleEnAndRestoresStory03Text(): void
+    {
+        require_once APPPATH . 'Database/Migrations/2026-12-11-100010_UpdateWebLinkTipForWebPlay.php';
+        require_once APPPATH . 'Database/Migrations/2026-12-11-100011_WebPlayTipTrueInBothFlagStates.php';
+        $new = WebPlayTipTrueInBothFlagStates::NEW_CONTENT;
+
+        $this->assertSame('WebLinkCode', WebPlayTipTrueInBothFlagStates::TITLE_EN);
+        $this->assertTruthful($new, 'tip');
+        $this->assertDoesNotMatchRegularExpression('/\d/', $new, 'tip: no numbers');
+        $this->assertMarkdownBalanced($new, 'tip');
+        $this->assertStringContainsString('я пришлю', $new, 'tip: Robi speaks in first person');
+        $this->assertSame(UpdateWebLinkTipForWebPlay::NEW_CONTENT, WebPlayTipTrueInBothFlagStates::OLD_CONTENT, 'down() restores the story-03 text');
+
+        $source = (string) file_get_contents(APPPATH . 'Database/Migrations/2026-12-11-100011_WebPlayTipTrueInBothFlagStates.php');
+        $this->assertStringContainsString("->where('title_en', self::TITLE_EN)", $source);
+        $this->assertStringContainsString('->update(', $source, 'UPDATE, not a second tip');
+        $this->assertStringNotContainsString('->insert(', $source);
+        $this->assertStringNotContainsString('tip_type', $source, 'category stays as seeded');
+    }
+
     public function testTipMigrationSwapsTextByTitleEnAndIsNumberFree(): void
     {
         require_once APPPATH . 'Database/Migrations/2026-12-11-100010_UpdateWebLinkTipForWebPlay.php';
         $new = UpdateWebLinkTipForWebPlay::NEW_CONTENT;
         $old = UpdateWebLinkTipForWebPlay::OLD_CONTENT;
 
+        // Текст story 03 superseded миграцией 100011 (Ask 8); здесь — только правда о привязке.
         $this->assertSame('WebLinkCode', UpdateWebLinkTipForWebPlay::TITLE_EN);
-        $this->assertTruthful($new, 'tip');
+        $this->assertStringContainsString(self::INSTRUCTION, $new, 'tip 03: log-out-first instruction');
         $this->assertDoesNotMatchRegularExpression('/\d/', $new, 'tip: no numbers');
         $this->assertMarkdownBalanced($new, 'tip');
         $this->assertStringContainsString('привяжет этот вход', $old, 'down() restores the seeded text');

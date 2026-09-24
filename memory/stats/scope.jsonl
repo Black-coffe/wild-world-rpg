@@ -219,3 +219,4 @@
 {"ts":"2026-09-24T17:46:27Z","story":"web-bridge-p1-07-play-endpoint","declared":7,"changed":7,"out_of_scope":7}
 {"ts":"2026-09-24T17:46:27Z","story":"web-bridge-p1-08-play-entry-flag-first","declared":5,"changed":7,"out_of_scope":7}
 {"ts":"2026-09-24T18:59:11Z","story":"web-bridge-p1-09-history-edit-becomes-screen","declared":3,"changed":11,"out_of_scope":9}
+{"ts":"2026-09-24T19:04:26Z","story":"web-bridge-p1-10-texts-true-in-both-flag-states","declared":4,"changed":7,"out_of_scope":3}
