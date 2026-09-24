@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Services\Logging;
 
+use App\Services\Logging\PlayerActionLogger;
 use App\Services\Logging\TelegramDeliveryProbe;
+use App\Services\Telegram\VirtualChatGuardMiddleware;
 use CodeIgniter\Test\CIUnitTestCase;
+use GuzzleHttp\Client;
+use GuzzleHttp\HandlerStack;
 
 /**
  * ADR-148 (расширение) — чистые части пробы доставки {@see TelegramDeliveryProbe}.
@@ -124,5 +128,52 @@ final class TelegramDeliveryProbeTest extends CIUnitTestCase
         [$ok] = TelegramDeliveryProbe::parseBody('{"ok":1}');
 
         $this->assertFalse($ok);
+    }
+
+    // ── web-bridge-p1-04: клиент ставится всегда, охрана в стеке всегда ─────────
+
+    public function testInstallAlwaysPutsGuardAndProbeOnlyWhenFirehoseOn(): void
+    {
+        $this->assertStringNotContainsString(TelegramDeliveryProbe::PROBE_NAME, $this->installedStack(false));
+        $this->assertStringContainsString(VirtualChatGuardMiddleware::NAME, $this->installedStack(false), 'охрана и при выключенном firehose');
+
+        $on = $this->installedStack(true);
+        $this->assertStringContainsString(TelegramDeliveryProbe::PROBE_NAME, $on);
+        $this->assertStringContainsString(VirtualChatGuardMiddleware::NAME, $on);
+    }
+
+    public function testInstallIsIdempotentAndClientGetterReturnsIt(): void
+    {
+        $this->installedStack(false);
+        $first = TelegramDeliveryProbe::client();
+        TelegramDeliveryProbe::install();
+
+        $this->assertInstanceOf(Client::class, $first);
+        $this->assertSame($first, TelegramDeliveryProbe::client());
+    }
+
+    private function installedStack(bool $firehose): string
+    {
+        TelegramDeliveryProbe::reset();
+        PlayerActionLogger::reset();
+        service('cache')->save('game_settings_logging_player_actions_enabled', ['v' => $firehose, 't' => 'bool'], 60);
+        try {
+            TelegramDeliveryProbe::install();
+        } finally {
+            service('cache')->delete('game_settings_logging_player_actions_enabled');
+        }
+        $client = TelegramDeliveryProbe::client();
+        $this->assertInstanceOf(Client::class, $client);
+        $stack = $client->getConfig('handler');
+        $this->assertInstanceOf(HandlerStack::class, $stack);
+
+        return (string) $stack;
+    }
+
+    protected function tearDown(): void
+    {
+        TelegramDeliveryProbe::reset();
+        PlayerActionLogger::reset();
+        parent::tearDown();
     }
 }

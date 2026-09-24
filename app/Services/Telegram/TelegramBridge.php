@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Telegram;
 
+use App\Services\Logging\TelegramDeliveryProbe;
 use Longman\TelegramBot\Telegram;
 use Throwable;
 
@@ -39,6 +40,9 @@ final class TelegramBridge
                 (string) getenv('telegram.BOT_USERNAME')
             );
             Request::initialize($telegram);
+            // web-bridge-p1-04 (ADR-189 §4b): крон и spark тоже идут через клиент с охраной
+            // виртуального диапазона. Идемпотентно: в вебхуке/Worker он уже стоит.
+            TelegramDeliveryProbe::install();
             self::$telegram = $telegram;
 
             return true;

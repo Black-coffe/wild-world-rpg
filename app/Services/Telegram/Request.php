@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Telegram;
 
+use App\Services\Web\WebDelivery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request as LongmanRequest;
 
@@ -22,6 +23,10 @@ use Longman\TelegramBot\Request as LongmanRequest;
  * Исключение — `sendMessage()`: он объявлен явно и зовёт `self::send()`,
  * мимо наследника, поэтому перекрыт отдельно.
  *
+ * web-bridge-p1-04 (ADR-189 §4a): после нормализатора и до отправки вызов проходит
+ * {@see WebDelivery::route()} — захват экрана `/play`, входящие виртуального чата и копия
+ * привязанному игроку. `null` от него — вызов идёт в Telegram ровно как раньше.
+ *
  * Всё остальное (encodeFile, getMe, …) наследуется без изменений — вызовы в коде
  * менять не нужно, отличается только строка `use`.
  */
@@ -30,7 +35,9 @@ class Request extends LongmanRequest
     /** @param array<string,mixed> $data */
     public static function send(string $action, array $data = []): ServerResponse
     {
-        return parent::send($action, KeyboardNormalizer::normalize($data));
+        $data = KeyboardNormalizer::normalize($data);
+
+        return WebDelivery::route($action, $data) ?? static::transport($action, $data);
     }
 
     /**
@@ -39,6 +46,28 @@ class Request extends LongmanRequest
      */
     public static function sendMessage(array $data, ?array &$extras = []): ServerResponse
     {
-        return parent::sendMessage(KeyboardNormalizer::normalize($data), $extras);
+        $data = KeyboardNormalizer::normalize($data);
+
+        return WebDelivery::route('sendMessage', $data) ?? static::transportSendMessage($data, $extras);
+    }
+
+    /**
+     * Настоящая отправка (Longman). Шов для тестов: наследник подменяет, чтобы доказать, дошёл ли
+     * вызов до Telegram.
+     *
+     * @param array<string,mixed> $data
+     */
+    protected static function transport(string $action, array $data): ServerResponse
+    {
+        return parent::send($action, $data);
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     * @param array<mixed>|null   $extras
+     */
+    protected static function transportSendMessage(array $data, ?array &$extras = []): ServerResponse
+    {
+        return parent::sendMessage($data, $extras);
     }
 }
