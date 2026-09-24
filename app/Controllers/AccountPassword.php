@@ -13,9 +13,10 @@ use Config\Social;
  * web-accounts-p0-08 (ADR-188) — сброс пароля email-входа.
  *
  * `/account/reset` — запрос ссылки на почту; `/account/reset/{selector-validator}` — новый пароль.
- * Неизвестная почта получает тот же ответ «отправили». Если письмо не ушло (SMTP, plan A10),
- * страница честно говорит «письмо не отправилось» и ведёт на вход кодом из бота (`/web` →
- * `/account/link`). Работает без флага `web.open_registration`: это восстановление существующего
+ * Story 10: ответ на запрос ссылки один для любого исхода — неизвестная почта, письмо ушло,
+ * письмо не ушло (SMTP, plan A10). Иначе отказ почты выдавал бы, какие адреса заведены. Страница
+ * всегда честно оговаривает, что письмо может не дойти, и ведёт на вход кодом из бота (`/web` →
+ * `/account/link`); реальный отказ видят операторы в логе (PasswordResetService). Работает без флага `web.open_registration`: это восстановление существующего
  * входа, а не регистрация. POST-формы — глобальный CSRF и `accountThrottle` (Routes).
  */
 class AccountPassword extends BaseController
@@ -33,9 +34,10 @@ class AccountPassword extends BaseController
             return $this->render(['mode' => 'request', 'error' => 'Укажи почту, к которой привязан вход.']);
         }
 
-        $result = (new PasswordResetService())->request($email);
+        // Результат нужен только логу сервиса: видимый ответ от него не зависит.
+        (new PasswordResetService())->request($email);
 
-        return $this->render(['mode' => $result === PasswordResetService::MAIL_FAILED ? 'mail_failed' : 'sent']);
+        return $this->render(['mode' => 'requested']);
     }
 
     public function form(string $token = ''): string

@@ -219,18 +219,31 @@ final class AccountRegistrationTest extends CIUnitTestCase
 
     public function testResetPageShowsHonestMailFailureWithBotCodeAlternative(): void
     {
+        // Story 10: отказ почты не отличается от «неизвестной почты» — страница одна, и в ней
+        // всегда есть честная оговорка и вход кодом из бота.
         $this->registered('reset.fail@example.com');
         $email            = config(Email::class);
         $email->fromEmail = ''; // транспорт не настроен → штатный мейлер отвечает «не отправлено»
 
-        $body = $this->bodyOf($this->post('account/reset', ['email' => 'reset.fail@example.com']));
-        $this->assertStringContainsString('Письмо не отправилось', $body);
-        $this->assertStringContainsString(esc(base_url('account/link'), 'attr'), $body);
-        $this->assertStringContainsString('/web', $body);
+        $failed = $this->bodyOf($this->post('account/reset', ['email' => 'reset.fail@example.com']));
+        $this->assertStringContainsString('Наша почта иногда не доходит', $failed);
+        $this->assertStringContainsString(esc(base_url('account/link'), 'attr'), $failed);
+        $this->assertStringContainsString('/web', $failed);
+        $this->assertStringNotContainsString('reset.fail@example.com', $failed);
         $this->assertSame(0, $this->conn->table('account_tokens')->where('purpose', 'password_reset')->countAllResults());
 
-        $body = $this->bodyOf($this->post('account/reset', ['email' => 'nobody@example.com']));
-        $this->assertStringContainsString('Письмо отправлено', $body, 'unknown email gets the same "sent" answer');
+        $unknown = $this->bodyOf($this->post('account/reset', ['email' => 'nobody@example.com']));
+        // Без CSRF-токена и счётчиков DEBUG-VIEW (они есть только вне прода).
+        $same = static fn (string $b): string => (string) preg_replace(
+            ['~<input[^>]*csrf[^>]*>~i', '~<!-- DEBUG-VIEW (START|ENDED) \d+ ~'],
+            ['', '<!-- DEBUG-VIEW $1 '],
+            $b
+        );
+        $this->assertSame(
+            $same($failed),
+            $same($unknown),
+            'unknown email gets the very same page as a known one whose mail failed'
+        );
     }
 
     public function testHeaderShowsLoginOrCharacterName(): void

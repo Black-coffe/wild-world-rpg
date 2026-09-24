@@ -22,7 +22,9 @@ use Throwable;
  *
  * Неизвестный email получает тот же ответ `sent`, что и известный (без перечисления аккаунтов).
  * Если письмо не ушло (SMTP на проде не проверен, plan A10), ответ — `mail_failed`, токен
- * удаляется, и страница честно предлагает вход кодом из бота вместо ложного «отправлено».
+ * удаляется, а операторам уходит одна строка `log_message('error', …)` без адреса почты.
+ * Story 10: результат — только для этого лога; страница одна на любой исход (иначе отказ почты
+ * выдавал бы, какие адреса заведены), и она всегда называет вход кодом из бота.
  */
 class PasswordResetService
 {
@@ -93,14 +95,22 @@ class PasswordResetService
             . "Новый пароль можно задать по ссылке (действует {$minutes} мин., один раз):\n{$link}\n\n"
             . "Если это был не ты — просто проигнорируй письмо, пароль останется прежним.";
 
+        $reason = 'transport returned false';
         try {
             $sent = ($this->mailer)($to, 'Wild World — сброс пароля', $body);
-        } catch (Throwable) {
-            $sent = false;
+        } catch (Throwable $e) {
+            $sent   = false;
+            $reason = $e::class . ': ' . $e->getMessage();
         }
 
         if (! $sent) {
             $this->db->table('account_tokens')->where('selector', $selector)->delete();
+            // Адрес не пишем: причина может его цитировать (SMTP «RCPT TO …») — вырезаем.
+            $reason = $to !== '' ? str_ireplace($to, '[email]', $reason) : $reason;
+            log_message('error', '[PasswordReset] reset mail failed for account {account}: {reason}', [
+                'account' => $accountId,
+                'reason'  => $reason,
+            ]);
 
             return self::MAIL_FAILED;
         }
@@ -161,7 +171,10 @@ class PasswordResetService
         return true;
     }
 
-    /** Отправка через штатный CI4 Email (Config\Email); false — транспорт не справился. */
+    /**
+     * Отправка через штатный CI4 Email (Config\Email); false — транспорт не справился.
+     * Общий экземпляр + clear(true): тесты подменяют его `Services::injectMock('email', …)`.
+     */
     private static function defaultMailer(string $to, string $subject, string $body): bool
     {
         $config = config(EmailConfig::class);
@@ -169,7 +182,8 @@ class PasswordResetService
             return false;
         }
 
-        $email = Services::email(null, false);
+        $email = Services::email();
+        $email->clear(true);
         $email->setFrom($config->fromEmail, $config->fromName);
         $email->setTo($to);
         $email->setSubject($subject);

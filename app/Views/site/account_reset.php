@@ -2,8 +2,8 @@
 /**
  * web-accounts-p0-08 (ADR-188) — сброс пароля email-входа.
  *
- * Режимы: request (форма почты) · sent (ответ одинаков для любой почты) · mail_failed (письмо не
- * ушло — честно, плюс вход кодом из бота) · form (новый пароль по ссылке) · invalid (ссылка
+ * Режимы: request (форма почты) · requested (один ответ на любой исход — известная/неизвестная
+ * почта, письмо ушло/не ушло; всегда с оговоркой и входом кодом из бота, story 10) · form (новый пароль по ссылке) · invalid (ссылка
  * неверна/устарела/использована) · done. Компоненты — story 03. Без JS.
  *
  * @var string      $mode
@@ -36,19 +36,14 @@ $botLink   = is_string($botLink ?? null) ? $botLink : '';
                     <div class="notice error" role="alert"><span class="notice-title">Ошибка</span><?= esc($error) ?></div>
                 <?php endif ?>
 
-                <?php if ($mode === 'sent'): ?>
-                    <div class="notice ok" role="status"><span class="notice-title">Письмо отправлено</span>Если эта почта привязана к аккаунту, на неё ушла ссылка для нового пароля. Ссылка действует <?= $ttlMin ?> мин. и срабатывает один раз. Письма нет — загляни в «Спам».</div>
-                    <div class="auth-actions">
-                        <a class="btn ghost" href="<?= esc(base_url('account/login'), 'attr') ?>">Ко входу</a>
-                    </div>
-
-                <?php elseif ($mode === 'mail_failed'): ?>
-                    <div class="notice error" role="alert"><span class="notice-title">Письмо не отправилось</span>Наша почта сейчас не смогла отправить письмо, ссылки для сброса не будет. Войди без пароля: отправь Telegram-боту команду /web — он даст одноразовый код, введи его на странице привязки. После входа пароль можно задать заново в аккаунте.</div>
+                <?php if ($mode === 'requested'): ?>
+                    <div class="notice info" role="status"><span class="notice-title">Запрос принят</span>Если эта почта привязана к аккаунту, мы отправили на неё ссылку для нового пароля. Ссылка действует <?= $ttlMin ?> мин. и срабатывает один раз. Письма нет — загляни в «Спам». Наша почта иногда не доходит: если письма так и нет, войди без пароля — отправь Telegram-боту команду /web, он даст одноразовый код, введи его на странице привязки. После входа пароль можно задать заново в аккаунте.</div>
                     <div class="auth-actions">
                         <a class="btn primary" href="<?= esc(base_url('account/link'), 'attr') ?>">Ввести код из бота</a>
                         <?php if ($botLink !== ''): ?>
                             <a class="btn ghost" href="<?= esc($botLink, 'attr') ?>" target="_blank" rel="noopener">Открыть бота</a>
                         <?php endif ?>
+                        <a class="btn ghost" href="<?= esc(base_url('account/login'), 'attr') ?>">Ко входу</a>
                     </div>
 
                 <?php elseif ($mode === 'form'): ?>
