@@ -3,6 +3,8 @@
    Без этого файла каждая кнопка /play работает формой через PRG.
    - перехват форм #play-state и входящих: fetch + Accept: application/json,
      замена #play-state на html, обновление CSRF-токена, всплывашка ответа;
+   - JSON-ответ любого статуса (400 «кнопка недоступна», 429 лимит) — на месте (p1-13);
+     PRG-откат только при сбое сети / нечитаемом теле и только со свежим токеном;
    - один запрос за раз, кнопки на это время выключены;
    - опрос GET /play/inbox раз в poll_seconds (не чаще серверного минимума) — счётчик колокола;
    - колокол открывает панель входящих и шлёт POST /play/inbox/read.
@@ -70,13 +72,50 @@
     screen.insertBefore(box, screen.firstChild);
   };
 
-  const request = (url, options) => fetch(url, Object.assign({
+  /* Ответ с JSON-телом любого статуса → {ok, json}. Отказ промиса — только сеть или нечитаемое тело. */
+  const fetchJson = (url, options) => fetch(url, Object.assign({
     credentials: 'same-origin',
     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-  }, options || {})).then((res) => {
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    return res.json();
+  }, options || {})).then((res) => res.json().then((json) => {
+    if (!json || typeof json !== 'object') throw new Error('bad body');
+    return { ok: res.ok, status: res.status, json: json };
+  }));
+
+  /* Для входящих: токен берём из любого ответа, но не-2xx — ошибка (счётчик не трогаем). */
+  const request = (url, options) => fetchJson(url, options).then((r) => {
+    setCsrf(r.json.csrf);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json;
   });
+
+  /* PRG-откат: только со свежим токеном из GET /play/inbox; не вышло — перезагрузка /play,
+     старый токен (уже сменённый сервером, regenerate) не отправляем никогда. */
+  const fallbackToPrg = (form) => {
+    fetchJson(root.dataset.inboxUrl)
+      .then((r) => {
+        if (!r.ok || typeof r.json.csrf !== 'string' || r.json.csrf === '') throw new Error('no token');
+        setCsrf(r.json.csrf);
+        setBusy(false); // поля сначала включаем, иначе не уйдут
+        form.submit();
+      })
+      .catch(() => { window.location.reload(); });
+  };
+
+  /* Один обработчик JSON-ответа действия, какой бы ни был статус (200, 400, 429…). */
+  const applyAct = (form, r) => {
+    const json = r.json;
+    setCsrf(json.csrf);
+    if (typeof json.html === 'string') stateBox.innerHTML = json.html;
+    if (json.unread !== undefined) setUnread(json.unread);
+    const hasAlert = typeof json.alert === 'string' && json.alert !== '';
+    if (!r.ok && !hasAlert && typeof json.html !== 'string') {
+      // 401/403 без ответа кнопки (вход истёк, игра выключена) — страница сама покажет, что делать.
+      window.location.reload();
+      return;
+    }
+    showAlert(json.alert);
+    if (r.ok && panel && !panel.hidden && form.closest('#play-inbox')) loadInbox().catch(() => {});
+  };
 
   /* ---- Действия: кнопки экрана, истории, дока, ввод, кнопки входящих ---- */
   document.addEventListener('submit', (event) => {
@@ -87,18 +126,12 @@
     if (busy) return;
     const body = new FormData(form);
     setBusy(true);
-    request(form.action, { method: 'POST', body: body })
-      .then((json) => {
-        if (typeof json.html === 'string') stateBox.innerHTML = json.html;
-        setCsrf(json.csrf);
-        if (json.unread !== undefined) setUnread(json.unread);
-        showAlert(json.alert);
-        if (panel && !panel.hidden && form.closest('#play-inbox')) loadInbox();
-      })
-      .then(() => { setBusy(false); }, () => {
-        // Сеть/JSON подвели — отдаём форму обычному PRG (поля сначала включаем, иначе не уйдут).
-        setBusy(false);
-        form.submit();
+    fetchJson(form.action, { method: 'POST', body: body })
+      .then((r) => {
+        try { applyAct(form, r); } finally { setBusy(false); }
+      }, () => {
+        // Сюда — только если fetch отвергнут (сеть) или тело не JSON.
+        fallbackToPrg(form);
       });
   });
 

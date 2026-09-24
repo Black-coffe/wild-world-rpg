@@ -9,6 +9,7 @@ use App\Services\Web\AccountSession;
 use App\Services\Web\WebActService;
 use App\Services\Web\WebDelivery;
 use App\Services\Web\WebInboxService;
+use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -53,9 +54,10 @@ class Play extends BaseController
 
         try {
             $result = $this->service()->bootstrap($accountId, $characterId);
-        } catch (InvalidArgumentException $e) {
-            log_message('error', '[Play.index] bootstrap refused: ' . $e->getMessage());
-            $result = $this->service()->current($characterId);
+        } catch (\Throwable $e) {
+            // p1-13 (#9): любой сбой первого входа — не 500, а /play с сохранённым (или пустым) экраном.
+            log_message('error', '[Play.index] bootstrap failed: ' . $e::class . ': ' . $e->getMessage());
+            $result = $this->storedOrEmpty($characterId);
         }
         $flash  = session()->getFlashdata(self::FLASH_ALERT);
 
@@ -124,6 +126,8 @@ class Play extends BaseController
         return $this->response->setJSON([
             'unread' => $inbox->unreadCount($gate[1]),
             'html'   => view('site/_play/inbox', ['items' => $inbox->latest($gate[1], self::INBOX_PAGE)]),
+            // p1-13: JS берёт отсюда свежий токен перед PRG-откатом.
+            'csrf'   => csrf_hash(),
         ]);
     }
 
@@ -224,7 +228,28 @@ class Play extends BaseController
 
     private function service(): WebActService
     {
-        return new WebActService();
+        // Через Factories — тест подменяет сервис (injectMock), как AccountOAuth::factory().
+        $service = Factories::get('libraries', WebActService::class);
+
+        return $service instanceof WebActService ? $service : new WebActService();
+    }
+
+    /**
+     * Сохранённый экран без диспетча; если и он не читается — пустой, с алертом сбоя.
+     *
+     * @return array{state: array<string,mixed>, alert: ?string, unread: int}
+     */
+    private function storedOrEmpty(int $characterId): array
+    {
+        try {
+            $result = $this->service()->current($characterId);
+        } catch (\Throwable $e) {
+            log_message('error', '[Play.index] stored state unavailable: ' . $e::class . ': ' . $e->getMessage());
+            $result = ['state' => ['screen' => [], 'history' => [], 'dock' => [], 'input' => null], 'alert' => null, 'unread' => 0];
+        }
+        $result['alert'] = WebActService::FAILED_ALERT;
+
+        return $result;
     }
 
     /** @return array<string, string> */

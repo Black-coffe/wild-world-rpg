@@ -1,8 +1,8 @@
 ---
 story: web-bridge-p1-13
 spec: web-bridge-p1
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -93,5 +93,15 @@ Fix for manual review (round 3), major #2 and minors #9 and #10.
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- `AccountThrottleFilter::playBudget` 429 JSON: `{error, alert, csrf}` (`error` kept alongside for compatibility). No-argument P0 path untouched.
+- `Play::inbox` JSON adds `csrf`. The 400 act reply was already `{error, html, unread, alert, csrf}` - now covered by a test.
+- `Play::index`: catches any `\Throwable` from `bootstrap()`, logs `error` `[Play.index] bootstrap failed: <Class>: <msg>`, then `storedOrEmpty()` (stored state via `current()`, itself guarded; else empty state) with alert `WebActService::FAILED_ALERT`. Previously an `InvalidArgumentException` rendered with no alert; now every bootstrap failure shows `FAILED_ALERT`.
+- `Play::service()` now resolves through `Factories::get('libraries', WebActService::class)` (precedent: `AccountOAuth::factory()`) so the test can `injectMock` a throwing bootstrap. Side effect: one shared instance per request.
+- Photo guard: `~^(https?://|/(?![/\]))~i` - also refuses `/\host`, which browsers treat as protocol-relative too (a slight tightening beyond the story's "second char not `/`").
+- JS: `fetchJson` resolves `{ok,status,json}` for a JSON body of any status. The submit handler's two branches: `.then((r) => { try { applyAct(form, r); } finally { setBusy(false); } }` for any JSON reply, and the rejection branch `() => { fallbackToPrg(form); }` - reached only when "fetch rejected (network) or the body is not JSON". `fallbackToPrg` submits only `if (r.ok && typeof r.json.csrf === 'string' && r.json.csrf !== '')` from `GET /play/inbox`, else `window.location.reload()`. `applyAct` also reloads on a non-2xx JSON with no `alert` and no `html` (401/403 `{error}`), so an expired login or a flag-off reply doesn't leave the tap dead.
+- Inbox `request()` now copies `csrf` from any JSON reply (including a 429 on mark-read) before throwing on non-2xx.
+- Mutation checks (reverted): bootstrap and photo each alone; filter and inbox mutated in one run, each red in its own test: `catch (\InvalidArgumentException)` in index -> the bootstrap test red; filter without `alert/csrf` -> the 429 test red; inbox without `csrf` -> the inbox test red; old photo regex -> the photo test red on `//evil.example`.
+- The first full-suite run went red: another worker was running PlayControllerTest at the same time on the shared `wildworld_tests` (tables dropped mid-run). A rerun once no other phpunit was running: 4505 tests green.
+- Not in the file list, so not done: `app/Views/site/play.php` loads `wildworld-play.js?v=1`. Browsers that already cached v1 keep the old JS until that version is bumped.
 
 ## Findings

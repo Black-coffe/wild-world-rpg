@@ -242,3 +242,4 @@
 {"ts":"2026-09-24T19:43:11Z","story":"web-bridge-p1-10-texts-true-in-both-flag-states","declared":4,"changed":102,"out_of_scope":98}
 {"ts":"2026-09-24T20:47:29Z","story":"web-bridge-p1-11-background-edit-of-web-message","declared":6,"changed":21,"out_of_scope":15}
 {"ts":"2026-09-24T20:52:58Z","story":"web-bridge-p1-12-act-guard-message-scoped","declared":3,"changed":13,"out_of_scope":10}
+{"ts":"2026-09-24T20:58:52Z","story":"web-bridge-p1-13-play-client-error-path","declared":6,"changed":9,"out_of_scope":3}

@@ -153,6 +153,29 @@ final class PlayViewsTest extends CIUnitTestCase
         $this->assertSame('Подпись', $xp->evaluate('string(//figure/figcaption)'));
     }
 
+    /** p1-13 (#10): img только для http(s):// и пути сайта; `//host` — одна подпись. */
+    public function testPhotoSrcAcceptsOnlyHttpOrSiteRelativePath(): void
+    {
+        $cases = [
+            '//evil.example/x.png'          => false,
+            '/\\evil.example/x.png'         => false,
+            'javascript:alert(1)'           => false,
+            '/uploads/x.png'                => true,
+            'https://wildworld.fun/x.png'   => true,
+        ];
+        foreach ($cases as $url => $img) {
+            $state           = self::state();
+            $state['screen'] = [self::msg(5, ['text' => null, 'caption' => 'Подпись целиком: вода 12/40', 'photo_url' => $url])];
+            $xp              = self::xpath($this->renderState($state));
+
+            $this->assertSame($img ? 1.0 : 0.0, $xp->evaluate('count(//img)'), $url);
+            if ($img) {
+                $this->assertSame($url, $xp->evaluate('string(//figure[@class="play-msg-figure"]/img/@src)'), $url);
+            }
+            $this->assertSame('Подпись целиком: вода 12/40', $xp->evaluate('string(//figure/figcaption)'), $url);
+        }
+    }
+
     public function testScriptInTextIsInert(): void
     {
         $html = $this->renderState(self::state());

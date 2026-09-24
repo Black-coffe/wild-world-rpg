@@ -12,9 +12,11 @@ use App\Services\Web\AccountService;
 use App\Services\Web\AccountSession;
 use App\Services\Web\DeliveryContext;
 use App\Services\Web\VirtualIdentityService;
+use App\Services\Web\WebActService;
 use App\Services\Web\WebDelivery;
 use App\Services\Web\WebInboxService;
 use App\Services\Web\WebScreenStore;
+use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Forge;
 use CodeIgniter\Database\Migration;
@@ -34,6 +36,7 @@ use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response;
 use Longman\TelegramBot\Request as LongmanRequest;
 use Psr\Http\Message\RequestInterface;
+use RuntimeException;
 
 /**
  * web-bridge-p1-07 (ADR-189 §1, §6) — маршруты `/play`: флаг на сервере (Ask 7), входящие и
@@ -389,6 +392,73 @@ final class PlayControllerTest extends CIUnitTestCase
             $this->login($sessionB);
             $this->assertNull($filter->before($this->request('POST'), [$bucket]), "{$bucket}: чужое ведро не тронуто");
         }
+    }
+
+    // ── p1-13: ошибки отвечают JSON'ом на месте ─────────────────────────
+
+    public function testJsonActPastThrottleIs429WithAlertAndCsrf(): void
+    {
+        [$session] = $this->virtualCharacter();
+        $this->login($session);
+        $filter = new AccountThrottleFilter();
+        for ($i = 0; $i < (new WebPlay())->actsPerMinute; $i++) {
+            $this->assertNull($filter->before($this->request('POST'), ['play']));
+        }
+
+        $res = $this->postWithCsrf($session, 'play/act', ['intent_id' => 'over', 'kind' => 'command', 'data' => '/guide'], true);
+        $this->assertSame(429, $res->response()->getStatusCode());
+        $json = json_decode($this->body($res), true);
+        $this->assertIsArray($json);
+        $this->assertIsString($json['alert']);
+        $this->assertNotSame('', $json['alert']);
+        $this->assertIsString($json['csrf']);
+        $this->assertNotSame('', $json['csrf']);
+        $this->assertSame(0, $this->conn->table('player_action_log')->countAllResults(), 'сверх лимита ничего не диспетчится');
+    }
+
+    public function testRejectedCallbackJsonCarriesHtmlAlertAndCsrf(): void
+    {
+        [$session] = $this->virtualCharacter();
+        $res       = $this->postWithCsrf($session, 'play/act', ['intent_id' => 'stale', 'kind' => 'callback', 'data' => 'admin_give_gold', 'message_id' => '1000000000'], true);
+
+        $this->assertSame(400, $res->response()->getStatusCode());
+        $json = json_decode($this->body($res), true);
+        $this->assertIsArray($json);
+        $this->assertIsString($json['html']);
+        $this->assertStringContainsString('play-screen', $json['html']);
+        $this->assertIsString($json['alert']);
+        $this->assertNotSame('', $json['alert']);
+        $this->assertIsString($json['csrf']);
+        $this->assertNotSame('', $json['csrf']);
+    }
+
+    public function testInboxJsonCarriesCsrf(): void
+    {
+        [$session] = $this->virtualCharacter();
+        $json      = json_decode($this->body($this->withSession($session)->get('play/inbox')), true);
+
+        $this->assertIsArray($json);
+        $this->assertIsString($json['csrf']);
+        $this->assertNotSame('', $json['csrf']);
+    }
+
+    public function testBootstrapFailureStillRendersPlayWithAlertAndLogsError(): void
+    {
+        [$session] = $this->virtualCharacter();
+        Factories::injectMock('libraries', WebActService::class, new class () extends WebActService {
+            public function bootstrap(int $accountId, int $characterId): array
+            {
+                throw new RuntimeException('claimIntent exploded');
+            }
+        });
+
+        $res = $this->withSession($session)->get('play');
+
+        $res->assertStatus(200);
+        $html = $this->body($res);
+        $this->assertStringContainsString('id="play-root"', $html, 'site/play, не 500 и не заглушка');
+        $this->assertStringContainsString(esc(WebActService::FAILED_ALERT), $html);
+        $this->assertLogged('error', '[Play.index] bootstrap failed: RuntimeException: claimIntent exploded');
     }
 
     public function testRoutesCarryTheThrottleArguments(): void

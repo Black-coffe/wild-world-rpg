@@ -26,6 +26,7 @@ use Config\WebPlay;
  * `accountThrottle:inbox`: отдельное ведро на аккаунт из сессии (`Config\WebPlay`
  * `actsPerMinute` / `inboxReadsPerMinute`), любой метод (чтение входящих — GET). Без аргумента
  * поведение P0 не меняется. Без входа ведро не считается: `/play` сам отправит на вход.
+ * Ответ сверх лимита (p1-13) — JSON 429 `{error, alert, csrf}`.
  */
 class AccountThrottleFilter implements FilterInterface
 {
@@ -91,12 +92,14 @@ class AccountThrottleFilter implements FilterInterface
         if ($throttler->check("play-{$bucket}-{$accountId}", $capacity, MINUTE)) {
             return null;
         }
-        $wait = max(1, $throttler->getTokenTime());
+        $wait  = max(1, $throttler->getTokenTime());
+        $alert = "Слишком часто. Подожди {$wait} с. и попробуй снова.";
 
+        // p1-13: `alert` + свежий `csrf` — JS покажет ответ на месте, а не уйдёт в PRG со старым токеном.
         return Services::response()
             ->setStatusCode(429)
             ->setHeader('Retry-After', (string) $wait)
-            ->setJSON(['error' => "Слишком часто. Подожди {$wait} с. и попробуй снова."]);
+            ->setJSON(['error' => $alert, 'alert' => $alert, 'csrf' => csrf_hash()]);
     }
 
     private function identifier(IncomingRequest $request): ?string

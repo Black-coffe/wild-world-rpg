@@ -72,7 +72,8 @@ $body = static function (array $msg): string {
     $parse   = is_string($msg['parse_mode'] ?? null) ? $msg['parse_mode'] : null;
     $text    = is_string($msg['text'] ?? null) ? $msg['text'] : null;
     $caption = is_string($msg['caption'] ?? null) ? $msg['caption'] : null;
-    $photo   = is_string($msg['photo_url'] ?? null) && preg_match('~^(https?://|/)~i', $msg['photo_url']) === 1 ? $msg['photo_url'] : null;
+    // Только http(s):// или путь сайта; `//host` и `/\host` браузер читает как чужой хост (p1-13).
+    $photo   = is_string($msg['photo_url'] ?? null) && preg_match('~^(https?://|/(?![/\\\\]))~i', $msg['photo_url']) === 1 ? $msg['photo_url'] : null;
     $out = '';
     if ($photo !== null || $caption !== null) {
         $out .= '<figure class="play-msg-figure">';
