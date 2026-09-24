@@ -1,8 +1,8 @@
 ---
 story: web-bridge-p1-07
 spec: web-bridge-p1
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -100,5 +100,12 @@ bootstrap command (plan A13: `/start`, or `/menu` per Q7) through the same `act(
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- Files: new `app/Controllers/Play.php`, `app/Services/Web/WebActService.php`, `tests/database/{WebActServiceTest,PlayControllerTest}.php`; `AccountThrottleFilter` (arguments `play`/`inbox` -> per-account bucket from `AccountSession`, any method, JSON 429; no argument = P0 unchanged), `Routes.php` (4 routes before the catch-all), `Filters.php` (alias comment only).
+- `WebActService`: `act()`, plus `current($characterId)` (state, no dispatch) and `bootstrap()` (`/start` once, intent key `bootstrap-<characterId>`, only when screen and history are empty). Rejection = `InvalidArgumentException` -> controller 400; checked before the intent row is written, so a reject never burns the intent. `act()` also re-checks `characters.account_id` = session account. Pipeline failure never escapes: the transport is restored in `finally`, the partial capture is still applied, and alert = `FAILED_ALERT`. `runPipeline()` is a protected seam used by the tests.
+- Order: `UpdatePipeline::telegram()` is built BEFORE `Probe::install()`, because the Longman constructor sets a default client when none is set. If `Probe::client()` is null, nothing is dispatched.
+- Tests prove "parent::send not reached": a test subclass wraps the installed `BridgeClient` in a recorder, so anything reaching Longman's `$client->post()` is logged before BridgeClient can swallow it. I disabled the actor-capture branch in `WebDelivery::route` (temporarily, reverted), and the recorder then logged `sendMessage` to the actor chat. Other mutations, each run separately and each turned the two files red: whitelist check off, `setClient($client)` restore off, `endCapture` off, flag check off, dedup off, throttle argument off, bootstrap off.
+- Surprise for story 06's JS: on any non-2xx (400 reject, 403, 429) `wildworld-play.js` falls back to `form.submit()`. With CSRF `regenerate=true` the form's token is already rotated, so that resubmit hits the CSRF error page. The 400 JSON carries `html`/`csrf`/`alert`, but the JS ignores bodies of non-OK responses.
+- Inbox panel page size is a controller constant `INBOX_PAGE = 50` (infra; `Config\WebPlay` is outside this story's files).
+- Verification: own files singly green (7 + 12 tests); full suite 4479 tests OK (10 skipped); phpstan full clean; migrations lint clean.
 
 ## Findings
