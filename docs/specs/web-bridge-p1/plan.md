@@ -145,8 +145,17 @@ direct `Longman\…\Request` imports into story 04 (ADR-189 «не провер�
   login, so the anonymous flag-off visitor gets the stub. With the flag on, an anonymous visitor
   gets a one-shot, whitelisted `/play` return target that the cabinet consumes after login.
 
-**Ask coverage:** 1→05,07 · 2→01,04,07 · 3→02,04,06 · 4→04,06,07 · 5→04,05 · 6→01,05,07 ·
-7→01,03,07 · 8→03 · 9→03,06,08 · 10→02,06 · 11→01 · 12→07 + integration gate (Queen Tier-3).
+**Wave 5 (council round 2 fixes)**
+- `web-bridge-p1-09-history-edit-becomes-screen` (Ask 3): an edit whose target sits in history
+  makes the edited message the current screen; the old screen moves to history and the stale copy
+  leaves its history entry. Files: `WebScreenStore`, `WebDelivery`, `WebDeliveryTest`.
+- `web-bridge-p1-10-texts-true-in-both-flag-states` (Ask 8): `/web`, the `/guide` `web` section and
+  the tip (new UPDATE migration `100011`) are reworded so they hold with the flag off and on: no
+  «откроют / пока заглушка», «Играть» in the header named as the way in. Files:
+  `WebLinkCodeAction`, `GuideCatalog`, the migration, `WebPlayTextsTest`.
+
+**Ask coverage:** 1→05,07 · 2→01,04,07 · 3→02,04,06,09 · 4→04,06,07 · 5→04,05 · 6→01,05,07 ·
+7→01,03,07 · 8→03,10 · 9→03,06,08 · 10→02,06 · 11→01 · 12→07 + integration gate (Queen Tier-3).
 
 **Verdicts (already Asks):**
 - guide: yes, section `web` extended (Ask 8).
@@ -173,6 +182,8 @@ taken, shifts to the next free one and reports it.
     an UNSIGNED or too-narrow column on the path**)
 - 03: `2026-12-11-100010_UpdateWebLinkTipForWebPlay.php` (UPDATE by the `title_en` of
   `SeedWebLinkTip`, idempotent; `down()` restores the old text)
+- 10: `2026-12-11-100011_WebPlayTipTrueInBothFlagStates.php` (UPDATE by `title_en='WebLinkCode'`,
+  idempotent; `down()` restores `UpdateWebLinkTipForWebPlay::NEW_CONTENT`)
 
 **Schema (01)**
 - `web_play_state`: `character_id` PK FK→characters CASCADE, `next_message_id` BIGINT NOT NULL
@@ -231,7 +242,8 @@ taken, shifts to the next free one and reports it.
 - `App\Services\Web\WebScreenStore` (04):
   - `nextMessageId(int $characterId): int` (atomic)
   - `state(int $characterId): array{screen, history, dock, input}`
-  - `applyCapture(int $characterId, array $capture): void`
+  - `applyCapture(int $characterId, array $capture): void` (09: an edit of a history message
+    promotes it to the current screen; an edit on the current screen stays in place)
   - `findMessage(int $characterId, int $messageId): ?Msg`
   - `callbackAllowed(int $characterId, string $data): bool` (screens + inbox)
 - `App\Services\Web\WebInboxService` (04):
@@ -319,6 +331,18 @@ names on its INTERFACES line. The Queen pastes them here before wave 2.
   controllers and three auth flows (password, OAuth, Telegram widget), and it opens a redirect
   surface. The cost: if some door does not land on `/account` (Q10), the player there lands
   where they land today and still finds «Играть» in the header and the cabinet.
+- **Chosen (09): an edit of a history message is promoted to the current screen**, the same rule
+  the inbox already follows. **Rejected: making history read-only** (no live buttons in history,
+  `callbackAllowed` limited to the current screen and inbox). That stops taps on past screens, but
+  a stored-id edit (`last_map_message_id` fallbacks) would still patch a dimmed entry, so Ask 3
+  would stay red. It also touches the views and the whitelist. The cost: a tap on an old screen
+  pulls it forward, which is what Telegram does visually when you scroll up and tap.
+- **Chosen (10): wording that is true in both flag states.** **Rejected: flag-aware texts**
+  (`WebLinkCodeAction` and `GuideCatalog` read `web.play_enabled` and pick a variant). The tip is
+  a stored row that `TipService` shows verbatim, so it would still need neutral wording or a
+  `TipService` change. `GuideCatalog` would lose its "read-only catalog" shape, and every text
+  would need two variants and two tests. The cost: while the flag is off, the texts cannot say
+  "not yet"; the `/play` stub and the cabinet lock line say that instead.
 
 ## Integration gate
 `vendor/bin/phpunit --no-coverage --no-progress`
@@ -345,6 +369,8 @@ run sequentially on the shared `wildworld_tests`. After wave 3:
 - 2026-09-24 · recon Q9: a virtual `telegram_users` row would make `AccountSession`/`AccountService` treat a web-only character as Telegram-linked (session `tg_user_id`, `ensureForTelegram`). Decision: `app/Services/Web/AccountSession.php` and `app/Services/Web/AccountService.php` join story 01 `## Files` with one acceptance line (virtual range = no Telegram). No other story names them. Rejected: leaving it to story 07 (wave 3) — wave-1 backfill already creates the rows.
 
 - 2026-09-24 · trigger: council round 1 RED on Ask 9 (seat opus: `Play::gate()` checks the login before the flag, so an anonymous flag-off visitor gets `/account/login` instead of the stub, and nothing returns them to `/play` after login; seat haiku: prod header has no `/play`, because the reviewed commit is not deployed there). Decision: fix story `web-bridge-p1-08` in wave 4, which puts the flag first and adds a session return target consumed by the cabinet. Haiku's finding is environmental (it walked prod), so no story addresses it. Rejected: amending story 07 in place (it is `done`, and a new story keeps the scope gate and the review slot honest).
+
+- 2026-09-24 · trigger: council round 2 RED on Asks 3 and 8 (seat opus; sonnet GREEN, haiku N/A environmental, review ABSENT). Ask 3: `WebScreenStore::applyCapture` patches an edit of a history message in place, so a tap on a past screen answered by an edit leaves the main screen unchanged. Ask 8: the story-03 texts are static and say «когда откроют / пока там заглушка», so they turn false the moment the owner flips `web.play_enabled` without a deploy. Decision: wave 5, one story per ask — `web-bridge-p1-09` (promote a history edit to the screen) and `web-bridge-p1-10` (wording true in both flag states, new tip migration `100011`). Files are disjoint. Rejected: amending stories 04/03 in place (both `done`); read-only history (see Tradeoffs); flag-aware texts (see Tradeoffs). Opus's UNASKED notes (no header bell, no backlog while the flag is off, Telegram-only flows for web-only players) are covered by A6/A10/A14 or out of scope and get no story.
 
 **Approved:** Andrei, 2026-09-24 (A0–A15 as written, incl. A3, A5, A6, A10)
 **Briefed:** <written by scripts/cycle.sh briefed - alternative to **Approved:**>
