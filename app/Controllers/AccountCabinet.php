@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Services\Web\AccountAuthService;
 use App\Services\Web\AccountService;
 use App\Services\Web\AccountSession;
@@ -12,12 +13,17 @@ use CodeIgniter\HTTP\ResponseInterface;
 /**
  * web-accounts-p0-07 (ADR-188) — кабинет аккаунта: персонаж, способы входа (почта+пароль,
  * Google, Яндекс, Telegram), добавление и отвязка (никогда не последнего), ссылка на привязку
- * кодом из бота, выход.
+ * кодом из бота, выход. web-bridge-p1-03: блок «Играть на сайте» — ссылка на /play при включённом
+ * `web.play_enabled`, иначе lock-строка с причиной (флаг читается здесь, на сервере).
  *
  * Сообщения — через `?auth=<код>` (PRG): их ставят этот контроллер, AccountOAuth и TelegramLogin.
  */
 class AccountCabinet extends BaseController
 {
+    use GameSettingsReaderTrait;
+
+    public const PLAY_FLAG = 'web.play_enabled';
+
     public const MSG_LAST_IDENTITY = 'Это последний способ входа — его нельзя отвязать, иначе ты потеряешь доступ к аккаунту. Сначала добавь другой способ.';
 
     private const AUTH_NOTICES = [
@@ -133,6 +139,7 @@ class AccountCabinet extends BaseController
             'hasCharacter'  => $character !== null,
             'identities'    => $identities,
             'linked'        => array_values(array_unique($providers)),
+            'playEnabled'   => $this->gsBool(self::PLAY_FLAG, false),
             'botUsername'   => $bot,
             // Story 09 (F1): привязка виджетом засчитывается только с этим одноразовым nonce.
             'linkNonce'     => ! in_array('telegram', $providers, true) && $bot !== ''

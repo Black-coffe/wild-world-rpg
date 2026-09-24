@@ -11,6 +11,7 @@
  * @var list<string>                      $linked       провайдеры, уже привязанные к аккаунту
  * @var string                            $botUsername
  * @var string                            $linkNonce    одноразовый nonce привязки Telegram (story 09)
+ * @var bool                              $playEnabled  флаг `web.play_enabled` (web-bridge-p1-03)
  * @var array{0:string,1:string}|null     $notice       [ok|error, текст]
  * @var string|null                       $emailError
  * @var string                            $emailValue
@@ -21,6 +22,7 @@ $identities    = is_array($identities ?? null) ? $identities : [];
 $linked        = is_array($linked ?? null) ? $linked : [];
 $botUsername   = is_string($botUsername ?? null) ? $botUsername : '';
 $linkNonce     = is_string($linkNonce ?? null) ? $linkNonce : '';
+$playEnabled   = ($playEnabled ?? false) === true;
 $notice        = is_array($notice ?? null) ? $notice : null;
 $emailError    = is_string($emailError ?? null) ? $emailError : null;
 $emailValue    = is_string($emailValue ?? null) ? $emailValue : '';
@@ -57,6 +59,15 @@ $canUnlink   = count($identities) > 1;
                 <?php else: ?>
                     <div class="notice info"><span class="notice-title">Инфо</span>К аккаунту ещё не привязан персонаж. Играешь в Telegram-боте? Возьми там код командой /web и введи его на странице привязки.</div>
                     <div><a class="btn primary" href="<?= esc(base_url('account/link'), 'attr') ?>">Привязать персонажа из бота</a></div>
+                <?php endif ?>
+
+                <div class="label">Играть на сайте</div>
+                <?php if (! $playEnabled): ?>
+                    <p class="provider-note" data-play-state="locked">🔒 Игра на сайте (скоро) — её ещё готовят к запуску. Пока играй в Telegram-боте.</p>
+                <?php elseif (! $hasCharacter): ?>
+                    <p class="provider-note" data-play-state="no-character">🔒 Игра на сайте (нужен персонаж) — сначала привяжи персонажа из бота кодом /web.</p>
+                <?php else: ?>
+                    <div data-play-state="open"><a class="btn primary" href="<?= esc(base_url('play'), 'attr') ?>">Играть на сайте</a></div>
                 <?php endif ?>
 
                 <div class="label">Способы входа</div>
