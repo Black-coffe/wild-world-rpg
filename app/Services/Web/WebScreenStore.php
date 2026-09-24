@@ -63,12 +63,23 @@ class WebScreenStore
     /** @return State */
     public function state(int $characterId): array
     {
+        return $this->readState($characterId, false) ?? ['screen' => [], 'history' => [], 'dock' => [], 'input' => null];
+    }
+
+    /**
+     * Состояние из строки `web_play_state`; null — строки нет. `$forUpdate` — блокирующее чтение
+     * (только внутри {@see guarded()}).
+     *
+     * @return State|null
+     */
+    private function readState(int $characterId, bool $forUpdate): ?array
+    {
         $row = $this->row(
-            'SELECT screen, history, dock, input FROM web_play_state WHERE character_id = ?',
+            'SELECT screen, history, dock, input FROM web_play_state WHERE character_id = ?' . ($forUpdate ? ' FOR UPDATE' : ''),
             [$characterId]
         );
         if (! is_array($row)) {
-            return ['screen' => [], 'history' => [], 'dock' => [], 'input' => null];
+            return null;
         }
 
         /** @var list<Msg> $screen */
@@ -89,7 +100,94 @@ class WebScreenStore
      */
     public function applyCapture(int $characterId, array $capture): void
     {
-        $state   = $this->state($characterId);
+        $this->ensureRow($characterId);
+        $this->guarded($characterId, function (array $state) use ($characterId, $capture): bool {
+            $this->applyCaptureTo($characterId, $state, $capture);
+
+            return true;
+        });
+    }
+
+    /**
+     * Фоновая правка (plan A16): заменить сообщение на месте — в текущем экране или в истории,
+     * без подъёма в экран (игрок не действовал). False — сообщения нет ни там, ни там.
+     *
+     * @param Msg $msg
+     */
+    public function patchMessage(int $characterId, int $messageId, array $msg): bool
+    {
+        return $this->guarded($characterId, function (array $state) use ($characterId, $messageId, $msg): bool {
+            $screen  = $state['screen'];
+            $history = $state['history'];
+            $found   = self::contains($screen, $messageId);
+            if ($found) {
+                $screen = self::replaceIn($screen, $messageId, $msg);
+            }
+            foreach ($history as $i => $entry) {
+                if (self::contains($entry, $messageId)) {
+                    $history[$i] = self::replaceIn($entry, $messageId, $msg);
+                    $found       = true;
+                }
+            }
+            if (! $found) {
+                return false;
+            }
+            $this->beforeWrite($characterId);
+            $this->db->table('web_play_state')->where('character_id', $characterId)->update([
+                'screen'     => json_encode($screen, JSON_UNESCAPED_UNICODE),
+                'history'    => json_encode($history, JSON_UNESCAPED_UNICODE),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+
+            return true;
+        });
+    }
+
+    /**
+     * Guard записи экрана (manual review #6): read-modify-write в транзакции с блокирующим чтением
+     * строки персонажа (`SELECT … FOR UPDATE`). Параллельный писатель того же персонажа ждёт на
+     * чтении, пока эта транзакция не закоммитится, и читает уже новое состояние. Нет строки —
+     * `$apply` не зовётся, результат false. Внутри внешней транзакции CI4 вкладывает (блокировка
+     * держится до внешнего коммита).
+     *
+     * @param callable(State): bool $apply
+     */
+    private function guarded(int $characterId, callable $apply): bool
+    {
+        $statusBefore = $this->db->transStatus();
+        $this->db->transBegin();
+        try {
+            $state  = $this->readState($characterId, true);
+            $result = $state !== null && $apply($state);
+            // Внутри транзакции CI4 не бросает на ошибке запроса (напр. lock wait timeout), а
+            // гасит transStatus: иначе «нет строки» и тихо закоммиченная половина.
+            if (! $this->db->transStatus()) {
+                throw new \RuntimeException("WebScreenStore: screen write failed for character {$characterId}: " . json_encode($this->db->error()));
+            }
+            $this->db->transCommit();
+
+            return $result;
+        } catch (\Throwable $e) {
+            $this->db->transRollback();
+            if ($statusBefore) {
+                $this->db->resetTransStatus();
+            }
+
+            throw $e;
+        }
+    }
+
+    /** Шов для теста: между чтением и записью (manual review #6). */
+    protected function beforeWrite(int $characterId): void
+    {
+    }
+
+    /**
+     * @param State   $state
+     * @param Capture $capture
+     */
+    private function applyCaptureTo(int $characterId, array $state, array $capture): void
+    {
         $screen  = $state['screen'];
         $history = $state['history'];
 
@@ -136,7 +234,7 @@ class WebScreenStore
             $dock = $capture['dock'];
         }
 
-        $this->ensureRow($characterId);
+        $this->beforeWrite($characterId);
         $this->db->table('web_play_state')->where('character_id', $characterId)->update([
             'screen'     => json_encode($screen, JSON_UNESCAPED_UNICODE),
             'history'    => json_encode($history, JSON_UNESCAPED_UNICODE),

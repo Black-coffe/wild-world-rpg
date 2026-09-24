@@ -7,6 +7,7 @@ namespace App\Services\Web;
 use App\Services\GameSettings\GameSettingsService;
 use CodeIgniter\Database\ResultInterface;
 use Config\Database;
+use Config\WebPlay;
 use Longman\TelegramBot\Entities\Entity;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Psr\Http\Message\StreamInterface;
@@ -22,6 +23,11 @@ use Throwable;
  *   `message_id` синтетический ({@see WebScreenStore::nextMessageId()}), ответ — синтетический ok.
  *   Правка сообщения, которого нет ни в захвате, ни на экране, ни во входящих, отвечает
  *   «message to edit not found» — чтобы сработал запасной путь «edit → send» вызывающего (R5).
+ * - **Фоновая правка/удаление синтетического id** (`message_id` ≥ `WebPlay::firstMessageId`, plan
+ *   A16) в чат, за которым стоит персонаж: такого сообщения в Telegram нет, поэтому в Telegram не
+ *   уходит ничего — ни виртуальному, ни привязанному. При включённом флаге правка заменяет копию
+ *   на экране или в истории на месте (без подъёма в экран) и обновляет одну строку входящих
+ *   (снова непрочитано). Ответ — синтетический ok, так что запасной «edit → send» не срабатывает.
  * - **Виртуальный чат** ({@see VirtualChat::is()}): `send*` → строка входящих `virtual` (при
  *   включённом флаге), `edit*`/`delete*`/прочее отбрасываются. Ответ — синтетический ok: доставка во
  *   входящие тоже доставка. В Telegram не уходит ничего при любом флаге.
@@ -114,6 +120,13 @@ final class WebDelivery
 
         if (self::$capturing && ($chatId === self::$actorChat || ($chatId === null && $kind === 'alert'))) {
             return new ServerResponse(self::capture($action, $data, $kind), '');
+        }
+
+        if ($chatId !== null && ($kind === 'edit' || $kind === 'delete') && self::isSyntheticId($data['message_id'] ?? null)) {
+            $absorbed = self::backgroundSynthetic($chatId, $action, $data, $kind);
+            if ($absorbed !== null) {
+                return new ServerResponse($absorbed, '');
+            }
         }
 
         if ($chatId !== null && VirtualChat::is($chatId)) {
@@ -263,6 +276,55 @@ final class WebDelivery
         unset(self::$buffer['edited'][$id]);
         if (count(self::$buffer['sent']) === $before) {
             self::$buffer['deleted'][] = $id;
+        }
+    }
+
+    // ── фоновая правка синтетического id (plan A16) ──────────────────────
+
+    private static function isSyntheticId(mixed $raw): bool
+    {
+        $id = self::intOf($raw);
+
+        return $id !== null && $id >= (new WebPlay())->firstMessageId;
+    }
+
+    /**
+     * Правка/удаление синтетического id вне захвата. Null — чат не ведёт к персонажу, решает
+     * общий путь. Иначе — ответ без Telegram. Никогда не бросает.
+     *
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>|null
+     */
+    private static function backgroundSynthetic(int $chatId, string $action, array $data, string $kind): ?array
+    {
+        try {
+            $characterId = self::characterForChat($chatId, false);
+            if ($characterId === null) {
+                return null;
+            }
+            if ($kind !== 'edit' || ! self::flagEnabled()) {
+                return self::okTrue();
+            }
+
+            $id     = (int) self::intOf($data['message_id'] ?? null);
+            $base   = self::store()->findMessage($characterId, $id)
+                ?? self::inbox()->findMessage($characterId, $id)
+                ?? self::buildMsg('', [], $id);
+            $edited = self::applyEdit($base, $action, $data);
+
+            self::store()->patchMessage($characterId, $id, $edited);
+            self::inbox()->upsertEdit(
+                $characterId,
+                $id,
+                $edited,
+                VirtualChat::is($chatId) ? WebInboxService::SOURCE_VIRTUAL : WebInboxService::SOURCE_MIRROR
+            );
+
+            return self::messageResult($id, $chatId, $edited);
+        } catch (Throwable $e) {
+            log_message('error', '[WebDelivery] background ' . $action . ' of web message failed: ' . $e->getMessage());
+
+            return self::okTrue();
         }
     }
 

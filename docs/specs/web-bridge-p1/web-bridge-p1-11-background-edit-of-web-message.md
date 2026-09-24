@@ -1,8 +1,8 @@
 ---
 story: web-bridge-p1-11
 spec: web-bridge-p1
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -110,5 +110,12 @@ write with retry. `nextMessageId` is already atomic and stays as it is.
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- `WebDelivery::route`: new A16 branch after the capture case, before the virtual case. For `edit*`/`delete*` with `message_id` ≥ `WebPlay::firstMessageId`, the chat is resolved to a character through `characterForChat($chat, false)`. A synthetic id is proof enough that the player used the web, so the A5 login filter is not applied. No character → the old path. Otherwise nothing goes to Telegram: a delete or flag off returns `okTrue`; an edit applies to the base (screen/history copy → inbox copy → blank msg), then `patchMessage` + `upsertEdit` (`virtual` for a virtual chat, else `mirror`). An edit returns `messageResult` (ok:true with the message). A DB error is logged and still returns `okTrue`.
+- Not covered: `deleteMessages` (plural, `message_ids`) and `inline_message_id` edits (no `chat_id`) keep the old path. A background delete does not remove the web copy; the story did not ask for that.
+- `WebScreenStore::patchMessage(int, int, Msg): bool` patches in place in the screen and in every history entry, with no promotion. It returns false when the message or the row is missing, and creates no row.
+- `WebInboxService::upsertEdit(int, int, Msg, string): void` uses `INSERT … ON DUPLICATE KEY UPDATE payload, read_at = NULL` on the existing `(character_id, message_id)` unique key, then prunes. On update the `source`, `created_at` and row id stay as they were, so the edited row does not jump to the top of `latest()`.
+- **Guard (#6):** `WebScreenStore::guarded()` wraps the read-modify-write in a `transBegin` transaction and reads with `SELECT … FOR UPDATE` on the `web_play_state` row. A second writer for the same character **waits** on its read until the first commits, up to MySQL `innodb_lock_wait_timeout` (default 50 s), and then reads the new state. When the wait times out, CI4 does not throw inside a transaction and only clears `transStatus`. `guarded()` checks for that, rolls back, resets `transStatus` (only if it was true before), and throws `RuntimeException`. There is no retry. Inside an outer transaction, CI4 nests it and the lock is held until the outer commit. `applyCapture` still calls `ensureRow` first, outside the transaction.
+- Test seam: `protected beforeWrite(int)`, a no-op between the read and the write. `WebScreenStoreTest` (new) runs the second writer on a second connection with a 1 s lock timeout. With the guard, that writer is blocked and repeats after the first commits. Mutation check: dropping `FOR UPDATE` alone turns both interleave tests red (lost update). Turning off the A16 branch in `route()` alone turns the 5 new A16 tests in `WebDeliveryTest` red.
+- Surprising (env): other wave-6 workers ran full suites on `wildworld_tests` at the same time, and every overlap produced false errors ("table doesn't exist", deadlocks in migrations). I ran all my suites through a wait-for-no-other-phpunit wrapper.
 
 ## Findings

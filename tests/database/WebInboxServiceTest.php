@@ -107,6 +107,23 @@ final class WebInboxServiceTest extends CIUnitTestCase
         $this->assertSame(3, $this->conn->table('web_inbox')->where('character_id', $char)->countAllResults());
     }
 
+    public function testUpsertEditKeepsOneRowReplacesPayloadAndMarksUnread(): void
+    {
+        $char  = $this->character();
+        $inbox = new WebInboxService($this->conn);
+
+        $inbox->upsertEdit($char, 1000000005, $this->msg(1000000005, 'шаг 1'), WebInboxService::SOURCE_MIRROR);
+        $inbox->markAllRead($char);
+        $inbox->upsertEdit($char, 1000000005, $this->msg(1000000005, 'шаг 2'), WebInboxService::SOURCE_MIRROR);
+        $inbox->upsertEdit($char, 1000000005, $this->msg(1000000005, 'шаг 3'), WebInboxService::SOURCE_MIRROR);
+
+        $this->assertSame(1, $this->conn->table('web_inbox')->where('character_id', $char)->countAllResults(), 'одна строка на message_id');
+        $this->assertSame(1, $inbox->unreadCount($char), 'правка снова непрочитана');
+        $found = $inbox->findMessage($char, 1000000005);
+        $this->assertNotNull($found);
+        $this->assertSame('шаг 3', $found['text']);
+    }
+
     public function testCallbackAllowedOnlyForButtonsOnScreenHistoryOrInbox(): void
     {
         $char  = $this->character();

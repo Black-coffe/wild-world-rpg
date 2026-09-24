@@ -460,6 +460,130 @@ final class WebDeliveryTest extends CIUnitTestCase
         $this->assertSame(0, $this->conn->table('web_inbox')->countAllResults());
     }
 
+    // ── A16: фоновая правка сообщения с сайта (manual review #1) ─────────
+
+    public function testWebOnlyBackgroundEditPatchesCurrentScreenAndKeepsOneUnreadInboxRow(): void
+    {
+        [$charId, $chat] = $this->webOnly();
+        $store = new WebScreenStore($this->conn);
+        WebDelivery::useServices($store);
+        $id = $this->screenMessage($store, $chat, $charId, 'Поход: старт');
+
+        foreach (['шаг 1', 'шаг 2', 'шаг 3'] as $step) {
+            $r = WebDeliverySpyRequest::editMessageText(['chat_id' => $chat, 'message_id' => $id, 'text' => 'Поход: ' . $step]);
+            $this->assertTrue($r->isOk(), 'правка удалась — запасной send не нужен');
+        }
+
+        $this->assertSame([], WebDeliverySpyRequest::$calls);
+        $state = $store->state($charId);
+        $this->assertSame([$id], array_column($state['screen'], 'message_id'), 'всё ещё текущий экран');
+        $this->assertSame('Поход: шаг 3', $state['screen'][0]['text']);
+        $rows = $this->inbox($charId);
+        $this->assertCount(1, $rows, 'одна строка входящих на message_id');
+        $this->assertSame($id, (int) $rows[0]['message_id']);
+        $this->assertNull($rows[0]['read_at']);
+        $this->assertSame('virtual', $rows[0]['source']);
+        $payload = json_decode((string) $rows[0]['payload'], true);
+        $this->assertIsArray($payload);
+        $this->assertSame('Поход: шаг 3', $payload['text']);
+    }
+
+    public function testLinkedMarchShapedCallerSendsNothingToTelegramOnRepeatedSteps(): void
+    {
+        $chat   = 700100600;
+        $charId = $this->linked($chat, true);
+        $store  = new WebScreenStore($this->conn);
+        WebDelivery::useServices($store);
+        $id = $this->screenMessage($store, $chat, $charId, 'Поход: старт');
+
+        foreach (['шаг 1', 'шаг 2', 'шаг 3'] as $step) {
+            // Как MarchingTaskHandler: сначала правка, send — только если правка не удалась.
+            $r = WebDeliverySpyRequest::editMessageText(['chat_id' => $chat, 'message_id' => $id, 'text' => 'Поход: ' . $step]);
+            if (! $r->isOk()) {
+                WebDeliverySpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'Поход: ' . $step]);
+            }
+            $this->assertTrue($r->isOk());
+        }
+
+        $this->assertSame([], WebDeliverySpyRequest::$calls, 'синтетический id в Telegram не уходит');
+        $rows = $this->inbox($charId);
+        $this->assertCount(1, $rows);
+        $this->assertSame('mirror', $rows[0]['source']);
+        $this->assertNull($rows[0]['read_at']);
+        $this->assertSame('Поход: шаг 3', $store->state($charId)['screen'][0]['text']);
+    }
+
+    public function testBackgroundEditOfHistoryMessagePatchesInPlaceAndKeepsCurrentScreen(): void
+    {
+        [$charId, $chat] = $this->webOnly();
+        $store = new WebScreenStore($this->conn);
+        WebDelivery::useServices($store);
+        $old = $this->screenMessage($store, $chat, $charId, 'Поход: старт');
+        $cur = $this->screenMessage($store, $chat, $charId, 'Инвентарь');
+
+        $this->assertTrue(WebDeliverySpyRequest::editMessageText(['chat_id' => $chat, 'message_id' => $old, 'text' => 'Поход: шаг 1'])->isOk());
+
+        $state = $store->state($charId);
+        $this->assertSame([$cur], array_column($state['screen'], 'message_id'), 'текущий экран не сменился');
+        $this->assertSame('Инвентарь', $state['screen'][0]['text']);
+        $this->assertSame(['Поход: шаг 1'], array_column($state['history'][0], 'text'), 'копия в истории правится на месте');
+        $this->assertCount(1, $this->inbox($charId));
+        $this->assertSame([], WebDeliverySpyRequest::$calls);
+    }
+
+    public function testBackgroundDeleteOfSyntheticIdNeverReachesTelegram(): void
+    {
+        $chat        = 700100700;
+        $charId      = $this->linked($chat, true);
+        [, $virtual] = $this->webOnly();
+        $synthetic   = (new WebPlay())->firstMessageId + 3;
+
+        $this->assertTrue(WebDeliverySpyRequest::deleteMessage(['chat_id' => $chat, 'message_id' => $synthetic])->isOk());
+        $this->assertTrue(WebDeliverySpyRequest::deleteMessage(['chat_id' => $virtual, 'message_id' => $synthetic])->isOk());
+        $this->assertSame([], WebDeliverySpyRequest::$calls);
+        $this->assertCount(0, $this->inbox($charId));
+    }
+
+    public function testFlagOffSyntheticBackgroundEditWritesNothingAndReachesNothing(): void
+    {
+        $chat   = 700100800;
+        $charId = $this->linked($chat, true);
+        $store  = new WebScreenStore($this->conn);
+        WebDelivery::useServices($store);
+        $id     = $this->screenMessage($store, $chat, $charId, 'Поход: старт');
+        $before = $store->state($charId);
+        $this->setFlag(false);
+
+        $this->assertTrue(WebDeliverySpyRequest::editMessageText(['chat_id' => $chat, 'message_id' => $id, 'text' => 'Поход: шаг 1'])->isOk());
+
+        $this->assertSame([], WebDeliverySpyRequest::$calls);
+        $this->assertSame($before, $store->state($charId), 'экран не тронут');
+        $this->assertCount(0, $this->inbox($charId));
+    }
+
+    public function testRealRangeEditAndDeleteStillReachTelegramUnchanged(): void
+    {
+        $linkedChat = 700100900;
+        $linked     = $this->linked($linkedChat, true);
+        $botOnly    = $this->botOnly(700101000);
+        $calls      = [
+            ['editMessageText', ['chat_id' => $linkedChat, 'message_id' => 41, 'text' => 'правка']],
+            ['deleteMessage', ['chat_id' => $linkedChat, 'message_id' => 41]],
+            ['editMessageText', ['chat_id' => 700101000, 'message_id' => 999999999, 'text' => 'правка']],
+            ['deleteMessage', ['chat_id' => 700101000, 'message_id' => 999999999]],
+        ];
+
+        foreach ($calls as [$action, $data]) {
+            WebDeliverySpyRequest::$last = null;
+            $r = WebDeliverySpyRequest::send($action, $data);
+            $this->assertSame(WebDeliverySpyRequest::$last, $r, $action . ' — ответ Telegram как есть');
+        }
+
+        $this->assertSame($calls, WebDeliverySpyRequest::$calls, 'данные дошли до parent::send() без изменений');
+        $this->assertCount(0, $this->inbox($linked));
+        $this->assertCount(0, $this->inbox($botOnly));
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────
 
     /** @return array{0:int, 1:int} [character_id, virtual chat id] */
@@ -506,6 +630,16 @@ final class WebDeliveryTest extends CIUnitTestCase
         ]);
 
         return (int) $this->conn->insertID();
+    }
+
+    /** Одно действие на `/play`: сообщение становится текущим экраном; его синтетический id. */
+    private function screenMessage(WebScreenStore $store, int $chat, int $charId, string $text): int
+    {
+        WebDelivery::beginCapture($chat, $charId);
+        $id = $this->messageId(WebDeliverySpyRequest::sendMessage(['chat_id' => $chat, 'text' => $text]));
+        $store->applyCapture($charId, WebDelivery::endCapture());
+
+        return $id;
     }
 
     /** @return list<array<string,mixed>> */

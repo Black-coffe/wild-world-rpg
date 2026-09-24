@@ -15,6 +15,7 @@ use Config\WebPlay;
  * Сюда ложатся фоновые сообщения: виртуальному персонажу (`virtual`) вместо Telegram и копия
  * привязанному игроку (`mirror`) рядом с Telegram. Хранится не больше `inboxKeep` последних строк
  * на персонажа: лишние удаляются при каждой записи (plan A7, вместо крона ADR-189 §5).
+ * Фоновая правка сообщения с сайта не добавляет строку, а обновляет свою ({@see upsertEdit()}).
  *
  * @phpstan-import-type Msg from WebScreenStore
  */
@@ -60,6 +61,29 @@ class WebInboxService
         $this->prune($characterId);
 
         return $id;
+    }
+
+    /**
+     * Фоновая правка сообщения с сайта (plan A16): одна строка на `(character_id, message_id)`.
+     * Есть строка — payload заменяется, `read_at` сбрасывается (снова непрочитано), источник
+     * остаётся прежним. Нет — вставляется.
+     *
+     * @param Msg $msg
+     */
+    public function upsertEdit(int $characterId, int $messageId, array $msg, string $source): void
+    {
+        if (! in_array($source, [self::SOURCE_VIRTUAL, self::SOURCE_MIRROR], true)) {
+            throw new \InvalidArgumentException("WebInboxService: unknown source {$source}");
+        }
+        $msg['message_id'] = $messageId;
+
+        $this->db->query(
+            'INSERT INTO web_inbox (character_id, message_id, source, payload, created_at) VALUES (?, ?, ?, ?, ?)'
+            . ' ON DUPLICATE KEY UPDATE payload = VALUES(payload), read_at = NULL',
+            [$characterId, $messageId, $source, (string) json_encode($msg, JSON_UNESCAPED_UNICODE), date('Y-m-d H:i:s')]
+        );
+
+        $this->prune($characterId);
     }
 
     public function unreadCount(int $characterId): int
