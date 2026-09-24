@@ -12,6 +12,8 @@ use App\Services\Onboarding\NewbieGreeterService;
 use App\Services\Onboarding\OnboardingChainService;
 use App\Services\Onboarding\StarterKitService;
 use App\Services\Web\AccountService;
+use App\Services\Web\VirtualChat;
+use App\Services\Web\VirtualIdentityService;
 use Config\Database;
 
 /**
@@ -24,7 +26,9 @@ use Config\Database;
  *
  * Два вызывающих: бот (`telegram_users.id` + chat id; аккаунт находится/создаётся через
  * {@see AccountService::ensureForTelegram()}) и сайт (`telegramUserId = null`, `chatId = null`,
- * готовый `accountId`; строка `telegram_users` не создаётся). Сервис ничего не отправляет:
+ * готовый `accountId`; web-bridge-p1 / ADR-189 §3: создаётся виртуальная строка `telegram_users`
+ * через {@see VirtualIdentityService::ensureForAccount()}, chat id = {@see VirtualChat::idForAccount()},
+ * identity в `account_identities` не заводится). Сервис ничего не отправляет:
  * тексты Роби для первого экрана бота отдаёт {@see lastTexts()}, веб их просто не читает.
  *
  * Числа старта (gold 1000, health/tired 100, статы 0.01) и список биомов — хардкод, унаследованный
@@ -75,7 +79,8 @@ class CharacterProvisioningService
         ], true);
 
         if ($name === '') {
-            $characterModel->update($characterId, ['name' => self::mintDistinctName($characterId)]);
+            $name = self::mintDistinctName($characterId);
+            $characterModel->update($characterId, ['name' => $name]);
         }
 
         $accounts = $this->accounts ?? new AccountService();
@@ -83,6 +88,14 @@ class CharacterProvisioningService
             $accounts->attachCharacter($accountId, $characterId);
         } elseif ($telegramUserId !== null) {
             $this->attachBotCharacter($accounts, $telegramUserId, $characterId);
+        }
+
+        // web-bridge-p1-01 (ADR-189 §3): персонаж сайта получает виртуальную строку telegram_users
+        // и дальше идёт тем же путём, что бот-персонаж (задачи, туман войны, action_log).
+        if ($telegramUserId === null && $accountId !== null) {
+            $telegramUserId = (new VirtualIdentityService())->ensureForAccount($accountId, $name);
+            $chatId ??= VirtualChat::idForAccount($accountId);
+            $characterModel->update($characterId, ['telegram_user_id' => $telegramUserId]);
         }
 
         $spawnCells = (new MapModel())

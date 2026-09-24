@@ -14,6 +14,7 @@ use App\Database\Migrations\CreateTelegramUsersTable;
 use App\Database\Migrations\LinkCharactersToAccounts;
 use App\Services\Player\NameService;
 use App\Services\Web\AccountAuthService;
+use App\Services\Web\VirtualChat;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Forge;
@@ -164,7 +165,12 @@ final class AccountRegistrationTest extends CIUnitTestCase
         $chars = $this->conn->table('characters')->where('account_id', $accountId)->get()->getResultArray();
         $this->assertCount(1, $chars);
         $this->assertSame('Web_Hero', $chars[0]['name']);
-        $this->assertNull($chars[0]['telegram_user_id']);
+        // web-bridge-p1-01 (ADR-189 §3): виртуальная строка telegram_users, но не Telegram-вход.
+        $this->assertNotNull($chars[0]['telegram_user_id']);
+        $tgRow = $this->conn->table('telegram_users')->where('id', (int) $chars[0]['telegram_user_id'])->get()->getRowArray();
+        $this->assertIsArray($tgRow);
+        $this->assertSame(VirtualChat::idForAccount($accountId), (int) $tgRow['telegram_id']);
+        $this->assertNull(Services::session()->get('tg_user_id'));
         $this->assertSame((int) $chars[0]['id'], Services::session()->get('character_id'));
     }
 
@@ -310,6 +316,10 @@ final class AccountRegistrationTest extends CIUnitTestCase
             $this->conn->table('characters')
                 ->whereIn('name', ['Web_Hero', 'First_One', 'Second_One', 'Header_Hero', 'Closed_Hero'])
                 ->delete();
+        }
+        if ($this->conn->tableExists('telegram_users')) {
+            // Виртуальные строки web-персонажей (ADR-189) — только диапазон VirtualChat.
+            $this->conn->table('telegram_users')->where('telegram_id <=', -VirtualChat::VIRTUAL_BASE)->delete();
         }
     }
 

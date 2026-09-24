@@ -93,7 +93,10 @@ class AccountSession
             $tgUserId = self::toInt($session->get(self::KEY_TG_USER));
             if ($tgUserId !== null && $tgUserId > 0) {
                 try {
-                    $upgraded = $this->accounts->accountForTelegramLogin($tgUserId);
+                    // ADR-189: виртуальная строка не Telegram-вход — апгрейда через неё нет.
+                    $upgraded = $this->accounts->isVirtualTelegramUser($tgUserId)
+                        ? null
+                        : $this->accounts->accountForTelegramLogin($tgUserId);
                 } catch (InvalidArgumentException) {
                     $upgraded = null;
                 }
@@ -180,6 +183,10 @@ class AccountSession
         $character   = $this->accounts->characterForAccount($accountId);
         $characterId = self::toInt($character['id'] ?? null);
         $tgUserId    = self::toInt($character['telegram_user_id'] ?? null);
+        // ADR-189: у web-only персонажа telegram_user_id — виртуальная строка, не Telegram.
+        if ($tgUserId !== null && $this->accounts->isVirtualTelegramUser($tgUserId)) {
+            $tgUserId = null;
+        }
 
         if ($characterId !== null) {
             $session->set(self::KEY_CHARACTER, $characterId);
