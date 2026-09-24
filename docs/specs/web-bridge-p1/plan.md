@@ -327,5 +327,5 @@ run sequentially on the shared `wildworld_tests`. After wave 3:
 **Briefed:** <written by scripts/cycle.sh briefed - alternative to **Approved:**>
 **Branch:** vulyk/web-bridge-p1
 **Checked:** <written by scripts/human-check.sh>
-**Council:** <written by scripts/cycle.sh judge/escalate>
+**Council:** RED round 1, 2026-09-24, at 57e1a0dd, pack bcab1c9c706e - red: 9
 **Shipped:** <written by scripts/ship-check.sh --record>
