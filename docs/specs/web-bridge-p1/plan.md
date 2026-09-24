@@ -351,4 +351,5 @@ run sequentially on the shared `wildworld_tests`. After wave 3:
 **Branch:** vulyk/web-bridge-p1
 **Checked:** <written by scripts/human-check.sh>
 **Council:** RED round 1, 2026-09-24, at 57e1a0dd, pack bcab1c9c706e - red: 9
+**Council:** RED round 2, 2026-09-24, at 8dbc8746, pack bd05f7270b7a - red: 3,8
 **Shipped:** <written by scripts/ship-check.sh --record>
