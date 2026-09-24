@@ -13,6 +13,8 @@
         "php": "^8.2",
         "codeigniter4/framework": "^4.7",
         "codeigniter4/tasks": "^1.0",
+        "league/oauth2-client": "^2.9",
+        "league/oauth2-google": "^5.0",
         "longman/telegram-bot": "^0.81.0"
     },
     "require-dev": {

@@ -8,6 +8,7 @@ use App\Models\CharactersOutfitsModel;
 use App\Models\CharacterTaskModel;
 use App\Models\OutfitModel;
 use App\Models\TelegramUserModel;
+use App\Services\Telegram\TelegramChatResolver;
 use App\TaskHandlers\BaseTaskHandler;
 
 /**
@@ -68,7 +69,7 @@ class CraftCompletionReinforcedLeatherHandler extends BaseTaskHandler
         $this->characterModel->updateAgilityAndIntellect($characterId, 0.07, 0.03);
 
         // 6) Уведомляем игрока в Telegram
-        $this->notifyUser($task['telegram_user_id'], $outfit, $task['character_id'], $quantity);
+        $this->notifyUser($outfit, $characterId, $quantity);
     }
 
     private function getQuantity(array $task): int
@@ -104,17 +105,11 @@ class CraftCompletionReinforcedLeatherHandler extends BaseTaskHandler
         }
     }
 
-    private function notifyUser(int $telegramUserId, array $outfit, int $characterId, int $qtyAdded): void
+    private function notifyUser(array $outfit, int $characterId, int $qtyAdded): void
     {
-        $tgUser = $this->telegramUserModel->find($telegramUserId);
-        if (!$tgUser) {
-            log_message('error', "No telegram user row #$telegramUserId found.");
-            return;
-        }
-
-        $telegramId = $tgUser['telegram_id'] ?? null;
-        if (!$telegramId) {
-            log_message('error', "No telegram_id for user row #$telegramUserId");
+        // Грант уже сделан. Web-only персонаж без Telegram (ADR-188) → чата нет, уведомление пропускаем.
+        $telegramId = (new TelegramChatResolver())->chatIdForCharacter($characterId);
+        if ($telegramId === null) {
             return;
         }
 

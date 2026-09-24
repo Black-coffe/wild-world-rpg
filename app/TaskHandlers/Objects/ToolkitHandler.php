@@ -8,6 +8,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\ResourceModel;
 use App\Models\TelegramUserModel;
+use App\Services\Telegram\TelegramChatResolver;
 
 /**
  * v0.51.39 (F2.9 batch-4): extends BaseObjectHandler. Раніше manual Telegram
@@ -93,7 +94,11 @@ class ToolkitHandler extends BaseObjectHandler implements ObjectHandlerInterface
     }
 
     private function sendRewardMessage($character, $contents): void {
-        $chatId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
+        // Награда уже начислена. Web-only персонаж без Telegram (ADR-188) → уведомление пропускаем.
+        $chatId = (new TelegramChatResolver())->chatIdForCharacter((int) $character['id']);
+        if ($chatId === null) {
+            return;
+        }
         $messageText = "🌲 В процессе *Изучения местности* ты нашел схрон:.\n\n";
         $messageText .= "Это ящик с ⚒ *Набором инструментов*\n";
         $messageText .= "_Вот, что было внутри:_\n\n";

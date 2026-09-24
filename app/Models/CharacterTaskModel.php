@@ -29,7 +29,8 @@ class CharacterTaskModel extends Model
     // Правила валидации
     protected $validationRules = [
         'character_id'        => 'required|integer',
-        'telegram_user_id'    => 'required|integer',
+        // web-only персонаж (ADR-188) — telegram_user_id NULL.
+        'telegram_user_id'    => 'permit_empty|integer',
         'task_id'             => 'required|integer',
         'start_time'          => 'required|valid_date',
         'end_time'            => 'permit_empty|valid_date',
@@ -45,7 +46,6 @@ class CharacterTaskModel extends Model
             'integer'  => 'Character ID must be an integer.',
         ],
         'telegram_user_id'    => [
-            'required' => 'Telegram User ID is required.',
             'integer'  => 'Telegram User ID must be an integer.',
         ],
         'task_id'             => [

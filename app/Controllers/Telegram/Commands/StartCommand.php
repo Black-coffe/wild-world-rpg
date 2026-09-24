@@ -2,9 +2,7 @@
 
 namespace App\Controllers\Telegram\Commands;
 
-use App\Models\BiomeModel;
 use App\Models\CharacterModel;
-use App\Models\MapModel;
 use App\Models\TelegramUserModel;
 use App\Services\Player\CharacterService;
 use Longman\TelegramBot\Commands\UserCommand;
@@ -88,35 +86,19 @@ class StartCommand extends UserCommand
 
         // 4. Если персонаж НЕ найден → создаём и отправляем приветственное сообщение
         if (!$existingCharacter) {
-            $createdCharacterId = $characterModel->insert([
-                'telegram_user_id' => $createdUserId,
-                // pvp-detection-clarity-07: литерал 'Unknown Hero' штамповался ОДИНАКОВО
-                // на 24 разных персонажа в одном списке обнаружения — неотличимы друг от
-                // друга. `name` персонажа виден ДРУГИМ игрокам (список обнаружения, Арена,
-                // рейтинг PvP, лог боя, публичная страница достижений) — ставить туда
-                // `telegram_id` было бы утечкой приватного идентификатора аккаунта Telegram
-                // (веб-тир: приватные поля только своему персонажу). Поэтому здесь — временная
-                // пустая строка, ниже она заменяется на `Путник-{characters.id}`: `id` уже
-                // публичен (собственный fallback `№{id}` в PlayerDetectionService), уникален
-                // и ничего не раскрывает про аккаунт. `id` появляется только после `insert()`,
-                // поэтому имя ставится вторым шагом. Существующие 68 строк не переименовываются
-                // (WipeManifest KEEP — имя = идентичность).
-                'name'        => $username ?: '',
-                'level'       => 1,
-                'experience'  => 0.01,
-                'health'      => 100,
-                'tired'       => 100,
-                'strength'    => 0.01,
-                'agility'     => 0.01,
-                'intellect'   => 0.01,
-                'gold'        => 1000,
-                'cell_number' => null,
-            ], true);
-
-            if (! $username) {
-                $characterIdInt = (int) $createdCharacterId;
-                $characterModel->update($characterIdInt, ['name' => self::mintDistinctName($characterIdInt)]);
-            }
+            // web-accounts-p0-04 (ADR-188): все записи создания персонажа — строка `characters`
+            // со стартовыми статами, имя-заглушка `Путник-{id}` для игрока без `@username`
+            // (`name` публичен, `telegram_id` туда нельзя — pvp-detection-clarity-07), привязка к
+            // аккаунту, спавн, обучающая цепочка, паёк, приманка и встречающий — живут в
+            // CharacterProvisioningService: тот же путь зовёт и сайт. Здесь остаётся только UI.
+            $provisioning       = new \App\Services\Player\CharacterProvisioningService();
+            $createdCharacterId = $provisioning->create(
+                $username ?: '',
+                (int) $createdUserId,
+                (int) $chatId,
+                null
+            );
+            $created = $provisioning->lastTexts();
 
             // S8 (ADR-146): записать реферальное ребро — first-touch, ТОЛЬКО для нового TG-аккаунта
             // (existingUser отсутствовал). Идемпотентно + анти-self + cap внутри сервиса; при OFF
@@ -125,64 +107,22 @@ class StartCommand extends UserCommand
                 $referralService->recordReferralOnRegister(
                     $referrerUserId,
                     (int) $createdUserId,
-                    (int) $createdCharacterId
+                    $createdCharacterId
                 );
             }
-
-            $mapModel   = new MapModel();
-            $biomeModel = new BiomeModel();
-
-            // Пытаемся заспавнить в одной из допустимых ячеек
-            $allowedBiomes = [1, 2, 3, 5, 6, 7, 8, 9];
-            $spawnCells = $mapModel
-                ->where('coordinate_y >=', 900)
-                ->whereIn('biome_id', $allowedBiomes)
-                ->findAll();
 
             // Сообщение по умолчанию на случай ошибки
             $text          = "Извините, произошла ошибка при попытке определить локацию для спавна. Пожалуйста, попробуйте ещё раз.";
             $encodedKeyboard = json_encode([]);
-            $starterKitText = null; // ADR-104: текст набора Роби (если выдан)
-            $signalText     = null; // S4 (ADR-139) слайс 3: радио-нарратив приманки (если размещена)
-            $greeterText    = null; // S2 (ADR-144): нарратив встречающего-нейтрала (если размещён)
+            $starterKitText = $created['starterKit']; // ADR-104: текст набора Роби (если выдан)
+            $signalText     = $created['signal'];     // S4 (ADR-139) слайс 3: радио-нарратив приманки (если размещена)
+            $greeterText    = $created['greeter'];    // S2 (ADR-144): нарратив встречающего-нейтрала (если размещён)
 
-            if (!empty($spawnCells)) {
-                $randomCell = $spawnCells[array_rand($spawnCells)];
-                $cellNumber = $randomCell['cell_number'];
-
-                // Обновляем персонажу cell_number
-                $characterModel->update($createdCharacterId, ['cell_number' => $cellNumber]);
-
-                // ADR-103 Слой 2: назначаем новичку обучающую цепочку «Первые шаги
-                // выжившего» (dormant под onboarding.quest_chain.enabled). Идемпотентно.
-                (new \App\Services\Onboarding\OnboardingChainService())
-                    ->ensureChainAssigned(['id' => (int) $createdCharacterId, 'level' => 1]);
-
-                // Слайс «Первые 3 минуты»: режим первого экрана нужен ДО размещения приманки
-                // и встречающего — их тексты в режиме одного окна едут секциями рядом с
-                // кнопкой входа в мир, и навигационный хвост в них только шумит.
+            if ($created['spawned']) {
+                // Слайс «Первые 3 минуты»: режим первого экрана сервис прочитал ДО размещения
+                // приманки и встречающего (их навигационный хвост в одном окне только шумит).
                 $coldOpen     = new \App\Services\Onboarding\ColdOpenGreetingService();
-                $singleScreen = $coldOpen->singleScreenEnabled();
-
-                // ADR-104 Фаза 1: стартовый набор выжившего (dormant под
-                // onboarding.starter_kit.enabled). grant() видаёт паёк + idempotency-флаг
-                // и возвращает текст Роби (или null, если набор выключен/уже выдан).
-                $starterKitText = (new \App\Services\Onboarding\StarterKitService())
-                    ->grant((int) $createdCharacterId, (int) $createdUserId, (int) $chatId);
-
-                // S4 (ADR-139) слайс 3: cold-open радио-крючок — кладём достижимую приманку рядом
-                // со спавном (reactive, по фактической клетке $randomCell) и возвращаем радио-нарратив
-                // Роби (или null). dormant под onboarding.cold_open_v2.signal_hook → null = byte-identical.
-                if (is_array($randomCell)) {
-                    $signalText = (new \App\Services\Onboarding\ColdOpenSignalService())
-                        ->placeBaitForNewChar((int) $createdCharacterId, $randomCell, ! $singleScreen);
-
-                    // S2 (ADR-144): «скриптовая первая встреча» — ставим дружелюбного нейтрала
-                    // рядом со спавном (reactive) и возвращаем нарратив Роби (или null).
-                    // dormant под npc.newbie_zone.greeter_enabled → null = byte-identical.
-                    $greeterText = (new \App\Services\Onboarding\NewbieGreeterService())
-                        ->placeGreeterForNewChar((int) $createdCharacterId, $randomCell, (int) $chatId, ! $singleScreen);
-                }
+                $singleScreen = $created['singleScreen'];
 
                 // Формируем приветственное сообщение.
                 // S4 (ADR-139) слайс 1b: cold-open framing — короткий интригующий вариант под
@@ -403,6 +343,6 @@ class StartCommand extends UserCommand
      */
     public static function mintDistinctName(int $characterId): string
     {
-        return 'Путник-' . $characterId;
+        return \App\Services\Player\CharacterProvisioningService::mintDistinctName($characterId);
     }
 }

@@ -180,7 +180,8 @@ final class OnboardingNavLabelConsistencyTest extends CIUnitTestCase
     /** StartCommand обязан гасить хвосты именно в режиме одного окна. */
     public function testStartCommandPassesSingleScreenContextToSections(): void
     {
-        $source = (string) file_get_contents(APPPATH . 'Controllers/Telegram/Commands/StartCommand.php');
+        // Спавн, приманка и встречающий переехали из StartCommand в CharacterProvisioningService.
+        $source = (string) file_get_contents(APPPATH . 'Services/Player/CharacterProvisioningService.php');
 
         $this->assertMatchesRegularExpression(
             '/placeBaitForNewChar\(.*?!\s*\$singleScreen/s',

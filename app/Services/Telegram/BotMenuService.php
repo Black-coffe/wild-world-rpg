@@ -307,6 +307,8 @@ class BotMenuService
             ['command' => 'tips',     'description' => '💡 Совет по игре'],
             // ADR-127 — «📖 Путь новичка»: пройти обучение и справочник заново в любой момент.
             ['command' => 'guide',    'description' => '📖 Путь новичка (обучение заново)'],
+            // web-accounts-p0-06 (ADR-188) — одноразовый код для входа на сайт wildworld.fun.
+            ['command' => 'web',      'description' => '🌐 Играть на сайте (код входа)'],
         ];
     }
 

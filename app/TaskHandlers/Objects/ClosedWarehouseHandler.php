@@ -4,6 +4,7 @@ namespace App\TaskHandlers\Objects;
 
 use App\Attributes\HandlerKey;
 use App\Models\TelegramUserModel;
+use App\Services\Telegram\TelegramChatResolver;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\BiomeWorldObjectMapModel;
@@ -87,12 +88,11 @@ class ClosedWarehouseHandler extends BaseObjectHandler implements ObjectHandlerI
      */
     private function sendActionMessage($object, $character): void
     {
-        $telegramUser = $this->telegramUserModel->find($character['telegram_user_id']);
-        if (!$telegramUser) {
-            log_message('error', "Can't find telegram user for character ID: {$character['id']}");
+        // Web-only персонаж без Telegram (ADR-188) → чата нет, промпт пропускаем (find(null) вернул бы ВСЕ строки).
+        $chatId = (new TelegramChatResolver())->chatIdForCharacter((int) $character['id']);
+        if ($chatId === null) {
             return;
         }
-        $chatId = $telegramUser['telegram_id'];
 
         // Подпись
         $messageText  = "🌲 В процессе *Изучения местности*:\n";
@@ -133,12 +133,11 @@ class ClosedWarehouseHandler extends BaseObjectHandler implements ObjectHandlerI
      */
     private function sendInsufficientToolsMessage($character, array $requiredTools): void
     {
-        $telegramUser = $this->telegramUserModel->find($character['telegram_user_id']);
-        if (!$telegramUser) {
-            log_message('error', "Can't find telegram user for character ID: {$character['id']} (insufficient tools msg).");
+        // Web-only персонаж без Telegram (ADR-188) → чата нет, промпт пропускаем (find(null) вернул бы ВСЕ строки).
+        $chatId = (new TelegramChatResolver())->chatIdForCharacter((int) $character['id']);
+        if ($chatId === null) {
             return;
         }
-        $chatId = $telegramUser['telegram_id'];
 
         $messageText  = "🌲 При исследовании ты обнаружил склад, но он *закрыт*.\n\n";
         $messageText .= "🛠️ _Для проникновения внутрь нужны инструменты:_\n\n";

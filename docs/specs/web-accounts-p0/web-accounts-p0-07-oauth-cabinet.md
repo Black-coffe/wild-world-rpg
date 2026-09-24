@@ -1,8 +1,8 @@
 ---
 story: web-accounts-p0-07
 spec: web-accounts-p0
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -63,6 +63,7 @@ keep.
 `memory/map/website.md`; recon.md §D, §E (library facts, Yandex endpoints, env var names).
 
 ## Acceptance criteria
+- [ ] Worker runs its own new test file(s) singly while iterating; the close-story gate is the full suite + phpstan + migrations lint.
 - [ ] Ask 9: cabinet views use only `wildworld-ui.css` tokens; no horizontal scroll at 375/768/1440.
 - [ ] Ask 15: the callback rejects a missing or mismatched `state` (a test for each provider).
       The Yandex authorize URL carries `code_challenge` + `code_challenge_method=S256`, the token
@@ -84,11 +85,22 @@ keep.
       (unit test with a mocked HTTP client).
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/unit/YandexOAuthProviderTest.php`
-`vendor/bin/phpunit --no-coverage --no-progress tests/database/AccountCabinetTest.php`
-`curl -sS -o /dev/null -w '%{http_code}' http://mmorpg.test/account/login`
+`vendor/bin/phpunit --no-coverage --no-progress`
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+`git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
+
 
 ## Implementation notes
+- composer: `league/oauth2-client` 2.9.1 + `league/oauth2-google` 5.0.0 (only these two locked, no other package moved).
+- `YandexOAuthProvider` (AbstractProvider): PKCE S256 via the library's own `getPkceMethod()`; `Authorization: OAuth <token>`; subject = `id`; empty `scope` and `approval_prompt` are dropped from the authorize URL (app registration defines rights).
+- Yandex endpoints could NOT be re-fetched from yandex.ru docs at build time (the page answers "Доступ заборонено" from this machine). Cross-checked instead against SocialiteProviders/Yandex source (same authorize/token/`login.yandex.ru/info` URLs, `id` as subject); that source sends `Bearer`, recon's T1 says `OAuth` — story's `OAuth` kept. PKCE S256 rests on recon's single T1 fetch.
+- `AccountOAuth` gets the factory via `Factories::get('libraries', OAuthProviderFactory::class)` so the DB test injects a factory with a Guzzle MockHandler (factory forwards `$collaborators` to providers).
+- `AccountAuth.php` is not in this story, so OAuth errors for a logged-out visitor are rendered by `AccountOAuth` itself on the `account_login` view (reusing `AccountAuth::meta()`), not via `?auth=` codes. Cabinet messages use `?auth=` codes in `AccountCabinet::AUTH_NOTICES`.
+- `web.open_registration` read with `GameSettingsReaderTrait::gsBool` (default false); the test flips it through the cache box.
+- OAuth buttons partial builds its own `OAuthProviderFactory` (login page data comes from `AccountAuth`, which this story does not touch); in the cabinet it hides providers already linked.
+- The cabinet shows the "Отвязать" button only when the account has 2+ identities; the server refuses the last one regardless (`unlink_last`).
+- Surprising: wave-3 workers ran DB tests at the same time on the shared `wildworld_tests` (table exists / doesn't exist flapping). My own test file and the full suite were run on a private scratch schema `wildworld_tests_s07` (`env 'database.tests.database=wildworld_tests_s07' vendor/bin/phpunit ...`); it is left on local MySQL, empty.
+- Not verified here: Tier-2 (no horizontal scroll at 375/768/1440, console) — no browser in this worker; views use only story-03 classes (`.identity-*`, `.provider-*`, `.notice`, `.auth-form`, `.btn sm ghost`, `.badge`).
+- A3 side effect worth a look: after the Telegram identity is unlinked, a later widget login creates a new empty account for that Telegram (`ensureForTelegram`), not the character's account.
 
 ## Findings

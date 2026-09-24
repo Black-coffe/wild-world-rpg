@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\BiomeModel;
+use App\Services\Web\AccountSession;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Database;
 use Config\Services;
@@ -21,10 +22,11 @@ class Map extends BaseController
     {
         $biomes  = (new BiomeModel())->orderBy('id')->findAll();
         $session = Services::session();
-        $tgUserId  = $session->get('tg_user_id');
+        // ADR-188: вход — это аккаунт (email/виджет/legacy tg_user_id-сессия, см. AccountSession).
+        $loggedIn  = (new AccountSession())->current() !== null;
         $firstName = $session->get('tg_first_name');
         $authState = [
-            'logged_in'  => is_numeric($tgUserId) && (int) $tgUserId > 0,
+            'logged_in'  => $loggedIn,
             'first_name' => is_string($firstName) ? $firstName : '',
         ];
         $rawBotName  = env('telegram.BOT_USERNAME');
@@ -158,14 +160,12 @@ class Map extends BaseController
 
         // ADR-061: own-position block если игрок auth'ован
         $me       = null;
-        $session  = Services::session();
-        $tgUserPk = $session->get('tg_user_id');
-        if (is_numeric($tgUserPk) && (int) $tgUserPk > 0) {
-            $tgUserPk = (int) $tgUserPk;
+        $characterId = (new AccountSession())->characterId();
+        if ($characterId !== null && $characterId > 0) {
             $meRow = $db->table('characters AS c')
                 ->select('c.id, c.name, c.level, c.cell_number, m.coordinate_x, m.coordinate_y')
                 ->join('map AS m', 'm.cell_number = c.cell_number', 'left')
-                ->where('c.telegram_user_id', $tgUserPk)
+                ->where('c.id', $characterId)
                 ->limit(1)
                 ->get();
             $meRows = $meRow !== false ? $meRow->getResultArray() : [];

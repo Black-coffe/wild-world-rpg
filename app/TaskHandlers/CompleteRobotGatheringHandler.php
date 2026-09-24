@@ -17,6 +17,7 @@ use App\Models\BiomeModel;
 use App\Models\CraftedItemsModel;
 use App\Services\Display\MarkdownSafe;
 use App\Services\Player\RobotService;
+use App\Services\Telegram\TelegramChatResolver;
 use Config\GameBalance;
 
 /**
@@ -103,12 +104,9 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
             return;
         }
 
-        // 2.1) Ищем телеграм-пользователя
-        $chatRow = $this->telegramUserModel->find($task['telegram_user_id']);
-        if (!$chatRow) {
-            return;
-        }
-        $chatId = $chatRow['telegram_id'];
+        // 2.1) Чат для отчёта. Web-only персонаж без Telegram (ADR-188) → null: добыча всё равно
+        // зачисляется ниже, отправки (sendTextOnly/sendPhotoWithCaption) пропускаются.
+        $chatId = (new TelegramChatResolver())->chatIdForCharacter((int) $character['id']);
 
         // Story chat-requests-batch-01: имя робота из того же резолвера
         // crafted_item_id, что и tier-бонусы (resolveRobotNameEn ниже) —
@@ -304,8 +302,11 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
     /**
      * Отправка ТОЛЬКО текста (через safeSendMessage у BaseTaskHandler).
      */
-    private function sendTextOnly(int $chatId, string $rawMessage): void
+    private function sendTextOnly(?int $chatId, string $rawMessage): void
     {
+        if ($chatId === null) {
+            return;
+        }
         $text = $this->sanitizeForTelegram($rawMessage);
         $this->safeSendMessage($chatId, $text, ['parse_mode' => 'Markdown']);
     }
@@ -313,8 +314,11 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
     /**
      * Отправка фото + подписи (через safeSendPhoto у BaseTaskHandler).
      */
-    private function sendPhotoWithCaption(int $chatId, string $photoUrl, string $caption): void
+    private function sendPhotoWithCaption(?int $chatId, string $photoUrl, string $caption): void
     {
+        if ($chatId === null) {
+            return;
+        }
         $this->safeSendPhoto($chatId, $photoUrl, $caption, ['parse_mode' => 'Markdown']);
     }
 

@@ -21,11 +21,36 @@ use App\Models\CharacterModel;
  */
 class NameService
 {
+    /**
+     * Имя на ЛЮБОМ языке: \p{L} — буквы любого письма (латиница, кириллица, славянские
+     * диакритики и т.д.), \p{N} — цифры, «_». Флаг /u — Unicode-режим (длина в code points).
+     * Пробелы/эмодзи/спецсимволы запрещены (безопасно для Markdown-вывода имени).
+     */
+    public const NAME_PATTERN = '/^[\p{L}\p{N}_]{3,20}$/u';
+
+    /** Сообщение о нарушении правила имени (Telegram legacy Markdown). */
+    public const RULE_MESSAGE = "❌ Имя не соответствует правилам: *3–20 символов*, буквы любого языка, цифры и «\_». Без пробелов, эмодзи и спецсимволов.";
+
     private CharacterModel $characterModel;
 
     public function __construct(?CharacterModel $characterModel = null)
     {
         $this->characterModel = $characterModel ?? new CharacterModel();
+    }
+
+    /**
+     * Чистый валидатор правила имени (без tier-логики и записи) — общий для бота и сайта
+     * (web-accounts-p0-08: создание персонажа на /account/character).
+     */
+    public static function isValidName(string $name): bool
+    {
+        return preg_match(self::NAME_PATTERN, $name) === 1;
+    }
+
+    /** {@see RULE_MESSAGE} без Markdown-разметки и эмодзи — для HTML-страниц сайта. */
+    public static function ruleMessagePlain(): string
+    {
+        return str_replace(['❌ ', '*', '\_'], ['', '', '_'], self::RULE_MESSAGE);
     }
 
     /**
@@ -50,10 +75,10 @@ class NameService
         // славянские диакритики, и т.д.), \p{N} — цифры, «_». Флаг /u — Unicode-режим
         // (корректный счёт длины в code points + работа \p{...}). Пробелы/эмодзи/
         // спецсимволы по-прежнему запрещены (безопасно для Markdown-вывода имени).
-        if (!preg_match('/^[\p{L}\p{N}_]{3,20}$/u', $name)) {
+        if (! self::isValidName($name)) {
             return [
                 'ok'       => false,
-                'text'     => "❌ Имя не соответствует правилам: *3–20 символов*, буквы любого языка, цифры и «\_». Без пробелов, эмодзи и спецсимволов.",
+                'text'     => self::RULE_MESSAGE,
                 'keyboard' => $this->retryKeyboard(),
             ];
         }

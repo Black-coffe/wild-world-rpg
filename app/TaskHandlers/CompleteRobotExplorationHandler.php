@@ -11,7 +11,7 @@ use App\Models\ExploredCellsModel;
 use App\Models\BiomeModel;
 use App\Models\BiomeWorldObjectMapModel;
 use App\Models\WorldObjectModel;
-use App\Models\TelegramUserModel;
+use App\Services\Telegram\TelegramChatResolver;
 use App\Services\Player\PlayerDetectionService;
 use App\Services\Player\RobotService;
 use App\Models\BuildingModel;
@@ -73,7 +73,6 @@ class CompleteRobotExplorationHandler extends BaseTaskHandler
         $biomeModel              = new BiomeModel();
         $biomeWorldObjectMapModel= new \App\Models\BiomeWorldObjectMapModel();
         $worldObjectModel        = new WorldObjectModel();
-        $telegramUserModel       = new TelegramUserModel();
 
         // 2) Ставим задаче статус = 'completed'
         $characterTaskModel->update($task['id'], ['status' => 'completed']);
@@ -84,13 +83,6 @@ class CompleteRobotExplorationHandler extends BaseTaskHandler
             log_message('error', 'Не найден персонаж при закрытии задачи исследования.');
             return;
         }
-
-        $chatRow = $telegramUserModel->where('id', $task['telegram_user_id'])->first();
-        if (!$chatRow) {
-            log_message('error', 'Не найден Telegram-пользователь для отправки сообщения.');
-            return;
-        }
-        $chatId = $chatRow['telegram_id'];
 
         // 4) Вычисляем, сколько часов прошло
         $startTime  = strtotime($task['start_time']);
@@ -170,11 +162,15 @@ class CompleteRobotExplorationHandler extends BaseTaskHandler
             ]
         ];
 
-        // 11) Отправляем сообщение в Telegram (lazy через BaseTaskHandler)
-        $this->safeSendMessage($chatId, $text, [
-            'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+        // 11) Отправляем сообщение в Telegram (lazy через BaseTaskHandler). Клетки уже
+        // раскрыты выше; web-only персонаж без Telegram (ADR-188) — уведомление пропускаем.
+        $chatId = (new TelegramChatResolver())->chatIdForCharacter(is_numeric($task['character_id'] ?? null) ? (int) $task['character_id'] : 0);
+        if ($chatId !== null) {
+            $this->safeSendMessage($chatId, $text, [
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($keyboard),
+            ]);
+        }
 
         // 12) Запускаем PvP-обнаружение
         $this->playerDetectionService->detectNearbyPlayers($character['id']);

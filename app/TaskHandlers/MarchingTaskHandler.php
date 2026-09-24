@@ -272,7 +272,7 @@ class MarchingTaskHandler extends BaseTaskHandler
 
         // — Туман войны: раскрываем 3×3 вокруг новой позиции —
         $level = isset($character['level']) ? $this->asInt($character['level']) : null;
-        (new ExploredCellsModel())->revealAround($characterId, $telegramUserId, $newX, $newY, $level);
+        (new ExploredCellsModel())->revealAround($characterId, $this->nullableTelegramUserId($telegramUserId), $newX, $newY, $level);
 
         // — Накопленные дельты —
         $acc = is_array($s['acc'] ?? null) ? $s['acc'] : [];
@@ -411,8 +411,21 @@ class MarchingTaskHandler extends BaseTaskHandler
         return $id > 0 ? $id : null;
     }
 
+    /**
+     * `character_tasks.telegram_user_id` / `explored_cells.telegram_user_id` для записи:
+     * 0 (web-only персонаж без Telegram, ADR-188 — задача пришла с NULL) → NULL, а не 0
+     * (0 нарушил бы FK на `telegram_users`).
+     */
+    private function nullableTelegramUserId(int $telegramUserId): ?int
+    {
+        return $telegramUserId > 0 ? $telegramUserId : null;
+    }
+
     private function resolveChatId(int $telegramUserId): ?int
     {
+        if ($telegramUserId <= 0) {
+            return null; // web-only персонаж: чата нет, запрос по пустому ключу не делаем
+        }
         $row = $this->fetchRow('SELECT telegram_id FROM telegram_users WHERE id = ? LIMIT 1', [$telegramUserId]);
         if ($row === null) {
             return null;
@@ -605,7 +618,7 @@ class MarchingTaskHandler extends BaseTaskHandler
 
         (new CharacterTaskModel())->insert([
             'character_id'     => $characterId,
-            'telegram_user_id' => $telegramUserId,
+            'telegram_user_id' => $this->nullableTelegramUserId($telegramUserId),
             'task_id'          => $marchingTaskId,
             'start_time'       => date('Y-m-d H:i:s'),
             'end_time'         => date('Y-m-d H:i:s'),
@@ -661,7 +674,7 @@ class MarchingTaskHandler extends BaseTaskHandler
         $end   = (clone $start)->add($this->stepDueInterval());
         (new CharacterTaskModel())->insert([
             'character_id'     => $characterId,
-            'telegram_user_id' => $telegramUserId,
+            'telegram_user_id' => $this->nullableTelegramUserId($telegramUserId),
             'task_id'          => $marchingTaskId,
             'start_time'       => $start->format('Y-m-d H:i:s'),
             'end_time'         => $end->format('Y-m-d H:i:s'),
@@ -741,6 +754,9 @@ class MarchingTaskHandler extends BaseTaskHandler
 
         $rawChatId = $s['msg_chat_id'] ?? null;
         $chatId    = is_numeric($rawChatId) ? (int) $rawChatId : $this->resolveChatId($telegramUserId);
+        if ($chatId === null && $telegramUserId <= 0) {
+            return; // web-only персонаж (ADR-188): шаг уже сделан, уведомлять некуда
+        }
         if ($chatId === null) {
             log_message('error', '[MarchingTaskHandler] не удалось определить chat_id для марша');
             return;

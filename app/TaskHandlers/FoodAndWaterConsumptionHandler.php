@@ -9,6 +9,7 @@ use App\Models\BiomeModel;
 use App\Models\MapModel;
 use App\Models\ResourceModel;
 use App\Models\TelegramUserModel;
+use App\Services\Telegram\TelegramChatResolver;
 use Config\GameBalance;
 
 /**
@@ -82,7 +83,9 @@ class FoodAndWaterConsumptionHandler extends BaseTaskHandler
             $characters = $this->characterModel->where('level >=', 3)->findAll();
 
             foreach ($characters as $character) {
-                $telegramId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
+                // Web-only персонаж без Telegram (ADR-188) → null: потребление считается, сообщение пропускается
+                // (раньше `->first()['telegram_id']` на null ронял прогон для всех).
+                $telegramId = (new TelegramChatResolver())->chatIdForCharacter((int) $character['id']);
                 $mapRow = $this->mapModel->where('cell_number', $character['cell_number'])->first();
                 if (!$mapRow) {
                     continue; // Пропускаем обработку персонажа, если не найдена строка карты
@@ -100,11 +103,11 @@ class FoodAndWaterConsumptionHandler extends BaseTaskHandler
                 // Вычитание ресурсов и отправка сообщения
                 $result = $this->subtractResources($character, $foodToConsume, $waterToConsume);
 
-                if (!$result['healthSubtracted']) {
+                if (!$result['healthSubtracted'] && $telegramId !== null) {
                     // Используйте $result['totalFoodResources'] и $result['totalWaterResources']
                     // для отображения остатков в сообщении
                     $this->sendMessageToTelegram(
-                        $telegramId['telegram_id'],
+                        $telegramId,
                         $foodToConsume,
                         $waterToConsume,
                         $result['totalFoodResources'],
@@ -244,7 +247,7 @@ class FoodAndWaterConsumptionHandler extends BaseTaskHandler
 
     private function subtractHealth($character, $healthToSubtract, $missingFood = 0, $missingWater = 0)
     {
-        $telegramId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
+        $telegramId = (new TelegramChatResolver())->chatIdForCharacter((int) $character['id']);
         // Fix 2026-07-13 (класс lost-update): делим СВЕЖЕЕ здоровье под row-lock'ом
         // (CharacterStatsService::mutate) — только что применённый препарат/бой не
         // затирается снапшотом крона. Floor 0.01 сохранён (голод не убивает).
@@ -287,6 +290,9 @@ class FoodAndWaterConsumptionHandler extends BaseTaskHandler
         ];
         $imagePath = base_url('uploads/telegram/water_and_food_resources.png');
 
+        if ($telegramId === null) {
+            return; // здоровье уже списано; web-only персонажу (ADR-188) уведомлять некуда
+        }
         $this->safeSendPhoto(
             $telegramId,
             $imagePath,

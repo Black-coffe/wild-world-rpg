@@ -2,6 +2,7 @@
 
 namespace Config;
 
+use App\Filters\AccountThrottleFilter;
 use App\Filters\BotHostFilter;
 use App\Filters\LoginFilter;
 use App\Filters\TelegramRateLimitFilter;
@@ -41,6 +42,8 @@ class Filters extends BaseFilters
         'login'             => LoginFilter::class,
         'telegramRateLimit' => TelegramRateLimitFilter::class,
         'trailingSlash'     => \App\Filters\TrailingSlashRedirectFilter::class,
+        // web-accounts-p0-05 — лимит попыток на POST-формах /account/* (по IP и по email/коду).
+        'accountThrottle'   => AccountThrottleFilter::class,
     ];
 
     /**

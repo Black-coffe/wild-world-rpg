@@ -8,6 +8,7 @@ use App\Models\QuestStepsModel;
 use App\Models\CharacterModel;
 use App\Models\ExploredCellsModel;
 use App\Models\TelegramUserModel;
+use App\Services\Telegram\TelegramChatResolver;
 use App\Services\Endgame\EndgameProgressionService;
 use App\TaskHandlers\BaseTaskHandler;
 
@@ -66,10 +67,13 @@ class QuestExploreAllBiomesHandler extends BaseTaskHandler
                 (new EndgameProgressionService())->recordQuestCompletion((int) $step['character_id']);
 
                 // Send the completion message
-                $telegramUserId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
+                // Награда уже выдана. Web-only персонаж без Telegram (ADR-188) → chat null, сообщение пропускаем.
+                $telegramUserId = (new TelegramChatResolver())->chatIdForCharacter((int) $step['character_id']);
                 $message = "🌟 *Поздравляем!*\n\nТы успешно исследовал все биомы!\nТвой опыт увеличен на 2 единицы. Новые приключения уже ждут тебя!";
 
-                $this->sendMessage($telegramUserId, $message);
+                if ($telegramUserId !== null) {
+                    $this->sendMessage($telegramUserId, $message);
+                }
             }
         }
     }

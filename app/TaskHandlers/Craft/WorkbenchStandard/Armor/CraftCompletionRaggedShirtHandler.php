@@ -8,6 +8,7 @@ use App\Models\CharactersOutfitsModel;
 use App\Models\CharacterTaskModel;
 use App\Models\OutfitModel;
 use App\Models\TelegramUserModel;
+use App\Services\Telegram\TelegramChatResolver;
 use App\TaskHandlers\BaseTaskHandler;
 
 /**
@@ -78,7 +79,7 @@ class CraftCompletionRaggedShirtHandler extends BaseTaskHandler
         );
 
         // 6. Уведомляем пользователя
-        $this->notifyUser($task['telegram_user_id'], $outfit, $task['character_id'], $quantityToAdd);
+        $this->notifyUser($outfit, $characterId, $quantityToAdd);
     }
 
     /**
@@ -126,16 +127,11 @@ class CraftCompletionRaggedShirtHandler extends BaseTaskHandler
     /**
      * Отправка уведомления пользователю через Telegram.
      */
-    private function notifyUser(int $telegramUserId, array $outfit, int $characterId, int $qtyAdded): void
+    private function notifyUser(array $outfit, int $characterId, int $qtyAdded): void
     {
-        $tgUserRow = $this->telegramUserModel->find($telegramUserId);
-        if (!$tgUserRow) {
-            log_message('error', "TelegramUser with ID=$telegramUserId not found.");
-            return;
-        }
-        $telegramId = $tgUserRow['telegram_id'] ?? null;
-        if (!$telegramId) {
-            log_message('error', "No telegram_id for user row ID=$telegramUserId.");
+        // Грант уже сделан. Web-only персонаж без Telegram (ADR-188) → чата нет, уведомление пропускаем.
+        $telegramId = (new TelegramChatResolver())->chatIdForCharacter($characterId);
+        if ($telegramId === null) {
             return;
         }
 

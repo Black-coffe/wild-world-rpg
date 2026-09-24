@@ -6,6 +6,7 @@
  * @var array<int,array{slug:string,name:string}|array<string,mixed>> $navCats
  * @var string $uri
  * @var string $tgLink
+ * @var string|null $authLabel  имя персонажа (или «Аккаунт») при входе; null — показываем «Войти»
  *
  * Поведение:
  * - Активная ссылка определяется по $uri (см. layout.php).
@@ -20,6 +21,11 @@ $navItems = [
     ['href' => base_url('kalkulyator-krafta'), 'label' => '🧮 Калькулятор', 'match' => fn($u) => str_starts_with($u, 'kalkulyator-krafta')],
     ['href' => base_url('achievements'), 'label' => '🏅 Достижения', 'match' => fn($u) => $u === 'achievements'],
 ];
+// web-accounts-p0-08 (ADR-188): состояние входа — на каждой странице сайта.
+$authLabel  = is_string($authLabel ?? null) && $authLabel !== '' ? $authLabel : null;
+$authHref   = base_url($authLabel !== null ? 'account' : 'account/login');
+$authText   = $authLabel ?? 'Войти';
+$authActive = str_starts_with($uri, 'account');
 ?>
 <a class="skip-link" href="#ww-main">К содержимому</a>
 
@@ -47,6 +53,8 @@ $navItems = [
                 </div>
             </div>
             <?php endif ?>
+
+            <a href="<?= esc($authHref, 'attr') ?>" class="<?= $authActive ? 'is-active' : '' ?>" data-auth-state="<?= $authLabel !== null ? 'in' : 'out' ?>"><?= esc($authText) ?></a>
 
             <a class="btn primary sm" href="<?= esc($tgLink, 'attr') ?>" target="_blank" rel="noopener" style="margin-left:8px">▶ Играть</a>
         </nav>
@@ -76,6 +84,7 @@ $navItems = [
                 <?php endif ?>
             <?php endforeach ?>
         <?php endif ?>
+        <a href="<?= esc($authHref, 'attr') ?>" class="<?= $authActive ? 'is-active' : '' ?>"><?= esc($authText) ?></a>
         <a class="btn primary full" style="margin-top:16px" href="<?= esc($tgLink, 'attr') ?>" target="_blank" rel="noopener">▶ Играть в Telegram</a>
     </div>
 </div>

@@ -1,8 +1,8 @@
 ---
 story: web-accounts-p0-06
 spec: web-accounts-p0
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -43,6 +43,8 @@ linking the character. A daily tip about linking is seeded.
 - app/Controllers/AccountLink.php
 - app/Views/site/account_link.php
 - tests/database/LinkCodeServiceTest.php
+- app/Controllers/Telegram/Commands/Actions/SettingsAction.php
+- app/Config/CallbackRoutes.php
 
 ## Non-goals
 - No change to the reply keyboard or the ADR-150 main grid. The button goes on the settings
@@ -58,6 +60,7 @@ linking the character. A daily tip about linking is seeded.
 recon.md §D (command auto-discovery, `BotMenuService::commandList()`).
 
 ## Acceptance criteria
+- [ ] Worker runs its own new test file(s) singly while iterating; the close-story gate is the full suite + phpstan + migrations lint.
 - [ ] Ask 11: `/web` is added to `BotMenuService::commandList()` (the command menu) AND a button opens it from the settings screen.
 - [ ] Ask 11: the code message states, in text only (no photo, readable with media off): the code, where to enter it (`wildworld.fun/account/link`), and how long it is valid (from `Config\Accounts`).
 - [ ] Ask 9: `/account/link` uses only `wildworld-ui.css` tokens; no horizontal scroll at 375 px.
@@ -78,11 +81,41 @@ recon.md §D (command auto-discovery, `BotMenuService::commandList()`).
       `/account/link` uses story-03 components and has no horizontal scroll at 375/768/1440.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/database/LinkCodeServiceTest.php`
-`git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
-`curl -sS -o /dev/null -w '%{http_code}' http://mmorpg.test/account/link`
+`vendor/bin/phpunit --no-coverage --no-progress`
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+`git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
+
 
 ## Implementation notes
+- 2026-09-23 · worker-code (resumed after plan delta). Files: new `LinkCodeService`, `WebCommand`, `WebLinkCodeAction`, `AccountLink`, `site/account_link.php`, `SeedWebLinkTip`, `tests/database/LinkCodeServiceTest.php`; edited `SettingsAction::buildScreen()` (text line + `🌐 Играть на сайте` in the same row as `🔙 Назад`), `CallbackRoutes` (`webLinkCode`), `BotMenuService::commandList()` (`web`), `GuideCatalog` (section `web`, group `meta`, before `chat`).
+- `SettingsCommand.php` needed no change: it renders `SettingsAction::buildScreen()`, so the button shows on /settings, the `settings` callback and the «настройки» text alike.
+- `commandList()` has no version constant, so nothing to bump; menu goes live via post-deploy `php spark bot:setcommands` (plan A9c).
+- Contract extension (plan delta): `LinkCodeService::link(string $code, ?int $currentAccountId): array{status, message, account_id}` peeks the code first (readable reason: not found / used / expired), refuses an account with another character BEFORE spending the code, then claims via `redeem()` and merges with `AccountService::mergeInto()`.
+- Expiry and `used_at` use the DB clock (`NOW()`, `DATE_ADD`), not PHP time. Invalidation of older codes = DELETE of the character's unused rows, so an old code reads as "not found; only the last one works".
+- Tip category `настройки` (entry point is the settings screen). Verdicts: guide = yes (section `web`), tip = yes (`WebLinkCode`). Tech-writing notes for the new service/handler/controller are drone-docs' job, not written here.
 
 ## Findings
+- 2026-09-23 · worker-code · NEEDS_CONTEXT (nothing implemented). Question for the planner: may
+  story 06 `## Files` add these two files?
+  1. `app/Controllers/Telegram/Commands/Actions/SettingsAction.php`: the settings screen, meaning
+     its text and `inline_keyboard` rows, is built in `SettingsAction::buildScreen()` (around line 363).
+     `SettingsCommand.php` only sends what that method returns. The same screen also opens from the
+     `settings` callback and from the reply-menu text «настройки» (`GenericmessageCommand`). A
+     button added only in `SettingsCommand` would show on `/settings` and nowhere else. That breaks
+     Ask 11, and the story's own stop rule applies ("if that screen is rendered elsewhere, stop").
+  2. `app/Config/CallbackRoutes.php`: callback dispatch goes only through
+     `CallbackRoutes::$exactRoutes`/`$prefixRoutes` (`resolve()`, around line 591). There is no
+     convention-based fallback. Without a route entry such as `'webLinkCode' => WebLinkCodeAction::class`,
+     the new `WebLinkCodeAction` cannot be reached from any button.
+  The row normalizer is `App\Services\Telegram\KeyboardNormalizer`, applied inside
+  `App\Services\Telegram\Request::send*`. It needs no file change.
+  Design note for when this resumes: the plan contract is `redeem(string): ?array`. To give
+  readable failure reasons and to refuse before the code is spent (plan A2), I intend to add
+  `LinkCodeService::link(string $code, ?int $currentAccountId)`, which returns a status (login,
+  merged, refused or invalid) with a message. It checks the refuse branch first, then claims
+  the code through `redeem()`.
+- 2026-09-23 · worker-code (re-dispatch) · still NEEDS_CONTEXT. The story was sent again, but
+  `## Files` is unchanged, and neither plan.md nor journal.md answers the question above. plan.md
+  Q4 ("Story 06 keeps its Files") was written before this finding. Nothing implemented. Resuming
+  needs `SettingsAction.php` and `app/Config/CallbackRoutes.php` added to `## Files`, or an
+  explicit ruling that the button may show on `/settings` only.

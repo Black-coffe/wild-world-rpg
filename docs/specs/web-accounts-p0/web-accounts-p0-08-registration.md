@@ -1,8 +1,8 @@
 ---
 story: web-accounts-p0-08
 spec: web-accounts-p0
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -58,6 +58,7 @@ success. The site header shows "Войти" or the character name linking to `/a
 `memory/map/admin.md` (GameSettings 60 s cache); recon.md §A (name rule), §D (Email config).
 
 ## Acceptance criteria
+- [ ] Worker runs its own new test file(s) singly while iterating; the close-story gate is the full suite + phpstan + migrations lint.
 - [ ] Ask 9: registration / character-creation views use only `wildworld-ui.css` tokens; no horizontal scroll at 375/768/1440.
 - [ ] Ask 4: with the flag off, `POST /account/register` and `POST /account/character` create no
       rows and render the closed-beta explanation. With the flag on, they create an account (an
@@ -74,11 +75,19 @@ success. The site header shows "Войти" or the character name linking to `/a
       reset pages have no horizontal scroll at 375/768/1440 and use only story-03 components.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/database/AccountRegistrationTest.php`
-`vendor/bin/phpunit --no-coverage --no-progress tests/database/PasswordResetServiceTest.php`
-`curl -sS -o /dev/null -w '%{http_code}' http://mmorpg.test/account/register`
+`vendor/bin/phpunit --no-coverage --no-progress`
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+`git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
+
 
 ## Implementation notes
+- `NameService`: extracted `NAME_PATTERN`, `RULE_MESSAGE` (bot text byte-identical), `isValidName()`, `ruleMessagePlain()` (RULE_MESSAGE minus Markdown/emoji, shown on the web). `applyName` behaviour unchanged.
+- `AccountRegister`: flag read via `GameSettingsService::get('web.open_registration', false)` (`registrationOpen()`); flag off → closed-beta view on GET and POST, nothing written. Character creation re-checks `characterForAccount` under MySQL `GET_LOCK` per account (double submit cannot yield a second character, A1).
+- `PasswordResetService(?db, ?Accounts, ?Closure $mailer)`; link = `/account/reset/{selector}-{validator}`; a new request deletes older reset tokens; mail failure/exception deletes the token → `mail_failed`; `complete` burns the token on any attempt (wrong guess included), refuses short passwords without burning, and deletes the account's remember tokens. Default mailer returns false when `email.fromEmail` is empty.
+- Reset pages work regardless of the flag (recovery, not registration). Successful reset renders a "done" page (AccountAuth has no `?auth=` key for it and is not in this story).
+- Header: `layout.php` resolves auth only when the browser carries the `ci_session` or `ww_remember` cookie (anonymous visits/crawlers do not open a session); failures fall back to "Войти". Link shows character name, "Аккаунт" if none, `data-auth-state` in/out.
+- Surprising: `FeatureTestTrait` reads cookies from the `superglobals` service, not `$_COOKIE`; tests drop the global `csrf` filter via `config(Filters)` and restore it (CSRF itself is covered by AccountAuthTest). `account_link_codes` FK needs `characters` to exist before `CreateAccountsTables::up()`.
+- Known tradeoff (spec-mandated): `mail_failed` is only reachable for a known email, so when SMTP is broken the answer distinguishes known vs unknown emails.
+- Not done: no browser pass at 375/768/1440 (Ask 9) — views reuse only story-03 classes + existing `.help`/`.field.has-error`, no inline styles added; Tier-2 is the Queen's.
 
 ## Findings
