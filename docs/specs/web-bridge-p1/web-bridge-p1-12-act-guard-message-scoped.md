@@ -1,8 +1,8 @@
 ---
 story: web-bridge-p1-12
 spec: web-bridge-p1
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -80,5 +80,28 @@ test.
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- `WebActService::validate()`: callback now resolves `message_id` first (store → inbox, both
+  character-scoped) and accepts `data` only if `WebScreenStore::hasCallback($thatMsg, $data)`;
+  the separate `callbackAllowed()` call is gone (subsumed). Unknown id and foreign data both stay
+  `InvalidArgumentException` before `claimIntent`, so nothing dispatches and no intent is taken.
+- `claimIntent()` calls `pruneIntents()` first: `DELETE ... WHERE created_at < NOW() - INTERVAL ?
+  HOUR LIMIT 500` (private const `INTENT_PRUNE_LIMIT`). Prune before insert, so an expired
+  `intent_id` is a fresh one again. `created_at` is still written with PHP `date()` (untouched);
+  a PHP/DB TZ skew only shifts the 24 h window by the offset.
+- `Config\WebPlay::$intentRetentionHours = 24` (A17).
+- Tests: 3 new cases (#5 screen + inbox, #11 same synthetic id on A/B screen + inbox, #7 prune on
+  DB clock + dedup inside the window). Mutations, each applied alone and reverted, each red:
+  lookup given `$characterId + 1` (B) in both lookups; the same only on the inbox lookup; inbox
+  lookup replaced with an unscoped `WHERE message_id = ?` query (in `WebActService`, to avoid
+  touching story 11's `WebInboxService`); old separate `callbackAllowed` check restored (#5 red);
+  `pruneIntents()` call removed (#7 red).
+- Surprise: the shared `wildworld_tests` was being dropped by parallel sessions (FK "Failed to
+  open the referenced table" across unrelated tests), so iteration and the full suite ran on a
+  private DB `wildworld_tests_s12` via env `database.tests.database=...` (additive; left in place).
+  Full suite there: 4505 tests, 65 errors, none in `WebActServiceTest`. All are env: the private
+  DB lacks `site_categories` (PlayController/PlayViews), and Account* hit the "referenced table
+  `characters`" error when run in suite order (`AccountAuthTest` alone is green). On the shared
+  DB, `WebActServiceTest` and `PlayControllerTest` pass when run singly (each needed a rerun
+  because of the concurrent drops). The sequential shared-DB suite gate is still owed to close-story.
 
 ## Findings

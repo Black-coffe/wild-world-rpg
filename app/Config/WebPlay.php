@@ -38,4 +38,7 @@ class WebPlay extends BaseConfig
 
     /** Первый синтетический `message_id` экрана (default `web_play_state.next_message_id`). */
     public int $firstMessageId = 1000000000;
+
+    /** Окно дедупа `web_play_intents`, часы: старше — удаляется при записи намерения (plan A17). */
+    public int $intentRetentionHours = 24;
 }

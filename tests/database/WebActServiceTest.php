@@ -21,6 +21,7 @@ use CodeIgniter\Database\Migration;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\WebPlay;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Promise\Create;
@@ -292,6 +293,91 @@ final class WebActServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->conn->table('web_play_intents')->countAllResults(), 'отказ не занимает намерение');
     }
 
+    /** #5: кнопка принадлежит своему сообщению — чужая пара (data, message_id) отвергается. */
+    public function testCallbackIsAcceptedOnlyOnTheMessageThatCarriesIt(): void
+    {
+        [$accountId, $charId] = $this->virtualCharacter();
+        $svc                  = $this->service();
+        $r1                   = $svc->act($accountId, $charId, ['intent_id' => 'm-1', 'kind' => 'command', 'data' => '/guide']);
+        $m1                   = $r1['state']['screen'][0];
+        $d1                   = $this->firstCallback($m1);
+        $m2                   = $this->msg($m1['message_id'] + 1, 'web_test_d2');
+        $this->seedScreen($charId, [$m1, $m2]);
+        $inboxWithD2 = $this->msg($m1['message_id'] + 500, 'web_test_d2');
+        $inboxWithD1 = $this->msg($m1['message_id'] + 501, $d1);
+        $this->seedInbox($charId, $inboxWithD2);
+        $this->seedInbox($charId, $inboxWithD1);
+
+        foreach (['screen' => $m2['message_id'], 'inbox' => $inboxWithD2['message_id']] as $where => $foreignId) {
+            $logs    = $this->conn->table('player_action_log')->countAllResults();
+            $intents = $this->conn->table('web_play_intents')->countAllResults();
+
+            try {
+                $svc->act($accountId, $charId, ['intent_id' => "x-{$where}", 'kind' => 'callback', 'data' => $d1, 'message_id' => (string) $foreignId]);
+                $this->fail("{$where}: D1 на чужом сообщении должна быть отвергнута");
+            } catch (\InvalidArgumentException) {
+                // ожидаемо
+            }
+            $this->assertSame($logs, $this->conn->table('player_action_log')->countAllResults(), "{$where}: нет диспетча");
+            $this->assertSame($intents, $this->conn->table('web_play_intents')->countAllResults(), "{$where}: намерение не занято");
+        }
+
+        foreach (['screen' => $m1['message_id'], 'inbox' => $inboxWithD1['message_id']] as $where => $ownId) {
+            $logs = $this->conn->table('player_action_log')->countAllResults();
+            $svc->act($accountId, $charId, ['intent_id' => "ok-{$where}", 'kind' => 'callback', 'data' => $d1, 'message_id' => (string) $ownId]);
+            $this->assertSame($logs + 1, $this->conn->table('player_action_log')->countAllResults(), "{$where}: D1 на своём сообщении диспетчится");
+        }
+    }
+
+    /** #11: тот же синтетический id у двух персонажей — кнопка с копии B не открывает A. */
+    public function testCallbackFromAnotherCharactersMessageWithTheSameIdIsRejected(): void
+    {
+        [$accountA, $charA] = $this->virtualCharacter();
+        [, $charB]          = $this->virtualCharacter();
+        $first              = (new WebPlay())->firstMessageId;
+        $d                  = 'web_test_only_on_b';
+        $this->seedScreen($charA, [$this->msg($first, 'web_test_a_own')]);
+        $this->seedScreen($charB, [$this->msg($first, $d)]);
+        // Строка B во входящих вставлена первой: запрос без character_id нашёл бы её.
+        $this->seedInbox($charB, $this->msg($first + 900, $d));
+        $this->seedInbox($charA, $this->msg($first + 900, 'web_test_a_own'));
+        $svc  = $this->service();
+        $logs = $this->conn->table('player_action_log')->countAllResults();
+
+        foreach (['screen' => $first, 'inbox' => $first + 900] as $where => $id) {
+            try {
+                $svc->act($accountA, $charA, ['intent_id' => "b-{$where}", 'kind' => 'callback', 'data' => $d, 'message_id' => (string) $id]);
+                $this->fail("{$where}: кнопка с сообщения B не должна пройти у A");
+            } catch (\InvalidArgumentException) {
+                // ожидаемо
+            }
+        }
+
+        $this->assertSame($logs, $this->conn->table('player_action_log')->countAllResults(), 'нет диспетча');
+        $this->assertSame(0, $this->conn->table('web_play_intents')->countAllResults(), 'намерения не заняты');
+    }
+
+    /** #7 (plan A17): окно дедупа по часам БД, чистка при записи намерения. */
+    public function testIntentsOlderThanTheWindowArePrunedAndFreshOnesStillDedup(): void
+    {
+        [$accountId, $charId] = $this->virtualCharacter();
+        $hours                = (new WebPlay())->intentRetentionHours;
+        $this->conn->query(
+            'INSERT INTO web_play_intents (account_id, intent_id, created_at) VALUES (?, ?, NOW() - INTERVAL ? HOUR), (?, ?, NOW() - INTERVAL 1 HOUR)',
+            [$accountId, 'old-1', $hours + 1, $accountId, 'fresh-1']
+        );
+        $svc = $this->service();
+
+        $svc->act($accountId, $charId, ['intent_id' => 'new-1', 'kind' => 'command', 'data' => '/guide']);
+
+        $this->assertSame(0, $this->conn->table('web_play_intents')->where('intent_id', 'old-1')->countAllResults(), 'старое намерение удалено');
+        $this->assertSame(1, $this->conn->table('web_play_intents')->where('intent_id', 'fresh-1')->countAllResults(), 'свежее в окне живо');
+
+        $logs = $this->conn->table('player_action_log')->countAllResults();
+        $svc->act($accountId, $charId, ['intent_id' => 'fresh-1', 'kind' => 'command', 'data' => '/guide']);
+        $this->assertSame($logs, $this->conn->table('player_action_log')->countAllResults(), 'повтор в окне не диспетчится');
+    }
+
     public function testSameIntentTwiceDispatchesOnce(): void
     {
         [$accountId, $charId] = $this->virtualCharacter();
@@ -418,6 +504,34 @@ final class WebActServiceTest extends CIUnitTestCase
             }
         }
         $this->fail('на экране нет callback-кнопки');
+    }
+
+    /** @return array<string, mixed> Msg с одной callback-кнопкой */
+    private function msg(int $id, string $data): array
+    {
+        return [
+            'message_id' => $id, 'text' => "msg {$id}", 'caption' => null, 'parse_mode' => null, 'photo_url' => null,
+            'inline_keyboard' => [[['text' => 'D', 'callback_data' => $data]]],
+        ];
+    }
+
+    /** @param list<array<string, mixed>> $screen */
+    private function seedScreen(int $charId, array $screen): void
+    {
+        $this->conn->query(
+            "INSERT INTO web_play_state (character_id, next_message_id, screen, history, dock, updated_at) VALUES (?, ?, ?, '[]', '[]', NOW())"
+            . ' ON DUPLICATE KEY UPDATE screen = VALUES(screen)',
+            [$charId, (new WebPlay())->firstMessageId + 1000, json_encode($screen, JSON_UNESCAPED_UNICODE)]
+        );
+    }
+
+    /** @param array<string, mixed> $msg */
+    private function seedInbox(int $charId, array $msg): void
+    {
+        $this->conn->table('web_inbox')->insert([
+            'character_id' => $charId, 'message_id' => $msg['message_id'], 'source' => 'virtual',
+            'payload'      => json_encode($msg, JSON_UNESCAPED_UNICODE), 'created_at' => date('Y-m-d H:i:s'),
+        ]);
     }
 
     /** @return array{0:int, 1:int, 2:int} account, character, telegram_id */

@@ -20,7 +20,7 @@ use RuntimeException;
  * web-bridge-p1-07 (ADR-189 §1, §2, §6) — одно действие игрока на `/play`.
  *
  * Порядок: личность из персонажа сессии (никогда из запроса) → проверка намерения (callback —
- * только с кнопки своего экрана/входящих, ADR-189 инв. 3) → дедуп `web_play_intents`
+ * только с кнопки того самого сообщения своего экрана/входящих, ADR-189 инв. 3) → дедуп `web_play_intents`
  * (`update_id = −id`) → синтетический апдейт → конвейер вебхука под мостом:
  * Probe install → client() → beginCapture → setClient(BridgeClient) → run(web) →
  * finally setClient(Probe) + endCapture (инв. 4) → экран сохраняется.
@@ -42,6 +42,9 @@ class WebActService
 
     /** Команда первого входа без сохранённого экрана (plan A13, Q7: даёт док и карточку). */
     public const BOOTSTRAP_COMMAND = '/start';
+
+    /** Сколько устаревших строк `web_play_intents` удаляется за одну запись намерения. */
+    private const INTENT_PRUNE_LIMIT = 500;
 
     public const FAILED_ALERT = 'Не получилось выполнить действие. Попробуй ещё раз.';
 
@@ -205,12 +208,14 @@ class WebActService
         $messageId = self::intOrNull($intent['message_id'] ?? null);
 
         if ($kind === self::KIND_CALLBACK) {
-            if (! $this->store->callbackAllowed($characterId, $data)) {
-                throw new InvalidArgumentException('callback not on the character screens');
-            }
+            // Кнопка принадлежит своему сообщению (manual review #5): `data` должна стоять на
+            // клавиатуре ровно того Msg, в который резолвится `message_id` этого персонажа.
             $message = $messageId === null ? null : $this->findMessage($characterId, $messageId);
             if ($message === null) {
                 throw new InvalidArgumentException('unknown message_id');
+            }
+            if ($data === '' || ! WebScreenStore::hasCallback($message, $data)) {
+                throw new InvalidArgumentException('callback not on that message');
             }
 
             return static fn (int $updateId): array => $factory->callback($identity, $message, $data, $updateId);
@@ -240,6 +245,7 @@ class WebActService
     /** Id строки намерения; null — такое намерение уже было (дубль). */
     private function claimIntent(int $accountId, string $intentId): ?int
     {
+        $this->pruneIntents();
         $outcome = (new ConditionalWriteService($this->db))->insertUnique('web_play_intents', [
             'account_id' => $accountId,
             'intent_id'  => $intentId,
@@ -254,6 +260,18 @@ class WebActService
         }
 
         return (int) $id;
+    }
+
+    /**
+     * Окно дедупа (plan A17): строки старше `intentRetentionHours` по часам БД удаляются при
+     * каждой записи намерения, не больше {@see INTENT_PRUNE_LIMIT} за вызов — без cron (как A7).
+     */
+    private function pruneIntents(): void
+    {
+        $this->db->query(
+            'DELETE FROM web_play_intents WHERE created_at < NOW() - INTERVAL ? HOUR LIMIT ' . self::INTENT_PRUNE_LIMIT,
+            [max(1, $this->config->intentRetentionHours)]
+        );
     }
 
     private function owns(int $accountId, int $characterId): bool
