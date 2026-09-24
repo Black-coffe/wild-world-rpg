@@ -213,7 +213,6 @@ The Queen's manual Tier-2/3 pass follows: `/account/*` at 375/768/1440 with a cl
 **Branch:** vulyk/web-accounts-p0
 **Council:** RED round 1, 2026-09-23, at 32aaafc7, pack 14c02cf5e190
 **Council:** ESCALATE round 2, 2026-09-24, at 4d1fa180, pack 1ed6015b3754
-**Shipped:** <written by scripts/ship-check.sh --record - stage 06: the published version, and where>
 
 ## Needs a human
 - reason: env · round 2 · 2026-09-24
@@ -223,3 +222,4 @@ The Queen's manual Tier-2/3 pass follows: `/account/*` at 375/768/1440 with a cl
 - opus: docs/specs/web-accounts-p0/council/round-2/opus.attempt-2.md
 - seats: docs/specs/web-accounts-p0/council/round-2/
 **Checked:** ACCEPTED by Claude Code, 2026-09-24, at 80126f79 - Andrei, 2026-09-24: «Рекомендую первый вариант … Если всё чисто, ты принимаешь работу вместо совета через human-check.sh ACCEPTED … ДАВАЙ». Queen Tier-2 on localhost:8099 (DB from testbot dump + 5 migrations, backfill 8/8): login/reset/link/register/character/cabinet at 375/768/1440 — no h-scroll, 0 console errors/exceptions; full chain register→character→cabinet works. Ask 8 proven on prod (v0.51.671, Statable receiving). Council round 2: review PASS, sonnet 13/15 GREEN + 2 env N/A.
+**Shipped:** v0.51.672, 2026-09-24, at 89a28cc5 - merged to develop, tag v0.51.672 on prod (CI green: preprod+prod+site); preprod Tier-3 webhook+TG Web: /web code msg, settings button, redeem → character account, reuse refused, bot taps ok; prod: 715/715 accounts, 5 migrations, 0 new errors. Accepted over council ESCALATE(env) by owner decision via human-check.
