@@ -323,7 +323,7 @@ run sequentially on the shared `wildworld_tests`. After wave 3:
 
 **Approved:** Andrei, 2026-09-24 (A0–A15 as written, incl. A3, A5, A6, A10)
 **Briefed:** <written by scripts/cycle.sh briefed - alternative to **Approved:**>
-**Branch:** <written by /vulyk-build before wave 1>
+**Branch:** vulyk/web-bridge-p1
 **Checked:** <written by scripts/human-check.sh>
 **Council:** <written by scripts/cycle.sh judge/escalate>
 **Shipped:** <written by scripts/ship-check.sh --record>
