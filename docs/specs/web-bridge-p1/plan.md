@@ -378,4 +378,11 @@ run sequentially on the shared `wildworld_tests`. After wave 3:
 **Checked:** <written by scripts/human-check.sh>
 **Council:** RED round 1, 2026-09-24, at 57e1a0dd, pack bcab1c9c706e - red: 9
 **Council:** RED round 2, 2026-09-24, at 8dbc8746, pack bd05f7270b7a - red: 3,8
+**Council:** ESCALATE round 3, 2026-09-24, at cbcb710a, pack f9d606eb6f6c
 **Shipped:** <written by scripts/ship-check.sh --record>
+
+## Needs a human
+- reason: env · round 3 · 2026-09-24
+- review: docs/specs/web-bridge-p1/council/round-3/review.attempt-1.md
+- review: docs/specs/web-bridge-p1/council/round-3/review.attempt-2.md
+- seats: docs/specs/web-bridge-p1/council/round-3/
