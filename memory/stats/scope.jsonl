@@ -210,3 +210,12 @@
 {"ts":"2026-09-24T16:44:34Z","story":"web-bridge-p1-07-play-endpoint","declared":7,"changed":10,"out_of_scope":3}
 {"ts":"2026-09-24T17:23:35Z","story":"web-bridge-p1-08-play-entry-flag-first","declared":5,"changed":7,"out_of_scope":3}
 {"ts":"2026-09-24T17:24:17Z","story":"web-bridge-p1-08-play-entry-flag-first","declared":5,"changed":8,"out_of_scope":4}
+{"ts":"2026-09-24T17:46:24Z","story":"web-bridge-p1-01-virtual-identity","declared":21,"changed":6,"out_of_scope":6}
+{"ts":"2026-09-24T17:46:25Z","story":"web-bridge-p1-02-render-kit","declared":5,"changed":7,"out_of_scope":7}
+{"ts":"2026-09-24T17:46:25Z","story":"web-bridge-p1-03-truthful-texts","declared":7,"changed":7,"out_of_scope":7}
+{"ts":"2026-09-24T17:46:26Z","story":"web-bridge-p1-04-delivery-capture","declared":14,"changed":7,"out_of_scope":7}
+{"ts":"2026-09-24T17:46:26Z","story":"web-bridge-p1-05-update-pipeline","declared":10,"changed":7,"out_of_scope":7}
+{"ts":"2026-09-24T17:46:26Z","story":"web-bridge-p1-06-play-views","declared":6,"changed":7,"out_of_scope":7}
+{"ts":"2026-09-24T17:46:27Z","story":"web-bridge-p1-07-play-endpoint","declared":7,"changed":7,"out_of_scope":7}
+{"ts":"2026-09-24T17:46:27Z","story":"web-bridge-p1-08-play-entry-flag-first","declared":5,"changed":7,"out_of_scope":7}
+{"ts":"2026-09-24T18:59:11Z","story":"web-bridge-p1-09-history-edit-becomes-screen","declared":3,"changed":11,"out_of_scope":9}

@@ -13,8 +13,9 @@ use Config\WebPlay;
  * web-bridge-p1-04 (ADR-189 §9) — экран `/play` персонажа в `web_play_state`.
  *
  * Экран — список сообщений одного ответа бота. Новая отправка делает экран текущим, прошлый
- * уходит в историю (новые первыми, не больше `historySize`). Правка заменяет своё сообщение
- * там, где оно лежит: в текущем экране или в истории. Reply-клавиатура — док, force-reply — поле
+ * уходит в историю (новые первыми, не больше `historySize`). Правка сообщения текущего экрана
+ * заменяет его на месте; правка сообщения из истории делает его текущим экраном (прошлый экран —
+ * в историю, старая копия из истории убирается). Reply-клавиатура — док, force-reply — поле
  * ввода. Синтетические `message_id` выдаются по персонажу монотонно, с `firstMessageId`.
  *
  * @phpstan-type Button array{text:string, callback_data?:string, url?:string}
@@ -92,29 +93,36 @@ class WebScreenStore
         $screen  = $state['screen'];
         $history = $state['history'];
 
-        // Правка заменяет сообщение там, где оно лежит.
+        // Правка сообщения текущего экрана заменяет его на месте. Правка сообщения из истории
+        // делает его текущим экраном (как правка входящего): старая копия уходит из истории.
+        $promoted = [];
         foreach ($capture['edited'] as $id => $msg) {
-            $screen = self::replaceIn($screen, $id, $msg);
-            foreach ($history as $i => $old) {
-                $history[$i] = self::replaceIn($old, $id, $msg);
+            if (self::contains($screen, $id)) {
+                $screen = self::replaceIn($screen, $id, $msg);
+
+                continue;
+            }
+            $before  = $history;
+            $history = self::removeFromHistory($history, $id);
+            if ($history !== $before) {
+                $promoted[] = $msg;
             }
         }
 
         foreach ($capture['deleted'] as $id) {
-            $screen  = self::removeFrom($screen, $id);
-            $history = array_values(array_filter(
-                array_map(static fn (array $s): array => self::removeFrom($s, $id), $history),
-                static fn (array $s): bool => $s !== []
-            ));
+            $screen   = self::removeFrom($screen, $id);
+            $promoted = self::removeFrom($promoted, $id);
+            $history  = self::removeFromHistory($history, $id);
         }
 
         $input = $state['input'];
-        if ($capture['sent'] !== []) {
+        $next  = array_merge($promoted, $capture['sent']);
+        if ($next !== []) {
             if ($screen !== []) {
                 array_unshift($history, $screen);
             }
             $history = array_slice($history, 0, max(0, $this->config->historySize));
-            $screen  = $capture['sent'];
+            $screen  = $next;
             $input   = $capture['input'];
         } elseif ($capture['input'] !== null) {
             $input = $capture['input'];
@@ -210,6 +218,32 @@ class WebScreenStore
         }
 
         return $screen;
+    }
+
+    /** @param list<Msg> $screen */
+    private static function contains(array $screen, int $id): bool
+    {
+        foreach ($screen as $m) {
+            if ($m['message_id'] === $id) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Убрать сообщение из истории; опустевшие записи выпадают.
+     *
+     * @param list<list<Msg>> $history
+     * @return list<list<Msg>>
+     */
+    private static function removeFromHistory(array $history, int $id): array
+    {
+        return array_values(array_filter(
+            array_map(static fn (array $s): array => self::removeFrom($s, $id), $history),
+            static fn (array $s): bool => $s !== []
+        ));
     }
 
     /**

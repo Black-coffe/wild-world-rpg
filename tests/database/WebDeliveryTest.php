@@ -207,10 +207,11 @@ final class WebDeliveryTest extends CIUnitTestCase
         $this->assertSame('два', $state['history'][1][0]['text']);
     }
 
-    public function testEditReplacesMessageWhereverItIsIncludingHistory(): void
+    public function testEditOfHistoryMessageBecomesCurrentScreen(): void
     {
         [$charId, $chat] = $this->webOnly();
         $store = new WebScreenStore($this->conn);
+        WebDelivery::useServices($store);
 
         WebDelivery::beginCapture($chat, $charId);
         $old = $this->messageId(WebDeliverySpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'карта']));
@@ -220,12 +221,102 @@ final class WebDeliveryTest extends CIUnitTestCase
         $store->applyCapture($charId, WebDelivery::endCapture());
 
         WebDelivery::beginCapture($chat, $charId);
-        $this->assertTrue(WebDeliverySpyRequest::editMessageText(['chat_id' => $chat, 'message_id' => $old, 'text' => 'карта 2'])->isOk());
+        $markup = json_encode(['inline_keyboard' => [[['text' => 'Идти', 'callback_data' => 'go_n']]]]);
+        $this->assertTrue(WebDeliverySpyRequest::editMessageText(['chat_id' => $chat, 'message_id' => $old, 'text' => 'карта 2', 'reply_markup' => $markup])->isOk());
         $store->applyCapture($charId, WebDelivery::endCapture());
 
         $state = $store->state($charId);
-        $this->assertSame('другой экран', $state['screen'][0]['text'], 'правка не создаёт новый экран');
-        $this->assertSame('карта 2', $state['history'][0][0]['text']);
+        $this->assertSame(['карта 2'], array_column($state['screen'], 'text'), 'правка из истории — текущий экран');
+        $this->assertSame($old, $state['screen'][0]['message_id']);
+        $this->assertCount(1, $state['history'], 'опустевшая запись истории удалена');
+        $this->assertSame(['другой экран'], array_column($state['history'][0], 'text'), 'прошлый экран — новейшая запись истории');
+        $this->assertNoDuplicateIds($state);
+        $this->assertTrue($store->callbackAllowed($charId, 'go_n'), 'кнопка поднятого сообщения разрешена');
+        $found = $store->findMessage($charId, $old);
+        $this->assertNotNull($found);
+        $this->assertSame('карта 2', $found['text'], 'findMessage находит по исходному id');
+    }
+
+    public function testEditOfCurrentScreenMessageReplacesInPlaceAndKeepsHistory(): void
+    {
+        [$charId, $chat] = $this->webOnly();
+        $store = new WebScreenStore($this->conn);
+        WebDelivery::useServices($store);
+
+        WebDelivery::beginCapture($chat, $charId);
+        WebDeliverySpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'первый']);
+        $store->applyCapture($charId, WebDelivery::endCapture());
+        WebDelivery::beginCapture($chat, $charId);
+        $a = $this->messageId(WebDeliverySpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'текущий-а']));
+        WebDeliverySpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'текущий-б']);
+        $store->applyCapture($charId, WebDelivery::endCapture());
+        $historyBefore = $store->state($charId)['history'];
+
+        WebDelivery::beginCapture($chat, $charId);
+        $this->assertTrue(WebDeliverySpyRequest::editMessageText(['chat_id' => $chat, 'message_id' => $a, 'text' => 'текущий-а2'])->isOk());
+        $store->applyCapture($charId, WebDelivery::endCapture());
+
+        $state = $store->state($charId);
+        $this->assertSame(['текущий-а2', 'текущий-б'], array_column($state['screen'], 'text'), 'правка на месте');
+        $this->assertSame($historyBefore, $state['history'], 'история не тронута');
+    }
+
+    public function testEditOfHistoryPlusSendsMakeOneScreenEditedFirstWithOneHistoryPush(): void
+    {
+        [$charId, $chat] = $this->webOnly();
+        $config              = new WebPlay();
+        $config->historySize = 2;
+        $store               = new WebScreenStore($this->conn, $config);
+        WebDelivery::useServices($store);
+
+        $ids = [];
+        foreach (['один', 'два', 'три'] as $text) {
+            WebDelivery::beginCapture($chat, $charId);
+            WebDeliverySpyRequest::sendMessage(['chat_id' => $chat, 'text' => $text . '-x']);
+            $ids[$text] = $this->messageId(WebDeliverySpyRequest::sendMessage(['chat_id' => $chat, 'text' => $text]));
+            $store->applyCapture($charId, WebDelivery::endCapture());
+        }
+        // Экран: три; история: [два, один].
+        WebDelivery::beginCapture($chat, $charId);
+        WebDeliverySpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'новое-а']);
+        $this->assertTrue(WebDeliverySpyRequest::editMessageText(['chat_id' => $chat, 'message_id' => $ids['один'], 'text' => 'один 2'])->isOk());
+        WebDeliverySpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'новое-б']);
+        $store->applyCapture($charId, WebDelivery::endCapture());
+
+        $state = $store->state($charId);
+        $this->assertSame(['один 2', 'новое-а', 'новое-б'], array_column($state['screen'], 'text'), 'правленое первым');
+        $this->assertCount(2, $state['history'], 'история обрезана до historySize');
+        $this->assertSame(['три-x', 'три'], array_column($state['history'][0], 'text'), 'одна запись истории на весь захват');
+        $this->assertSame(['два-x', 'два'], array_column($state['history'][1], 'text'));
+        $this->assertNoDuplicateIds($state);
+    }
+
+    public function testHistoryStaysCappedAfterPromotion(): void
+    {
+        [$charId, $chat] = $this->webOnly();
+        $config              = new WebPlay();
+        $config->historySize = 2;
+        $store               = new WebScreenStore($this->conn, $config);
+        WebDelivery::useServices($store);
+
+        $ids = [];
+        foreach (['один', 'два', 'три', 'четыре'] as $text) {
+            WebDelivery::beginCapture($chat, $charId);
+            $ids[$text] = $this->messageId(WebDeliverySpyRequest::sendMessage(['chat_id' => $chat, 'text' => $text]));
+            WebDeliverySpyRequest::sendMessage(['chat_id' => $chat, 'text' => $text . '-x']);
+            $store->applyCapture($charId, WebDelivery::endCapture());
+        }
+        // Экран: четыре; история: [три, два].
+        WebDelivery::beginCapture($chat, $charId);
+        $this->assertTrue(WebDeliverySpyRequest::editMessageText(['chat_id' => $chat, 'message_id' => $ids['два'], 'text' => 'два 2'])->isOk());
+        $store->applyCapture($charId, WebDelivery::endCapture());
+
+        $state = $store->state($charId);
+        $this->assertSame(['два 2'], array_column($state['screen'], 'text'));
+        $this->assertCount(2, $state['history'], 'история обрезана до historySize');
+        $this->assertSame(['четыре', 'четыре-x'], array_column($state['history'][0], 'text'));
+        $this->assertSame(['три', 'три-x'], array_column($state['history'][1], 'text'), 'старая запись «два» без правленого стала [два-x] и ушла за край');
+        $this->assertNoDuplicateIds($state);
     }
 
     public function testEditOfUnknownMessageWhileCapturingAnswersNotFoundSoCallerFallsBackToSend(): void
@@ -424,6 +515,16 @@ final class WebDeliveryTest extends CIUnitTestCase
         $rows = $this->conn->table('web_inbox')->where('character_id', $charId)->orderBy('id')->get()->getResultArray();
 
         return $rows;
+    }
+
+    /** @param array{screen:list<array{message_id:int}>, history:list<list<array{message_id:int}>>} $state */
+    private function assertNoDuplicateIds(array $state): void
+    {
+        $ids = array_column($state['screen'], 'message_id');
+        foreach ($state['history'] as $entry) {
+            $ids = array_merge($ids, array_column($entry, 'message_id'));
+        }
+        $this->assertSame(count($ids), count(array_unique($ids)), 'message_id не повторяется в экране и истории');
     }
 
     private function messageId(ServerResponse $r): int
