@@ -93,6 +93,12 @@ Confirm or veto at the approval stop:
 - **Q9 (W2, 04).** List the site, cabinet and admin code that treats a non-NULL
   `characters.telegram_user_id` or a `telegram_users` join as "has Telegram". A virtual row
   would show up there as linked.
+- **Q10 (W4, 08).** Where does each successful login door redirect: `AccountAuth::attempt`, the
+  `AccountOAuth` callback, `TelegramLogin` login, `AccountLink` (code), `AccountRegister`
+  (register/character)? Story 08 assumes they all land on `/account` (`AccountCabinet::index`),
+  which is its single return-to consumer. List any door that lands elsewhere. Also: how does
+  `Play::gate()` order its login and flag checks, and does `site/play_stub` read any session
+  data?
 
 **Recon answers (Queen + Explore, 2026-09-24, `git grep`):**
 - Q2: the group gate tests `chat.type` (`BotController.php:76,273,282-306`; `TelegramRateLimitFilter.php:361-370`). Nothing in `app/` classifies a group by id sign; sign checks are "valid positive id" guards (`SilentNotificationPolicy.php:58`, `ReferralService.php:158`, `TelegramChatResolver.php:78` returns null for non-positive ids — story 04 must route virtual ids before this resolver drops them).
@@ -134,8 +140,13 @@ direct `Longman\…\Request` imports into story 04 (ADR-189 «не провер�
   whitelist, intent dedup, Probe → BridgeClient → pipeline → `finally` restore), throttle
   arguments, routes.
 
+**Wave 4 (council round 1 fixes)**
+- `web-bridge-p1-08-play-entry-flag-first` (Ask 9): `Play::gate()` checks the flag before the
+  login, so the anonymous flag-off visitor gets the stub. With the flag on, an anonymous visitor
+  gets a one-shot, whitelisted `/play` return target that the cabinet consumes after login.
+
 **Ask coverage:** 1→05,07 · 2→01,04,07 · 3→02,04,06 · 4→04,06,07 · 5→04,05 · 6→01,05,07 ·
-7→01,03,07 · 8→03 · 9→03,06 · 10→02,06 · 11→01 · 12→07 + integration gate (Queen Tier-3).
+7→01,03,07 · 8→03 · 9→03,06,08 · 10→02,06 · 11→01 · 12→07 + integration gate (Queen Tier-3).
 
 **Verdicts (already Asks):**
 - guide: yes, section `web` extended (Ask 8).
@@ -239,6 +250,9 @@ taken, shifts to the next free one and reports it.
   - Both set `chat.type='private'`, and `from`/`chat` come from `$identity` only.
 - `App\Services\Web\WebActService` (07): `act(int $accountId, int $characterId, array $intent): array{state, alert:?string, unread:int}`,
   where `$intent = {intent_id, kind: callback|text|command, data, message_id?}`.
+- `App\Services\Web\AccountSession` (08): a one-shot return target. It stores only the exact path
+  `/play`, and `AccountCabinet::index` is its only reader. Story 08 reports the method names on
+  its INTERFACES line.
 
 **Transport order in one `/play` act (ADR-189 §2, invariant 4):**
 1. `TelegramDeliveryProbe::install()`.
@@ -252,11 +266,13 @@ Worker, cron and CLI never install `BridgeClient`.
 
 **Routes (07)**
 
-Every route requires the session character and checks `web.play_enabled` server-side.
+Every route requires the session character and checks `web.play_enabled` server-side. Story 08
+checks the flag first. While the flag is off, every visitor gets the stub or 403, whether logged
+in or not. The login redirect applies only while the flag is on.
 
 | Method + path | Controller::method | Response |
 |---|---|---|
-| GET `/play` | `Play::index` | `site/play`, or `site/play_stub` (flag off / no character); logged out → `/account/login` |
+| GET `/play` | `Play::index` | `site/play`, or `site/play_stub` (flag off, logged in or not / no character); logged out with flag on → `/account/login` + return target `/play` (08) |
 | POST `/play/act` | `Play::act` | with `Accept: application/json` → `{html, unread, alert, csrf}`; otherwise 303 → `/play` |
 | GET `/play/inbox` | `Play::inbox` | JSON `{unread, html}` |
 | POST `/play/inbox/read` | `Play::markRead` | JSON `{unread:0}` |
@@ -298,6 +314,11 @@ names on its INTERFACES line. The Queen pastes them here before wave 2.
 - **Chosen: server-rendered screens with PRG and thin JS.** **Rejected: client-side rendering
   from JSON.** That means two Markdown renderers, and it breaks the "every view works without
   JS" site rule.
+- **Chosen (08): the return target is stored in the session and consumed only by the cabinet.**
+  **Rejected: a `?return=` parameter threaded through every login door.** That would touch five
+  controllers and three auth flows (password, OAuth, Telegram widget), and it opens a redirect
+  surface. The cost: if some door does not land on `/account` (Q10), the player there lands
+  where they land today and still finds «Играть» in the header and the cabinet.
 
 ## Integration gate
 `vendor/bin/phpunit --no-coverage --no-progress`
@@ -322,6 +343,8 @@ run sequentially on the shared `wildworld_tests`. After wave 3:
 - 2026-09-24 · trigger: story 05 NEEDS_CONTEXT (twice) — E6/E8 hooks and the last_seen stamp reject non-positive telegram ids (`LastSeenService:45,125`, `LoginStreakService:46`, `ReturnDigestService:40`, `DailyTaskService:50`). Decision: those four files join story 05 `## Files`; guard becomes "positive OR `VirtualChat::is()`". Webhook error behaviour unchanged (rethrow for `telegram`, swallow only for `web`). Rejected: dropping hooks/stamp for web play (breaks Ask 1 parity: streak/daily/digest), 500→200 on the webhook (Ask 5).
 
 - 2026-09-24 · recon Q9: a virtual `telegram_users` row would make `AccountSession`/`AccountService` treat a web-only character as Telegram-linked (session `tg_user_id`, `ensureForTelegram`). Decision: `app/Services/Web/AccountSession.php` and `app/Services/Web/AccountService.php` join story 01 `## Files` with one acceptance line (virtual range = no Telegram). No other story names them. Rejected: leaving it to story 07 (wave 3) — wave-1 backfill already creates the rows.
+
+- 2026-09-24 · trigger: council round 1 RED on Ask 9 (seat opus: `Play::gate()` checks the login before the flag, so an anonymous flag-off visitor gets `/account/login` instead of the stub, and nothing returns them to `/play` after login; seat haiku: prod header has no `/play`, because the reviewed commit is not deployed there). Decision: fix story `web-bridge-p1-08` in wave 4, which puts the flag first and adds a session return target consumed by the cabinet. Haiku's finding is environmental (it walked prod), so no story addresses it. Rejected: amending story 07 in place (it is `done`, and a new story keeps the scope gate and the review slot honest).
 
 **Approved:** Andrei, 2026-09-24 (A0–A15 as written, incl. A3, A5, A6, A10)
 **Briefed:** <written by scripts/cycle.sh briefed - alternative to **Approved:**>
