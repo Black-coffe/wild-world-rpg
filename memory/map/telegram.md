@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-15
+last-verified: 2026-09-24
 
 # Scout report: Telegram-поверхность
 
@@ -13,7 +13,12 @@ last-verified: 2026-09-15
 - `app/Controllers/Telegram/BotController.php` — приём webhook-апдейтов.
 - `app/Controllers/Telegram/Commands/*Command.php` — слэш-команды (`StartCommand`, `MeCommand`,
   `MapCommand`, `CraftCommand`, `GuideCommand`, `TipsCommand`, `SettingsCommand`, `MenuCommand`,
-  `MoreCommand`, `TasksCommand`, `GoCommand`, `NameCommand`, `StartrobotexplorerCommand`).
+  `MoreCommand`, `TasksCommand`, `GoCommand`, `NameCommand`, `StartrobotexplorerCommand`, `WebCommand`).
+- `/web` (ADR-188): `WebCommand` → `Actions/WebLinkCodeAction::sendCode()` → `LinkCodeService::issue()`;
+  та же кнопка «🌐 Играть на сайте» в `SettingsAction::buildScreen()` (callback `webLinkCode`,
+  маршрут в `app/Config/CallbackRoutes.php`).
+- `/start` создаёт персонажа через `App\Services\Player\CharacterProvisioningService::create()`
+  (общий путь с сайтом); в `StartCommand` осталась только UI-часть.
 - `app/Controllers/Telegram/Commands/Actions/` — ~54 action-handler'а (callback-кнопки).
 - `app/Controllers/Telegram/Commands/BaseCommand.php` и `BaseShiftingCommand.php` — базовые классы.
 - `app/Services/Notifications/MediaSender.php` — **единственная** точка отправки фото.
@@ -48,5 +53,13 @@ outbound: `Services/Player`, `Services/World`, `Services/Craft*`, `Services/Base
   сканирует `app/Services/**` и роняет набор на новом сервисе без него. Подробности —
   `mmorpg-vault/tech-writing/services/TelegramBridge.md`.
 
+- **(2026-09-24) Текст кода `/web` обещает привязку, которой нет.** `WebLinkCodeAction::codeMessage()`
+  (и совет `SeedWebLinkTip`, и раздел `web` в `GuideCatalog`) говорят «вошёл почтой/Google/Яндексом —
+  код привяжет этот вход», а `LinkCodeService::link()` при входе в другой аккаунт отказывает
+  (`MSG_OTHER`, слияний нет, ADR-188).
+- Бот не вешает второго персонажа на аккаунт: если аккаунт с этой telegram-identity уже владеет
+  веб-персонажем, бот-персонаж получает свежий аккаунт без identity (`attachBotCharacter`).
+
 ## Vault
-`mmorpg-vault/apps/telegram/index.md` · ноты handler'ов — `mmorpg-vault/tech-writing/handlers/`
+`mmorpg-vault/apps/telegram/index.md` · `tech-writing/services/CharacterProvisioningService.md`,
+`tech-writing/services/LinkCodeService.md` · ноты handler'ов — `mmorpg-vault/tech-writing/handlers/`

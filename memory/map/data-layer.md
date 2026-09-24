@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-04
+last-verified: 2026-09-24
 
 # Scout report: Слой данных (модели, миграции, сущности)
 
@@ -20,6 +20,13 @@ last-verified: 2026-09-04
   `NamedLock` (`GET_LOCK` non-blocking, `withLock()`). Единый дом правила «списание — условный
   `UPDATE` с проверкой `affectedRows`, не read-then-write». Подробность —
   `mmorpg-vault/tech-writing/services/ConditionalWriteService.md`.
+
+- **Аккаунты (ADR-188, миграции `2026-12-10-1000{01,02,03,10,20}`)**: `accounts`,
+  `account_identities` (UNIQUE `provider,subject`), `account_tokens`, `account_link_codes`;
+  `characters.account_id` (NULL, FK SET NULL); UNIQUE на `telegram_users.telegram_id` и
+  `characters.telegram_user_id`. NULL-able: `character_tasks.telegram_user_id`,
+  `explored_cells.telegram_user_id`, `action_log.chat_id` (web-only персонаж). Подробно —
+  `tech-writing/db/accounts.md`.
 
 ## Key types / contracts
 Шесть стратегий вайпа: `KEEP`, `PLAYER_DATA`, `TRANSIENT`, `CHARACTER_RESET`, `IDENTITY_RESET`,
