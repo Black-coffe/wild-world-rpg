@@ -8,3 +8,4 @@
 - 2026-09-24T16:50:36Z · 04-council:open · round 1 opened, court at C:/laragon/www/mmorpg/.vulyk/court/web-bridge-p1/round-1 · next: dispatch:haiku,sonnet,opus,review
 - 2026-09-24T17:17:42Z · 04-council:RED · round 1 verdict RED at 57e1a0dd pack bcab1c9c706e · next: repair
 - 2026-09-24T17:29:41Z · 03-building · launching the workflow driver · next: the loop holds the working tree of vulyk/web-bridge-p1; to edit, run /vulyk-pause web-bridge-p1
+- 2026-09-24T17:30:08Z · 04-council:open · round 2 opened, court at C:/laragon/www/mmorpg/.vulyk/court/web-bridge-p1/round-2 · next: dispatch:haiku,sonnet,opus,review
