@@ -2,7 +2,7 @@
 story: web-bridge-p1-05
 spec: web-bridge-p1
 status: todo
-returned:
+returned: NEEDS_CONTEXT
 tier: 3
 worker: worker-code
 model: opus
@@ -55,6 +55,10 @@ are valid Longman input:
 - tests/database/UpdatePipelineTest.php
 - tests/unit/Services/Web/SyntheticUpdateFactoryTest.php
 - phpstan-baseline.neon
+- app/Services/Player/LastSeenService.php
+- app/Services/Player/LoginStreakService.php
+- app/Services/Player/ReturnDigestService.php
+- app/Services/Quest/DailyTaskService.php
 
 ## Non-goals
 - Do not change the webhook's secret check, dedup, group gate, or the order of steps inside the
@@ -99,3 +103,32 @@ are valid Longman input:
 ## Implementation notes
 
 ## Findings
+- **Q1 (blocks Ask 6): the hooks and the stamp reject a virtual id, and their files are not in `## Files`.**
+  Each of these stops on a negative telegram id before doing anything:
+  `LastSeenService::extractTelegramId()` (`$id > 0`, so the pipeline gets `null` and skips every hook
+  and the stamp), `LastSeenService::stampByTelegramId()` (`$telegramId <= 0` return),
+  `LoginStreakService::maybeReward()` (`:40`-ish, `$telegramId <= 0`), `ReturnDigestService::maybeSendDigest()`
+  (`:40`, `$telegramId <= 0`) and `DailyTaskService::ensureForTelegramUser()` (`:50`, `$telegramId <= 0`).
+  So "E6/E8 hooks and the `last_seen` stamp ran for the virtual `telegram_id`" cannot be met from the
+  pipeline alone without re-implementing the stamp and the hooks, which Ask 1 forbids. Proposed fix:
+  add `app/Services/Player/LastSeenService.php`, `app/Services/Player/LoginStreakService.php`,
+  `app/Services/Player/ReturnDigestService.php`, `app/Services/Quest/DailyTaskService.php` to this
+  story and change each guard to "positive OR `VirtualChat::is($id)`" (group ids are already cut by the
+  webhook's community gate, and a real `from.id` is never negative). Or: accept Ask 6 without the
+  hooks/stamp part and move that to a new story. Which one?
+- **Q2 (Ask 5 vs "run() never throws"):** today `webhook()` rethrows a non-Telegram `Throwable`
+  (framework → HTTP 500). If `run()` never throws, the webhook answers 200 on such errors instead.
+  The firehose row (`status=error`) is the same; with ADR-181 dedup a Telegram retry would be dropped
+  anyway. Is the 500→200 change accepted as "nothing observable changes", or should `run()` swallow
+  only for `'web'` and keep rethrowing for `'telegram'`?
+- **Re-dispatch 2026-09-24:** neither story nor plan.md/journal.md carries an answer to Q1, so it
+  still blocks. The guards are still live (`LastSeenService.php:45,125`, `LoginStreakService.php:46`,
+  `ReturnDigestService.php:40`, `DailyTaskService.php:50`). Q2 reads as settled by plan.md:234
+  ("It never throws", no per-source split); I will take 500→200 for `'telegram'` as accepted unless
+  told otherwise. Only Q1 needs an answer: widen `## Files` by the four services, or drop the
+  hooks/stamp half of Ask 6 from this story.
+- Not a question, noted for the planner: the five `BotController*Test` files override the protected
+  `dispatchToTelegram()`; they stay unchanged only if the pipeline takes a dispatch callable from the
+  controller (planned: `new UpdatePipeline($telegram, fn () => $this->dispatchToTelegram())`, `run()`
+  signature as in the story).
+- **Queen answer 2026-09-24 (plan delta):** Q1 — widen `## Files` by the four services (done above); in each, change the guard to "positive OR `VirtualChat::is($id)`" — nothing else in those files. Q2 — do **not** change the webhook's observable behaviour (Ask 5): `run()` keeps rethrowing non-Telegram `Throwable` for source `'telegram'` exactly as `webhook()` does today (HTTP 500 stays 500); it swallows (firehose `status=error`, returns a failure result) only for source `'web'`. Rejected: 500→200 for the webhook — a visible change the brief did not ask for.
