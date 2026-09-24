@@ -9,6 +9,7 @@ use App\Services\Logging\ActionOrigin;
 use App\Services\Logging\PlayerActionLogger;
 use App\Services\Logging\TelegramDeliveryProbe;
 use App\Services\Web\AccountService;
+use App\Services\Web\AccountSession;
 use App\Services\Web\DeliveryContext;
 use App\Services\Web\VirtualIdentityService;
 use App\Services\Web\WebDelivery;
@@ -168,6 +169,74 @@ final class PlayControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->conn->table('web_play_intents')->countAllResults());
         $this->assertSame(0, $this->conn->table('player_action_log')->countAllResults());
         $this->assertSame(0, $this->conn->table('web_play_state')->countAllResults());
+    }
+
+    // ── p1-08: флаг раньше входа, возврат на /play после входа ─────────
+
+    public function testFlagOffGuestSeesStubOnEveryRouteNeverLogin(): void
+    {
+        $this->setFlag(false);
+
+        $page = $this->get('play');
+        $page->assertStatus(200);
+        $this->assertStringContainsString('Игра на сайте скоро', $this->body($page));
+        $this->assertStringContainsString('Пока играй в Telegram-боте', $this->body($page));
+        $this->assertStringNotContainsString('/account/login', $page->response()->getHeaderLine('Location'));
+        $this->assertNull(Services::session()->get(AccountSession::KEY_RETURN_TO), 'флаг выключен — цель не ставится');
+
+        foreach ([
+            $this->postWithCsrf([], 'play/act', ['intent_id' => 'g1', 'kind' => 'command', 'data' => '/guide']),
+            $this->postWithCsrf([], 'play/act', ['intent_id' => 'g2', 'kind' => 'command', 'data' => '/guide'], true),
+            $this->get('play/inbox'),
+            $this->postWithCsrf([], 'play/inbox/read', [], true),
+        ] as $i => $res) {
+            $this->assertSame(403, $res->response()->getStatusCode(), "маршрут #{$i}");
+            $this->assertSame('', $res->response()->getHeaderLine('Location'), "маршрут #{$i}: не редирект");
+        }
+        $this->assertSame(0, $this->conn->table('web_play_intents')->countAllResults());
+        $this->assertSame(0, $this->conn->table('player_action_log')->countAllResults());
+        $this->assertSame(0, $this->conn->table('web_play_state')->countAllResults());
+    }
+
+    public function testFlagOnGuestReturnsToPlayOnceAfterLogin(): void
+    {
+        $this->get('play')->assertRedirectTo('/account/login');
+        $this->assertSame('/play', Services::session()->get(AccountSession::KEY_RETURN_TO));
+
+        [$login] = $this->virtualCharacter();
+        $session = $login + [AccountSession::KEY_RETURN_TO => '/play'];
+
+        $first = $this->withSession($session)->get('account');
+        $this->assertSame(303, $first->response()->getStatusCode());
+        $this->assertStringEndsWith('/play', $first->response()->getHeaderLine('Location'));
+        $this->assertNull(Services::session()->get(AccountSession::KEY_RETURN_TO), 'цель одноразовая');
+
+        $this->withSession($login)->get('account')->assertStatus(200);
+    }
+
+    public function testCabinetWithoutTargetRendersAsBefore(): void
+    {
+        [$login] = $this->virtualCharacter();
+        $res     = $this->withSession($login)->get('account');
+        $res->assertStatus(200);
+        $this->assertSame('', $res->response()->getHeaderLine('Location'));
+    }
+
+    public function testReturnTargetAcceptsOnlyExactPlayPath(): void
+    {
+        $session = new AccountSession(null, $this->conn);
+        foreach (['/account', 'https://evil.example/play', '//evil.example', '/play/act', '/play?x=1', 'play', ''] as $bad) {
+            $session->rememberReturnTarget($bad);
+            $this->assertNull(Services::session()->get(AccountSession::KEY_RETURN_TO), "принято: {$bad}");
+        }
+
+        Services::session()->set(AccountSession::KEY_RETURN_TO, 'https://evil.example');
+        $this->assertNull($session->consumeReturnTarget(), 'подложенное значение не отдаётся');
+        $this->assertNull(Services::session()->get(AccountSession::KEY_RETURN_TO));
+
+        $session->rememberReturnTarget('/play');
+        $this->assertSame('/play', $session->consumeReturnTarget());
+        $this->assertNull($session->consumeReturnTarget(), 'второй раз — пусто');
     }
 
     public function testNoCharacterShowsStub(): void

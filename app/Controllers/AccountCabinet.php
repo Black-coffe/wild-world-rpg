@@ -55,9 +55,14 @@ class AccountCabinet extends BaseController
 
     public function index(): ResponseInterface|string
     {
-        $current = (new AccountSession())->current();
+        $session = new AccountSession();
+        $current = $session->current();
         if ($current === null) {
             return redirect()->to('/account/login')->withCookies();
+        }
+        // web-bridge-p1-08: гость пришёл с «Играть» — после входа один раз обратно на /play.
+        if ($session->consumeReturnTarget() === AccountSession::RETURN_PLAY) {
+            return redirect()->to(AccountSession::RETURN_PLAY, 303)->withCookies();
         }
 
         $auth   = $this->request->getGet('auth');

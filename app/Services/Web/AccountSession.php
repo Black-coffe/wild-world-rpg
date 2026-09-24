@@ -38,8 +38,14 @@ class AccountSession
     /** Одноразовый nonce привязки Telegram-виджетом из кабинета (story 09, F1). */
     public const KEY_TG_LINK_NONCE = 'tg_link_nonce';
 
+    /** web-bridge-p1-08: одноразовая цель возврата после входа (только `/play`). */
+    public const KEY_RETURN_TO = 'play_return_to';
+
+    /** Единственная разрешённая цель возврата: параметр из запроса не принимается (нет open redirect). */
+    public const RETURN_PLAY = '/play';
+
     /** Всё, что снимает logout (включая отображаемое имя из виджета). */
-    private const ALL_KEYS = ['account_id', 'character_id', 'tg_user_id', 'tg_first_name', 'tg_username', 'tg_link_nonce'];
+    private const ALL_KEYS = ['account_id', 'character_id', 'tg_user_id', 'tg_first_name', 'tg_username', 'tg_link_nonce', 'play_return_to'];
 
     private AccountService $accounts;
 
@@ -156,6 +162,24 @@ class AccountSession
 
         return is_string($stored) && $stored !== '' && is_string($presented) && $presented !== ''
             && hash_equals($stored, $presented);
+    }
+
+    /** Запомнить цель возврата после входа. Любое значение, кроме ровно `/play`, игнорируется. */
+    public function rememberReturnTarget(string $path): void
+    {
+        if ($path === self::RETURN_PLAY) {
+            $this->session()->set(self::KEY_RETURN_TO, $path);
+        }
+    }
+
+    /** Забрать цель возврата один раз: ключ снимается при любом чтении; не `/play` — null. */
+    public function consumeReturnTarget(): ?string
+    {
+        $session = $this->session();
+        $stored  = $session->get(self::KEY_RETURN_TO);
+        $session->remove(self::KEY_RETURN_TO);
+
+        return $stored === self::RETURN_PLAY ? self::RETURN_PLAY : null;
     }
 
     /** Выход: ключи сессии сняты, id сессии новый, remember-токен удалён, cookie просрочена. */

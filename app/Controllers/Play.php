@@ -19,8 +19,9 @@ use InvalidArgumentException;
 /**
  * web-bridge-p1-07 (ADR-189 §1, §6) — игра на сайте `/play` через маршруты бота.
  *
- * Каждый маршрут: вход (`AccountSession`) → флаг `web.play_enabled` на сервере (инв. 8) →
- * персонаж ТОЛЬКО из сессии. Из запроса берутся лишь `intent_id`, `kind`, `data`, `message_id`;
+ * Каждый маршрут: флаг `web.play_enabled` на сервере (инв. 8) → вход (`AccountSession`) →
+ * персонаж ТОЛЬКО из сессии. Флаг первым (p1-08): при выключенном флаге заглушку видит и гость.
+ * Гость на `GET /play` при включённом флаге — цель возврата `/play` в сессию и на вход. Из запроса берутся лишь `intent_id`, `kind`, `data`, `message_id`;
  * telegram/chat/character/account id не принимаются и в ответ не выводятся (инв. 6).
  * CSRF — глобальный фильтр; лимит частоты — `accountThrottle:play|inbox` (Routes).
  *
@@ -39,7 +40,13 @@ class Play extends BaseController
     public function index(): ResponseInterface|string
     {
         $gate = $this->gate();
-        if ($gate instanceof ResponseInterface || is_string($gate)) {
+        if ($gate instanceof ResponseInterface) {
+            // Гость при включённом флаге: кабинет вернёт на /play после входа (один раз).
+            (new AccountSession())->rememberReturnTarget(AccountSession::RETURN_PLAY);
+
+            return $gate;
+        }
+        if (is_string($gate)) {
             return $gate;
         }
         [$accountId, $characterId] = $gate;
@@ -140,18 +147,18 @@ class Play extends BaseController
     }
 
     /**
-     * Вход → флаг → персонаж сессии. Иначе готовый ответ: редирект на вход или заглушка.
+     * Флаг → вход → персонаж сессии. Иначе готовый ответ: заглушка или редирект на вход.
      *
      * @return array{0:int, 1:int}|ResponseInterface|string
      */
     private function gate(): array|ResponseInterface|string
     {
+        if (! self::playEnabled()) {
+            return $this->stub('flag_off');
+        }
         $current = (new AccountSession())->current();
         if ($current === null) {
             return redirect()->to('/account/login')->withCookies();
-        }
-        if (! self::playEnabled()) {
-            return $this->stub('flag_off');
         }
         if ($current['character_id'] === null) {
             return $this->stub('no_character');
