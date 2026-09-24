@@ -12,6 +12,7 @@ use App\Services\Onboarding\NewbieGreeterService;
 use App\Services\Onboarding\OnboardingChainService;
 use App\Services\Onboarding\StarterKitService;
 use App\Services\Web\AccountService;
+use Config\Database;
 
 /**
  * web-accounts-p0-04 (ADR-188) — создание персонажа вне Telegram-обработчика `/start`.
@@ -81,7 +82,7 @@ class CharacterProvisioningService
         if ($accountId !== null) {
             $accounts->attachCharacter($accountId, $characterId);
         } elseif ($telegramUserId !== null) {
-            $accounts->ensureForTelegram($telegramUserId);
+            $this->attachBotCharacter($accounts, $telegramUserId, $characterId);
         }
 
         $spawnCells = (new MapModel())
@@ -112,6 +113,32 @@ class CharacterProvisioningService
         }
 
         return $characterId;
+    }
+
+    /**
+     * P0: один персонаж на аккаунт (council round 1, #4). Если аккаунт, держащий telegram-identity
+     * этого пользователя, уже владеет ДРУГИМ персонажем (веб-персонаж, созданный до первого
+     * `/start`), бот-персонаж получает свежий аккаунт без identity — до него игрок доберётся на
+     * сайте кодом `/web`. Identity остаётся на месте. Иначе — прежний {@see AccountService::ensureForTelegram()}.
+     */
+    private function attachBotCharacter(AccountService $accounts, int $telegramUserId, int $characterId): void
+    {
+        $res = Database::connect()->table('telegram_users')->select('telegram_id')
+            ->where('id', $telegramUserId)->get();
+        $row = $res === false ? null : $res->getRowArray();
+        $raw = is_array($row) ? ($row['telegram_id'] ?? null) : null;
+
+        $holder  = is_numeric($raw) ? $accounts->findByIdentity('telegram', (string) $raw) : null;
+        $owned   = $holder === null ? null : $accounts->characterForAccount($holder);
+        $ownedId = $owned['id'] ?? null;
+
+        if (is_numeric($ownedId) && (int) $ownedId !== $characterId) {
+            $accounts->attachCharacter($accounts->createAccount('telegram'), $characterId);
+
+            return;
+        }
+
+        $accounts->ensureForTelegram($telegramUserId);
     }
 
     /**

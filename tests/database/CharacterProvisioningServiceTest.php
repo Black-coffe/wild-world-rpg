@@ -173,7 +173,63 @@ final class CharacterProvisioningServiceTest extends CIUnitTestCase
         $this->assertSame('Путник-' . $webChar, $this->row('characters', ['id' => $webChar])['name']);
     }
 
+    /**
+     * Council round 1, #4: вход виджетом → веб-персонаж → `/start` в боте. Бот-персонаж уходит на
+     * свежий аккаунт, telegram-identity остаётся на первом.
+     */
+    public function testBotCreateAfterWebCharacterGetsFreshAccount(): void
+    {
+        $accounts = new AccountService();
+        $tgUserId = $this->makeTelegramUser(self::CHAT_ID);
+        $svc      = new CharacterProvisioningService();
+
+        $firstAccount = $accounts->ensureForTelegram($tgUserId);
+        $this->assertNull($accounts->characterForAccount($firstAccount));
+
+        $webChar = $svc->create('web_hero', null, null, $firstAccount);
+        $botChar = $svc->create('tg_hero', $tgUserId, self::CHAT_ID, null);
+
+        $this->assertAtMostOneCharacterPerAccount();
+        $this->assertSame($firstAccount, (int) $this->row('characters', ['id' => $webChar])['account_id']);
+        $botAccount = (int) $this->row('characters', ['id' => $botChar])['account_id'];
+        $this->assertGreaterThan(0, $botAccount);
+        $this->assertNotSame($firstAccount, $botAccount);
+        $this->assertSame($firstAccount, $accounts->findByIdentity('telegram', (string) self::CHAT_ID));
+        $this->assertSame(0, $this->rowCount('account_identities', ['account_id' => $botAccount]));
+    }
+
+    /** Обратный порядок: веб-персонаж на email-аккаунте, к нему добавлен Telegram, затем `/start`. */
+    public function testBotCreateAfterTelegramAddedToWebAccountGetsFreshAccount(): void
+    {
+        $accounts = new AccountService();
+        $svc      = new CharacterProvisioningService();
+
+        $emailAccount = $accounts->createAccount('email');
+        $this->assertTrue($accounts->addIdentity($emailAccount, 'email', 'hero@example.test', 'hash', 'hero@example.test'));
+        $webChar = $svc->create('web_hero', null, null, $emailAccount);
+
+        $tgUserId = $this->makeTelegramUser(self::CHAT_ID);
+        $this->assertTrue($accounts->addIdentity($emailAccount, 'telegram', (string) self::CHAT_ID));
+        $botChar = $svc->create('tg_hero', $tgUserId, self::CHAT_ID, null);
+
+        $this->assertAtMostOneCharacterPerAccount();
+        $this->assertSame($emailAccount, (int) $this->row('characters', ['id' => $webChar])['account_id']);
+        $botAccount = (int) $this->row('characters', ['id' => $botChar])['account_id'];
+        $this->assertGreaterThan(0, $botAccount);
+        $this->assertNotSame($emailAccount, $botAccount);
+        $this->assertSame($emailAccount, $accounts->findByIdentity('telegram', (string) self::CHAT_ID));
+    }
+
     // ── Проверки ─────────────────────────────────────────────────────────────
+
+    private function assertAtMostOneCharacterPerAccount(): void
+    {
+        $max = $this->conn->query(
+            'SELECT COALESCE(MAX(n), 0) AS m FROM (SELECT COUNT(*) AS n FROM characters WHERE account_id IS NOT NULL GROUP BY account_id) t'
+        )->getRowArray();
+        $this->assertIsArray($max);
+        $this->assertLessThanOrEqual(1, (int) $max['m']);
+    }
 
     /** @param array<string, mixed> $char */
     private function assertCharacterMatchesFixture(array $char): void
