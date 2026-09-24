@@ -211,7 +211,6 @@ The Queen's manual Tier-2/3 pass follows: `/account/*` at 375/768/1440 with a cl
 **Approved:** Andrei, 2026-09-23
 **Briefed:** <written by scripts/cycle.sh briefed - stage 01+02 on the straight-through path (--go, Tier 1): "via grill, <owner>, <date>" (or "via grill (assumed)" / "via mini-brief"). Alternative to **Approved:** above.>
 **Branch:** vulyk/web-accounts-p0
-**Checked:** <written by scripts/human-check.sh after the owner has looked - stage 05, and the override for stage 04+05. /vulyk-ship refuses without either this or a GREEN **Council:** line.>
 **Council:** RED round 1, 2026-09-23, at 32aaafc7, pack 14c02cf5e190
 **Council:** ESCALATE round 2, 2026-09-24, at 4d1fa180, pack 1ed6015b3754
 **Shipped:** <written by scripts/ship-check.sh --record - stage 06: the published version, and where>
@@ -223,3 +222,4 @@ The Queen's manual Tier-2/3 pass follows: `/account/*` at 375/768/1440 with a cl
 - opus: docs/specs/web-accounts-p0/council/round-2/opus.attempt-1.md
 - opus: docs/specs/web-accounts-p0/council/round-2/opus.attempt-2.md
 - seats: docs/specs/web-accounts-p0/council/round-2/
+**Checked:** ACCEPTED by Claude Code, 2026-09-24, at 80126f79 - Andrei, 2026-09-24: «Рекомендую первый вариант … Если всё чисто, ты принимаешь работу вместо совета через human-check.sh ACCEPTED … ДАВАЙ». Queen Tier-2 on localhost:8099 (DB from testbot dump + 5 migrations, backfill 8/8): login/reset/link/register/character/cabinet at 375/768/1440 — no h-scroll, 0 console errors/exceptions; full chain register→character→cabinet works. Ask 8 proven on prod (v0.51.671, Statable receiving). Council round 2: review PASS, sonnet 13/15 GREEN + 2 env N/A.
