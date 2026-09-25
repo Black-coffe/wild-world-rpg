@@ -136,6 +136,13 @@ Confirm or veto at the approval stop:
   Does `AccountCabinet::index` already pass that condition, or the character state, to
   `site/account_cabinet`? Quote the current no-character lock line and the «Привязать персонажа
   из бота» notice with their line numbers.
+- **Q13 (W8, 16).** Give the exact path of `ReferralService.php` (story 16 names it by glob). Then
+  list every guard in `app/` that skips a send to a player when the recipient's
+  `telegram_id`/chat id is not positive (`> 0`, `<= 0`, `< 1`, `(bool)` on a Telegram id), other
+  than the four story 05 already fixed and the two in story 16. For each, say whether the skipped
+  send is a player notice (background or interactive) and name the handler that calls it. Round 5
+  found `BeaconCaptureService:106` and `ReferralService:158`. Any other notice-dropping hit joins
+  story 16's `## Files` by plan delta before dispatch.
 
 **Recon answers (Queen + Explore, 2026-09-24, `git grep`):**
 - Q2: the group gate tests `chat.type` (`BotController.php:76,273,282-306`; `TelegramRateLimitFilter.php:361-370`). Nothing in `app/` classifies a group by id sign; sign checks are "valid positive id" guards (`SilentNotificationPolicy.php:58`, `ReferralService.php:158`, `TelegramChatResolver.php:78` returns null for non-positive ids — story 04 must route virtual ids before this resolver drops them).
@@ -220,7 +227,15 @@ direct `Longman\…\Request` imports into story 04 (ADR-189 «не провер�
   for a bot player. Files: `account_cabinet.php`, `AccountCabinet` (only to pass the registration
   condition), `PlayControllerTest`.
 
-**Ask coverage:** 1→05,07,13 · 2→01,04,07,11 · 3→02,04,06,09,11,13,14 · 4→04,06,07,11 · 5→04,05,11 ·
+**Wave 8 (council round 5 fix)**. One story for the one red ask.
+- `web-bridge-p1-16-background-notice-reaches-web-only-player` (Ask 4): the beacon-capture alert
+  (`BeaconCaptureService:106`) and the referral-reward notice (`ReferralService:158`) stop
+  dropping a virtual-id recipient by sign. Each guard becomes "positive OR `VirtualChat::is()`",
+  the story-05 pattern, so the send reaches the seam and lands in the web inbox (flag on). Files:
+  `BeaconCaptureService`, `ReferralService`, new `WebOnlyBackgroundNoticeTest`. Recon Q13 answers
+  before dispatch.
+
+**Ask coverage:** 1→05,07,13 · 2→01,04,07,11 · 3→02,04,06,09,11,13,14 · 4→04,06,07,11,16 · 5→04,05,11 ·
 6→01,05,07,12,13 · 7→01,03,07 · 8→03,10 · 9→03,06,08,15 · 10→02,06,14 · 11→01 · 12→07 + integration
 gate (Queen Tier-3).
 
@@ -239,6 +254,8 @@ gate (Queen Tier-3).
 - Round 4: no new table or column. The `public/uploads/web/` copies are files, not DB rows; a wipe
   leaves them to the age prune. Guide and tip: no, both stories fix existing web-play surfaces
   (the map image, the cabinet lock text). Onboarding: unchanged.
+- Round 5: no new table, column or number. Guide and tip: no, story 16 makes two existing notices
+  reach a web-only player's inbox. Onboarding and WipeManifest: unchanged.
 
 ## Contracts
 
@@ -259,6 +276,7 @@ taken, shifts to the next free one and reports it.
   idempotent; `down()` restores `UpdateWebLinkTipForWebPlay::NEW_CONTENT`)
 - Round 3 (11–13): no migrations.
 - Round 4 (14–15): no migrations.
+- Round 5 (16): no migrations.
 
 **Schema (01)**
 - `web_play_state`: `character_id` PK FK→characters CASCADE, `next_message_id` BIGINT NOT NULL
@@ -277,6 +295,8 @@ taken, shifts to the next free one and reports it.
   - `const VIRTUAL_BASE` (value per A1)
   - `static is(int $chatId): bool`
   - `static idForAccount(int $accountId): int`
+  - Round 5 (16): every recipient guard on a notice path reads "positive OR `VirtualChat::is()`",
+    never a bare sign test (A1).
 - `App\Services\Web\VirtualIdentityService` (01):
   - `ensureForAccount(int $accountId, string $firstName): int`: returns the `telegram_users.id`.
     It is idempotent, reuses an existing row with that `telegram_id`, and never creates an
@@ -464,6 +484,13 @@ names on its INTERFACES line. The Queen pastes them here before wave 2.
 - **Chosen (15): the cabinet lock offers the two paths that work** (`/account/character`, and
   log out then enter the `/web` code). **Rejected: let `link()` accept a code while another
   account is signed in.** That is the merge F1 forbids (A15, brief Answer 4).
+- **Chosen (16): widen each sign guard to "positive OR `VirtualChat::is()`" at the call site**, the
+  pattern story 05 already used for four services, so a virtual send reaches the seam that owns
+  the inbox rule. **Rejected: route virtual notices around the guards** (e.g. a
+  `WebInboxService::append` call next to each `if ($id > 0)`). That puts a second delivery path
+  in game code, skips the seam's flag check (A6) and mirror rules, and has to be repeated at each
+  site. The cost of the choice: each new sign guard stays a latent Ask 4 hole until someone greps
+  for it. Recon Q13 does that grep once for this spec.
 
 ## Integration gate
 `vendor/bin/phpunit --no-coverage --no-progress`
@@ -493,6 +520,11 @@ After wave 7 (round 4), the walks add:
   `/account/character` (when registration is open) and the log-out-then-code instruction, and no
   «привяжи персонажа из бота» text.
 
+After wave 8 (round 5), the walks add:
+- **Tier-3:** the Telegram test character captures a teleport beacon owned by the web-only
+  character. The web-only character's bell counts one more, and the inbox shows the capture
+  alert. Logs show no Telegram request with a virtual-range chat id.
+
 ## Descoped
 
 *(empty)*
@@ -516,6 +548,8 @@ After wave 7 (round 4), the walks add:
   - **Note (Queen local Tier-2, 2026-09-24):** the bridge works end to end for a web-only character. Register → character → `/play` → daily-task screens, history, dock. No horizontal scroll at 375/768/1440, and the console is clean. Photo screens fail locally only because the single-threaded `php spark serve` cannot `fopen` its own URL. This is to be proved on the preprod Tier-3 (integration gate, after wave 6). No story.
 
 - 2026-09-25 · trigger: council round 4 RED on Asks 3 and 9 (seat opus; haiku N/A environmental, sonnet report empty, review PASS). Ask 3: the map photo is a temp file under `public/uploads/tmp/` that `MapService:176` deletes right after the send, so the stored `photo_url` 404s on `/play` (also a console error, Ask 10). Ask 9: the cabinet's no-character lock and notice tell a logged-in player to link a bot character by `/web` code, which `link()` refuses (F1), and they never offer `/account/character`. Decision: wave 7, one story per ask, disjoint files — `web-bridge-p1-14` (copy transient photos at record time, age prune, `is_file` view guard; new A18 to the owner, A12 amended) and `web-bridge-p1-15` (cabinet lock names the two paths that work). Recon Q11/Q12 answer before dispatch. Rejected: amending stories 04/13 and 03/08 in place (all `done`); the rejected fixes for 14 and 15 are in Tradeoffs. Opus's UNASKED notes (stale mirror copies of Telegram-side edits, no bell outside `/play`, the stub repeating «скоро») are A16/A10 territory or cosmetic and get no story. The round-4 review (PASS) findings are not asks and get no story here; its Major #1 (A16/A17 confirmation) and Minor #14 (tech-writing notes) are open items for the owner and `drone-docs` before ship.
+
+- 2026-09-25 · trigger: council round 5 RED on Ask 4 (seat opus; sonnet GREEN, haiku N/A environmental, review PASS). `BeaconCaptureService:106` (`$tgId > 0 ? $tgId : null`) makes `TeleportBeaconSetAction:252-254` skip the capture alert for a web-only owner, and `ReferralService:158` (`if ($chatId > 0)`) drops the referral-reward notice. Neither reaches the seam, so a web-only player gets no inbox item. These two are the siblings story 05 missed. Decision: wave 8, one story, `web-bridge-p1-16`, with the story-05 guard pattern. Recon Q13 (the exact `ReferralService` path, and a full sweep for other notice-dropping sign guards) answers before dispatch; any further hit joins story 16's `## Files` by a delta here. Rejected: amending story 05 in place (`done`); a parallel inbox call next to each guard (see Tradeoffs). Opus's UNASKED notes get no story: (1) `account_link.php` still promises that the code links "this login" = round-5 review Major #1; (2) no bell outside `/play` = A10; (3) stale inbox copies of real-id edits = A4; (4) virtual sends dropped while the flag is off = A6; (5) the WipeManifest comment for `telegram_users` does not name virtual rows = cosmetic. The round-5 review (PASS) findings are not asks either. Before ship, the owner must decide on two open items: **Major #1** (`account_link.php:30,52` tells a logged-in visitor the code links this login; fix it in a story or record it under `## Descoped`) and **Major #2** (confirm or veto A16, A17 and A18). Minors #3–#13 need a recorded disposition, and #12 (tech-writing notes) goes to `drone-docs`.
 
 **Approved:** Andrei, 2026-09-24 (A0–A15 as written, incl. A3, A5, A6, A10)
 **Briefed:** <written by scripts/cycle.sh briefed - alternative to **Approved:**>
