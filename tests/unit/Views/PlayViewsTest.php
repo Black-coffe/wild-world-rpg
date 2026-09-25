@@ -427,6 +427,48 @@ final class PlayViewsTest extends CIUnitTestCase
         $this->assertNotContains(base_url('account/character'), $hrefs);
     }
 
+    /**
+     * web-bridge-p1-17 — `no_character` видно только вошедшему, а код у вошедшего в другой аккаунт
+     * отказывает (LinkCodeService, F1): заглушка не обещает код «как есть», а ведёт через выход.
+     */
+    public function testStubNoCharacterLeadsBotPlayerThroughLogoutInBothRegistrationStates(): void
+    {
+        foreach ([true, false] as $canRegister) {
+            $label = $canRegister ? 'can_register' : 'no register';
+            $html  = view('site/play_stub', ['reason' => 'no_character', 'can_register' => $canRegister]);
+            $text  = (string) preg_replace('/\s+/u', ' ', strip_tags($html));
+
+            $this->assertStringContainsString('выйди из другого входа и введи код', $text, $label);
+            $this->assertStringNotContainsString('войдёшь в своего персонажа', $text, $label);
+            $this->assertStringNotContainsString('привяж', $text, $label);
+
+            $logout = array_values(array_filter(
+                self::forms($html),
+                static fn (array $f): bool => $f['@action'] === base_url('account/logout'),
+            ));
+            $this->assertCount(1, $logout, $label . ': one logout form');
+            $this->assertArrayHasKey(csrf_token(), $logout[0], $label . ': logout carries CSRF');
+            $this->assertSame('Выйти, чтобы ввести код', $logout[0]['@button'], $label);
+
+            $hrefs = self::hrefs($html);
+            $this->assertContains(base_url('account/link'), $hrefs, $label);
+            if ($canRegister) {
+                $this->assertContains(base_url('account/character'), $hrefs, 'Создать персонажа kept');
+                $this->assertStringContainsString('Создать персонажа', $html);
+            } else {
+                $this->assertNotContains(base_url('account/character'), $hrefs);
+            }
+        }
+    }
+
+    public function testStubFlagOffHasNoLogoutPath(): void
+    {
+        $html = view('site/play_stub', ['reason' => 'flag_off', 'can_register' => true]);
+
+        $this->assertStringNotContainsString(base_url('account/logout'), $html);
+        $this->assertStringNotContainsString('Выйти, чтобы ввести код', $html);
+    }
+
     public function testViewsCarryNoInlineStyles(): void
     {
         foreach (['site/play', 'site/play_stub', 'site/_play/state', 'site/_play/inbox'] as $view) {

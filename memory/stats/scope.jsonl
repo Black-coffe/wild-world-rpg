@@ -251,3 +251,5 @@
 {"ts":"2026-09-25T07:54:04Z","story":"web-bridge-p1-14-transient-photo-kept-for-web","declared":7,"changed":2,"out_of_scope":2}
 {"ts":"2026-09-25T07:54:05Z","story":"web-bridge-p1-15-cabinet-lock-names-a-real-path","declared":3,"changed":3,"out_of_scope":3}
 {"ts":"2026-09-25T08:14:46Z","story":"web-bridge-p1-16-background-notice-reaches-web-only-player","declared":3,"changed":7,"out_of_scope":4}
+{"ts":"2026-09-25T08:22:27Z","story":"web-bridge-p1-16-background-notice-reaches-web-only-player","declared":3,"changed":2,"out_of_scope":2}
+{"ts":"2026-09-25T08:56:38Z","story":"web-bridge-p1-17-link-and-stub-tell-the-truth","declared":4,"changed":7,"out_of_scope":3}

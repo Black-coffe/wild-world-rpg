@@ -1,7 +1,8 @@
 ---
 story: web-bridge-p1-17
 spec: web-bridge-p1
-status: todo
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 tracer: false
@@ -58,5 +59,9 @@ and also gives the bot player the log-out-then-code path. Text only; no change t
 `memory/map/website.md` (account pages, F1 refusal)
 
 ## Implementation notes
+- `account_link.php`: the logged-in notice now uses the story-15 instruction «выйди из другого входа и введи код» and comes with a CSRF logout form («Выйти, чтобы ввести код»). The right-card line for email/Google/Yandex users says log out, then enter the code. The guest meaning is unchanged. No text on the page says «привяж».
+- `play_stub.php`: `no_character` in both `can_register` states now uses a logout form (the same pattern as the cabinet): «Создать персонажа» shows only with `can_register`, then «Выйти, чтобы ввести код», «Страница ввода кода» and «Открыть бота». The flag_off markup is unchanged. Only existing classes are used (`auth-form`, `auth-actions`, `btn`, `mt-2`).
+- `tests/database/AccountLinkPageTest.php` is a new file: it renders `/account/link` over HTTP, logged in and logged out, and checks that a POST to logout ends the session. `PlayViewsTest` gains 2 stub tests. I checked all new tests against the HEAD views: they fail there (3 failures) and pass on the new ones.
+- Surprise: logout redirects to `/account/login?auth=logged_out`, not to `/account/link`. The player has to open the code page themselves. Changing that is outside this story (it's in the `AccountAuth` controller).
 
 ## Findings
