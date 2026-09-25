@@ -531,6 +531,8 @@ After wave 8 (round 5), the walks add:
 
 ## Plan deltas
 
+- 2026-09-25 · trigger: round 6 ESCALATE at ceiling 6 — red: 9 (opus: `/play` no-character lock → `/account/link` dead-ends under F1) + review round 6 Major #1 (`account_link.php:30,52` still promise linking the current login). Decision (Queen, within owner Answer 4 «тексты говорят правду» and the owner's 2026-09-24 repair-then-human-check path): one text-only story 17, wave 9, no further council round; acceptance by owner via human-check after the Queen's Tier-2. Rejected: `reopen` for three more rounds (≈4M tokens per circuit for a two-view text fix).
+
 - 2026-09-24 · trigger: story 05 NEEDS_CONTEXT (twice) — E6/E8 hooks and the last_seen stamp reject non-positive telegram ids (`LastSeenService:45,125`, `LoginStreakService:46`, `ReturnDigestService:40`, `DailyTaskService:50`). Decision: those four files join story 05 `## Files`; guard becomes "positive OR `VirtualChat::is()`". Webhook error behaviour unchanged (rethrow for `telegram`, swallow only for `web`). Rejected: dropping hooks/stamp for web play (breaks Ask 1 parity: streak/daily/digest), 500→200 on the webhook (Ask 5).
 
 - 2026-09-24 · recon Q9: a virtual `telegram_users` row would make `AccountSession`/`AccountService` treat a web-only character as Telegram-linked (session `tg_user_id`, `ensureForTelegram`). Decision: `app/Services/Web/AccountSession.php` and `app/Services/Web/AccountService.php` join story 01 `## Files` with one acceptance line (virtual range = no Telegram). No other story names them. Rejected: leaving it to story 07 (wave 3) — wave-1 backfill already creates the rows.
