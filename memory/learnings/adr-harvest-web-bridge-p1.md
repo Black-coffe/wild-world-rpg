@@ -4,7 +4,7 @@ spec: web-bridge-p1
 source: docs/specs/web-bridge-p1/plan.md (## Plan deltas, ## Tradeoffs, ## Assumptions A0-A18)
 against: mmorpg-vault/decisions/ADR-189-Web-bridge-play.md (accepted 2026-09-24)
 date: 2026-09-25
-status: all entries proposed - owner accepts, edits or discards; no ADR edited
+status: accepted 2026-09-25 — all 9 entries written into ADR-189 «Поправки 2026-09-25» (Claude по поручению Andrei); A17 confirmed
 ---
 
 # ADR harvest - web-bridge-p1
