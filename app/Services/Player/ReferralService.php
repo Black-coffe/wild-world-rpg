@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Player;
 
 use App\Services\GameSettings\GameSettingsReaderTrait;
+use App\Services\Web\VirtualChat;
 use Config\Database;
 use Throwable;
 
@@ -155,7 +156,7 @@ class ReferralService
             $this->markRewarded($referralId);
 
             $chatId = $this->referrerChatId($referrerUserId);
-            if ($chatId > 0) {
+            if ($chatId > 0 || VirtualChat::is($chatId)) { // p1-16: web-only реферрер → входящие
                 $notices[] = ['chat_id' => $chatId, 'text' => self::notifyText()];
             }
         }

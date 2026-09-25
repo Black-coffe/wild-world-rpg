@@ -248,3 +248,6 @@
 {"ts":"2026-09-24T21:09:01Z","story":"web-bridge-p1-13-play-client-error-path","declared":6,"changed":3,"out_of_scope":3}
 {"ts":"2026-09-25T07:39:06Z","story":"web-bridge-p1-14-transient-photo-kept-for-web","declared":7,"changed":14,"out_of_scope":8}
 {"ts":"2026-09-25T07:44:40Z","story":"web-bridge-p1-15-cabinet-lock-names-a-real-path","declared":3,"changed":6,"out_of_scope":3}
+{"ts":"2026-09-25T07:54:04Z","story":"web-bridge-p1-14-transient-photo-kept-for-web","declared":7,"changed":2,"out_of_scope":2}
+{"ts":"2026-09-25T07:54:05Z","story":"web-bridge-p1-15-cabinet-lock-names-a-real-path","declared":3,"changed":3,"out_of_scope":3}
+{"ts":"2026-09-25T08:14:46Z","story":"web-bridge-p1-16-background-notice-reaches-web-only-player","declared":3,"changed":7,"out_of_scope":4}

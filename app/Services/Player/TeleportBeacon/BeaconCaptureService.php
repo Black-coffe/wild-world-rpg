@@ -5,6 +5,7 @@ namespace App\Services\Player\TeleportBeacon;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Models\TeleportBeaconModel;
+use App\Services\Web\VirtualChat;
 
 /**
  * v0.51.55 (TeleportBeaconSetAction decomp Step 4) — extract capture flow
@@ -103,6 +104,8 @@ class BeaconCaptureService
         }
 
         $tgId = (int) ($tgUserRow['telegram_id'] ?? 0);
-        return $tgId > 0 ? $tgId : null;
+        // web-bridge-p1-16: web-only владелец (виртуальный id) — тоже адресат; шов send() кладёт
+        // уведомление во входящие. Группы (прочие отрицательные id) по-прежнему отсекаются.
+        return ($tgId > 0 || VirtualChat::is($tgId)) ? $tgId : null;
     }
 }
