@@ -91,7 +91,13 @@ final class PlayControllerTest extends CIUnitTestCase
 
     private const REAL_TG = 555000888;
 
+    /** Таблица, которую читает `site/layout.php` (навигация); создаётся, только если её нет. */
+    private const SITE_MIGRATION = '2026-05-25-180000_CreateSiteCategoriesTable';
+
     private BaseConnection $conn;
+
+    /** Эта таблица создана этим тестом — и только тогда он её сносит. */
+    private bool $createdSiteCategories = false;
 
     /** @var array<string, string|false> */
     private array $envBackup = [];
@@ -108,6 +114,10 @@ final class PlayControllerTest extends CIUnitTestCase
             $forge = Database::forge();
             foreach (self::MIGRATIONS as $file) {
                 $this->migration($file, $forge instanceof Forge ? $forge : null)->up();
+            }
+            $this->createdSiteCategories = ! $this->conn->tableExists('site_categories');
+            if ($this->createdSiteCategories) {
+                $this->migration(self::SITE_MIGRATION, $forge instanceof Forge ? $forge : null)->up();
             }
         } catch (\Throwable $e) {
             $this->dropTables();
@@ -660,6 +670,10 @@ final class PlayControllerTest extends CIUnitTestCase
         $this->conn->query('SET FOREIGN_KEY_CHECKS = 0');
         foreach (array_reverse(self::TABLES) as $t) {
             $this->conn->query("DROP TABLE IF EXISTS `{$t}`");
+        }
+        if ($this->createdSiteCategories) {
+            $this->conn->query('DROP TABLE IF EXISTS `site_categories`');
+            $this->createdSiteCategories = false;
         }
         $this->conn->query('SET FOREIGN_KEY_CHECKS = 1');
         $this->conn->resetDataCache();

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Views;
 
+use App\Database\Migrations\CreateSiteCategoriesTable;
+use CodeIgniter\Database\Forge;
 use CodeIgniter\Test\CIUnitTestCase;
+use Config\Database;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
@@ -14,12 +17,45 @@ use DOMXPath;
  * media-off, текст инертен), док и запасная «Меню», история, ввод, колокол, входящие, заглушка.
  * Каждая форма несёт CSRF и свой intent_id; telegram id в выводе не появляется.
  * Атрибуты читаются через DOM: esc(…, 'attr') кодирует `:`/`/` сущностями.
+ * `site/play` и `site/play_stub` рендерят `site/layout.php`, который читает `site_categories`:
+ * таблица строится настоящей миграцией, если её нет (CI на пустой БД), и сносится только тогда.
  *
  * @internal
  */
 final class PlayViewsTest extends CIUnitTestCase
 {
     private const TELEGRAM_ID = 7_104_559_321;
+
+    private ?Forge $forgeInstance = null;
+
+    private bool $createdSiteCategories = false;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (! class_exists(CreateSiteCategoriesTable::class, false)) {
+            require_once APPPATH . 'Database/Migrations/2026-05-25-180000_CreateSiteCategoriesTable.php';
+        }
+        $conn = Database::connect();
+        $conn->resetDataCache();
+        $forge                       = Database::forge();
+        $this->forgeInstance         = $forge instanceof Forge ? $forge : null;
+        $this->createdSiteCategories = ! $conn->tableExists('site_categories');
+        if ($this->createdSiteCategories) {
+            (new CreateSiteCategoriesTable($this->forgeInstance))->up();
+        }
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->createdSiteCategories) {
+            $this->forgeInstance?->dropTable('site_categories', true);
+            $this->createdSiteCategories = false;
+            Database::connect()->resetDataCache();
+        }
+        parent::tearDown();
+    }
 
     /**
      * @param array<string,mixed> $over

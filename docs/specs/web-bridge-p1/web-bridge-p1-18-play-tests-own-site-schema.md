@@ -1,13 +1,14 @@
 ---
 story: web-bridge-p1-18
 spec: web-bridge-p1
-status: todo
+status: done
 tier: 1
 worker: worker-code
 tracer: false
 wave: 10
 blocked_by: [web-bridge-p1-17]
 model: opus
+returned: DONE
 ---
 
 # `/play` view tests build the site schema they render
@@ -45,5 +46,10 @@ migration(s), in their own setup, and pass on an empty `wildworld_tests`.
 `memory/map/website.md`
 
 ## Implementation notes
+- Repro: layout reads only `site_categories` (SiteCategoryModel nav; auth label is try/catch). Dropped just that table in `wildworld_tests`; PlayControllerTest 10 errors, PlayViewsTest 7 errors, as in CI.
+- `tests/database/PlayControllerTest.php`: after its migrations, runs `CreateSiteCategoriesTable` via the existing `migration()` helper only if the table is missing; `dropTables()` drops it only when this test created it (no wipe of a pre-existing table).
+- `tests/unit/Views/PlayViewsTest.php`: new setUp/tearDown, same conditional create/drop via the migration class (require_once like AccountLinkPageTest). Test bodies untouched.
+- After fix: both files green singly with the table absent, and the table is gone again after each run (cleanup verified). Restored local `site_categories` afterwards with `CREATE TABLE ... LIKE mmorpg.site_categories`.
+- Verification: full phpunit 4527 tests OK (10 skipped, deprecations = pre-existing XML-schema notice); phpstan no errors; migrations lint OK.
 
 ## Findings
