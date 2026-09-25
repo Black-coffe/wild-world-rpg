@@ -556,7 +556,6 @@ After wave 8 (round 5), the walks add:
 **Approved:** Andrei, 2026-09-24 (A0–A15 as written, incl. A3, A5, A6, A10)
 **Briefed:** <written by scripts/cycle.sh briefed - alternative to **Approved:**>
 **Branch:** vulyk/web-bridge-p1
-**Checked:** <written by scripts/human-check.sh>
 **Council:** RED round 1, 2026-09-24, at 57e1a0dd, pack bcab1c9c706e - red: 9
 **Council:** RED round 2, 2026-09-24, at 8dbc8746, pack bd05f7270b7a - red: 3,8
 **Council:** ESCALATE round 3, 2026-09-24, at cbcb710a, pack f9d606eb6f6c
@@ -573,3 +572,4 @@ After wave 8 (round 5), the walks add:
 - reason: ceiling · round 6 · 2026-09-25
 - ask 9: RED - see docs/specs/web-bridge-p1/council/round-6/*.md for evidence
 - seats: docs/specs/web-bridge-p1/council/round-6/
+**Checked:** ACCEPTED by Claude Code, 2026-09-25, at bfb1b844 - Andrei, 2026-09-25: «да» after Queen Tier-2 on localhost:8080 (stub flag-off, /play no-character, /account/link authed, /play with character at 375/768/1440 — no h-scroll, 0 console errors; web-only register→character→/play→screen swap+history). Council R6: review PASS, sonnet GREEN, opus RED 9 fixed by story 17 (suite 4527/0). Photos → preprod Tier-3.
