@@ -75,6 +75,15 @@ final class WebDeliveryTest extends CIUnitTestCase
 
     private BaseConnection $conn;
 
+    /** @var list<string> файлы под public/uploads, созданные тестом (p1-14) */
+    private array $made = [];
+
+    /** @var list<string> каталоги под public/uploads, созданные тестом (p1-14) */
+    private array $madeDirs = [];
+
+    /** @var list<resource> открытые тестом потоки: на Windows открытый файл держит каталог */
+    private array $handles = [];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -102,6 +111,22 @@ final class WebDeliveryTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        foreach ($this->handles as $h) {
+            if (is_resource($h)) {
+                fclose($h);
+            }
+        }
+        $this->handles = [];
+        foreach ($this->made as $f) {
+            if (is_file($f)) {
+                @unlink($f);
+            }
+        }
+        foreach (array_reverse($this->madeDirs) as $d) {
+            @rmdir($d);
+        }
+        $this->made     = [];
+        $this->madeDirs = [];
         WebDelivery::reset();
         DeliveryContext::reset();
         service('cache')->delete(self::FLAG_CACHE);
@@ -357,6 +382,144 @@ final class WebDeliveryTest extends CIUnitTestCase
         $this->assertSame('https://example.com/a.jpg', $capture['sent'][2]['photo_url']);
     }
 
+    // ── p1-14 (plan A18): временное фото копируется для /play ────────────
+
+    public function testCapturedTransientPhotoIsCopiedBeforeSenderDeletesIt(): void
+    {
+        [$charId, $chat] = $this->webOnly();
+        [$tmp, $bytes]   = $this->transientPhoto();
+        $caption         = "*🗺 Карта*\n" . str_repeat('Клетка 12: лес, вода рядом. ', 40);
+
+        WebDelivery::beginCapture($chat, $charId);
+        $fh = $this->open($tmp);
+        $this->assertIsResource($fh);
+        WebDeliverySpyRequest::sendPhoto(['chat_id' => $chat, 'photo' => $fh, 'caption' => $caption, 'parse_mode' => 'Markdown']);
+        if (is_resource($fh)) {
+            fclose($fh);
+        }
+        unlink($tmp); // как MapService:176
+        $capture = WebDelivery::endCapture();
+
+        $this->assertSame([], WebDeliverySpyRequest::$calls);
+        $this->assertSame($caption, $capture['sent'][0]['caption'], 'подпись целиком');
+        $this->assertKeptCopy($capture['sent'][0]['photo_url'], $bytes);
+    }
+
+    /** @return iterable<string, array{0:string}> */
+    public static function inboxSources(): iterable
+    {
+        yield 'virtual' => ['virtual'];
+        yield 'mirror' => ['mirror'];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('inboxSources')]
+    public function testInboxTransientPhotoIsCopiedBeforeSenderDeletesIt(string $source): void
+    {
+        if ($source === 'virtual') {
+            [$charId, $chat] = $this->webOnly();
+        } else {
+            $chat   = 700100950;
+            $charId = $this->linked($chat, true);
+        }
+        [$tmp, $bytes] = $this->transientPhoto();
+        $caption       = 'Карта: ' . str_repeat('вода 12/40. ', 50);
+
+        $fh = $this->open($tmp);
+        $this->assertIsResource($fh);
+        WebDeliverySpyRequest::sendPhoto(['chat_id' => $chat, 'photo' => $fh, 'caption' => $caption]);
+        if (is_resource($fh)) {
+            fclose($fh);
+        }
+        unlink($tmp);
+
+        $this->assertCount($source === 'mirror' ? 1 : 0, WebDeliverySpyRequest::$calls);
+        $rows = $this->inbox($charId);
+        $this->assertCount(1, $rows);
+        $this->assertSame($source, $rows[0]['source']);
+        $payload = json_decode((string) $rows[0]['payload'], true);
+        $this->assertIsArray($payload);
+        $this->assertSame($caption, $payload['caption']);
+        $this->assertKeptCopy($payload['photo_url'] ?? null, $bytes);
+    }
+
+    public function testPhotoOutsideTransientPrefixKeepsUrlAndIsNotCopied(): void
+    {
+        [$charId, $chat] = $this->webOnly();
+        $dir             = $this->ensureDir(FCPATH . 'uploads/telegram/');
+        $bytes           = 'p14-telegram-' . bin2hex(random_bytes(8));
+        $file            = $dir . 'p14-' . bin2hex(random_bytes(6)) . '.png';
+        file_put_contents($file, $bytes);
+        $this->made[] = $file;
+
+        WebDelivery::beginCapture($chat, $charId);
+        $fh = $this->open($file);
+        $this->assertIsResource($fh);
+        WebDeliverySpyRequest::sendPhoto(['chat_id' => $chat, 'photo' => $fh, 'caption' => 'x']);
+        $capture = WebDelivery::endCapture();
+
+        $this->assertIsString($capture['sent'][0]['photo_url']);
+        $this->assertStringEndsWith('/uploads/telegram/' . basename($file), $capture['sent'][0]['photo_url']);
+        $this->assertFileDoesNotExist(FCPATH . 'uploads/web/' . sha1($bytes) . '.png', 'не копируется');
+    }
+
+    public function testIdenticalContentMakesOneCopy(): void
+    {
+        [$charId, $chat] = $this->webOnly();
+        [$a, $bytes]     = $this->transientPhoto();
+        [$b]             = $this->transientPhoto($bytes);
+
+        WebDelivery::beginCapture($chat, $charId);
+        foreach ([$a, $b] as $f) {
+            $fh = $this->open($f);
+            $this->assertIsResource($fh);
+            WebDeliverySpyRequest::sendPhoto(['chat_id' => $chat, 'photo' => $fh, 'caption' => 'x']);
+        }
+        $capture = WebDelivery::endCapture();
+
+        $this->assertSame($capture['sent'][0]['photo_url'], $capture['sent'][1]['photo_url']);
+        $this->assertKeptCopy($capture['sent'][0]['photo_url'], $bytes);
+        $this->assertCount(1, glob(FCPATH . 'uploads/web/' . sha1($bytes) . '*') ?: [], 'один файл на одно содержимое');
+    }
+
+    public function testNewCopyPrunesCopiesOlderThanKeepHours(): void
+    {
+        [$charId, $chat] = $this->webOnly();
+        $dir             = $this->ensureDir(FCPATH . 'uploads/web/');
+        $hours           = (new WebPlay())->photoKeepHours;
+        $old             = $dir . 'p14-old-' . bin2hex(random_bytes(6)) . '.png';
+        $fresh           = $dir . 'p14-fresh-' . bin2hex(random_bytes(6)) . '.png';
+        file_put_contents($old, 'old');
+        file_put_contents($fresh, 'fresh');
+        $this->made[] = $old;
+        $this->made[] = $fresh;
+        touch($old, time() - ($hours + 1) * 3600);
+        touch($fresh, time() - ($hours - 1) * 3600);
+        [$tmp] = $this->transientPhoto();
+
+        WebDelivery::beginCapture($chat, $charId);
+        $fh = $this->open($tmp);
+        $this->assertIsResource($fh);
+        WebDeliverySpyRequest::sendPhoto(['chat_id' => $chat, 'photo' => $fh, 'caption' => 'x']);
+        WebDelivery::endCapture();
+
+        clearstatcache();
+        $this->assertFileDoesNotExist($old, 'старше photoKeepHours — удалена');
+        $this->assertFileExists($fresh, 'моложе — осталась');
+    }
+
+    public function testTransientPhotoToRealChatOutsideCaptureReachesTelegramUnchanged(): void
+    {
+        $this->botOnly(700101100);
+        [$tmp] = $this->transientPhoto();
+        $fh    = $this->open($tmp);
+        $this->assertIsResource($fh);
+        $data = ['chat_id' => 700101100, 'photo' => $fh, 'caption' => 'Карта'];
+
+        $r = WebDeliverySpyRequest::sendPhoto($data);
+        $this->assertSame(WebDeliverySpyRequest::$last, $r);
+        $this->assertSame([['sendPhoto', $data]], WebDeliverySpyRequest::$calls, 'Ask 5: данные дошли до parent::send() без изменений');
+    }
+
     public function testReplyKeyboardForceReplyAndCallbackAlert(): void
     {
         [$charId, $chat] = $this->webOnly();
@@ -585,6 +748,53 @@ final class WebDeliveryTest extends CIUnitTestCase
     }
 
     // ── helpers ─────────────────────────────────────────────────────────
+
+    /**
+     * Временное фото, как у MapService: файл под public/uploads/tmp/. Будущая копия — тоже в
+     * списке на удаление.
+     *
+     * @return array{0:string, 1:string} [путь, содержимое]
+     */
+    private function transientPhoto(?string $bytes = null): array
+    {
+        $dir   = $this->ensureDir(FCPATH . 'uploads/tmp/');
+        $bytes ??= 'p14-map-' . bin2hex(random_bytes(12));
+        $file  = $dir . 'p14-' . bin2hex(random_bytes(6)) . '.png';
+        file_put_contents($file, $bytes);
+        $this->made[] = $file;
+        $this->ensureDir(FCPATH . 'uploads/web/');
+        $this->made[] = FCPATH . 'uploads/web/' . sha1($bytes) . '.png';
+
+        return [$file, $bytes];
+    }
+
+    /** @return resource */
+    private function open(string $path)
+    {
+        $fh = fopen($path, 'rb');
+        $this->assertIsResource($fh);
+        $this->handles[] = $fh;
+
+        return $fh;
+    }
+
+    private function ensureDir(string $dir): string
+    {
+        if (! is_dir($dir)) {
+            mkdir($dir, 0775, true);
+            $this->madeDirs[] = $dir;
+        }
+
+        return $dir;
+    }
+
+    private function assertKeptCopy(mixed $url, string $bytes): void
+    {
+        $this->assertIsString($url);
+        $this->assertSame('/uploads/web/' . sha1($bytes) . '.png', $url);
+        $this->assertFileExists(FCPATH . ltrim($url, '/'));
+        $this->assertSame($bytes, file_get_contents(FCPATH . ltrim($url, '/')));
+    }
 
     /** @return array{0:int, 1:int} [character_id, virtual chat id] */
     private function webOnly(): array

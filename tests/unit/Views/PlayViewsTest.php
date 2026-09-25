@@ -156,6 +156,20 @@ final class PlayViewsTest extends CIUnitTestCase
     /** p1-13 (#10): img только для http(s):// и пути сайта; `//host` — одна подпись. */
     public function testPhotoSrcAcceptsOnlyHttpOrSiteRelativePath(): void
     {
+        // p1-14: путь сайта рисуется только при существующем файле — фикстура создаётся тестом.
+        $fixture = FCPATH . 'uploads/x.png';
+        $this->assertFileDoesNotExist($fixture);
+        file_put_contents($fixture, 'png');
+
+        try {
+            $this->assertPhotoCases();
+        } finally {
+            @unlink($fixture);
+        }
+    }
+
+    private function assertPhotoCases(): void
+    {
         $cases = [
             '//evil.example/x.png'          => false,
             '/\\evil.example/x.png'         => false,
@@ -173,6 +187,38 @@ final class PlayViewsTest extends CIUnitTestCase
                 $this->assertSame($url, $xp->evaluate('string(//figure[@class="play-msg-figure"]/img/@src)'), $url);
             }
             $this->assertSame('Подпись целиком: вода 12/40', $xp->evaluate('string(//figure/figcaption)'), $url);
+        }
+    }
+
+    /** p1-14 (A18, A12): путь сайта без файла (копия удалена) — без img, подпись целиком. */
+    public function testSiteRelativePhotoRendersImgOnlyWhenFileExists(): void
+    {
+        $dir     = FCPATH . 'uploads/web/';
+        $madeDir = ! is_dir($dir);
+        if ($madeDir) {
+            mkdir($dir, 0775, true);
+        }
+        $name    = 'p14-view-' . bin2hex(random_bytes(6)) . '.png';
+        $caption = "*🗺 Карта* участка
+" . str_repeat('Клетка 12, лес, вода рядом. ', 30) . 'КОНЕЦ-КАРТЫ';
+
+        try {
+            $state           = self::state();
+            $state['screen'] = [self::msg(5, ['text' => null, 'caption' => $caption, 'parse_mode' => 'Markdown', 'photo_url' => '/uploads/web/' . $name])];
+
+            $xp = self::xpath($this->renderState($state));
+            $this->assertSame(0.0, $xp->evaluate('count(//img)'), 'нет файла — нет битой картинки');
+            $this->assertStringContainsString('КОНЕЦ-КАРТЫ', $xp->evaluate('string(//figure/figcaption)'));
+            $this->assertSame(30, substr_count($xp->evaluate('string(//figure/figcaption)'), 'Клетка 12, лес, вода рядом.'));
+
+            file_put_contents($dir . $name, 'png');
+            $xp = self::xpath($this->renderState($state));
+            $this->assertSame('/uploads/web/' . $name, $xp->evaluate('string(//figure[@class="play-msg-figure"]/img/@src)'));
+        } finally {
+            @unlink($dir . $name);
+            if ($madeDir) {
+                @rmdir($dir);
+            }
         }
     }
 

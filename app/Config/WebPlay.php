@@ -41,4 +41,18 @@ class WebPlay extends BaseConfig
 
     /** Окно дедупа `web_play_intents`, часы: старше — удаляется при записи намерения (plan A17). */
     public int $intentRetentionHours = 24;
+
+    /**
+     * Каталоги под `public/`, чьи файлы отправитель удаляет сразу после отправки (карта —
+     * `MapService`). Фото оттуда копируется в {@see $photoDir} в момент записи (plan A18).
+     *
+     * @var list<string>
+     */
+    public array $transientPhotoPrefixes = ['uploads/tmp/'];
+
+    /** Каталог копий фото для `/play` под `public/` (имя — sha1 содержимого). */
+    public string $photoDir = 'uploads/web/';
+
+    /** Сколько часов живёт копия фото: старше — удаляется при следующей копии (plan A18). */
+    public int $photoKeepHours = 168;
 }

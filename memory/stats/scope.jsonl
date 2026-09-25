@@ -243,3 +243,7 @@
 {"ts":"2026-09-24T20:47:29Z","story":"web-bridge-p1-11-background-edit-of-web-message","declared":6,"changed":21,"out_of_scope":15}
 {"ts":"2026-09-24T20:52:58Z","story":"web-bridge-p1-12-act-guard-message-scoped","declared":3,"changed":13,"out_of_scope":10}
 {"ts":"2026-09-24T20:58:52Z","story":"web-bridge-p1-13-play-client-error-path","declared":6,"changed":9,"out_of_scope":3}
+{"ts":"2026-09-24T21:09:00Z","story":"web-bridge-p1-11-background-edit-of-web-message","declared":6,"changed":2,"out_of_scope":2}
+{"ts":"2026-09-24T21:09:00Z","story":"web-bridge-p1-12-act-guard-message-scoped","declared":3,"changed":3,"out_of_scope":3}
+{"ts":"2026-09-24T21:09:01Z","story":"web-bridge-p1-13-play-client-error-path","declared":6,"changed":3,"out_of_scope":3}
+{"ts":"2026-09-25T07:39:06Z","story":"web-bridge-p1-14-transient-photo-kept-for-web","declared":7,"changed":14,"out_of_scope":8}

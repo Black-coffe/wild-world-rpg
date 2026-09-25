@@ -36,6 +36,8 @@ use Throwable;
  *
  * Фото: адрес снимается с потока ДО того, как Longman его закроет. http(s)-URL — как есть, файл
  * под `public/` — URL сайта, прочее — `photo_url = null`, подпись остаётся целиком (plan A12).
+ * Файл из временного каталога (`WebPlay::transientPhotoPrefixes`, карта) копируется в момент
+ * записи, до `unlink` отправителя, и хранится как путь сайта `/uploads/web/…` (plan A18).
  *
  * Ошибки записи во входящие логируются и никогда не ломают отправку в Telegram.
  *
@@ -600,9 +602,74 @@ final class WebDelivery
             return null;
         }
 
+        $rel = str_replace('\\', '/', substr($real, strlen($prefix)));
+        $cfg = new WebPlay();
+        foreach ($cfg->transientPhotoPrefixes as $transient) {
+            if (str_starts_with($rel, $transient)) {
+                return self::keepTransient($real, $prefix, $cfg);
+            }
+        }
+
         helper('url');
 
-        return base_url(str_replace('\\', '/', substr($real, strlen($prefix))));
+        return base_url($rel);
+    }
+
+    /**
+     * Plan A18: фото из временного каталога (отправитель удалит его сразу после отправки) —
+     * копия в `public/<photoDir><sha1>.<ext>` в момент записи. Одинаковое содержимое — один файл
+     * (mtime обновляется). Запись атомарна (временное имя + rename). Каждая новая копия удаляет
+     * копии старше `photoKeepHours`. Ошибка — null (экран покажет одну подпись, A12).
+     */
+    private static function keepTransient(string $real, string $publicPrefix, WebPlay $cfg): ?string
+    {
+        try {
+            $hash = sha1_file($real);
+            if ($hash === false) {
+                return null;
+            }
+            $ext  = strtolower(pathinfo($real, PATHINFO_EXTENSION));
+            $name = $hash . (preg_match('/^[a-z0-9]{1,5}$/', $ext) === 1 ? '.' . $ext : '');
+            $dir  = $publicPrefix . str_replace('/', DIRECTORY_SEPARATOR, rtrim($cfg->photoDir, '/')) . DIRECTORY_SEPARATOR;
+            $url  = '/' . rtrim($cfg->photoDir, '/') . '/' . $name;
+
+            if (! is_dir($dir) && ! mkdir($dir, 0775, true) && ! is_dir($dir)) {
+                return null;
+            }
+            $target = $dir . $name;
+            if (is_file($target)) {
+                touch($target);
+
+                return $url;
+            }
+
+            self::pruneKept($dir, $cfg->photoKeepHours);
+            $tmp = $dir . $hash . '.' . bin2hex(random_bytes(4)) . '.tmp';
+            if (! copy($real, $tmp)) {
+                return null;
+            }
+            if (! rename($tmp, $target)) {
+                @unlink($tmp);
+
+                return is_file($target) ? $url : null;
+            }
+
+            return $url;
+        } catch (Throwable $e) {
+            log_message('error', '[WebDelivery] keep transient photo failed: ' . $e->getMessage());
+
+            return null;
+        }
+    }
+
+    private static function pruneKept(string $dir, int $keepHours): void
+    {
+        $cutoff = time() - $keepHours * 3600;
+        foreach (glob($dir . '*') ?: [] as $file) {
+            if (is_file($file) && basename($file) !== 'index.html' && filemtime($file) < $cutoff) {
+                @unlink($file);
+            }
+        }
     }
 
     private static function strOrNull(mixed $v): ?string

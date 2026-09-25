@@ -74,6 +74,11 @@ $body = static function (array $msg): string {
     $caption = is_string($msg['caption'] ?? null) ? $msg['caption'] : null;
     // Только http(s):// или путь сайта; `//host` и `/\host` браузер читает как чужой хост (p1-13).
     $photo   = is_string($msg['photo_url'] ?? null) && preg_match('~^(https?://|/(?![/\\\\]))~i', $msg['photo_url']) === 1 ? $msg['photo_url'] : null;
+    // Путь сайта — только если файл есть под FCPATH (копия удалена по возрасту/деплоем → одна подпись, p1-14).
+    if ($photo !== null && $photo[0] === '/') {
+        $path  = (string) parse_url($photo, PHP_URL_PATH);
+        $photo = $path !== '' && ! str_contains($path, '..') && is_file(FCPATH . ltrim(rawurldecode($path), '/')) ? $photo : null;
+    }
     $out = '';
     if ($photo !== null || $caption !== null) {
         $out .= '<figure class="play-msg-figure">';
