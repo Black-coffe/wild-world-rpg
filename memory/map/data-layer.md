@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-24
+last-verified: 2026-09-25
 
 # Scout report: Слой данных (модели, миграции, сущности)
 
@@ -27,6 +27,12 @@ last-verified: 2026-09-24
   `characters.telegram_user_id`. NULL-able: `character_tasks.telegram_user_id`,
   `explored_cells.telegram_user_id`, `action_log.chat_id` (web-only персонаж). Подробно —
   `tech-writing/db/accounts.md`.
+- **Игра на сайте (ADR-189, миграции `2026-12-11-10000{1..5}`)**: `web_play_state`, `web_inbox`
+  (PLAYER_DATA по `character_id`), `web_play_intents` (TRANSIENT) — `WipeManifest.php:208,209,223`.
+  `action_log.chat_id` и `player_action_log.telegram_user_id` стали SIGNED (виртуальный id
+  `−(2^52+account_id)`); виртуальные строки `telegram_users` — под IDENTITY_RESET. P0 web-only
+  персонажи с аккаунтом бэкфилльнуты (`…100004`), их NULL-ключи `character_tasks`/`explored_cells`
+  заполнены. Подробно — `tech-writing/db/web_play.md`.
 
 ## Key types / contracts
 Шесть стратегий вайпа: `KEEP`, `PLAYER_DATA`, `TRANSIENT`, `CHARACTER_RESET`, `IDENTITY_RESET`,

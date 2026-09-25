@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-24
+last-verified: 2026-09-25
 
 # Scout report: Публичный сайт wildworld.fun
 
@@ -25,6 +25,11 @@ last-verified: 2026-09-24
   `app/Filters/AccountThrottleFilter.php` на каждом POST, кроме logout. Константы — `Config\Accounts`.
   Флаг `web.open_registration` (GameSettings, default false) гейтит `/account/register|character`
   и регистрацию через OAuth.
+- **Игра на сайте (ADR-189)** — `/play`, `/play/act`, `/play/inbox`, `/play/inbox/read`
+  (`Routes.php:260-266`) → `app/Controllers/Play.php`. Сервисы `Services/Web/`: `WebActService`
+  (одно действие), `WebDelivery` (seam отправки), `WebScreenStore` (экран), `WebInboxService`
+  (колокольчик), `VirtualIdentityService`, `SyntheticUpdateFactory`, `BridgeClient`. Инфра-числа —
+  `Config\WebPlay` (не баланс). Флаг `web.play_enabled` (GameSettings, default off).
 - Statable: `app/Views/site/_layout/statable.php`, из `meta.php`; env `STATABLE_SITE_HASH`, пусто — не рендерится.
 
 ## Key types / contracts
@@ -51,8 +56,15 @@ outbound: модели постов, `Services/Web/TelegramLoginVerifier`, `Serv
   `AccountRegister::createCharacter` создаёт под `GET_LOCK('ww-acct-char-<id>')`.
 - `/account/reset` отдаёт одну страницу при любом исходе (нет почты / ушло / SMTP упал) — иначе
   оракул адресов; реальный отказ — только `error`-лог `[PasswordReset]`.
+- `/play`: флаг проверяется **до** входа — при выключенном заглушку `site/play_stub` видит и гость.
+  Персонаж только из сессии; из запроса — лишь `intent_id/kind/data/message_id`, id в HTML/JSON не
+  выводятся. Callback принимается, только если `data` на кнопке сообщения с тем `message_id`.
+- CSRF `regenerate` включён: JSON-ответы `/play/*` несут `csrf`, JS обязан брать свежий токен.
+- Return target после входа — только ровно `/play` (`AccountSession::RETURN_PLAY`).
+- Тексты под F1: `/web` (`WebLinkCodeAction`) и совет (миграция `…100011`) говорят «выйди из другого
+  входа и введи код»; заглушка берёт `can_register` из `AccountRegister::registrationOpen()`.
 - Сессия: ключи `account_id`, `character_id`, legacy `tg_user_id`; legacy-сессия апгрейдится в `current()`.
 
 ## Vault
-`mmorpg-vault/apps/website/index.md` · ADR-062, ADR-052, ADR-188 ·
-`tech-writing/controllers/AccountControllers.md`, `tech-writing/services/Account*.md`
+`mmorpg-vault/apps/website/index.md` · ADR-062, ADR-052, ADR-188, ADR-189 ·
+`tech-writing/controllers/{AccountControllers,Play}.md`, `tech-writing/services/{Account*,Web*}.md`

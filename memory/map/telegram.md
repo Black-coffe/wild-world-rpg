@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-24
+last-verified: 2026-09-25
 
 # Scout report: Telegram-поверхность
 
@@ -10,7 +10,12 @@ last-verified: 2026-09-24
 пользовательский UI бота; игровая логика — в `app/Services/*`, а не тут.
 
 ## Entry points
-- `app/Controllers/Telegram/BotController.php` — приём webhook-апдейтов.
+- `app/Controllers/Telegram/BotController.php` — приём webhook-апдейтов; после секрета/JSON/дедупа/
+  community-gate отдаёт апдейт в `App\Services\Telegram\UpdatePipeline::run($u, 'telegram')`
+  (ADR-189). Тот же конвейер гоняет `/play` с `'web'` через `Services/Web/SyntheticUpdateFactory`.
+- Точка отправки `App\Services\Telegram\Request` зовёт `Services/Web/WebDelivery::route()` до
+  транспорта (Request.php:40,51) — слой (а) моста; слой (б) — `VirtualChatGuardMiddleware` в клиенте
+  `TelegramDeliveryProbe::install()` (ставится всегда).
 - `app/Controllers/Telegram/Commands/*Command.php` — слэш-команды (`StartCommand`, `MeCommand`,
   `MapCommand`, `CraftCommand`, `GuideCommand`, `TipsCommand`, `SettingsCommand`, `MenuCommand`,
   `MoreCommand`, `TasksCommand`, `GoCommand`, `NameCommand`, `StartrobotexplorerCommand`, `WebCommand`).
@@ -53,13 +58,19 @@ outbound: `Services/Player`, `Services/World`, `Services/Craft*`, `Services/Base
   сканирует `app/Services/**` и роняет набор на новом сервисе без него. Подробности —
   `mmorpg-vault/tech-writing/services/TelegramBridge.md`.
 
-- **(2026-09-24) Текст кода `/web` обещает привязку, которой нет.** `WebLinkCodeAction::codeMessage()`
-  (и совет `SeedWebLinkTip`, и раздел `web` в `GuideCatalog`) говорят «вошёл почтой/Google/Яндексом —
-  код привяжет этот вход», а `LinkCodeService::link()` при входе в другой аккаунт отказывает
-  (`MSG_OTHER`, слияний нет, ADR-188).
+- **(2026-09-25, ADR-189) Виртуальный Telegram-id.** Web-only персонаж имеет строку `telegram_users`
+  с `telegram_id = −(2^52 + account_id)`. Проверять только `App\Services\Web\VirtualChat::is()`,
+  никогда по знаку (группы тоже отрицательны). Guard получателя — «`> 0` ИЛИ `VirtualChat::is()`»;
+  так уже E6/E8-хуки (`ReturnDigestService`, `LoginStreakService`, `DailyTaskService`) и `LastSeenService`.
+  Новый `<= 0`-guard на пути уведомления молча теряет сообщение web-only игроку.
+- `/play`-действие: `BridgeClient` ставит только `WebActService` (и снимает в `finally`); Worker/cron/
+  CLI — никогда. Guard-срабатывание (`[VirtualChatGuard]` error) = обход слоя (а), дефект.
+- Текст `/web` (`WebLinkCodeAction`) с 2026-09-25 говорит «выйди из другого входа и введи код» —
+  прежнее обещание привязать чужой вход снято.
 - Бот не вешает второго персонажа на аккаунт: если аккаунт с этой telegram-identity уже владеет
   веб-персонажем, бот-персонаж получает свежий аккаунт без identity (`attachBotCharacter`).
 
 ## Vault
 `mmorpg-vault/apps/telegram/index.md` · `tech-writing/services/CharacterProvisioningService.md`,
-`tech-writing/services/LinkCodeService.md` · ноты handler'ов — `mmorpg-vault/tech-writing/handlers/`
+`tech-writing/services/LinkCodeService.md` · ADR-189: `tech-writing/services/{UpdatePipeline,WebDelivery,
+BridgeClient,VirtualChat}.md` · ноты handler'ов — `mmorpg-vault/tech-writing/handlers/`

@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-24
+last-verified: 2026-09-25
 
 # Scout report: Фоновая обработка (cron → Worker → TaskHandlers)
 
@@ -57,13 +57,19 @@ outbound: почти все доменные сервисы + `Services/Notifica
   разошлась: физически либо файл миграции отсутствует, либо колонку добавили в обход
   `php spark migrate:create`. Рукописный DDL тестовой схемы для этой таблицы — не недосмотр, а
   вынужденное решение, пока миграция не найдена/не восстановлена.
-- **(2026-09-24, ADR-188) Web-only персонаж: `characters.telegram_user_id = NULL`, строки
-  `telegram_users` нет**; `character_tasks.telegram_user_id` и `action_log.chat_id` тоже NULL.
-  Чат искать только через `App\Services\Telegram\TelegramChatResolver::chatIdForCharacter()` (null →
-  пропуск), не `TelegramUserModel::find($tgUserId)`: `find(null)` в CI4 возвращает ВСЕ строки.
-  Правило: награда начисляется ДО поиска чата, уведомление пропускается на null (пример —
-  `TaxCollectionHandler::sendTelegramNotification*`).
+- **(2026-09-25, ADR-189 — заменяет запись ADR-188 от 24.09) Web-only персонаж с аккаунтом имеет
+  виртуальную строку `telegram_users`** (`BackfillVirtualTelegramUsers` + `CharacterProvisioningService`);
+  NULL `telegram_user_id` остаётся лишь у персонажа без аккаунта. Чат — через
+  `TelegramChatResolver::chatIdForCharacter()` (теперь отдаёт и отрицательный виртуальный id; null →
+  пропуск), не `TelegramUserModel::find($id)`: `find(null)` отдаёт ВСЕ строки. Награда — ДО поиска чата.
+- Фоновая `send*` в виртуальный чат не уходит в Telegram: `WebDelivery::route()` кладёт её в
+  `web_inbox` (флаг `web.play_enabled` on) или отбрасывает (off); `edit*`/`delete*` в виртуальный
+  чат отбрасываются. Не надо ставить `<= 0`-guard перед отправкой — только «`> 0` ИЛИ `VirtualChat::is()`».
+- Фоновая `edit*`/`delete*` с `message_id >= Config\WebPlay::firstMessageId` (синтетический, сообщение
+  есть только на сайте) в Telegram не уходит и привязанному: правка патчит копию на экране `/play` и
+  (флаг on) обновляет одну строку входящих. Пример — Поход, начатый на `/play`.
+- Worker/cron/spark не ставят `BridgeClient`; всё в них — «фон» для моста.
 
 ## Vault
 `mmorpg-vault/apps/tasks/index.md` · `mmorpg-vault/tech-writing/tasks/` ·
-`tech-writing/services/TelegramChatResolver.md`
+`tech-writing/services/TelegramChatResolver.md` · `tech-writing/services/WebDelivery.md` (ADR-189)
