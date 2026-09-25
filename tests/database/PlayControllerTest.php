@@ -225,6 +225,66 @@ final class PlayControllerTest extends CIUnitTestCase
         $this->assertSame('', $res->response()->getHeaderLine('Location'));
     }
 
+    // ── p1-15: lock «нет персонажа» ведёт путём, который работает ────────
+
+    public function testCabinetNoCharacterLockOffersCreationWhenRegistrationOpen(): void
+    {
+        $this->setRegistration(true);
+        $html = $this->cabinetWithoutCharacter();
+
+        $this->assertStringContainsString('data-play-state="no-character"', $html);
+        $this->assertMatchesRegularExpression('~href="[^"]*/account/character"~', $html);
+        $this->assertBotPathIsLogoutThenCode($html);
+    }
+
+    public function testCabinetNoCharacterLockWithRegistrationClosedStillExplains(): void
+    {
+        $this->setRegistration(false);
+        $html = $this->cabinetWithoutCharacter();
+
+        $this->assertDoesNotMatchRegularExpression('~href="[^"]*/account/character"~', $html);
+        $this->assertMatchesRegularExpression('~data-play-state="no-character">🔒 Игра на сайте \(нужен персонаж\) — \S~u', $html);
+        $this->assertBotPathIsLogoutThenCode($html);
+    }
+
+    public function testCabinetFlagOffLockAndFlagOnPlayLinkUnchanged(): void
+    {
+        $this->setFlag(false);
+        $this->setRegistration(true);
+        $lock = '🔒 Игра на сайте (скоро) — её ещё готовят к запуску. Пока играй в Telegram-боте.';
+        $this->assertStringContainsString($lock, $this->cabinetWithoutCharacter());
+        [$login] = $this->virtualCharacter();
+        $this->assertStringContainsString($lock, $this->body($this->withSession($login)->get('account')));
+
+        $this->setFlag(true);
+        $html = html_entity_decode($this->body($this->withSession($login)->get('account')), ENT_QUOTES | ENT_HTML5);
+        $this->assertMatchesRegularExpression('~<div data-play-state="open"><a class="btn primary" href="[^"]*/play">Играть на сайте</a></div>~u', $html);
+    }
+
+    private function cabinetWithoutCharacter(): string
+    {
+        $accountId = (new AccountService($this->conn))->createAccount('web');
+        $res       = $this->withSession(['account_id' => $accountId])->get('account');
+        $res->assertStatus(200);
+
+        return html_entity_decode($this->body($res), ENT_QUOTES | ENT_HTML5);
+    }
+
+    private function assertBotPathIsLogoutThenCode(string $html): void
+    {
+        $this->assertStringContainsString('выйди из другого входа и введи код', $html);
+        $this->assertMatchesRegularExpression('~action="[^"]*/account/logout"~', $html);
+        $this->assertMatchesRegularExpression('~href="[^"]*/account/link"~', $html);
+        foreach (['привяжи персонажа из бота', 'Привязать персонажа из бота', 'Возьми там код', 'Или возьми код'] as $lie) {
+            $this->assertStringNotContainsString($lie, $html);
+        }
+    }
+
+    private function setRegistration(bool $on): void
+    {
+        service('cache')->save('game_settings_web_open_registration', ['v' => $on, 't' => 'bool'], 60);
+    }
+
     public function testReturnTargetAcceptsOnlyExactPlayPath(): void
     {
         $session = new AccountSession(null, $this->conn);

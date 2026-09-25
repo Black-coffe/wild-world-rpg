@@ -12,6 +12,7 @@
  * @var string                            $botUsername
  * @var string                            $linkNonce    одноразовый nonce привязки Telegram (story 09)
  * @var bool                              $playEnabled  флаг `web.play_enabled` (web-bridge-p1-03)
+ * @var bool                              $canRegister  регистрация на сайте открыта (как `can_register` у /play; web-bridge-p1-15)
  * @var array{0:string,1:string}|null     $notice       [ok|error, текст]
  * @var string|null                       $emailError
  * @var string                            $emailValue
@@ -23,6 +24,7 @@ $linked        = is_array($linked ?? null) ? $linked : [];
 $botUsername   = is_string($botUsername ?? null) ? $botUsername : '';
 $linkNonce     = is_string($linkNonce ?? null) ? $linkNonce : '';
 $playEnabled   = ($playEnabled ?? false) === true;
+$canRegister   = ($canRegister ?? false) === true;
 $notice        = is_array($notice ?? null) ? $notice : null;
 $emailError    = is_string($emailError ?? null) ? $emailError : null;
 $emailValue    = is_string($emailValue ?? null) ? $emailValue : '';
@@ -57,15 +59,29 @@ $canUnlink   = count($identities) > 1;
                 <?php if ($hasCharacter): ?>
                     <h2 class="mb-0"><?= esc($characterName ?? 'Без имени') ?></h2>
                 <?php else: ?>
-                    <div class="notice info"><span class="notice-title">Инфо</span>К аккаунту ещё не привязан персонаж. Играешь в Telegram-боте? Возьми там код командой /web и введи его на странице привязки.</div>
-                    <div><a class="btn primary" href="<?= esc(base_url('account/link'), 'attr') ?>">Привязать персонажа из бота</a></div>
+                    <?php /* web-bridge-p1-15: код /web не принимается, пока открыт другой вход (LinkCodeService, F1) — путь бот-игрока идёт через выход. */ ?>
+                    <div class="notice info"><span class="notice-title">Инфо</span>У этого аккаунта нет персонажа.<?= $canRegister ? ' Можно создать нового здесь.' : '' ?> Играешь в Telegram-боте? Этот вход — другой: выйди из другого входа и введи код из команды /web на странице ввода кода — войдёшь в персонажа из бота.</div>
+                    <form class="auth-form" action="<?= esc(base_url('account/logout'), 'attr') ?>" method="post">
+                        <?= csrf_field() ?>
+                        <div class="auth-actions">
+                            <?php if ($canRegister): ?>
+                                <a class="btn primary" href="<?= esc(base_url('account/character'), 'attr') ?>">Создать персонажа</a>
+                            <?php endif ?>
+                            <button class="btn ghost" type="submit">Выйти, чтобы ввести код</button>
+                            <a class="btn ghost" href="<?= esc(base_url('account/link'), 'attr') ?>">Страница ввода кода</a>
+                        </div>
+                    </form>
                 <?php endif ?>
 
                 <div class="label">Играть на сайте</div>
                 <?php if (! $playEnabled): ?>
                     <p class="provider-note" data-play-state="locked">🔒 Игра на сайте (скоро) — её ещё готовят к запуску. Пока играй в Telegram-боте.</p>
                 <?php elseif (! $hasCharacter): ?>
-                    <p class="provider-note" data-play-state="no-character">🔒 Игра на сайте (нужен персонаж) — сначала привяжи персонажа из бота кодом /web.</p>
+                    <?php if ($canRegister): ?>
+                        <p class="provider-note" data-play-state="no-character">🔒 Игра на сайте (нужен персонаж) — у этого аккаунта нет персонажа. Создай его на странице <a href="<?= esc(base_url('account/character'), 'attr') ?>">«Новый персонаж»</a>. Персонаж уже есть в боте — выйди из другого входа и введи код /web.</p>
+                    <?php else: ?>
+                        <p class="provider-note" data-play-state="no-character">🔒 Игра на сайте (нужен персонаж) — у этого аккаунта нет персонажа, а создание персонажей на сайте сейчас закрыто. Играешь в Telegram-боте — выйди из другого входа и введи код /web.</p>
+                    <?php endif ?>
                 <?php else: ?>
                     <div data-play-state="open"><a class="btn primary" href="<?= esc(base_url('play'), 'attr') ?>">Играть на сайте</a></div>
                 <?php endif ?>
@@ -143,7 +159,7 @@ $canUnlink   = count($identities) > 1;
                     <p class="provider-note">Telegram уже привязан — он в списке способов входа.</p>
                 <?php elseif ($botUsername !== ''): ?>
                     <div class="provider-list" id="tg-login-slot"></div>
-                    <noscript><p class="provider-note">Привязка Telegram требует JavaScript. Или возьми код в боте командой /web.</p></noscript>
+                    <noscript><p class="provider-note">Привязка Telegram требует JavaScript.</p></noscript>
                 <?php else: ?>
                     <div class="provider-list">
                         <span class="provider-btn is-unavailable" aria-disabled="true"><span class="provider-mark" aria-hidden="true">TG</span><span class="provider-name">Telegram</span><span class="provider-state">недоступно</span></span>

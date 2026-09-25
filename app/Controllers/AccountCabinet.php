@@ -145,6 +145,8 @@ class AccountCabinet extends BaseController
             'identities'    => $identities,
             'linked'        => array_values(array_unique($providers)),
             'playEnabled'   => $this->gsBool(self::PLAY_FLAG, false),
+            // web-bridge-p1-15: то же условие, что `can_register` у заглушки /play.
+            'canRegister'   => AccountRegister::registrationOpen(),
             'botUsername'   => $bot,
             // Story 09 (F1): привязка виджетом засчитывается только с этим одноразовым nonce.
             'linkNonce'     => ! in_array('telegram', $providers, true) && $bot !== ''
