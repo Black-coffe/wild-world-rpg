@@ -570,7 +570,7 @@ final class WebDelivery
     }
 
     /**
-     * Адрес фото для экрана (plan A12): http(s) — как есть, файл под `public/` — URL сайта,
+     * Адрес фото для экрана (plan A12): http(s) — как есть (строка или `uri` потока), файл под `public/` — URL сайта,
      * иначе null (подпись остаётся). Поток читается по метаданным, не закрывается.
      */
     public static function photoUrl(mixed $photo): ?string
@@ -583,13 +583,15 @@ final class WebDelivery
             $uri  = $photo->getMetadata('uri');
             $path = is_string($uri) ? $uri : null;
         } elseif (is_string($photo)) {
-            if (preg_match('#^https?://#i', $photo) === 1) {
-                return $photo;
-            }
             $path = $photo;
         }
         if ($path === null || $path === '') {
             return null;
+        }
+        // Строка, ресурс или поток — одно правило: http(s)-адрес (напр. `Request::encodeFile(base_url(…))`,
+        // `fopen()` HTTP-потока) отдаётся как есть; остальное идёт по пути файла.
+        if (preg_match('#^https?://#i', $path) === 1) {
+            return $path;
         }
 
         $real   = realpath($path);

@@ -1,13 +1,14 @@
 ---
 story: web-bridge-p1-19
 spec: web-bridge-p1
-status: todo
+status: done
 tier: 1
 worker: worker-code
 tracer: false
 wave: 11
 blocked_by: [web-bridge-p1-18]
 model: opus
+returned: DONE
 ---
 
 # A photo sent as an HTTP stream shows on `/play`
@@ -49,5 +50,8 @@ rule as the string branch), so the picture shows. File-path streams keep today's
 `memory/map/telegram.md` (WebDelivery)
 
 ## Implementation notes
+- `app/Services/Web/WebDelivery.php` `photoUrl()`: the `^https?://` check moved after the string/resource/StreamInterface branches, so one rule covers all three; `file://`, `php://`, `data:`, `//…` still go to the path branch (realpath → null).
+- `tests/unit/Services/Web/WebDeliveryPhotoUrlTest.php` (new, 7 tests): no network. The resource case swaps the `http`/`https` wrappers for an empty user wrapper (`FakeHttpStreamWrapper`) and restores them in tearDown. The StreamInterface case uses a Guzzle `Stream` with custom `metadata.uri`. The public-file case writes a temp file into `FCPATH` and removes it afterwards.
+- Checked against the HEAD version of WebDelivery: the 3 http-stream tests fail and the 4 path/scheme tests pass. The single "PHPUnit Deprecations: 1" also shows up in other test files, so it comes from the config.
 
 ## Findings
