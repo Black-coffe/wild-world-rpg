@@ -525,6 +525,7 @@ After wave 7 (round 4), the walks add:
 **Council:** RED round 2, 2026-09-24, at 8dbc8746, pack bd05f7270b7a - red: 3,8
 **Council:** ESCALATE round 3, 2026-09-24, at cbcb710a, pack f9d606eb6f6c
 **Council:** RED round 4, 2026-09-24, at ce0c2be8, pack be09bd1085fa - red: 3,9
+**Council:** RED round 5, 2026-09-25, at 151fc51b, pack 8c08891b6ac9 - red: 4
 **Shipped:** <written by scripts/ship-check.sh --record>
 
 ## Needs a human
