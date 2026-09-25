@@ -19,3 +19,4 @@
 - 2026-09-25T07:50:37Z · 04-council:open · round 5 opened, court at C:/laragon/www/mmorpg/.vulyk/court/web-bridge-p1/round-5 · next: dispatch:haiku,sonnet,opus,review
 - 2026-09-25T08:01:51Z · 04-council:RED · round 5 verdict RED at 151fc51b pack 8c08891b6ac9 · next: repair
 - 2026-09-25T08:20:36Z · 04-council:open · round 6 opened, court at C:/laragon/www/mmorpg/.vulyk/court/web-bridge-p1/round-6 · next: dispatch:haiku,sonnet,opus,review
+- 2026-09-25T08:47:47Z · 04-council:ESCALATE · round 6 verdict ESCALATE at ea9aff80 pack 1e74857c28ea · next: escalated

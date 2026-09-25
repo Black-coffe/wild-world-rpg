@@ -560,6 +560,7 @@ After wave 8 (round 5), the walks add:
 **Council:** ESCALATE round 3, 2026-09-24, at cbcb710a, pack f9d606eb6f6c
 **Council:** RED round 4, 2026-09-24, at ce0c2be8, pack be09bd1085fa - red: 3,9
 **Council:** RED round 5, 2026-09-25, at 151fc51b, pack 8c08891b6ac9 - red: 4
+**Council:** ESCALATE round 6, 2026-09-25, at ea9aff80, pack 1e74857c28ea - red: 9
 **Shipped:** <written by scripts/ship-check.sh --record>
 
 ## Needs a human
@@ -567,3 +568,6 @@ After wave 8 (round 5), the walks add:
 - review: docs/specs/web-bridge-p1/council/round-3/review.attempt-1.md
 - review: docs/specs/web-bridge-p1/council/round-3/review.attempt-2.md
 - seats: docs/specs/web-bridge-p1/council/round-3/
+- reason: ceiling · round 6 · 2026-09-25
+- ask 9: RED - see docs/specs/web-bridge-p1/council/round-6/*.md for evidence
+- seats: docs/specs/web-bridge-p1/council/round-6/
