@@ -562,7 +562,6 @@ After wave 8 (round 5), the walks add:
 **Council:** RED round 4, 2026-09-24, at ce0c2be8, pack be09bd1085fa - red: 3,9
 **Council:** RED round 5, 2026-09-25, at 151fc51b, pack 8c08891b6ac9 - red: 4
 **Council:** ESCALATE round 6, 2026-09-25, at ea9aff80, pack 1e74857c28ea - red: 9
-**Shipped:** <written by scripts/ship-check.sh --record>
 
 ## Needs a human
 - reason: env · round 3 · 2026-09-24
@@ -573,3 +572,4 @@ After wave 8 (round 5), the walks add:
 - ask 9: RED - see docs/specs/web-bridge-p1/council/round-6/*.md for evidence
 - seats: docs/specs/web-bridge-p1/council/round-6/
 **Checked:** ACCEPTED by Claude Code, 2026-09-25, at bfb1b844 - Andrei, 2026-09-25: «да» after Queen Tier-2 on localhost:8080 (stub flag-off, /play no-character, /account/link authed, /play with character at 375/768/1440 — no h-scroll, 0 console errors; web-only register→character→/play→screen swap+history). Council R6: review PASS, sonnet GREEN, opus RED 9 fixed by story 17 (suite 4527/0). Photos → preprod Tier-3.
+**Shipped:** v0.51.673, 2026-09-25, at a76a4f37 - merged to develop, tag v0.51.673 on prod (CI green: preprod+prod+site); preprod Tier-3: web-only register→/play→move→gather 10m→inbox with photo, linked tg25 /web code→/play, bot callback ok; stories 18 (CI empty-DB tests) and 19 (HTTP-stream photo) after merge; prod: 7 migrations, flags off, /play stub, 0 new errors. Accepted over council ESCALATE(env) by owner via human-check.
