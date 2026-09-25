@@ -1,8 +1,8 @@
 ---
 story: web-bridge-p1-01
 spec: web-bridge-p1
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -120,5 +120,14 @@ Thinnest slice:
 If the schema check breaks any link in this chain, stop and report before building the rest.
 
 ## Implementation notes
+- **Column check (before coding), local `mmorpg` via information_schema + migrations:** `telegram_users.telegram_id` bigint SIGNED (ok); `player_action_log.chat_id` bigint SIGNED (ok); `player_action_log.id` bigint unsigned AI (not reached by a virtual id); **`action_log.chat_id` bigint UNSIGNED** (2024-03-18 migration) and **`player_action_log.telegram_user_id` bigint UNSIGNED** (Adr148 migration, stores raw `from.id`) - both reject a virtual id under STRICT_TRANS_TABLES (local @@sql_mode has it); `character_tasks`/`explored_cells.telegram_user_id` int unsigned NULL - hold the internal `telegram_users.id` (>0), fine. Synthetic `update_id` reaches no column (plan: never written to `telegram_updates_seen`). -> `100005` created; proven needed: dropping it from `VirtualIdentityServiceTest` turns the tracer red ("Out of range value for column 'chat_id'", firehose row missing).
+- `CharacterTaskModel` validation: `'telegram_user_id' => 'permit_empty|integer'` - accepts the virtual row id.
+- Bot API (https://core.telegram.org/bots/api, User.id / Chat.id, fetched 2026-09-24): "has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe". Verified -> `VIRTUAL_BASE = 2^52` fixed; range is [2^52, 2^53).
+- Files: 5 migrations `2026-12-11-10000{1..5}`, `Config/WebPlay.php` (plan values + `firstMessageId`), `Services/Web/{VirtualChat,VirtualIdentityService,DeliveryContext}.php`, `PlayerActionLogger` (`begin($update, ?$source)`, `web` in VALID_SOURCES; parsing moved to private `parseUpdate()`), `CharacterProvisioningService`, `AccountService` (+ public `isVirtualTelegramUser()`, guard in `ensureForCharacter`), `AccountSession` (writeKeys + legacy `tg_user_id` upgrade skip virtual rows), `WipeManifest` (web_play_state/web_inbox PLAYER_DATA, web_play_intents TRANSIENT).
+- Provisioning: the virtual row is created right after the character insert (not before), so an empty name gets the minted `Путник-{id}` as `first_name`; `chatId` becomes the virtual id, so starter-kit/greeter `action_log` flags carry it.
+- Surprise: `characters.telegram_user_id` is UNIQUE, so two characters can never share a virtual row. "Second call reuses the row" is tested as: create -> character deleted -> create again on the same account -> same `telegram_users` row.
+- Backfill `down()` cannot tell its rows from rows provisioning creates later (no marker; `acquisition_source` rejected because it feeds funnel stats). It removes the whole virtual range, never a real Telegram row, and NULLs task/fog/character keys first because those FKs CASCADE.
+- Backfill skips characters with NULL `telegram_user_id` AND NULL `account_id` (no id to derive).
+- Tests: the shared `wildworld_tests` was in use by the parallel wave-1 workers (deadlocks / "table already exists"), so every run used a private DB via `env database.tests.database=wildworld_tests_s01` (dropped afterwards). New DB tests force STRICT per session and restore the previous sql_mode in tearDown (the connection is shared; leaking STRICT broke 30 unrelated tests on the first full run).
 
 ## Findings

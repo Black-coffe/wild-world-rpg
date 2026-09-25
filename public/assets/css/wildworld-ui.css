@@ -924,6 +924,101 @@ section.block:first-of-type { border-top: 0; }
 .prose .ww-chart .ww-chart-note { margin-top: 16px; }
 
 /* ============================================================
+   PLAY — игра в браузере /play (web-bridge-p1, ADR-062 flat).
+   Экран = ответ бота; правка сообщения заменяет экран. Подпись к фото
+   всегда видна под картинкой (media-off). Работает без JS: кнопки — формы.
+   ============================================================ */
+.play-shell { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; width: 100%; min-width: 0; }
+@media (min-width: 980px) {
+  .play-shell { grid-template-columns: minmax(0, 1fr) 300px; align-items: start; }
+}
+.play-screen { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.play-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.play-bar-title { font-family: var(--font-display); font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+
+/* Сообщение: текст, фото с подписью */
+.play-msg { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 14px; background: var(--bg-elev-1); border: 1px solid var(--border); border-left: 3px solid var(--accent-lo); }
+.play-msg.is-current { border-left-color: var(--accent); }
+.play-msg-text { font-size: 15px; line-height: 1.55; color: var(--text); overflow-wrap: anywhere; }
+.play-msg-text b, .play-msg-caption b { color: var(--text); font-weight: 700; }
+.play-msg-text a, .play-msg-caption a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.play-msg-text a:hover, .play-msg-caption a:hover { color: var(--accent-hi); }
+.play-msg-text code, .play-msg-caption code { font-family: var(--font-mono); font-size: 13px; background: var(--bg-elev-2); border: 1px solid var(--border); padding: 1px 5px; color: var(--accent); }
+.play-msg-text pre, .play-msg-caption pre { margin: 6px 0; padding: 10px 12px; max-width: 100%; overflow-x: auto; background: var(--bg-base); border: 1px solid var(--border); font-family: var(--font-mono); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.play-msg-text pre code, .play-msg-caption pre code { background: none; border: 0; padding: 0; color: var(--text); }
+.play-msg-figure { margin: 0; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); background: var(--bg-base); }
+.play-msg-figure img { display: block; width: 100%; height: auto; max-height: 420px; object-fit: cover; }
+.play-msg-caption { padding: 12px 14px; font-size: 15px; line-height: 1.55; color: var(--text); border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.play-msg-time { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+
+/* Inline-клавиатура: ряд = ряд бота, 2–3 кнопки в ряд */
+.play-kb { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.play-kb-row { display: flex; gap: 6px; min-width: 0; }
+.play-kb-row form { display: contents; }
+.play-kb-btn { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 8px 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--bg-elev-2); color: var(--text); border: 1px solid var(--border-strong); font-family: var(--font-body); font-size: 14px; font-weight: 600; line-height: 1.25; text-align: center; text-decoration: none; overflow-wrap: anywhere; cursor: pointer; transition: border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease); }
+.play-kb-btn:hover { border-color: var(--accent); color: var(--accent); }
+.play-kb-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.play-kb-btn.is-url::after { content: "↗"; font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }
+.play-kb-btn.is-disabled, .play-kb-btn:disabled { background: transparent; color: var(--text-muted); border-style: dashed; cursor: not-allowed; }
+.play-kb-btn.is-disabled:hover, .play-kb-btn:disabled:hover { border-color: var(--border-strong); color: var(--text-muted); }
+
+/* Нижний док (reply-меню бота): липкий, переносится, safe-area */
+.play-dock { position: sticky; bottom: 0; z-index: 40; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); background: var(--bg-surface); border-top: 1px solid var(--border-strong); min-width: 0; }
+.play-dock form { display: contents; }
+.play-dock-btn { flex: 1 1 calc(33.333% - 6px); min-width: 0; min-height: 44px; padding: 6px 8px; display: inline-flex; align-items: center; justify-content: center; background: var(--bg-elev-1); color: var(--text); border: 1px solid var(--border); font-family: var(--font-display); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; text-align: center; text-decoration: none; overflow-wrap: anywhere; cursor: pointer; }
+.play-dock-btn:hover { border-color: var(--accent); color: var(--accent); }
+.play-dock-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.play-dock-btn.is-active { border-color: var(--accent); color: var(--accent); }
+
+/* Лента истории: компактно, старые экраны приглушены */
+.play-history { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); background: var(--bg-elev-1); }
+.play-history-head { padding: 10px 12px; border-bottom: 1px solid var(--border); font-family: var(--font-display); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-dim); }
+.play-history-list { list-style: none; margin: 0; padding: 0; }
+.play-history-item { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-bottom: 1px solid var(--border-faint); font-size: 13px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+.play-history-item:last-child { border-bottom: 0; }
+.play-history-item time { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+.play-history-item.is-older { opacity: .55; }
+.play-history-item.is-mine { color: var(--accent); }
+
+/* Строка ввода текста (force-reply) */
+.play-input { display: flex; gap: 6px; min-width: 0; }
+.play-input .input { flex: 1 1 auto; min-width: 0; }
+.play-input .btn { flex: 0 0 auto; }
+.play-input-hint { margin: 0 0 6px; font-size: 13px; color: var(--text-dim); overflow-wrap: anywhere; }
+
+/* Колокол с непрочитанным */
+.play-bell { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex: 0 0 44px; background: var(--bg-elev-1); color: var(--text-dim); border: 1px solid var(--border-strong); font-size: 18px; text-decoration: none; cursor: pointer; }
+.play-bell:hover { border-color: var(--accent); color: var(--accent); }
+.play-bell:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.play-bell-count { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; display: none; align-items: center; justify-content: center; background: var(--danger); color: var(--text); font-family: var(--font-mono); font-size: 11px; font-weight: 700; line-height: 1; }
+.play-bell.is-unread { color: var(--accent); border-color: var(--accent); }
+.play-bell.is-unread .play-bell-count { display: inline-flex; }
+
+/* Входящие */
+.play-inbox { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); background: var(--bg-elev-1); min-width: 0; }
+.play-inbox-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 12px 10px 14px; border-bottom: 1px solid var(--border-faint); border-left: 3px solid transparent; color: var(--text-dim); }
+.play-inbox-item:last-child { border-bottom: 0; }
+.play-inbox-title { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; min-width: 0; }
+.play-inbox-time { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.play-inbox-body { grid-column: 1 / -1; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.play-inbox-item.is-unread { border-left-color: var(--accent); background: var(--bg-elev-2); color: var(--text); }
+.play-inbox-item.is-unread .play-inbox-title { font-weight: 700; }
+.play-inbox-empty { padding: 14px; font-size: 13px; color: var(--text-muted); }
+
+/* Всплывашка ответа кнопки (answerCallbackQuery): тост и alert */
+.play-alert { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; background: var(--bg-elev-2); border: 1px solid var(--border-strong); border-left: 3px solid var(--info); color: var(--text); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.play-alert-title { font-family: var(--font-display); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--info); }
+.play-alert.is-alert { border-color: var(--warning); border-left-color: var(--warning); background: var(--bg-elev-3); }
+.play-alert.is-alert .play-alert-title { color: var(--warning); }
+.play-alert .btn { align-self: flex-end; }
+
+/* Замок / заглушка: фича недоступна и почему */
+.play-lock { display: flex; flex-direction: column; gap: 6px; padding: 14px; background: transparent; border: 1px dashed var(--border-strong); color: var(--text-dim); overflow-wrap: anywhere; }
+.play-lock-title { font-family: var(--font-display); font-size: 14px; letter-spacing: .1em; text-transform: uppercase; color: var(--text); }
+.play-lock-why { font-size: 14px; line-height: 1.5; }
+.play-lock-path { font-family: var(--font-mono); font-size: 12px; color: var(--accent); }
+
+/* ============================================================
    FOOTER
    ============================================================ */
 .footer { border-top: 1px solid var(--border); padding: 56px 0 32px; background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.4) 100%); }

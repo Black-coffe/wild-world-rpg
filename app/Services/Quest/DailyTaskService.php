@@ -47,7 +47,7 @@ class DailyTaskService
      */
     public function ensureForTelegramUser(int $telegramId, int $chatId): void
     {
-        if (! $this->enabled() || $telegramId <= 0) {
+        if (! $this->enabled() || ($telegramId <= 0 && ! \App\Services\Web\VirtualChat::is($telegramId))) {
             return;
         }
 

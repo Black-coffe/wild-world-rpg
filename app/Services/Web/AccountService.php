@@ -75,7 +75,8 @@ class AccountService
 
     /**
      * Аккаунт персонажа; для персонажа с Telegram без аккаунта — создаётся через
-     * {@see ensureForTelegram()}. null — у персонажа нет ни аккаунта, ни Telegram (или его нет).
+     * {@see ensureForTelegram()}. null — у персонажа нет ни аккаунта, ни Telegram (или его нет);
+     * виртуальная строка (ADR-189) Telegram'ом не считается.
      */
     public function ensureForCharacter(int $characterId): ?int
     {
@@ -88,8 +89,23 @@ class AccountService
             return $accountId;
         }
         $telegramUserId = self::toInt($row['telegram_user_id'] ?? null);
+        if ($telegramUserId === null || $this->isVirtualTelegramUser($telegramUserId)) {
+            return null;
+        }
 
-        return $telegramUserId === null ? null : $this->ensureForTelegram($telegramUserId);
+        return $this->ensureForTelegram($telegramUserId);
+    }
+
+    /**
+     * web-bridge-p1-01 (ADR-189 §3): строка `telegram_users` из виртуального диапазона — это
+     * адрес web-only персонажа, а не Telegram. Для сессии и аккаунтов она = «Telegram нет».
+     */
+    public function isVirtualTelegramUser(int $telegramUserId): bool
+    {
+        $row = $this->row('SELECT telegram_id FROM telegram_users WHERE id = ?', [$telegramUserId]);
+        $raw = $row['telegram_id'] ?? null;
+
+        return is_numeric($raw) && VirtualChat::is((int) $raw);
     }
 
     public function createAccount(string $acquisitionSource): int

@@ -1,8 +1,8 @@
 ---
 story: web-bridge-p1-06
 spec: web-bridge-p1
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -102,5 +102,14 @@ Without JS every form still works through PRG.
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- New: `app/Views/site/play.php`, `play_stub.php`, `_play/state.php`, `_play/inbox.php`, `public/assets/js/wildworld-play.js`, `tests/unit/Views/PlayViewsTest.php` (19 tests, DOM/XPath-based: `esc(..., 'attr')` entity-encodes `:`/`/`, so string matching on attributes does not work).
+- `site/play` optionally reads `$alert` (not in the view-data contract) and passes it to the state partial so story 07 can flash a PRG alert; absent = no alert.
+- The text input is always rendered (placeholder falls back to a `/menu` hint); `message_id` is added only when `input.reply_to` is an int. Photo `<img>` only for `photo_url` starting `http(s)://` or `/`; otherwise figure + full caption.
+- History: each `list<Msg>` is one `li.play-history-item` (index > 0 gets `is-older`), rendered in the given order (already newest first); buttons stay forms. Inbox is sorted by `created_at` desc in the view (stable).
+- Bell count: empty `<span class="play-bell-count">` at 0, `99+` above 99. `data-poll-seconds` is clamped to `Config\WebPlay::inboxPollMinSeconds` server-side; JS clamps again.
+- JS: CSRF name comes from `data-csrf-name` on `#play-root`; after each POST every field with that name gets `json.csrf` (Security `regenerate=true`). On a fetch/JSON failure the form falls back to a plain submit (fields re-enabled first). `innerHTML` only receives server-rendered html from `/play/act` and `/play/inbox`.
+- Gap for story 07: without JS the inbox panel stays hidden (the `play` contract carries no `items`); a `<noscript>` line says so.
+- No new CSS; classes used: `.play-*` from story 02 plus existing `block container section-head card stack btn primary ghost input auth-actions mt-2`. `.play-inbox-empty` is reused for the empty history line.
+- Full suite not run by me: stories 04/05 were modifying files in the same tree in parallel and share `wildworld_tests`. Ran the new test file, phpstan, and the migrations lint. Checked one mutation at a time: removing the «Меню» fallback turned the file red, and so did dropping `csrf_field()` from the action forms.
 
 ## Findings

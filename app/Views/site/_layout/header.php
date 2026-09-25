@@ -26,6 +26,10 @@ $authLabel  = is_string($authLabel ?? null) && $authLabel !== '' ? $authLabel : 
 $authHref   = base_url($authLabel !== null ? 'account' : 'account/login');
 $authText   = $authLabel ?? 'Войти';
 $authActive = str_starts_with($uri, 'account');
+// web-bridge-p1-03 (plan A10): «Играть» → /play на каждой странице, вошёл или нет. Своего
+// flag-off состояния у ссылки нет: при выключенном web.play_enabled /play рендерит заглушку.
+$playHref   = base_url('play');
+$playActive = $uri === 'play' || str_starts_with($uri, 'play/');
 ?>
 <a class="skip-link" href="#ww-main">К содержимому</a>
 
@@ -54,9 +58,11 @@ $authActive = str_starts_with($uri, 'account');
             </div>
             <?php endif ?>
 
+            <a href="<?= esc($playHref, 'attr') ?>" class="<?= $playActive ? 'is-active' : '' ?>" data-nav="play">Играть</a>
+
             <a href="<?= esc($authHref, 'attr') ?>" class="<?= $authActive ? 'is-active' : '' ?>" data-auth-state="<?= $authLabel !== null ? 'in' : 'out' ?>"><?= esc($authText) ?></a>
 
-            <a class="btn primary sm" href="<?= esc($tgLink, 'attr') ?>" target="_blank" rel="noopener" style="margin-left:8px">▶ Играть</a>
+            <a class="btn primary sm" href="<?= esc($tgLink, 'attr') ?>" target="_blank" rel="noopener" style="margin-left:8px">▶ Telegram</a>
         </nav>
 
         <button class="burger" id="ww-burger" aria-label="Меню" aria-expanded="false" aria-controls="ww-drawer">
@@ -84,6 +90,7 @@ $authActive = str_starts_with($uri, 'account');
                 <?php endif ?>
             <?php endforeach ?>
         <?php endif ?>
+        <a href="<?= esc($playHref, 'attr') ?>" class="<?= $playActive ? 'is-active' : '' ?>" data-nav="play">Играть</a>
         <a href="<?= esc($authHref, 'attr') ?>" class="<?= $authActive ? 'is-active' : '' ?>"><?= esc($authText) ?></a>
         <a class="btn primary full" style="margin-top:16px" href="<?= esc($tgLink, 'attr') ?>" target="_blank" rel="noopener">▶ Играть в Telegram</a>
     </div>

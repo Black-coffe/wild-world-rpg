@@ -1,8 +1,8 @@
 ---
 story: web-bridge-p1-04
 spec: web-bridge-p1
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -128,5 +128,11 @@ chat-less requests into caption-only captures and forwards everything else to th
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- Files: `app/Services/Telegram/Request.php` (seam: `WebDelivery::route()` after normalizer; `protected static transport()/transportSendMessage()` = the only path to `parent::send()`, a test spy overrides them), new `app/Services/Web/{WebDelivery,WebScreenStore,WebInboxService,BridgeClient}.php`, new `app/Services/Telegram/VirtualChatGuardMiddleware.php`, `TelegramDeliveryProbe` (always installs a client; guard always, probe only with firehose; `client()` getter, `PROBE_NAME`), `TelegramBridge::ensure()` calls `install()`. Tests: `tests/database/{WebDeliveryTest,WebInboxServiceTest}.php`, `tests/unit/Services/{Web/BridgeClientTest,Telegram/VirtualChatGuardMiddlewareTest}.php`, `TelegramDeliveryProbeTest` +2. `MediaSender` NOT touched: Q4 holds (no `file_id` cache; the seam sees the open stream and reads its URI via `stream_get_meta_data`).
+- Import count (`git grep`, app/): `use Longman\TelegramBot\Request` directly — 2 files, both aliased and both infra (`App\Services\Telegram\Request` itself extends it; `TelegramDeliveryProbe` only for `setClient`). `use App\Services\Telegram\Request` — 346 files. No FQCN `Longman\…\Request::` calls, no `replyToChat/replyToUser`. `MediaSender`, `BaseTaskHandler` and `BroadcastService` all import the app `Request`. No uncovered callsite class found; Longman internals are left to layer (b)/`BridgeClient`.
+- Decisions: (1) mirror row is written before `parent::send()` (inside `route()`), so a Telegram failure still leaves the web copy. (2) Inbox rows take `message_id` from `WebScreenStore::nextMessageId()` (not Telegram's id) - one id space per character, UNIQUE-safe. (3) While capturing, an edit of an id that is in none of capture/screen/history/inbox returns `ok:false "message to edit not found"` so callers' edit->send fallback fires (R5); an edit of an inbox message is promoted to the new screen with its id. (4) Virtual chat with flag off: `message_id=0` in the synthetic ok. (5) Guard answers HTTP 200 `ok:false` (403 description), pushed after the probe so it is closest to the network. (6) `photo_url` = `base_url(<path under public>)`. (7) Flag read via `GameSettingsService` only for `send*` to a non-actor/virtual chat, so edits/answers add no lookup.
+- R5 (edit by stored/foreign `message_id`): fallback to send exists in `MediaSender::editOrSend/editTextOrSend`, `MoveCharacterToDirectionAction:442` (clicked id, then `last_map_message_id`, then send), `CancelMarchAction:77`, `MarchAction:789`, `BaseService:496`, `MarchingTaskHandler:775` (stored `msg_id`), `TeleportBeaconSetAction:261`. No fallback: `MapLegendAction:76`, `MoveSurfaceService:324` - both edit the clicked message id, which is real in Telegram and a captured id on web, so they are safe. The only persisted id is `telegram_users.last_map_message_id` - covered by the fallback above. For the Queen's Tier-3.
+- Surprising: `MarchingTaskHandler:775` (Worker) edits the stored march message; for a web-only character that edit is dropped with synthetic ok (per ADR §4a), so the march progress update does NOT reach the inbox. Also the E6/E8 hooks skip non-positive telegram ids (`LastSeenService:125`, `LoginStreakService:46`, `ReturnDigestService:40`, `DailyTaskService:50`) - web-only players would get no streak/digest/daily; that is story 05/07 territory, not delivery. Recon claim "`TelegramChatResolver:78` drops non-positive ids" is stale: `chatIdForCharacter` returns any non-zero id.
+- Verification: new test files run singly, all green (WebDeliveryTest 13, WebInboxServiceTest 3, BridgeClientTest 3, VirtualChatGuardMiddlewareTest 4, TelegramDeliveryProbeTest 19+TelegramBridgeTest); unit dirs Notifications/Telegram/Logging/Web green (268). Mutations, each separately: virtual branch off -> WebDeliveryTest red; mirror call off -> linked test red; guard push off -> probe test red; guard check off -> guard test red. Full suite NOT run here (parallel wave-2 workers share `wildworld_tests`); left to close-story. phpstan full: clean; migrations lint: clean. `StandoffAlertRateTest`/`PvpStandoffServiceTest` error in setUp on an FK type mismatch (`character_buildings.map_cell_id`) from the shared test DB state - unrelated to this story.
 
 ## Findings

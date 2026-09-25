@@ -43,6 +43,7 @@ class Filters extends BaseFilters
         'telegramRateLimit' => TelegramRateLimitFilter::class,
         'trailingSlash'     => \App\Filters\TrailingSlashRedirectFilter::class,
         // web-accounts-p0-05 — лимит попыток на POST-формах /account/* (по IP и по email/коду).
+        // web-bridge-p1-07 — с аргументом `play`/`inbox` — ведро на аккаунт для /play (Config\WebPlay).
         'accountThrottle'   => AccountThrottleFilter::class,
     ];
 

@@ -38,7 +38,7 @@ class PlayerActionLogger
     public const KILLSWITCH = 'logging.player_actions.enabled';
 
     /** @var list<string> */
-    private const VALID_SOURCES = ['callback', 'command', 'text', 'forcereply', 'other', 'task'];
+    private const VALID_SOURCES = ['callback', 'command', 'text', 'forcereply', 'other', 'task', 'web'];
 
     /** @var list<string> */
     private const VALID_STATUSES = ['ok', 'error', 'rejected', 'unrouted', 'undelivered'];
@@ -84,9 +84,21 @@ class PlayerActionLogger
      * (callback_query | message); прочее (channel_post, my_chat_member, edited_message …)
      * пропускаем (active=false → commit() no-op).
      *
+     * web-bridge-p1-01 (ADR-189): `$source` не null — перекрывает выведенный из апдейта канал
+     * (действие с сайта пишется как `web`); null — поведение прежнее.
+     *
      * @param array<array-key,mixed> $update сырой JSON-decoded апдейт (ключи как из json)
      */
-    public function begin(array $update): void
+    public function begin(array $update, ?string $source = null): void
+    {
+        $this->parseUpdate($update);
+        if ($this->active && $source !== null && $source !== '') {
+            $this->source = $source;
+        }
+    }
+
+    /** @param array<array-key,mixed> $update */
+    private function parseUpdate(array $update): void
     {
         // Свежее состояние на каждый апдейт (на случай переиспользования singleton).
         $this->active         = false;

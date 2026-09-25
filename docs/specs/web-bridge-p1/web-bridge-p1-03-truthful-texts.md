@@ -1,8 +1,8 @@
 ---
 story: web-bridge-p1-03
 spec: web-bridge-p1
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -86,5 +86,14 @@ flag is off (stories 06/07).
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- `WebLinkCodeAction::codeMessage()`: old "привяжет этот вход" gone; now "код впускает в аккаунт этого персонажа… сначала выйди из другого входа и введи код" + `PLAY_HINT` const (conditional: «когда игру на сайте откроют, кнопка «Играть» в шапке…»). Code, path, TTL kept.
+- Conditional wording chosen over plan A11's «если в шапке есть «Играть»»: this story puts «Играть» in the header unconditionally, so a header-based condition would always read true.
+- `GuideCatalog` `web`: 🔗 bullet rewritten, new 🎮 «Игра в браузере» bullet; no numbers.
+- New migration `2026-12-11-100010_UpdateWebLinkTipForWebPlay`: UPDATE by `title_en='WebLinkCode'`, public `NEW_CONTENT`/`OLD_CONTENT`; `down()` restores the seed text; `tip_type` untouched.
+- Header: plain «Играть» → `/play` in desktop nav and drawer (`data-nav="play"`); the Telegram CTA button relabelled «▶ Играть» → «▶ Telegram» so desktop does not show two «Играть». Desktop nav is hidden ≤900px, so 375px width is unaffected.
+- Cabinet: `AccountCabinet` uses `GameSettingsReaderTrait`, `PLAY_FLAG='web.play_enabled'`, passes `playEnabled`; view block «Играть на сайте» has three states: lock «🔒 Игра на сайте (скоро) — …» (flag off), lock «(нужен персонаж)» (flag on, no character), link to `/play`.
+- Test `tests/unit/Web/WebPlayTextsTest.php`: renders the header; the cabinet is checked by source-scan only, because the layout hits the DB in unit context.
+- Surprising: `app/Views/site/account_link.php:30,52` still promises «код привяжет этот вход» — not in this story's files, left as is.
+- Full suite on the shared tree: 106 errors + 2 failures, all in `tests/database` outside this story (Standoff*/Streak*/Title*/Tax*/Transport*/WebOnlyCharacterWorker: "Failed to open the referenced table 'characters'"; AccountRegistration/CharacterProvisioning: telegram_user_id asserted null — tests being edited by story 01 in the same working tree). TipService/LinkCodeService/AccountCabinet pass when run alone.
 
 ## Findings

@@ -1,8 +1,8 @@
 ---
 story: web-bridge-p1-02
 spec: web-bridge-p1
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -80,5 +80,11 @@ Two things the `/play` views (story 06) need.
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- `app/Services/Web/TelegramMarkupRenderer.php` (new): static `toHtml()`; parse mode matched case-insensitively (`html`/`markdown`/`markdownv2`, anything else = plain). Legacy Markdown is flat (Telegram semantics, a lone `*`/`_` stays literal); V2 nests, honours `\` escapes, `||spoiler||` renders its content unwrapped. Whole body in `try/catch Throwable` → escaped plain.
+- HTML mode tokenises raw tags: allow-list mapped (`strong→b`, `em→i`, `ins→u`, `del/strike→s`), `tg-spoiler/span/blockquote/tg-emoji` dropped with content kept, every other tag escaped as visible text; unbalanced tags closed/dropped. Text uses `htmlspecialchars(double_encode=false)` so Telegram's `&lt;`/`&amp;` show as characters.
+- Links: only `https?://` without whitespace/quotes/`<>`/backtick; a rejected URL (incl. one with `"`) drops the `<a>` and keeps its text. Output `<a>` carries `rel="nofollow noopener noreferrer" target="_blank"` (not asked for; so a bot link does not navigate away from `/play`).
+- CSS block `PLAY` inserted before FOOTER in `wildworld-ui.css`, mirrored inline in `ui-kit.html` (the kit keeps its own inline copy), new kit section `#play` (§ 03·B) before §4; photo demo uses tracked `public/og-default.jpg`. `?v=6`→`?v=7`.
+- Tier-2 check done with headless Chrome over CDP (`php -S` on `public/`), not MCP: at 375/768/1440 there is no horizontal scroll, nothing in `#play` sits past the viewport edge, radius/shadow are 0, fonts are Oswald/Manrope/JetBrains Mono only, and the console is clean. The first pass caught `<code>` inside `figcaption` falling back to system monospace, so `.play-msg-caption` now shares the `.play-msg-text` inline rules.
+- Surprising: the working tree held uncommitted edits to other files from parallel wave-1 stories. I did not touch them, and I did not run the full suite because it would share the test DB with them.
 
 ## Findings

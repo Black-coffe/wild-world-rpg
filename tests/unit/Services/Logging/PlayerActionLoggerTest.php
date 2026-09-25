@@ -22,6 +22,39 @@ final class PlayerActionLoggerTest extends CIUnitTestCase
 {
     // ── begin(): разбор апдейта ───────────────────────────────────────────────
 
+    /** web-bridge-p1-01 (ADR-189): явный канал перекрывает выведенный, прочее разбирается как прежде. */
+    public function testSourceOverrideWritesWeb(): void
+    {
+        $log = $this->fake();
+        $log->begin($this->cbUpdate('move_dir_north', 25, 555), 'web');
+        $log->commit();
+
+        $row = $log->lastRow();
+        $this->assertSame('web', $row['source']);
+        $this->assertSame('move', $row['action_name']);
+        $this->assertSame('move_dir_north', $row['raw_input']);
+        $this->assertSame(25, $row['telegram_user_id']);
+    }
+
+    public function testNullSourceOverrideKeepsDerivedSource(): void
+    {
+        $log = $this->fake();
+        $log->begin($this->msgUpdate('/map', 25, 555), null);
+        $log->commit();
+
+        $this->assertSame('command', $log->lastRow()['source']);
+    }
+
+    public function testSourceOverrideIgnoredForNonPlayerUpdate(): void
+    {
+        $log = $this->fake();
+        $log->begin(['channel_post' => ['text' => 'x']], 'web');
+        $log->commit();
+
+        $this->assertSame(0, $log->insertCount());
+    }
+
+
     public function testCallbackUpdateParsed(): void
     {
         $log = $this->fake();

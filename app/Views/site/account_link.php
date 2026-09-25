@@ -27,7 +27,14 @@ $loggedIn = ($loggedIn ?? false) === true;
                     <div class="notice error" role="alert"><span class="notice-title">Ошибка</span><?= esc($error) ?></div>
                 <?php endif ?>
                 <?php if ($loggedIn): ?>
-                    <div class="notice info" role="status"><span class="notice-title">Инфо</span>Ты уже вошёл на сайте. Код привяжет твой текущий вход к персонажу из бота.</div>
+                    <?php /* web-bridge-p1-17: код у вошедшего в другой аккаунт — отказ до траты кода (LinkCodeService, F1); путь — через выход. */ ?>
+                    <div class="notice info" role="status"><span class="notice-title">Инфо</span>Ты уже вошёл на сайте. Код из бота пускает в персонажа только без другого входа: выйди из другого входа и введи код — войдёшь в персонажа из бота.</div>
+                    <form class="auth-form" action="<?= esc(base_url('account/logout'), 'attr') ?>" method="post">
+                        <?= csrf_field() ?>
+                        <div class="auth-actions">
+                            <button class="btn ghost" type="submit">Выйти, чтобы ввести код</button>
+                        </div>
+                    </form>
                 <?php endif ?>
 
                 <form class="auth-form" action="<?= esc(base_url('account/link'), 'attr') ?>" method="post">
@@ -49,7 +56,7 @@ $loggedIn = ($loggedIn ?? false) === true;
                 <div class="label">Где взять код</div>
                 <p>Напиши боту команду /web или открой «⚙️ Настройки» и нажми «🌐 Играть на сайте». Роби пришлёт код.</p>
                 <p>Код одноразовый и живёт несколько минут — срок указан в сообщении с кодом. Новый код отменяет прежний.</p>
-                <p>Не вошёл на сайте — код впустит тебя в аккаунт персонажа. Вошёл почтой, Google или Яндексом — код привяжет этот вход к персонажу.</p>
+                <p>Не вошёл на сайте — код впустит тебя в аккаунт персонажа. Вошёл почтой, Google или Яндексом в другой аккаунт — выйди из другого входа и введи код.</p>
             </div>
         </div>
     </div>

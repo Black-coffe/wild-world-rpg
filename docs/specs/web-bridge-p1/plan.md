@@ -44,10 +44,13 @@ Confirm or veto at the approval stop:
   screen or inbox item of that character. Text and commands stay free-form, as in Telegram.
   Reason: a browser can post any string, while in Telegram a player can only press what the bot
   sent. This supports Ask 6, «игрок может управлять только своим персонажем».
+  *Round 3 (story 12):* the button must sit on the very message whose `message_id` the callback
+  carries.
 - **A4. "Background" means a send to anyone who is not the actor of the current interactive
   request** (ADR-189 §5). In Worker, cron and spark everything is background. Replies to the
   actor are never copied. A linked player acting on `/play` gets no Telegram message for that
   act. `edit*`/`delete*` are dropped for a virtual chat and not copied for a linked one.
+  *Round 3:* this holds for real-range message ids only. Synthetic-range ids follow A16.
 - **A5. "Linked player" for the inbox copy means a bot player who has used the site**
   (`accounts.last_login_at IS NOT NULL`). Without this, about 700 bot-only players would
   accumulate unread rows. ADR-189 does not define the term. *Owner to confirm.*
@@ -69,6 +72,12 @@ Confirm or veto at the approval stop:
   because the tip and the guide ship while the flag is still off.
 - **A12. A photo is shown only if its file is under `public/` or the send carried an http(s)
   URL.** Otherwise the screen shows the caption alone, which is complete under media-off.
+  *Amended in round 3 (manual review #13):* this includes a photo sent as a Telegram `file_id`
+  string. The seam cannot resolve a `file_id` to a file, so that screen shows the caption alone.
+  A `src` is never protocol-relative (story 13).
+  *Amended in round 4 (story 14):* a photo whose file sits under a transient prefix
+  (`uploads/tmp/`) is copied at record time (A18). A site-relative `src` is rendered only when its
+  file exists; otherwise the caption alone.
 - **A13. First visit with no stored state dispatches a synthetic `/start`** to get the dock and a
   first screen. If Q7 finds side effects for an existing character, the bootstrap becomes
   `/menu` (plan delta).
@@ -76,6 +85,25 @@ Confirm or veto at the approval stop:
   the P0 review minors, and the fix that keeps virtual rows out of broadcast "reachable in
   Telegram" statistics (ADR-189 «−», open risk). Ask 12 is the Queen's preprod walk.
 - **A15. F1–F3 stay as they are** (brief Answer 4). Only the texts change.
+- **A16. A synthetic-range `message_id` exists only on the web (round 3, story 11; *owner to
+  confirm*).** A background `edit*`/`delete*` whose `message_id` is ≥ `firstMessageId` never goes
+  to Telegram, whether the chat is virtual or linked. An edit is applied to that character's
+  web copy in place (screen or history). With the flag on, it is also upserted as one unread
+  inbox item per `message_id`. The caller gets `ok:true`. Consequence: a linked player who
+  starts a march on `/play` follows its progress on the site (the bell, the inbox, the screen)
+  and not in Telegram. Any new `send*` the caller makes still goes to Telegram and gets the
+  mirror (Ask 4).
+- **A17. `web_play_intents` keeps a 24 h dedup window (round 3, story 12).** Older rows are pruned
+  on insert, and the window is measured on the DB clock. The value is infrastructure
+  (`Config\WebPlay::intentRetentionHours`, A8). A double-submit or a network retry arrives
+  within seconds, so 24 h is ample.
+- **A18. Transient photos are copied for the web and kept 7 days (round 4, story 14; *owner to
+  confirm*).** A recorded photo whose file is under `uploads/tmp/` (the map today) is copied to
+  `public/uploads/web/<sha1>.<ext>` before the sender deletes it. Copies older than
+  `Config\WebPlay::photoKeepHours` = 168 are pruned on the next copy. That value is
+  infrastructure (A8). An older history or inbox item then shows its caption alone (A12), which
+  Ask 3 allows («экран понятен без картинки»). If the deploy rsync wipes `public/uploads/web/`,
+  the same caption-only fallback applies after a release.
 
 ### Recon questions for `drone-scout` (answer before the named wave)
 - **Q2 (W2, 04/05).** What does the group filter at `BotController.php:77` test? List every place
@@ -93,6 +121,28 @@ Confirm or veto at the approval stop:
 - **Q9 (W2, 04).** List the site, cabinet and admin code that treats a non-NULL
   `characters.telegram_user_id` or a `telegram_users` join as "has Telegram". A virtual row
   would show up there as linked.
+- **Q10 (W4, 08).** Where does each successful login door redirect: `AccountAuth::attempt`, the
+  `AccountOAuth` callback, `TelegramLogin` login, `AccountLink` (code), `AccountRegister`
+  (register/character)? Story 08 assumes they all land on `/account` (`AccountCabinet::index`),
+  which is its single return-to consumer. List any door that lands elsewhere. Also: how does
+  `Play::gate()` order its login and flag checks, and does `site/play_stub` read any session
+  data?
+- **Q11 (W7, 14).** List every photo sender in `app/` that deletes its file after the send
+  (`unlink(` near `MediaSender`/`sendPhoto`) and the directory of that file. Story 14 assumes
+  `public/uploads/tmp/` is the only one. Is `public/uploads/web/` already covered by `.gitignore`,
+  and does the deploy rsync (`deploy/`) keep or delete untracked files under `public/uploads/`?
+  Does `site/_play/inbox.php` render `photo_url`?
+- **Q12 (W7, 15).** How does `Play` compute the stub's `can_register` (which setting or check)?
+  Does `AccountCabinet::index` already pass that condition, or the character state, to
+  `site/account_cabinet`? Quote the current no-character lock line and the «Привязать персонажа
+  из бота» notice with their line numbers.
+- **Q13 (W8, 16).** Give the exact path of `ReferralService.php` (story 16 names it by glob). Then
+  list every guard in `app/` that skips a send to a player when the recipient's
+  `telegram_id`/chat id is not positive (`> 0`, `<= 0`, `< 1`, `(bool)` on a Telegram id), other
+  than the four story 05 already fixed and the two in story 16. For each, say whether the skipped
+  send is a player notice (background or interactive) and name the handler that calls it. Round 5
+  found `BeaconCaptureService:106` and `ReferralService:158`. Any other notice-dropping hit joins
+  story 16's `## Files` by plan delta before dispatch.
 
 **Recon answers (Queen + Explore, 2026-09-24, `git grep`):**
 - Q2: the group gate tests `chat.type` (`BotController.php:76,273,282-306`; `TelegramRateLimitFilter.php:361-370`). Nothing in `app/` classifies a group by id sign; sign checks are "valid positive id" guards (`SilentNotificationPolicy.php:58`, `ReferralService.php:158`, `TelegramChatResolver.php:78` returns null for non-positive ids — story 04 must route virtual ids before this resolver drops them).
@@ -134,8 +184,60 @@ direct `Longman\…\Request` imports into story 04 (ADR-189 «не провер�
   whitelist, intent dedup, Probe → BridgeClient → pipeline → `finally` restore), throttle
   arguments, routes.
 
-**Ask coverage:** 1→05,07 · 2→01,04,07 · 3→02,04,06 · 4→04,06,07 · 5→04,05 · 6→01,05,07 ·
-7→01,03,07 · 8→03 · 9→03,06 · 10→02,06 · 11→01 · 12→07 + integration gate (Queen Tier-3).
+**Wave 4 (council round 1 fixes)**
+- `web-bridge-p1-08-play-entry-flag-first` (Ask 9): `Play::gate()` checks the flag before the
+  login, so the anonymous flag-off visitor gets the stub. With the flag on, an anonymous visitor
+  gets a one-shot, whitelisted `/play` return target that the cabinet consumes after login.
+
+**Wave 5 (council round 2 fixes)**
+- `web-bridge-p1-09-history-edit-becomes-screen` (Ask 3): an edit whose target sits in history
+  makes the edited message the current screen; the old screen moves to history and the stale copy
+  leaves its history entry. Files: `WebScreenStore`, `WebDelivery`, `WebDeliveryTest`.
+- `web-bridge-p1-10-texts-true-in-both-flag-states` (Ask 8): `/web`, the `/guide` `web` section and
+  the tip (new UPDATE migration `100011`) are reworded so they hold with the flag off and on: no
+  «откроют / пока заглушка», «Играть» in the header named as the way in. Files:
+  `WebLinkCodeAction`, `GuideCatalog`, the migration, `WebPlayTextsTest`.
+
+**Wave 6 (round 3 repair: manual review, owner decision 2026-09-24)**. All three stories run
+`model: opus`, and their files are disjoint.
+- `web-bridge-p1-11-background-edit-of-web-message` (Asks 2, 3, 4, 5; review #1, #6): a
+  background edit or delete of a synthetic-range id never reaches Telegram (A16). An edit patches
+  the web copy in place and upserts one unread inbox item. `applyCapture` and the new
+  `patchMessage` write under one concurrency guard. Files: `WebDelivery`, `WebScreenStore`,
+  `WebInboxService`, `WebDeliveryTest`, `WebInboxServiceTest`, new `WebScreenStoreTest`.
+- `web-bridge-p1-12-act-guard-message-scoped` (Ask 6; review #5, #7, #11): a callback is accepted
+  only when its `data` is on the message its `message_id` names. The whitelist test covers
+  another character's message. Intents are pruned on insert with a 24 h window (A17). Files:
+  `WebActService`, `Config\WebPlay`, `WebActServiceTest`.
+- `web-bridge-p1-13-play-client-error-path` (Asks 1, 3, 6; review #2, #9, #10): JSON 400/429
+  bodies are handled in place with the fresh token. PRG is reached only on a network or parse
+  failure, after a token refresh. A failed bootstrap still renders `/play` with the alert. A
+  photo `src` is never protocol-relative. Files: `Play`, `AccountThrottleFilter`,
+  `_play/state.php`, `wildworld-play.js`, `PlayControllerTest`, `PlayViewsTest`.
+
+**Wave 7 (council round 4 fixes)**. One story per red ask; files are disjoint.
+- `web-bridge-p1-14-transient-photo-kept-for-web` (Ask 3): a photo whose file is under
+  `uploads/tmp/` (the map) is copied to `public/uploads/web/` at record time, before the sender's
+  `unlink`, and pruned after `photoKeepHours` (A18). A site-relative `src` renders only when the
+  file exists. Files: `WebDelivery`, `Config\WebPlay`, `_play/state.php`, `_play/inbox.php` (only if
+  it renders photos), `.gitignore` (only if needed), `WebDeliveryTest`, `PlayViewsTest`.
+- `web-bridge-p1-15-cabinet-lock-names-a-real-path` (Ask 9): the cabinet's no-character lock and
+  notice stop telling a logged-in player to link a bot character by code (F1 refuses it). They
+  offer `/account/character` when registration is open and «выйди из другого входа и введи код»
+  for a bot player. Files: `account_cabinet.php`, `AccountCabinet` (only to pass the registration
+  condition), `PlayControllerTest`.
+
+**Wave 8 (council round 5 fix)**. One story for the one red ask.
+- `web-bridge-p1-16-background-notice-reaches-web-only-player` (Ask 4): the beacon-capture alert
+  (`BeaconCaptureService:106`) and the referral-reward notice (`ReferralService:158`) stop
+  dropping a virtual-id recipient by sign. Each guard becomes "positive OR `VirtualChat::is()`",
+  the story-05 pattern, so the send reaches the seam and lands in the web inbox (flag on). Files:
+  `BeaconCaptureService`, `ReferralService`, new `WebOnlyBackgroundNoticeTest`. Recon Q13 answers
+  before dispatch.
+
+**Ask coverage:** 1→05,07,13 · 2→01,04,07,11 · 3→02,04,06,09,11,13,14 · 4→04,06,07,11,16 · 5→04,05,11 ·
+6→01,05,07,12,13 · 7→01,03,07 · 8→03,10 · 9→03,06,08,15 · 10→02,06,14 · 11→01 · 12→07 + integration
+gate (Queen Tier-3).
 
 **Verdicts (already Asks):**
 - guide: yes, section `web` extended (Ask 8).
@@ -146,6 +248,14 @@ direct `Longman\…\Request` imports into story 04 (ADR-189 «не провер�
 - balance: no new numbers.
 - WipeManifest (Ask 11): `web_inbox` PLAYER_DATA; `web_play_state` PLAYER_DATA;
   `web_play_intents` TRANSIENT. Virtual rows fall under `telegram_users` IDENTITY_RESET.
+- Round 3: none of the three repair stories adds a player-visible feature, table or column, so the
+  guide, tip, onboarding and WipeManifest verdicts are unchanged. Tip: no, it is a fix to web
+  play delivery.
+- Round 4: no new table or column. The `public/uploads/web/` copies are files, not DB rows; a wipe
+  leaves them to the age prune. Guide and tip: no, both stories fix existing web-play surfaces
+  (the map image, the cabinet lock text). Onboarding: unchanged.
+- Round 5: no new table, column or number. Guide and tip: no, story 16 makes two existing notices
+  reach a web-only player's inbox. Onboarding and WipeManifest: unchanged.
 
 ## Contracts
 
@@ -162,6 +272,11 @@ taken, shifts to the next free one and reports it.
     an UNSIGNED or too-narrow column on the path**)
 - 03: `2026-12-11-100010_UpdateWebLinkTipForWebPlay.php` (UPDATE by the `title_en` of
   `SeedWebLinkTip`, idempotent; `down()` restores the old text)
+- 10: `2026-12-11-100011_WebPlayTipTrueInBothFlagStates.php` (UPDATE by `title_en='WebLinkCode'`,
+  idempotent; `down()` restores `UpdateWebLinkTipForWebPlay::NEW_CONTENT`)
+- Round 3 (11–13): no migrations.
+- Round 4 (14–15): no migrations.
+- Round 5 (16): no migrations.
 
 **Schema (01)**
 - `web_play_state`: `character_id` PK FK→characters CASCADE, `next_message_id` BIGINT NOT NULL
@@ -180,6 +295,8 @@ taken, shifts to the next free one and reports it.
   - `const VIRTUAL_BASE` (value per A1)
   - `static is(int $chatId): bool`
   - `static idForAccount(int $accountId): int`
+  - Round 5 (16): every recipient guard on a notice path reads "positive OR `VirtualChat::is()`",
+    never a bare sign test (A1).
 - `App\Services\Web\VirtualIdentityService` (01):
   - `ensureForAccount(int $accountId, string $firstName): int`: returns the `telegram_users.id`.
     It is idempotent, reuses an existing row with that `telegram_id`, and never creates an
@@ -195,6 +312,9 @@ taken, shifts to the next free one and reports it.
   overrides the derived one. `web` is in `VALID_SOURCES`.
 - `Config\WebPlay` (01): `historySize=10`, `inboxKeep=200`, `inboxPollSeconds=30`,
   `inboxPollMinSeconds=10`, `actsPerMinute=60`, `inboxReadsPerMinute=12`, `textMaxLength=4096`.
+  Round 3 (12) adds `intentRetentionHours=24` (A17). Round 4 (14) adds
+  `transientPhotoPrefixes=['uploads/tmp/']`, `photoDir='uploads/web/'` and `photoKeepHours=168`
+  (A18).
 - `App\Services\Web\TelegramMarkupRenderer` (02): `static toHtml(?string $text, ?string $parseMode): string`.
   It escapes first and allows only `b i u s code pre a[href=http(s)]` and `<br>`. It never
   throws.
@@ -210,6 +330,14 @@ taken, shifts to the next free one and reports it.
       `{ok:true,result:{message_id,…}}`;
     - virtual chat: write to the inbox (or drop an edit/delete) and return a synthetic ok;
     - otherwise: `parent::send()`, then the linked-mirror hook.
+  - Round 3 (11), which runs before the virtual/otherwise cases: a background `edit*`/`delete*`
+    with `message_id ≥ firstMessageId` to a chat that resolves to a character never reaches
+    `parent::send()`. An edit calls `WebScreenStore::patchMessage` and, with the flag on,
+    `WebInboxService::upsertEdit`. The seam returns a synthetic `ok:true` (A16).
+  - Round 4 (14): whenever the seam builds a `Msg` from a photo whose local file is under a
+    `transientPhotoPrefixes` dir, it copies the file to `public/<photoDir><sha1>.<ext>` (atomic,
+    content-deduplicated) and stores the site-relative `/uploads/web/…` path as `photo_url`. Each
+    new copy prunes copies older than `photoKeepHours`. Other photos keep their URL.
 - `App\Services\Web\BridgeClient` (04): `new BridgeClient(ClientInterface $delegate, int $actorChatId)`.
   Actor-chat or chat-less requests that bypassed the seam become caption-only captures and are
   not sent. Every other request goes to the delegate.
@@ -220,15 +348,23 @@ taken, shifts to the next free one and reports it.
 - `App\Services\Web\WebScreenStore` (04):
   - `nextMessageId(int $characterId): int` (atomic)
   - `state(int $characterId): array{screen, history, dock, input}`
-  - `applyCapture(int $characterId, array $capture): void`
+  - `applyCapture(int $characterId, array $capture): void` (09: an edit of a history message
+    promotes it to the current screen; an edit on the current screen stays in place)
   - `findMessage(int $characterId, int $messageId): ?Msg`
   - `callbackAllowed(int $characterId, string $data): bool` (screens + inbox)
+  - Round 3 (11): `patchMessage(int $characterId, int $messageId, Msg $msg): bool` patches the
+    message in place in the screen or history and never promotes it. It returns false when the
+    message is not there. `applyCapture` and `patchMessage` do their read-modify-write under one
+    guard, so concurrent writers of one character lose no update.
 - `App\Services\Web\WebInboxService` (04):
   - `append(int $characterId, array $msg, string $source): int`
   - `unreadCount(int $characterId): int`
   - `latest(int $characterId, int $limit): list<array{msg, created_at, read}>`
   - `markAllRead(int $characterId): void`
   - `findMessage(int $characterId, int $messageId): ?Msg`
+  - Round 3 (11): `upsertEdit(int $characterId, int $messageId, Msg $msg, string $source): void`
+    keeps one row per `(character_id, message_id)`. It replaces the payload and sets
+    `read_at = NULL`, and inserts the row when there is none.
 - `App\Services\Telegram\UpdatePipeline` (05):
   - `static telegram(): Telegram` (built as `BotController` does)
   - `run(array $update, string $source): void`: `'telegram'|'web'`. It never throws. It sets
@@ -239,6 +375,12 @@ taken, shifts to the next free one and reports it.
   - Both set `chat.type='private'`, and `from`/`chat` come from `$identity` only.
 - `App\Services\Web\WebActService` (07): `act(int $accountId, int $characterId, array $intent): array{state, alert:?string, unread:int}`,
   where `$intent = {intent_id, kind: callback|text|command, data, message_id?}`.
+  Round 3 (12): a callback's `data` must be on a button of the `Msg` that its `message_id`
+  resolves to for that character. Each new intent row prunes the rows older than
+  `intentRetentionHours`.
+- `App\Services\Web\AccountSession` (08): a one-shot return target. It stores only the exact path
+  `/play`, and `AccountCabinet::index` is its only reader. Story 08 reports the method names on
+  its INTERFACES line.
 
 **Transport order in one `/play` act (ADR-189 §2, invariant 4):**
 1. `TelegramDeliveryProbe::install()`.
@@ -252,13 +394,15 @@ Worker, cron and CLI never install `BridgeClient`.
 
 **Routes (07)**
 
-Every route requires the session character and checks `web.play_enabled` server-side.
+Every route requires the session character and checks `web.play_enabled` server-side. Story 08
+checks the flag first. While the flag is off, every visitor gets the stub or 403, whether logged
+in or not. The login redirect applies only while the flag is on.
 
 | Method + path | Controller::method | Response |
 |---|---|---|
-| GET `/play` | `Play::index` | `site/play`, or `site/play_stub` (flag off / no character); logged out → `/account/login` |
-| POST `/play/act` | `Play::act` | with `Accept: application/json` → `{html, unread, alert, csrf}`; otherwise 303 → `/play` |
-| GET `/play/inbox` | `Play::inbox` | JSON `{unread, html}` |
+| GET `/play` | `Play::index` | `site/play`, or `site/play_stub` (flag off, logged in or not / no character); logged out with flag on → `/account/login` + return target `/play` (08); a failed bootstrap still renders `site/play` with the alert (13) |
+| POST `/play/act` | `Play::act` | with `Accept: application/json` → 200 `{html, unread, alert, csrf}`; 400 reject `{html, unread, alert, csrf}`; 429 throttle `{alert, csrf}` (13); otherwise 303 → `/play` |
+| GET `/play/inbox` | `Play::inbox` | JSON `{unread, html, csrf}` (`csrf` added in 13) |
 | POST `/play/inbox/read` | `Play::markRead` | JSON `{unread:0}` |
 
 Filters: `accountThrottle:play` on both POSTs and `accountThrottle:inbox` on GET inbox. CSRF is
@@ -269,10 +413,13 @@ the global filter.
 - `site/_play/state`: `{state, alert}`
 - `site/_play/inbox`: `{items}`
 - `site/play_stub`: `{reason: 'flag_off'|'no_character', can_register:bool}`
+- `site/account_cabinet` (15): its no-character lock reads the same registration condition as the
+  stub's `can_register`. Story 15 reports the variable name on its INTERFACES line.
 
 The views call `TelegramMarkupRenderer::toHtml()` on `text`/`caption`. The forms post `kind`,
 `data`, `message_id`, `intent_id` (random per rendered form) and the CSRF field. No telegram or
-chat id ever appears in HTML or JSON (ADR-189 invariant 6).
+chat id ever appears in HTML or JSON (ADR-189 invariant 6). Round 4 (14): a site-relative
+`photo_url` renders `<img>` only when `is_file(FCPATH . path)`; otherwise the caption alone.
 
 **CSS classes (02):** story 02 adopts the existing `wildworld-ui.css` prefix and reports its class
 names on its INTERFACES line. The Queen pastes them here before wave 2.
@@ -298,6 +445,52 @@ names on its INTERFACES line. The Queen pastes them here before wave 2.
 - **Chosen: server-rendered screens with PRG and thin JS.** **Rejected: client-side rendering
   from JSON.** That means two Markdown renderers, and it breaks the "every view works without
   JS" site rule.
+- **Chosen (08): the return target is stored in the session and consumed only by the cabinet.**
+  **Rejected: a `?return=` parameter threaded through every login door.** That would touch five
+  controllers and three auth flows (password, OAuth, Telegram widget), and it opens a redirect
+  surface. The cost: if some door does not land on `/account` (Q10), the player there lands
+  where they land today and still finds «Играть» in the header and the cabinet.
+- **Chosen (09): an edit of a history message is promoted to the current screen**, the same rule
+  the inbox already follows. **Rejected: making history read-only** (no live buttons in history,
+  `callbackAllowed` limited to the current screen and inbox). That stops taps on past screens, but
+  a stored-id edit (`last_map_message_id` fallbacks) would still patch a dimmed entry, so Ask 3
+  would stay red. It also touches the views and the whitelist. The cost: a tap on an old screen
+  pulls it forward, which is what Telegram does visually when you scroll up and tap.
+- **Chosen (10): wording that is true in both flag states.** **Rejected: flag-aware texts**
+  (`WebLinkCodeAction` and `GuideCatalog` read `web.play_enabled` and pick a variant). The tip is
+  a stored row that `TipService` shows verbatim, so it would still need neutral wording or a
+  `TipService` change. `GuideCatalog` would lose its "read-only catalog" shape, and every text
+  would need two variants and two tests. The cost: while the flag is off, the texts cannot say
+  "not yet"; the `/play` stub and the cabinet lock line say that instead.
+- **Chosen (11): the seam absorbs every background edit of a synthetic-range id into the web copy
+  and the inbox (A16).** It fixes the march and also any edit-first caller that review did not
+  grep (review "Not verified" item 2), with no handler edits. **Rejected: id mapping.** The first
+  background edit would send one real Telegram message and store a synthetic→real id map, and
+  later edits would be rewritten to the real id. That keeps a linked player's march progress in
+  Telegram, but it needs a new table or column (WipeManifest, retention). It also still leaves the
+  web-only player with nothing unless the web path is built anyway. **Rejected too: patching
+  `MarchingTaskHandler`/`MarchAction`** to store the fallback id. That covers one caller, and the
+  virtual-chat `ok` still hides the edit from a web-only player. The cost of the choice: a linked
+  player follows a march started on `/play` on the site, not in Telegram.
+- **Chosen (14): the seam copies a transient photo into `public/uploads/web/` at record time**,
+  with a content-hash name, an age prune and an `is_file` guard in the view. It covers every
+  sender that deletes its file after the send, with no handler edits, the same shape as (11).
+  **Rejected: stop `MapService` from deleting its temp file while a web capture runs** (or defer
+  the `unlink`). That fixes one caller, and it moves the cleanup of `uploads/tmp/` into the web
+  code anyway: those files would then need their own prune. **Rejected too: storing the image as
+  a `data:` URI in the `Msg`.** A map image in every history and inbox JSON row would multiply the
+  row size. The cost of the choice: a copy directory with its own retention (A18), and old
+  entries fall back to caption-only.
+- **Chosen (15): the cabinet lock offers the two paths that work** (`/account/character`, and
+  log out then enter the `/web` code). **Rejected: let `link()` accept a code while another
+  account is signed in.** That is the merge F1 forbids (A15, brief Answer 4).
+- **Chosen (16): widen each sign guard to "positive OR `VirtualChat::is()`" at the call site**, the
+  pattern story 05 already used for four services, so a virtual send reaches the seam that owns
+  the inbox rule. **Rejected: route virtual notices around the guards** (e.g. a
+  `WebInboxService::append` call next to each `if ($id > 0)`). That puts a second delivery path
+  in game code, skips the seam's flag check (A6) and mirror rules, and has to be repeated at each
+  site. The cost of the choice: each new sign guard stays a latent Ask 4 hole until someone greps
+  for it. Recon Q13 does that grep once for this spec.
 
 ## Integration gate
 `vendor/bin/phpunit --no-coverage --no-progress`
@@ -313,17 +506,70 @@ run sequentially on the shared `wildworld_tests`. After wave 3:
   5 and R5 (`editOrSend` fallback after synthetic ids). Nginx and app logs show no Telegram
   request with a virtual-range chat id and no guard `error` line (Ask 2).
 
+After wave 6 (round 3), the Tier-2 and Tier-3 walks add:
+- **Tier-2:** a stale button (made stale from a second tab) and a throttle hit each show the
+  alert in place. Neither shows the 403 page.
+- **Tier-3:** both characters start a march from `/play`. The web-only character's bell and inbox
+  show one item that updates as the march advances. The linked player gets no new Telegram
+  message per step. Photo screens render on preprod (see the round-3 note in plan deltas).
+
+After wave 7 (round 4), the walks add:
+- **Tier-3:** both characters open «Карта» from the dock on `/play`. The map image shows, and the
+  console has no 404. A reload of `/play` still shows it in the screen or the history.
+- **Tier-2:** a logged-in account with no character opens `/account`. The play block offers
+  `/account/character` (when registration is open) and the log-out-then-code instruction, and no
+  «привяжи персонажа из бота» text.
+
+After wave 8 (round 5), the walks add:
+- **Tier-3:** the Telegram test character captures a teleport beacon owned by the web-only
+  character. The web-only character's bell counts one more, and the inbox shows the capture
+  alert. Logs show no Telegram request with a virtual-range chat id.
+
 ## Descoped
 
 *(empty)*
 
 ## Plan deltas
 
+- 2026-09-25 · trigger: round 6 ESCALATE at ceiling 6 — red: 9 (opus: `/play` no-character lock → `/account/link` dead-ends under F1) + review round 6 Major #1 (`account_link.php:30,52` still promise linking the current login). Decision (Queen, within owner Answer 4 «тексты говорят правду» and the owner's 2026-09-24 repair-then-human-check path): one text-only story 17, wave 9, no further council round; acceptance by owner via human-check after the Queen's Tier-2. Rejected: `reopen` for three more rounds (≈4M tokens per circuit for a two-view text fix).
+
+- 2026-09-24 · trigger: story 05 NEEDS_CONTEXT (twice) — E6/E8 hooks and the last_seen stamp reject non-positive telegram ids (`LastSeenService:45,125`, `LoginStreakService:46`, `ReturnDigestService:40`, `DailyTaskService:50`). Decision: those four files join story 05 `## Files`; guard becomes "positive OR `VirtualChat::is()`". Webhook error behaviour unchanged (rethrow for `telegram`, swallow only for `web`). Rejected: dropping hooks/stamp for web play (breaks Ask 1 parity: streak/daily/digest), 500→200 on the webhook (Ask 5).
+
 - 2026-09-24 · recon Q9: a virtual `telegram_users` row would make `AccountSession`/`AccountService` treat a web-only character as Telegram-linked (session `tg_user_id`, `ensureForTelegram`). Decision: `app/Services/Web/AccountSession.php` and `app/Services/Web/AccountService.php` join story 01 `## Files` with one acceptance line (virtual range = no Telegram). No other story names them. Rejected: leaving it to story 07 (wave 3) — wave-1 backfill already creates the rows.
+
+- 2026-09-24 · trigger: council round 1 RED on Ask 9 (seat opus: `Play::gate()` checks the login before the flag, so an anonymous flag-off visitor gets `/account/login` instead of the stub, and nothing returns them to `/play` after login; seat haiku: prod header has no `/play`, because the reviewed commit is not deployed there). Decision: fix story `web-bridge-p1-08` in wave 4, which puts the flag first and adds a session return target consumed by the cabinet. Haiku's finding is environmental (it walked prod), so no story addresses it. Rejected: amending story 07 in place (it is `done`, and a new story keeps the scope gate and the review slot honest).
+
+- 2026-09-24 · trigger: council round 2 RED on Asks 3 and 8 (seat opus; sonnet GREEN, haiku N/A environmental, review ABSENT). Ask 3: `WebScreenStore::applyCapture` patches an edit of a history message in place, so a tap on a past screen answered by an edit leaves the main screen unchanged. Ask 8: the story-03 texts are static and say «когда откроют / пока там заглушка», so they turn false the moment the owner flips `web.play_enabled` without a deploy. Decision: wave 5, one story per ask — `web-bridge-p1-09` (promote a history edit to the screen) and `web-bridge-p1-10` (wording true in both flag states, new tip migration `100011`). Files are disjoint. Rejected: amending stories 04/03 in place (both `done`); read-only history (see Tradeoffs); flag-aware texts (see Tradeoffs). Opus's UNASKED notes (no header bell, no backlog while the flag is off, Telegram-only flows for web-only players) are covered by A6/A10/A14 or out of scope and get no story.
+
+- 2026-09-24 · trigger: council round 3 ESCALATE (env; the review seat was empty in all rounds), owner reopen, and the manual lead-review `council/manual-review.md` (PASS, findings 1–13). Owner decision (Andrei, brief «After escalation»): fix before ship. Decision: wave 6 with three disjoint `model: opus` stories. `web-bridge-p1-11` takes #1 and #6: both write `web_play_state`, so the concurrency guard has to cover the new background patch. `web-bridge-p1-12` takes #5, #7 and #11, all in `WebActService`. `web-bridge-p1-13` takes #2, #9 and #10, all on `Play`, the throttle and the client. New assumptions A16 and A17 go to the owner. A3, A4 and A12 are amended in place. Rejected: one story per finding (nine stories, and #6/#1 plus #9/#2 would collide on `WebScreenStore` and `Play.php`); a single repair story (it mixes the transport with the client JS and serializes three independent fixes).
+  - **#3 dropped** (owner): prod `player_action_log` = 68 741 rows / 20 MB and `action_log` = 9 592 rows, so the `100005` ALTER takes seconds and needs no scheduling.
+  - **#4 accepted:** a non-integer `chat_id` (`@channel`) is treated as chatless by `BridgeClient`. No game code sends to a channel username today, and ADR-189 «Revisit when» already requires a range check when a group or channel send appears.
+  - **#8 accepted, dependency documented here:** a mirror copy for a linked player allocates its id through `WebScreenStore::ensureRow`, which creates an empty `web_play_state` row for a player who never opened `/play`. `bootstrap()` keys on an empty screen and history, not on whether the row exists, so this is harmless. The row costs one small row per site-using linked player (A5).
+  - **#12 recorded on story 01 `## Files`:** `tests/database/CharacterProvisioningServiceTest.php` is the test that goes with story 01's provisioning change. Story 01's glob `tests/database/*Provisioning*Test.php` already matches it. It is named explicitly here for the Law 3 trace.
+  - **#13:** A12 is amended to name `file_id` photos as caption-only.
+  - **Note (Queen local Tier-2, 2026-09-24):** the bridge works end to end for a web-only character. Register → character → `/play` → daily-task screens, history, dock. No horizontal scroll at 375/768/1440, and the console is clean. Photo screens fail locally only because the single-threaded `php spark serve` cannot `fopen` its own URL. This is to be proved on the preprod Tier-3 (integration gate, after wave 6). No story.
+
+- 2026-09-25 · trigger: council round 4 RED on Asks 3 and 9 (seat opus; haiku N/A environmental, sonnet report empty, review PASS). Ask 3: the map photo is a temp file under `public/uploads/tmp/` that `MapService:176` deletes right after the send, so the stored `photo_url` 404s on `/play` (also a console error, Ask 10). Ask 9: the cabinet's no-character lock and notice tell a logged-in player to link a bot character by `/web` code, which `link()` refuses (F1), and they never offer `/account/character`. Decision: wave 7, one story per ask, disjoint files — `web-bridge-p1-14` (copy transient photos at record time, age prune, `is_file` view guard; new A18 to the owner, A12 amended) and `web-bridge-p1-15` (cabinet lock names the two paths that work). Recon Q11/Q12 answer before dispatch. Rejected: amending stories 04/13 and 03/08 in place (all `done`); the rejected fixes for 14 and 15 are in Tradeoffs. Opus's UNASKED notes (stale mirror copies of Telegram-side edits, no bell outside `/play`, the stub repeating «скоро») are A16/A10 territory or cosmetic and get no story. The round-4 review (PASS) findings are not asks and get no story here; its Major #1 (A16/A17 confirmation) and Minor #14 (tech-writing notes) are open items for the owner and `drone-docs` before ship.
+
+- 2026-09-25 · trigger: council round 5 RED on Ask 4 (seat opus; sonnet GREEN, haiku N/A environmental, review PASS). `BeaconCaptureService:106` (`$tgId > 0 ? $tgId : null`) makes `TeleportBeaconSetAction:252-254` skip the capture alert for a web-only owner, and `ReferralService:158` (`if ($chatId > 0)`) drops the referral-reward notice. Neither reaches the seam, so a web-only player gets no inbox item. These two are the siblings story 05 missed. Decision: wave 8, one story, `web-bridge-p1-16`, with the story-05 guard pattern. Recon Q13 (the exact `ReferralService` path, and a full sweep for other notice-dropping sign guards) answers before dispatch; any further hit joins story 16's `## Files` by a delta here. Rejected: amending story 05 in place (`done`); a parallel inbox call next to each guard (see Tradeoffs). Opus's UNASKED notes get no story: (1) `account_link.php` still promises that the code links "this login" = round-5 review Major #1; (2) no bell outside `/play` = A10; (3) stale inbox copies of real-id edits = A4; (4) virtual sends dropped while the flag is off = A6; (5) the WipeManifest comment for `telegram_users` does not name virtual rows = cosmetic. The round-5 review (PASS) findings are not asks either. Before ship, the owner must decide on two open items: **Major #1** (`account_link.php:30,52` tells a logged-in visitor the code links this login; fix it in a story or record it under `## Descoped`) and **Major #2** (confirm or veto A16, A17 and A18). Minors #3–#13 need a recorded disposition, and #12 (tech-writing notes) goes to `drone-docs`.
 
 **Approved:** Andrei, 2026-09-24 (A0–A15 as written, incl. A3, A5, A6, A10)
 **Briefed:** <written by scripts/cycle.sh briefed - alternative to **Approved:**>
-**Branch:** <written by /vulyk-build before wave 1>
-**Checked:** <written by scripts/human-check.sh>
-**Council:** <written by scripts/cycle.sh judge/escalate>
+**Branch:** vulyk/web-bridge-p1
+**Council:** RED round 1, 2026-09-24, at 57e1a0dd, pack bcab1c9c706e - red: 9
+**Council:** RED round 2, 2026-09-24, at 8dbc8746, pack bd05f7270b7a - red: 3,8
+**Council:** ESCALATE round 3, 2026-09-24, at cbcb710a, pack f9d606eb6f6c
+**Council:** RED round 4, 2026-09-24, at ce0c2be8, pack be09bd1085fa - red: 3,9
+**Council:** RED round 5, 2026-09-25, at 151fc51b, pack 8c08891b6ac9 - red: 4
+**Council:** ESCALATE round 6, 2026-09-25, at ea9aff80, pack 1e74857c28ea - red: 9
 **Shipped:** <written by scripts/ship-check.sh --record>
+
+## Needs a human
+- reason: env · round 3 · 2026-09-24
+- review: docs/specs/web-bridge-p1/council/round-3/review.attempt-1.md
+- review: docs/specs/web-bridge-p1/council/round-3/review.attempt-2.md
+- seats: docs/specs/web-bridge-p1/council/round-3/
+- reason: ceiling · round 6 · 2026-09-25
+- ask 9: RED - see docs/specs/web-bridge-p1/council/round-6/*.md for evidence
+- seats: docs/specs/web-bridge-p1/council/round-6/
+**Checked:** ACCEPTED by Claude Code, 2026-09-25, at bfb1b844 - Andrei, 2026-09-25: «да» after Queen Tier-2 on localhost:8080 (stub flag-off, /play no-character, /account/link authed, /play with character at 375/768/1440 — no h-scroll, 0 console errors; web-only register→character→/play→screen swap+history). Council R6: review PASS, sonnet GREEN, opus RED 9 fixed by story 17 (suite 4527/0). Photos → preprod Tier-3.

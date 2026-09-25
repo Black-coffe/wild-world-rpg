@@ -205,6 +205,8 @@ class WipeManifest extends BaseConfig
         'boss_encounters'        => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Активные бои игрока с узлами-боссами (ADR-137 WB6) — состояние боя; новый сезон с нуля'],
         'boss_engagements'       => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Ledger вклада игрока в «Облаву» по узлу (ADR-137 WB8) — урон для дележа лута по вкладу; новый сезон с нуля'],
         'boss_camp_state'        => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Анти-кемп dwell у узла (ADR-137 WB10) — счётчик «торчания» + loot-lock игрока; новый сезон с нуля'],
+        'web_play_state'         => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Экран игры на сайте (ADR-189): текущий экран, история, док, счётчик синтетических message_id — новый сезон с чистого экрана'],
+        'web_inbox'              => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Входящие на сайте (ADR-189): фоновые сообщения виртуальному персонажу и копии для связанного — новый сезон с пустого ящика'],
 
         // ─────────────────────────────────────────────────────────────
         // 🟠 TRANSIENT — транзиентная населённость мира / очереди (полный вайп = DELETE всех)
@@ -218,6 +220,7 @@ class WipeManifest extends BaseConfig
         'boss_kill_announce_queue' => ['strategy' => self::TRANSIENT, 'note' => 'Очередь анонсов о повергнутых узлах (ADR-137 WB11) — наполняется kill-путём, потребляется дайджест-кроном; без player-связи'],
         'account_tokens'       => ['strategy' => self::TRANSIENT, 'note' => 'Remember-me и токены сброса пароля (ADR-188) — после вайпа игрок просто входит заново'],
         'account_link_codes'   => ['strategy' => self::TRANSIENT, 'note' => 'Одноразовые коды входа из бота (ADR-188), TTL 10 минут'],
+        'web_play_intents'     => ['strategy' => self::TRANSIENT, 'note' => 'Дедуп действий /play по intent_id (ADR-189); id строки даёт синтетический update_id — без player-прогресса'],
         'queue_jobs'           => ['strategy' => self::TRANSIENT,'note' => 'Очередь фоновых заданий'],
         'queue_jobs_failed'    => ['strategy' => self::TRANSIENT, 'note' => 'Проваленные фоновые задания'],
         'telegram_updates_seen' => ['strategy' => self::TRANSIENT, 'note' => 'Дедуп повторной доставки Telegram-апдейтов по update_id (ADR-181) — без player-связи, ретенция чистится telegram-updates:cleanup'],

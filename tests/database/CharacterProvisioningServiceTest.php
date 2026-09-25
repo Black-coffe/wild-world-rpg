@@ -10,6 +10,7 @@ use App\Services\Onboarding\OnboardingChainCatalog;
 use App\Services\Onboarding\StarterKitService;
 use App\Services\Player\CharacterProvisioningService;
 use App\Services\Web\AccountService;
+use App\Services\Web\VirtualChat;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Forge;
 use CodeIgniter\Database\Migration;
@@ -68,6 +69,7 @@ final class CharacterProvisioningServiceTest extends CIUnitTestCase
         '2026-12-10-100001_CreateAccountsTables',
         '2026-12-10-100002_LinkCharactersToAccounts',
         '2026-12-10-100010_NullableTelegramKeys',
+        '2026-12-11-100005_SignedTelegramIdColumns',
     ];
 
     private const RAW_TABLES = [
@@ -153,12 +155,37 @@ final class CharacterProvisioningServiceTest extends CIUnitTestCase
 
         $char = $this->row('characters', ['id' => $charId]);
         $this->assertSame('Имя', $char['name']);
-        $this->assertNull($char['telegram_user_id']);
         $this->assertSame($accountId, (int) $char['account_id']);
         $this->assertCharacterMatchesFixture($char);
         $this->assertSpawnedInNewbieZone($char);
-        $this->assertOnboardingWrites($charId, null);
-        $this->assertSame(0, $this->rowCount('telegram_users', []));
+
+        // web-bridge-p1-01 (ADR-189 §3): виртуальная строка telegram_users, флаги — с виртуальным chat id.
+        $virtualId = VirtualChat::idForAccount($accountId);
+        $this->assertNotNull($char['telegram_user_id']);
+        $tg = $this->row('telegram_users', ['id' => (int) $char['telegram_user_id']]);
+        $this->assertSame($virtualId, (int) $tg['telegram_id']);
+        $this->assertSame('Имя', $tg['first_name']);
+        $this->assertOnboardingWrites($charId, $virtualId);
+        $this->assertSame(1, $this->rowCount('telegram_users', []));
+        $this->assertSame(0, $this->rowCount('account_identities', []));
+    }
+
+    public function testWebCreateReusesVirtualRowOfTheSameAccount(): void
+    {
+        $accountId = (new AccountService())->createAccount('web');
+        $svc       = new CharacterProvisioningService();
+
+        $first   = $svc->create('Первый', null, null, $accountId);
+        $tgFirst = (int) $this->row('characters', ['id' => $first])['telegram_user_id'];
+        // characters.telegram_user_id — UNIQUE, а на аккаунт один персонаж (P0): повторный
+        // create возможен, только когда прежнего персонажа уже нет.
+        $this->conn->table('characters')->where('id', $first)->delete();
+        $second = $svc->create('', null, null, $accountId);
+
+        $tgSecond = (int) $this->row('characters', ['id' => $second])['telegram_user_id'];
+        $this->assertGreaterThan(0, $tgFirst);
+        $this->assertSame($tgFirst, $tgSecond);
+        $this->assertSame(1, $this->rowCount('telegram_users', []));
         $this->assertSame(0, $this->rowCount('account_identities', []));
     }
 

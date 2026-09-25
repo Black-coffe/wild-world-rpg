@@ -257,6 +257,14 @@ $routes->group('account', static function ($routes) {
     $routes->post('reset/(:segment)', 'AccountPassword::complete/$1', $throttle);
 });
 
+// ADR-189 / web-bridge-p1-07 — игра на сайте через маршруты бота. Флаг `web.play_enabled`,
+// вход и персонаж сессии проверяет сам контроллер; CSRF — глобальный; лимит — на аккаунт
+// (`accountThrottle:play` на POST, `accountThrottle:inbox` на опрос входящих).
+$routes->get('play', 'Play::index');
+$routes->post('play/act', 'Play::act', ['filter' => 'accountThrottle:play']);
+$routes->get('play/inbox', 'Play::inbox', ['filter' => 'accountThrottle:inbox']);
+$routes->post('play/inbox/read', 'Play::markRead', ['filter' => 'accountThrottle:play']);
+
 // 7 категорий блога (явно — иначе их перехватит корневой catch-all postslug).
 $routes->get('devblog', 'Front::category/devblog');
 $routes->get('informacija', 'Front::category/informacija');

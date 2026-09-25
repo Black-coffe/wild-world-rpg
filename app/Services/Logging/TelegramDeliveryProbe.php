@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services\Logging;
 
+use App\Services\Telegram\VirtualChatGuardMiddleware;
 use GuzzleHttp\Client;
+use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Promise\Create;
@@ -36,7 +38,7 @@ use Psr\Http\Message\ResponseInterface;
  * 🔴 Defensive: установка обёрнута в try/catch, middleware никогда не бросает и не меняет
  * ответ. Если что-то пойдёт не так — молчим, транспорт бота важнее телеметрии.
  * Аварийный выключатель — общий с firehose ({@see PlayerActionLogger::KILLSWITCH}): выключён
- * firehose → клиент вообще не подменяется.
+ * firehose → middleware-пробы в стеке нет (сам клиент с охраной ставится всегда, web-bridge-p1-04).
  *
  * ⚠️ В PHPUnit не срабатывает: `Request::send()` при `PHPUNIT_TESTSUITE` отдаёт фейковый ответ,
  * не доходя до клиента. Поэтому тестами покрыты чистые части (разбор пути/тела/классификация
@@ -56,18 +58,27 @@ final class TelegramDeliveryProbe
         'editMessageText', 'editMessageCaption', 'editMessageMedia', 'editMessageReplyMarkup',
     ];
 
+    public const PROBE_NAME = 'wildworld_delivery_probe';
+
     private static bool $installed = false;
+
+    private static ?ClientInterface $client = null;
 
     /** Сброс для тестов/гигиены (клиент Longman'а при этом не восстанавливается). */
     public static function reset(): void
     {
         self::$installed = false;
+        self::$client    = null;
     }
 
     /**
-     * Подменить Guzzle-клиент Longman'а на клиент с middleware-пробой. Идемпотентно.
+     * Подменить Guzzle-клиент Longman'а своим. Идемпотентно.
      * Вызывать ПОСЛЕ инициализации {@see \Longman\TelegramBot\Telegram} (она сама ставит
      * клиент по умолчанию, если своего нет).
+     *
+     * web-bridge-p1-04 (ADR-189 §4b): клиент ставится ВСЕГДА — в его стеке охрана виртуального
+     * диапазона {@see VirtualChatGuardMiddleware}. Middleware-проба добавляется, только когда
+     * firehose включён.
      */
     public static function install(): void
     {
@@ -77,22 +88,39 @@ final class TelegramDeliveryProbe
         self::$installed = true;
 
         try {
-            if (! PlayerActionLogger::current()->firehoseEnabled()) {
-                return;
-            }
-
             $stack = HandlerStack::create();
-            $stack->push(self::middleware(), 'wildworld_delivery_probe');
+
+            $firehose = false;
+            try {
+                $firehose = PlayerActionLogger::current()->firehoseEnabled();
+            } catch (\Throwable $e) {
+                log_message('error', '[TelegramDeliveryProbe] firehose check failed: ' . $e->getMessage());
+            }
+            if ($firehose) {
+                $stack->push(self::middleware(), self::PROBE_NAME);
+            }
+            // Охрана — ближе всех к сети: проба видит отброшенный запрос как недоставку.
+            $stack->push(new VirtualChatGuardMiddleware(), VirtualChatGuardMiddleware::NAME);
 
             // base_uri повторяет дефолт Longman (Request::$api_base_uri — private static,
             // геттера нет). Проект `setCustomBotApiUri()` не использует — проверено грепом.
-            TelegramRequest::setClient(new Client([
+            self::$client = new Client([
                 'base_uri' => 'https://api.telegram.org',
                 'handler'  => $stack,
-            ]));
+            ]);
+            TelegramRequest::setClient(self::$client);
         } catch (\Throwable $e) {
             log_message('error', '[TelegramDeliveryProbe] install failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Клиент, поставленный {@see install()} (у Longman геттера нет). Мост `/play` берёт его
+     * делегатом и возвращает в `finally` (ADR-189 §2). Null — `install()` ещё не звали.
+     */
+    public static function client(): ?ClientInterface
+    {
+        return self::$client;
     }
 
     /**
