@@ -44,3 +44,4 @@
 **Council:**
 **Council:** GREEN round 1, 2026-09-26, at afbf42a1, pack 474e64eea916
 **Shipped:**
+**Shipped:** v0.51.674, 2026-09-26, at 46f3b6ae - tag v0.51.674 on develop pushed; preprod Tier-3 green (autonomous webhook + broadcast run)
