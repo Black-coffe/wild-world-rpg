@@ -438,3 +438,30 @@ upstream сам знает `memory/stats/skills.json` и `memory/learnings/*.md`
 **Ручной остаток для владельца:** таблица «The model ladder» в `CLAUDE.vulyk.md` всё ещё
 описывает воркеров и дронов на `sonnet` — с 0.16.0 это не так; сверить с
 `diff CLAUDE.vulyk.md ~/.vulyk/src/CLAUDE.md` и слить руками.
+
+## 16. Апгрейд 0.16.0 → 0.18.1 (27.09.2026, по слову владельца)
+
+0.17 — совет меряет сходимость (потолок раундов по тиру: T1=1, T2=2, T3–4=3; тот же RED ask два
+раунда подряд — эскалация). 0.18 «Light VULYK» (ADR-013 рамки, аудит токенов): **Tier 1–2 соло** —
+Queen строит сама, крутит `cycle.sh advance` и зовёт один `lead-review` на раунд, без драйвера,
+клерка и слепых мест; `council-sonnet` и `session-end-learnings.sh` упразднены; воркеры закрывают
+свои story сами (`close-story --commit`); `omitClaudeMd: true` у клерка, `council-opus`,
+`council-haiku` и дронов. 0.18.1 — апгрейд больше не портит запущенный апдейтер.
+
+**Откатилось и возвращено:** блоки «Project path binding» в `lead-architect`/`drone-docs`,
+`vulyk-handoff.md` — `checkout` из `HEAD`; `handoff.py/sh` и `.claude/rules/example-api.md`
+удалены. `lib.sh` и `cycle.sh` патчить не нужно — upstream сам знает леджеры и `CLAUDE.vulyk.md`.
+
+**Конституция НЕ заменена** (решение владельца: рамку сейчас, конституцию потом). `--constitution
+replace` сжал бы 37.9 KB до 11.4 KB, но унёс бы `## Project bindings` в бэкап. **Ручной остаток —
+строки `CLAUDE.vulyk.md`, которые теперь врут:**
+
+- Routing, строки Tier 1 и Tier 2 — «worker + `council-sonnet`»; в 0.18 это соло + `lead-review`.
+- The model ladder — `council-sonnet` в ряду Mid, воркеры/дроны на `sonnet` (с 0.16 — `opus`).
+- The cycle — «`council-sonnet` alone at Tier 1, `council-sonnet` + `lead-review` at Tier 2».
+- Таблица ворот — MEDIA-OFF несут «`lead-review` + `council-sonnet`», UX-ворота на Tier 2 проверяет
+  `council-sonnet`. После 0.18 на Tier 1–2 ворота из `## Asks` проверяет **только `lead-review`**.
+- «Verification в story — три уровня» — абзац про `council-sonnet`, гоняющий `## Commands`.
+
+До слияния руками: на Tier 1–2 предметные asks проверяет `lead-review`; живой Tier-3 смоук по-прежнему
+делает Queen.

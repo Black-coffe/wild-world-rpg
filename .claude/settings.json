@@ -55,12 +55,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-end-learnings.sh\"",
-            "timeout": 20,
-            "statusMessage": "VULYK: \u0441\u043e\u0445\u0440\u0430\u043d\u044f\u044e \u0443\u0440\u043e\u043a\u0438 \u0441\u0435\u0441\u0441\u0438\u0438\u2026"
-          },
-          {
-            "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/anomaly-scan.sh\""
           }
         ]
@@ -111,16 +105,6 @@
             "timeout": 15,
             "statusMessage": "Wipe-coverage: \u043d\u0435 \u043c\u0438\u0433\u0440\u0430\u0446\u0438\u044f \u043b\u0438 \u044d\u0442\u043e\u2026",
             "command": "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $ErrorActionPreference='SilentlyContinue'; $raw=[Console]::In.ReadToEnd(); if(-not $raw){exit 0}; try{$j=$raw|ConvertFrom-Json}catch{exit 0}; $fp=$j.tool_input.file_path; if(-not $fp){exit 0}; $norm=$fp.Replace([char]92,'/'); if(-not (($norm -like '*app/Database/Migrations/*') -and $norm.EndsWith('.php'))){exit 0}; $msg='[WIPE-COVERAGE] \u0418\u0437\u043c\u0435\u043d\u0435\u043d\u0430/\u0441\u043e\u0437\u0434\u0430\u043d\u0430 \u043c\u0438\u0433\u0440\u0430\u0446\u0438\u044f: '+$fp+'. \u041e\u0411\u042f\u0417\u0410\u0422\u0415\u041b\u042c\u041d\u041e: \u0435\u0441\u043b\u0438 \u043e\u043d\u0430 \u0421\u041e\u0417\u0414\u0410\u0401\u0422 \u043d\u043e\u0432\u0443\u044e \u0442\u0430\u0431\u043b\u0438\u0446\u0443 \u0438\u043b\u0438 \u0434\u043e\u0431\u0430\u0432\u043b\u044f\u0435\u0442 player-\u0441\u0432\u044f\u0437\u0430\u043d\u043d\u0443\u044e \u043a\u043e\u043b\u043e\u043d\u043a\u0443 \u2014 \u043a\u043b\u0430\u0441\u0441\u0438\u0444\u0438\u0446\u0438\u0440\u0443\u0439 \u0442\u0430\u0431\u043b\u0438\u0446\u0443 \u0432 Config\\WipeManifest (KEEP / PLAYER_DATA / TRANSIENT / CHARACTER_RESET / IDENTITY_RESET / SEED_RESET) \u0438 \u043f\u0440\u043e\u0433\u043e\u043d\u0438 tests/unit/Config/WipeManifestCoverageTest. \u041d\u043e\u0432\u0430\u044f \u0442\u0430\u0431\u043b\u0438\u0446\u0430 \u0431\u0435\u0437 \u0437\u0430\u043f\u0438\u0441\u0438 \u0432 \u043c\u0430\u043d\u0438\u0444\u0435\u0441\u0442\u0435 = \u043f\u0430\u0434\u0435\u043d\u0438\u0435 coverage-\u0442\u0435\u0441\u0442\u0430 = \u0431\u043b\u043e\u043a deploy. \u041f\u043e\u0434\u043f\u0430\u0434\u0430\u0435\u0442 \u043b\u0438 \u043e\u043d\u0430 \u043f\u043e\u0434 \u0432\u0430\u0439\u043f? (\u0441\u043c. ADR-087).'; @{hookSpecificOutput=@{hookEventName='PostToolUse';additionalContext=$msg}} | ConvertTo-Json -Compress"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/anomaly-scan.sh\""
           }
         ]
       }
