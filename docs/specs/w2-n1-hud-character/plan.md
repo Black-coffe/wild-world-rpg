@@ -50,7 +50,7 @@ handler'ы бота переписываются под модель, веб р�
 
 **Approved:** Andrei Andrievskii, 2026-09-27 — «да» (стадия 02)
 **Briefed:** <written by scripts/cycle.sh briefed>
-**Branch:** <written by /vulyk-build before wave 1>
+**Branch:** vulyk/w2-n1-hud-character
 **Checked:** <written by scripts/human-check.sh>
 **Council:** <written by scripts/cycle.sh judge/escalate>
 **Shipped:** <written by scripts/ship-check.sh --record>
