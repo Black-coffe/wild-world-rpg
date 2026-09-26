@@ -39,7 +39,7 @@
 ## Plan deltas
 
 **Briefed:** via mini-brief, owner (Q «Как чиним D1?» → «Источник + метрика, без отката»), 2026-09-26
-**Branch:**
+**Branch:** vulyk/d1-relevel-l1-l2
 **Checked:**
 **Council:**
 **Shipped:**
