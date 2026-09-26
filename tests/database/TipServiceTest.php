@@ -22,11 +22,12 @@ final class TipServiceTest extends CIUnitTestCase
 
     protected $migrate = false;
 
-    private const TABLES = ['game_tips', 'character_game_tips', 'characters'];
+    private const TABLES = ['game_tips', 'character_game_tips', 'characters', 'game_settings'];
 
     protected function setUp(): void
     {
         parent::setUp();
+        $this->cleanCache();
         $db = Database::connect('tests');
         foreach (self::TABLES as $t) {
             $db->query("DROP TABLE IF EXISTS {$t}");
@@ -34,6 +35,7 @@ final class TipServiceTest extends CIUnitTestCase
         $db->query('CREATE TABLE game_tips (id INT AUTO_INCREMENT PRIMARY KEY, title_ru VARCHAR(255) NULL, title_en VARCHAR(255) NULL, tip_type VARCHAR(32) NULL, content TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
         $db->query('CREATE TABLE character_game_tips (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NOT NULL, game_tip_id INT NOT NULL, viewed_at DATETIME NULL)');
         $db->query('CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, telegram_user_id INT NULL, experience DECIMAL(12,2) NOT NULL DEFAULT 0, agility DECIMAL(12,2) NOT NULL DEFAULT 0, intellect DECIMAL(12,2) NOT NULL DEFAULT 0, daily_tips_enabled TINYINT NOT NULL DEFAULT 1, created_at DATETIME NULL, updated_at DATETIME NULL)');
+        $db->query('CREATE TABLE game_settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(191) NOT NULL, category VARCHAR(64) NULL, value_type VARCHAR(16) NULL, value_int INT NULL, value_float DECIMAL(15,5) NULL, value_bool TINYINT NULL, value_string TEXT NULL, hard_min VARCHAR(32) NULL, hard_max VARCHAR(32) NULL)');
     }
 
     protected function tearDown(): void
@@ -42,7 +44,19 @@ final class TipServiceTest extends CIUnitTestCase
         foreach (self::TABLES as $t) {
             $db->query("DROP TABLE IF EXISTS {$t}");
         }
+        $this->cleanCache();
         parent::tearDown();
+    }
+
+    /** GameSettingsService кэширует значения 60с — чистим, чтобы награда не утекала между тестами. */
+    private function cleanCache(): void
+    {
+        if (function_exists('cache')) {
+            $c = cache();
+            if (is_object($c) && method_exists($c, 'clean')) {
+                $c->clean();
+            }
+        }
     }
 
     private function seedTips(int $n): void
@@ -90,6 +104,46 @@ final class TipServiceTest extends CIUnitTestCase
         $this->assertEqualsWithDelta(1.01, (float) $row['experience'], 0.0001);
         $this->assertEqualsWithDelta(2.02, (float) $row['agility'], 0.0001);
         $this->assertEqualsWithDelta(3.04, (float) $row['intellect'], 0.0001);
+    }
+
+    public function testServeWithoutRewardRecordsViewButKeepsStats(): void
+    {
+        $this->seedTips(3);
+        $charId = $this->seedCharacter();
+
+        $tip = (new TipService())->serveTip($charId, false);
+        $this->assertIsArray($tip);
+
+        // Показ записан (общий 15-дневный дедуп) ...
+        $views = Database::connect('tests')->table('character_game_tips')
+            ->where('character_id', $charId)->countAllResults();
+        $this->assertSame(1, $views);
+
+        // ... а статы не тронуты (авто-рассылка не качает, d1-relevel-l1-l2).
+        $row = Database::connect('tests')->table('characters')->where('id', $charId)->get()->getRowArray();
+        $this->assertEqualsWithDelta(1.00, (float) $row['experience'], 0.0001);
+        $this->assertEqualsWithDelta(2.00, (float) $row['agility'], 0.0001);
+        $this->assertEqualsWithDelta(3.00, (float) $row['intellect'], 0.0001);
+    }
+
+    public function testRewardComesFromGameSettings(): void
+    {
+        $this->seedTips(1);
+        $charId = $this->seedCharacter();
+        $db     = Database::connect('tests');
+        foreach (['tips.reward.experience' => 0.5, 'tips.reward.agility' => 0.25, 'tips.reward.intellect' => 0.75] as $key => $v) {
+            $db->table('game_settings')->insert([
+                'setting_key' => $key, 'category' => 'world', 'value_type' => 'float', 'value_float' => $v,
+                'hard_min' => '0', 'hard_max' => '1',
+            ]);
+        }
+
+        (new TipService())->serveTip($charId);
+
+        $row = $db->table('characters')->where('id', $charId)->get()->getRowArray();
+        $this->assertEqualsWithDelta(1.50, (float) $row['experience'], 0.0001);
+        $this->assertEqualsWithDelta(2.25, (float) $row['agility'], 0.0001);
+        $this->assertEqualsWithDelta(3.75, (float) $row['intellect'], 0.0001);
     }
 
     public function testRecentlyViewedTipExcludedFromPick(): void

@@ -255,3 +255,5 @@
 {"ts":"2026-09-25T08:56:38Z","story":"web-bridge-p1-17-link-and-stub-tell-the-truth","declared":4,"changed":7,"out_of_scope":3}
 {"ts":"2026-09-25T09:21:20Z","story":"web-bridge-p1-18-play-tests-own-site-schema","declared":2,"changed":7,"out_of_scope":5}
 {"ts":"2026-09-25T09:45:30Z","story":"web-bridge-p1-19-photo-url-from-http-stream","declared":2,"changed":2,"out_of_scope":0}
+{"ts":"2026-09-26T19:42:39Z","story":"story-01","declared":9,"changed":11,"out_of_scope":2}
+{"ts":"2026-09-26T19:43:21Z","story":"story-01","declared":9,"changed":12,"out_of_scope":3}

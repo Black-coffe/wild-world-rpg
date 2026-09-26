@@ -1,8 +1,8 @@
 ---
 story: d1-relevel-l1-l2-01
 spec: d1-relevel-l1-l2
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 1
 worker: worker-code
 tracer: false
@@ -54,8 +54,14 @@ blocked_by: []
 - [ ] Вердикты: guide — нет (бэкенд + правка текста настроек, новой механики нет); tips — да, правка существующего совета #22 (без новых советов). WipeManifest — новых таблиц/колонок нет.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/database/TipServiceTest.php tests/database/DailyTipBroadcastHandlerTest.php` + тест воронки + `vendor/bin/phpstan analyse --memory-limit=512M --no-progress` + `php -l app/Database/Migrations/2026-12-12-100000_D1TipRewardGameSettingsAndTip22.php`
+`vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- TipService: `serveTip/recordView(..., bool $reward = true)`; награда из GameSettings `tips.reward.*` (3-й опц. аргумент конструктора `?GameSettingsService`), `REWARD_*` оставлены как fallback по умолчанию. TipsCommand не тронут.
+- DailyTipBroadcastHandler: `serveTip($charId, false)` + `where('telegram_users.blocked_at', null)`; каждая из двух правок по отдельности откатывалась — тест рассылки краснел.
+- Миграция: 3 float-ключа (category world, recommended/hard 0..1) идемпотентно по key + UPDATE `game_tips.id=22` (без чисел, «15 дней» тоже убрано); down() удаляет ключи и возвращает текст из TipsARewriteExisting.
+- Funnel: корзина `FunnelAnalyticsService::NOT_STARTED` ('Не начали игру', сортируется первой); `stuck_l1` = (L1 ИЛИ без движения); e5 `l2plus` требует движения. View: подпись под «Уровни», уточнены «Застрявшие» и «Достигли L2+ (и сделали шаг)».
+- Сюрприз: совет `title_en='DailyTip'` («📌 Совет дня», TipsCSeedDailyTip) тоже обещает «микро-прокачку» от рассылки — по non-goal не тронут, нужна follow-up story.
+- Вердикты: guide — нет; tips — да, правка #22; WipeManifest — не нужен (только строки game_settings/game_tips). Tech-writing ноты (TipService, DailyTipBroadcastHandler, FunnelAnalyticsService) — за drone-docs.
 
 ## Findings

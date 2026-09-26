@@ -167,9 +167,26 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
         $b = (new FunnelAnalyticsService())->levelBuckets();
         $map = array_column($b, 'chars', 'bucket');
 
-        $this->assertSame(2, $map['L1']);
+        $this->assertSame(1, $map['L1']);                                   // c2 (ходил)
+        $this->assertSame(1, $map[FunnelAnalyticsService::NOT_STARTED]);    // c4 — ни шагу
         $this->assertSame(1, $map['L2-4']);
         $this->assertSame(1, $map['L10-24']);
+    }
+
+    public function testLevelTwoWithoutMovementIsNotStartedAndStuck(): void
+    {
+        // d1-relevel-l1-l2: L2, набранный рассылкой советов без единого шага, — не прогресс.
+        Database::connect('tests')->table('characters')->insert([
+            'id' => 20, 'telegram_user_id' => 1, 'level' => 2, 'cell_number' => 700020,
+            'created_at' => date('Y-m-d H:i:s', strtotime('-60 days')),
+        ]);
+        $svc = new FunnelAnalyticsService();
+
+        $map = array_column($svc->levelBuckets(), 'chars', 'bucket');
+        $this->assertSame(2, $map[FunnelAnalyticsService::NOT_STARTED]); // c4 + c20
+        $this->assertSame(1, $map['L2-4']);                               // только c3
+
+        $this->assertSame(2, $svc->anomalies()['stuck_l1']);             // c2 + c20 (L2, но без движения)
     }
 
     public function testWeeklyCohortsCountReturnAfterD1(): void

@@ -38,7 +38,7 @@ final class DailyTipBroadcastHandlerTest extends CIUnitTestCase
         $db->query('CREATE TABLE game_tips (id INT AUTO_INCREMENT PRIMARY KEY, title_ru VARCHAR(255) NULL, title_en VARCHAR(255) NULL, tip_type VARCHAR(32) NULL, content TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
         $db->query('CREATE TABLE character_game_tips (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NOT NULL, game_tip_id INT NOT NULL, viewed_at DATETIME NULL)');
         $db->query('CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, telegram_user_id INT NULL, experience DECIMAL(12,2) NOT NULL DEFAULT 0, agility DECIMAL(12,2) NOT NULL DEFAULT 0, intellect DECIMAL(12,2) NOT NULL DEFAULT 0, daily_tips_enabled TINYINT NOT NULL DEFAULT 1, created_at DATETIME NULL, updated_at DATETIME NULL)');
-        $db->query('CREATE TABLE telegram_users (id INT AUTO_INCREMENT PRIMARY KEY, telegram_id BIGINT NULL)');
+        $db->query('CREATE TABLE telegram_users (id INT AUTO_INCREMENT PRIMARY KEY, telegram_id BIGINT NULL, blocked_at DATETIME NULL)');
 
         // Happy-path настройки: рассылка включена, час = текущий.
         $this->seedSetting('tips.daily_enabled', 'bool', ['value_bool' => 1]);
@@ -49,11 +49,13 @@ final class DailyTipBroadcastHandlerTest extends CIUnitTestCase
             $db->table('game_tips')->insert(['title_ru' => "Совет {$i}", 'title_en' => "Tip{$i}", 'tip_type' => 'общие', 'content' => "Тело {$i}"]);
         }
 
-        // Игроки: A — opt-in (получит), B — opt-out (нет).
+        // Игроки: A — opt-in (получит), B — opt-out (нет), C — opt-in, но заблокировал бота (нет).
         $db->table('telegram_users')->insert(['id' => 10, 'telegram_id' => 1010]);
         $db->table('telegram_users')->insert(['id' => 20, 'telegram_id' => 2020]);
+        $db->table('telegram_users')->insert(['id' => 30, 'telegram_id' => 3030, 'blocked_at' => date('Y-m-d H:i:s')]);
         $db->table('characters')->insert(['id' => 1, 'telegram_user_id' => 10, 'experience' => 1.00, 'agility' => 2.00, 'intellect' => 3.00, 'daily_tips_enabled' => 1]);
         $db->table('characters')->insert(['id' => 2, 'telegram_user_id' => 20, 'experience' => 1.00, 'agility' => 2.00, 'intellect' => 3.00, 'daily_tips_enabled' => 0]);
+        $db->table('characters')->insert(['id' => 3, 'telegram_user_id' => 30, 'experience' => 1.00, 'agility' => 2.00, 'intellect' => 3.00, 'daily_tips_enabled' => 1]);
     }
 
     protected function tearDown(): void
@@ -121,9 +123,20 @@ final class DailyTipBroadcastHandlerTest extends CIUnitTestCase
         $this->assertSame(1, $this->viewCount(1));
         $this->assertSame(0, $this->viewCount(2));
 
-        // Награда применена A.
+        // Рассылка НЕ награждает (d1-relevel-l1-l2): статы A не тронуты.
         $row = Database::connect('tests')->table('characters')->where('id', 1)->get()->getRowArray();
-        $this->assertEqualsWithDelta(1.01, (float) $row['experience'], 0.0001);
+        $this->assertEqualsWithDelta(1.00, (float) $row['experience'], 0.0001);
+        $this->assertEqualsWithDelta(2.00, (float) $row['agility'], 0.0001);
+        $this->assertEqualsWithDelta(3.00, (float) $row['intellect'], 0.0001);
+    }
+
+    public function testBlockedUserIsSkipped(): void
+    {
+        $handler = $this->makeHandler();
+        $handler->handle();
+
+        $this->assertNotContains(3030, array_column($handler->sent, 0), 'заблокировавшему бота не шлём');
+        $this->assertSame(0, $this->viewCount(3));
     }
 
     public function testKillswitchOffSendsNothing(): void

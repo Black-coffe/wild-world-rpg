@@ -43,6 +43,9 @@ final class FunnelAnalyticsService
      */
     private const E5_ACTIVATION = '2026-06-10 13:04:00';
 
+    /** Корзина levelBuckets() для персонажей без единого шага (explored_cells пуст) — любой level. */
+    public const NOT_STARTED = 'Не начали игру';
+
     /** Глубина когорты «до» (дней до активации) для сравнения E5. */
     private const E5_BEFORE_DAYS = 14;
 
@@ -148,16 +151,24 @@ final class FunnelAnalyticsService
     /**
      * Распределение по уровневым корзинам.
      *
+     * Персонаж без единой записи в explored_cells идёт в корзину NOT_STARTED независимо от
+     * `level` (d1-relevel-l1-l2): уровень неиграющих рос от наград вне игры (рассылка советов
+     * дотянула до L2 сотни спящих), и уровень сам по себе прогресс не доказывает.
+     *
      * @return list<array{bucket:string,chars:int}>
      */
     public function levelBuckets(): array
     {
         $rows = $this->rows(
-            "SELECT CASE WHEN level <= 1 THEN 'L1' WHEN level < 5 THEN 'L2-4' WHEN level < 10 THEN 'L5-9'
-                         WHEN level < 25 THEN 'L10-24' WHEN level < 50 THEN 'L25-49'
-                         WHEN level < 100 THEN 'L50-99' ELSE 'L100+' END bucket,
-                    MIN(level) lv, COUNT(*) chars
-             FROM characters GROUP BY bucket ORDER BY lv"
+            "SELECT bucket, MIN(lv) lv, COUNT(*) chars FROM (
+                SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM explored_cells e WHERE e.character_id = c.id) THEN '" . self::NOT_STARTED . "'
+                            WHEN c.level <= 1 THEN 'L1' WHEN c.level < 5 THEN 'L2-4' WHEN c.level < 10 THEN 'L5-9'
+                            WHEN c.level < 25 THEN 'L10-24' WHEN c.level < 50 THEN 'L25-49'
+                            WHEN c.level < 100 THEN 'L50-99' ELSE 'L100+' END bucket,
+                       CASE WHEN NOT EXISTS(SELECT 1 FROM explored_cells e WHERE e.character_id = c.id) THEN 0
+                            ELSE c.level END lv
+                FROM characters c
+             ) t GROUP BY bucket ORDER BY lv"
         );
         $out = [];
         foreach ($rows as $r) {
@@ -202,6 +213,7 @@ final class FunnelAnalyticsService
 
     /**
      * Аномалии: легаси-ловушка клетки 1 (респавн-fallback) и «застрявшие» L1.
+     * «Застрявший» — L1 ИЛИ ни разу не ходивший (любой level: уровень неиграющего не прогресс).
      *
      * @return array<string,int>
      */
@@ -214,7 +226,8 @@ final class FunnelAnalyticsService
         );
         $stuck = $this->row(
             'SELECT COUNT(*) t FROM characters c
-             WHERE c.level = 1 AND c.created_at < NOW() - INTERVAL 14 DAY
+             WHERE (c.level = 1 OR NOT EXISTS (SELECT 1 FROM explored_cells e0 WHERE e0.character_id = c.id))
+               AND c.created_at < NOW() - INTERVAL 14 DAY
                AND NOT EXISTS (SELECT 1 FROM explored_cells e WHERE e.character_id = c.id
                                AND e.created_at >= NOW() - INTERVAL 14 DAY)'
         );
@@ -300,7 +313,7 @@ final class FunnelAnalyticsService
                                AND a.action_name = 'LUCKY_FIND_FIRST')) lucky,
                     SUM(EXISTS(SELECT 1 FROM action_log a WHERE a.character_id = c.id
                                AND a.action_name IN ('SELL_RESOURCE','BULK_SELL'))) sellers,
-                    SUM(c.level >= 2) l2plus,
+                    SUM(c.level >= 2 AND EXISTS(SELECT 1 FROM explored_cells e WHERE e.character_id = c.id)) l2plus,
                     SUM(c.created_at <= NOW() - INTERVAL 1 DAY) d1_eligible,
                     SUM(EXISTS(SELECT 1 FROM explored_cells e WHERE e.character_id = c.id
                                AND e.created_at >= c.created_at + INTERVAL 1 DAY)) back_d1,

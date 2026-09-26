@@ -117,6 +117,7 @@ $cards = [
                     </tbody>
                 </table>
             </div>
+            <div class="aui-card__body" style="padding-top:0"><p class="aui-faint aui-small" style="margin:0">«Не начали игру» — ни одного шага (нет explored_cells) при любом уровне: уровень без движения набран вне игры и прогрессом не считается. Уровневые корзины — только ходившие.</p></div>
         </div>
 
         <div class="aui-card">
@@ -124,7 +125,7 @@ $cards = [
             <div class="aui-card__body">
                 <ul class="aui-small" style="margin:0; padding-left:1.1em; line-height:1.7">
                     <li>Клетка 1 (легаси-респавн-fallback): <b><?= esc($num($anom['cell1_chars'] ?? 0)) ?></b> чаров, из них заблокировали бота: <b><?= esc($num($anom['cell1_blocked'] ?? 0)) ?></b>.</li>
-                    <li>«Застрявшие» L1 (созданы &gt;14 дн назад, нет движения 14 дн): <b><?= esc($num($anom['stuck_l1'] ?? 0)) ?></b>.</li>
+                    <li>«Застрявшие» L1 (созданы &gt;14 дн назад, нет движения 14 дн; сюда же — ни разу не ходившие при любом уровне): <b><?= esc($num($anom['stuck_l1'] ?? 0)) ?></b>.</li>
                 </ul>
             </div>
         </div>
@@ -293,7 +294,7 @@ $cards = [
             ['Стартовый набор выдан (Ф1)', 'kit', null],
             ['Момент удачи выдан (Ф3b)', 'lucky', null],
             ['Продавали ресурсы (форензик-лог)', 'sellers', null],
-            ['Достигли L2+', 'l2plus', null],
+            ['Достигли L2+ (и сделали шаг)', 'l2plus', null],
         ];
         ?>
         <div class="aui-tablewrap">

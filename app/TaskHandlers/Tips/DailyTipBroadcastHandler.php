@@ -24,9 +24,11 @@ use App\TaskHandlers\BaseTaskHandler;
  *      деплое в час 10:00 стирался → повторная рассылка (прод-аномалии 05-23 ×22 / 05-27 ×4).
  *      Claim ставится ДО цикла → краш в середине не вызывает повторную рассылку получившим.
  *
- * Каждому игроку с `daily_tips_enabled=1` (+ есть telegram-связь) — персональный совет
- * из его недедупнутого пула (та же логика, что /tips: {@see TipService}), лог в общий
- * дедуп `character_game_tips` + та же микро-награда. Throttle между сообщениями (Telegram
+ * Каждому игроку с `daily_tips_enabled=1` (+ есть telegram-связь, бот не заблокирован —
+ * `telegram_users.blocked_at IS NULL`) — персональный совет из его недедупнутого пула
+ * (та же логика, что /tips: {@see TipService}), лог в общий дедуп `character_game_tips`.
+ * Награды нет (d1-relevel-l1-l2): рассылка качала до L2 тех, кто не играет; микро-награда
+ * остаётся только за ручной /tips. Throttle между сообщениями (Telegram
  * ~30 msg/sec). Send через safeSendMessage (ловит rate-limit/сетевые ошибки, не падает).
  *
  * Daily = серверная дата + час; глобальный once/day guard (не per-timezone игрока) — осознанно (ADR-038).
@@ -34,7 +36,7 @@ use App\TaskHandlers\BaseTaskHandler;
 #[HandlerKey(
     key: 'tips_daily_broadcast',
     displayName: 'Совет дня (ADR-038)',
-    description: 'everyMinute + hour/once-day guard: раз в сутки шлёт каждому игроку (opt-in daily_tips_enabled) персональный совет с микро-наградой. Killswitch tips.daily_enabled, час tips.daily_hour.',
+    description: 'everyMinute + hour/once-day guard: раз в сутки шлёт каждому игроку (opt-in daily_tips_enabled) персональный совет без награды (награда — только за /tips), заблокировавшим бот не шлёт. Killswitch tips.daily_enabled, час tips.daily_hour.',
 )]
 class DailyTipBroadcastHandler extends BaseTaskHandler
 {
@@ -119,6 +121,7 @@ class DailyTipBroadcastHandler extends BaseTaskHandler
             ->select('characters.id AS character_id, telegram_users.telegram_id')
             ->join('telegram_users', 'telegram_users.id = characters.telegram_user_id')
             ->where('characters.daily_tips_enabled', 1)
+            ->where('telegram_users.blocked_at', null)
             ->get();
         /** @var list<array<string,mixed>> $rows */
         $rows = $query === false ? [] : $query->getResultArray();
@@ -138,7 +141,7 @@ class DailyTipBroadcastHandler extends BaseTaskHandler
             }
             $seen[$tgId] = true;
 
-            $tip = $this->tips->serveTip($charId);
+            $tip = $this->tips->serveTip($charId, false);
             if ($tip === null) {
                 continue; // пул советов исчерпан для этого игрока
             }
