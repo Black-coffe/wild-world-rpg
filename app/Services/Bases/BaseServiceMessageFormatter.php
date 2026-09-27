@@ -208,9 +208,10 @@ final class BaseServiceMessageFormatter
 
         // multibase-picker-02: кнопки, ведущие на этой базой владеющие экраны, несут
         // суффикс её id (Contracts плана) — обработчик каждой заново проверит доступность.
+        // w2-n4-base-01 (ask 5): «🏗 Строить» — тоже (`Build_b<id>`); без базы (0) — голый `Build`.
         $kbRows = [
             [
-                ['text' => '🏗 Строить',   'callback_data' => 'Build'],
+                ['text' => '🏗 Строить',   'callback_data' => $baseId > 0 ? BaseCallbackSuffix::append('Build', $baseId) : 'Build'],
                 ['text' => '🏘 Постройки', 'callback_data' => BaseCallbackSuffix::append('construction', $baseId)],
                 ['text' => '📡 Маяки',     'callback_data' => 'teleportBeacon'],
             ],

@@ -51,27 +51,74 @@ final class BaseBuildingsList
      */
     public function buildSummary(int $characterId, ?int $cellNumber = null): array
     {
+        $rows = $this->rows($characterId, $cellNumber);
+
+        $list = '';
+        foreach ($rows as $row) {
+            $list .= "- {$row['name']}\n";
+        }
+
+        return [
+            'count'    => count($rows),
+            'totalTax' => (int) array_sum(array_column($rows, 'tax')),
+            'list'     => $list,
+        ];
+    }
+
+    /**
+     * w2-n4-base-01 — строки `character_buildings` базы (в порядке `id`) вместе с данными здания:
+     * два запроса на любую базу (строки + здания одним `whereIn`), без запроса на каждое здание.
+     * `$cellNumber === null` — все постройки персонажа (legacy, как у {@see buildSummary()}).
+     *
+     * @return list<array{id:int, buildingId:int, key:string, name:string, type:string, level:int, tax:int, amount:int}>
+     */
+    public function rows(int $characterId, ?int $cellNumber = null): array
+    {
         $query = $this->characterBuildingModel->where('character_id', $characterId);
         if ($cellNumber !== null) {
             $query->where('map_cell_id', $cellNumber);
         }
-        $buildings = $query->findAll();
+        $buildings = $query->orderBy('id', 'ASC')->findAll();
 
-        $count    = count($buildings);
-        $totalTax = (int) array_sum(array_column($buildings, 'tax'));
-
-        $list = '';
-        foreach ($buildings as $b) {
-            $bld   = $this->buildingModel->where('id', $b['building_id'])->first();
-            $bName = $bld['name_ru'] ?? 'Неизвестное строение';
-            $list .= "- {$bName}\n";
+        $buildingIds = [];
+        foreach ($buildings as $raw) {
+            $b  = is_array($raw) ? $raw : (array) $raw;
+            $id = is_numeric($b['building_id'] ?? null) ? (int) $b['building_id'] : 0;
+            if ($id > 0) {
+                $buildingIds[$id] = true;
+            }
+        }
+        /** @var array<int, array<string,mixed>> $info */
+        $info = [];
+        if ($buildingIds !== []) {
+            foreach ($this->buildingModel->whereIn('id', array_keys($buildingIds))->findAll() as $bldRaw) {
+                $bld = is_array($bldRaw) ? $bldRaw : (array) $bldRaw;
+                $id  = is_numeric($bld['id'] ?? null) ? (int) $bld['id'] : 0;
+                /** @var array<string,mixed> $bld */
+                $info[$id] = $bld;
+            }
         }
 
-        return [
-            'count'    => $count,
-            'totalTax' => $totalTax,
-            'list'     => $list,
-        ];
+        $rows = [];
+        foreach ($buildings as $raw) {
+            /** @var array<string,mixed> $b */
+            $b          = is_array($raw) ? $raw : (array) $raw;
+            $buildingId = is_numeric($b['building_id'] ?? null) ? (int) $b['building_id'] : 0;
+            $bld        = $info[$buildingId] ?? null;
+
+            $rows[] = [
+                'id'         => is_numeric($b['id'] ?? null) ? (int) $b['id'] : 0,
+                'buildingId' => $buildingId,
+                'key'        => $bld !== null && is_string($bld['name_en'] ?? null) ? $bld['name_en'] : 'unknown',
+                'name'       => $bld !== null ? BuildingModel::rusName($bld, 'Неизвестное строение') : 'Неизвестное строение',
+                'type'       => $bld !== null && is_string($bld['building_type'] ?? null) ? $bld['building_type'] : '',
+                'level'      => is_numeric($b['level'] ?? null) ? max(1, (int) $b['level']) : 1,
+                'tax'        => is_numeric($b['tax'] ?? null) ? (int) $b['tax'] : 0,
+                'amount'     => is_numeric($b['amount'] ?? null) ? max(1, (int) $b['amount']) : 1,
+            ];
+        }
+
+        return $rows;
     }
 
     /**

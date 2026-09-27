@@ -3,14 +3,19 @@
 namespace App\Controllers\Telegram\Commands\Actions\Camp;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use App\Models\ClaimedCellModel;
-use App\Models\MapModel;
-use App\Models\BiomeModel;
-use App\Models\BuildingModel;
+use App\Services\Bases\BaseCallbackSuffix;
+use App\Services\Buildings\BuildOrderService;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 use App\Services\Tasks\ActiveTasksService;
 
+/**
+ * «🏗 Строить» (`Build`[`_b<id>`]) — список построек с налогом.
+ *
+ * w2-n4-base-02 (ADR-190): каталог (порядок, налог, Навес новичку, замки уровня) — ядро
+ * {@see BuildOrderService::catalog()}, общее с вебом; здесь прежний текст и кнопки. База из суффикса
+ * переезжает в кнопки карточек (`genericBuildInfo_<Key>_b<id>`) — карточка перепроверит её сама.
+ */
 class BuildListAction extends BaseAction
 {
     public function handle(): ServerResponse
@@ -39,61 +44,25 @@ class BuildListAction extends BaseAction
             return Request::emptyResponse();
         }
 
-        // S1 (v0.51.182+): callback_data → единый `genericBuildInfo_<Key>` (читает Config\Buildings).
-        // Раньше каждая кнопка имела свой legacy callback (buildHandPump/...). Удалены.
-        $buildingsInfo = [
-            ['name' => "🚰 Ручная скважина",            'tax' => 300,  'callback_data' => 'genericBuildInfo_HandPump'],
-            ['name' => "🔥 Доменная печь",              'tax' => 450,  'callback_data' => 'genericBuildInfo_BlastFurnace'],
-            ['name' => "🏚️ Склад",                       'tax' => 900,  'callback_data' => 'genericBuildInfo_Warehouse'],
-            ['name' => "🔧 Мастерская",                  'tax' => 500,  'callback_data' => 'genericBuildInfo_Workshop'],
-            ['name' => "🌱 Теплица",                     'tax' => 840,  'callback_data' => 'genericBuildInfo_Greenhouse'],
-            ['name' => "☀️ Солнечная станция",          'tax' => 760,  'callback_data' => 'genericBuildInfo_SolarStation'],
-            ['name' => "🥊 Спортзал",                    'tax' => 900,  'callback_data' => 'genericBuildInfo_Gym'],
-            ['name' => "🥼 Лаборатория",                 'tax' => 860,  'callback_data' => 'genericBuildInfo_Laboratory'],
-            ['name' => "🤖 Мастерская робототехники",   'tax' => 1400, 'callback_data' => 'genericBuildInfo_RoboticsWorkshop'],
-            ['name' => "🌀 Центр телепортации",          'tax' => 820,  'callback_data' => 'genericBuildInfo_TeleportationCenter'],
-            ['name' => "⚔️ Арсенал",                    'tax' => 2000, 'callback_data' => 'genericBuildInfo_Arsenal'],
-            ['name' => "📢 Вышка связи",                 'tax' => 1300, 'callback_data' => 'genericBuildInfo_CommunicationTower'],
-            // S26 (v0.51.207, ADR-030) — defensive structures (защита базы в PvP).
-            ['name' => "🪵 Деревянная стена",            'tax' => 200,  'callback_data' => 'genericBuildInfo_WoodenWall'],
-            ['name' => "🌵 Колючая ограда",              'tax' => 350,  'callback_data' => 'genericBuildInfo_BarbedFence'],
-            // S26b (ADR-031) — WatchTower: оповещение о чужаках + инициатива у базы.
-            ['name' => "🗼 Дозорная вышка",              'tax' => 700,  'callback_data' => 'genericBuildInfo_WatchTower'],
-        ];
+        [, $baseId] = BaseCallbackSuffix::split((string) $this->callbackQuery->getData());
+        $catalog    = (new BuildOrderService())->catalog((int) $character['id'], $baseId);
 
-        $buildingList = "";
+        $buildingList    = "";
         $keyboardButtons = [];
-
-        // S4 (ADR-139, слайс 2) — прогрессивное раскрытие: уровневые постройки (Арсенал L15 и т.п.)
-        // → lock-кнопка «🔒 … (с lvl X)» вместо кнопки-обманки (гейт уровня раньше был только внутри
-        // preview → UX-Discoverability нарушение). gated onboarding.cold_open_v2.build_locks → OFF
-        // = рендер как раньше (byte-identical). Источник уровней — Config\Buildings (тот же, что preview).
-        $lockSvc = new \App\Services\Onboarding\BuildLockService();
-        $level   = (int) ($character['level'] ?? 0);
-
-        // S5 (ADR-142) — «первое укрытие»: новичку без единой постройки первой кнопкой
-        // предлагаем дешёвый one-shot Навес (25 дерева + 10 воды, ~3 мин, налог 0) — закрывает
-        // горлышко OnbStepBuild (Build-конверсия 9% = #1 утечка). Гейт FirstShelterService
-        // (killswitch onboarding.first_build.enabled → OFF = кнопка не добавляется, byte-identical).
-        $shelterSvc = new \App\Services\Onboarding\FirstShelterService();
-        if ($shelterSvc->shouldOffer((int) ($character['id'] ?? 0), $level)) {
-            array_unshift($buildingsInfo, $shelterSvc->buttonEntry());
-        }
-
-        // Формируем список и кнопки
-        foreach ($buildingsInfo as $b) {
-            $key = substr($b['callback_data'], strlen('genericBuildInfo_'));
-            if ($lockSvc->isLocked($key, $level)) {
-                $buildingList .= "🔒 *{$b['name']}* | _нужен lvl {$lockSvc->requiredLevel($key)}_\n";
+        foreach ($catalog['items'] as $item) {
+            if ($item['locked']) {
+                // S4 (ADR-139): уровневая постройка — lock-кнопка с уровнем, а не кнопка-обманка.
+                $buildingList .= "🔒 *{$item['name']}* | _нужен lvl {$item['required_level']}_\n";
                 $keyboardButtons[] = [
-                    'text'          => $lockSvc->lockLabel($key, $b['name']),
-                    'callback_data' => "buildLocked_{$key}",
+                    'text'          => $item['lock_label'],
+                    'callback_data' => "buildLocked_{$item['key']}",
                 ];
             } else {
-                $buildingList .= "*{$b['name']}* | *Налог: {$b['tax']}* 💰\n";
+                $buildingList .= "*{$item['name']}* | *Налог: {$item['tax']}* 💰\n";
+                $callback          = "genericBuildInfo_{$item['key']}";
                 $keyboardButtons[] = [
-                    'text'          => $b['name'],
-                    'callback_data' => $b['callback_data'],
+                    'text'          => $item['name'],
+                    'callback_data' => $baseId !== null ? BaseCallbackSuffix::append($callback, $baseId) : $callback,
                 ];
             }
         }

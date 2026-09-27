@@ -5,6 +5,8 @@ namespace App\Services\Player\BuildingUpgrade;
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\ResourceModel;
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\WriteOutcome;
 use App\Services\Player\ResourcePoolService;
 use App\Services\PVE\DefenseStructureService;
 
@@ -23,8 +25,10 @@ use App\Services\PVE\DefenseStructureService;
  *  1. for each (name_en, qty) in resources: `ResourcePoolService::consume(...)`
  *     (рюкзак сначала, остаток со склада; при нехватке бросает `RuntimeException`
  *     и не списывает ничего)
- *  2. characters.gold -= requirements.gold (через `CharacterStatsService::adjust()`)
- *  3. character_buildings.level = nextLevel
+ *  2. characters.gold -= requirements.gold — условной записью `decrementIfAtLeast` (w2-n4-base-02, ADR-181;
+ *     раньше `CharacterStatsService::adjust()` с полом 0 — при гонке апгрейд обходился без оплаты)
+ *  3. character_buildings.level = nextLevel — только из уровня, который видела проверка
+ *     (`WHERE level = nextLevel - 1`): второе параллельное подтверждение откатывается целиком
  *
  * ADR-171 + ревью-фикс: все шаги — под одной `$db->transStart()`/`transComplete()`
  * (тот же приём, что и `GenericCraftActionStart` в story -05). `ResourcePoolService::consume()`
@@ -49,7 +53,11 @@ class BuildingUpgradeApplier
     private BuildingModel $buildingModel;
     private DefenseStructureService $defenseService;
     private ResourcePoolService $resourcePool;
-    private \App\Services\Player\CharacterStatsService $statsService;
+    /**
+     * С w2-n4-base-02 золото апгрейда списывается условной записью, а не через `adjust()`; сервис
+     * остаётся швом существующих тестов (они подменяют его, чтобы доказать, что золото не тронуто).
+     */
+    protected \App\Services\Player\CharacterStatsService $statsService;
 
     public function __construct(
         ?ResourceModel $resourceModel = null,
@@ -79,6 +87,8 @@ class BuildingUpgradeApplier
     public function apply(array|\App\Entities\CharacterEntity $character, array $charBuilding, int $nextLevel, array $requirements): void
     {
         $charId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $rowId  = is_numeric($charBuilding['id'] ?? null) ? (int) $charBuilding['id'] : 0;
+        $gold   = (int) $requirements['gold'];
 
         $db = \Config\Database::connect();
         $db->transStart();
@@ -94,11 +104,12 @@ class BuildingUpgradeApplier
             throw $e;
         }
 
-        // Fix 2026-07-13 (класс lost-update): атомарное относительное списание
-        // от СВЕЖЕГО золота (CharacterStatsService), floor 0 — дефолтный. Своя
-        // вложенная транзакция CharacterStatsService::adjust() физически не
-        // коммитится, пока не завершится наша внешняя (CI4 nested transDepth).
-        $this->statsService->adjust($charId, ['gold' => -(int) $requirements['gold']]);
+        // w2-n4-base-02 (ADR-181): золото — условной записью. Раньше `CharacterStatsService::adjust()`
+        // с полом 0: при гонке (золото ушло между проверкой и оплатой) апгрейд проходил бесплатно.
+        if ($gold > 0 && (new ConditionalWriteService($db))->decrementIfAtLeast('characters', $charId, 'gold', $gold) !== WriteOutcome::Applied) {
+            $db->transRollback();
+            throw new \RuntimeException("Не хватило золота ({$gold}) в момент оплаты апгрейда.");
+        }
 
         $update = ['level' => $nextLevel];
 
@@ -114,7 +125,14 @@ class BuildingUpgradeApplier
             }
         }
 
-        $this->characterBuildingModel->update($charBuilding['id'], $update);
+        // w2-n4-base-02: уровень переводится только из того, что видела проверка. Второе параллельное
+        // подтверждение ждёт блокировку строки и не находит прежний уровень — откат его оплаты целиком.
+        $builder = $this->characterBuildingModel->builder();
+        $builder->where('id', $rowId)->where('level', $nextLevel - 1)->update($update);
+        if ($builder->db()->affectedRows() < 1) {
+            $db->transRollback();
+            throw new \RuntimeException("Уровень постройки {$rowId} уже изменён параллельным апгрейдом.");
+        }
 
         $db->transComplete();
 

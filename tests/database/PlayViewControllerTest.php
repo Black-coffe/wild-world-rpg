@@ -88,6 +88,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
         'biomes', 'map', 'telegram_users', 'accounts', 'account_identities', 'account_tokens', 'account_link_codes',
         'characters', 'action_log', 'tasks', 'character_tasks', 'explored_cells', 'crafted_items', 'crafted_items_log', 'game_settings', 'player_action_log',
         'telegram_updates_seen', 'web_play_state', 'web_inbox', 'web_play_intents',
+        'claimed_cells', 'buildings', 'character_buildings', 'base_storage', 'faction_endgame_scores', 'resources', 'character_resources',
     ];
 
     private const ENV = ['telegram.API_KEY' => '123456:TEST_TOKEN', 'telegram.BOT_USERNAME' => 'wildworldtest_bot'];
@@ -261,12 +262,12 @@ final class PlayViewControllerTest extends CIUnitTestCase
     public function testDockMeButtonOpensNativeViewOthersStayOnTheBridge(): void
     {
         [$session, $charId] = $this->character('Ворон');
-        $this->seedScreen($charId);
+        $this->seedScreen($charId, [['🧑 Я', '📋 Дела']]);
 
         $page = html_entity_decode($this->body($this->withSession($session)->get('play')), ENT_QUOTES | ENT_HTML5);
 
         $this->assertMatchesRegularExpression('~action="[^"]*/play/view" method="post">.*?name="view" value="me">.*?🧑 Я</button>~su', $page);
-        $this->assertMatchesRegularExpression('~action="[^"]*/play/act" method="post">.*?name="data" value="🏠 База">~su', $page);
+        $this->assertMatchesRegularExpression('~action="[^"]*/play/act" method="post">.*?name="data" value="📋 Дела">~su', $page);
         $this->assertStringContainsString('id="play-hud"', $page);
     }
 
@@ -846,6 +847,180 @@ final class PlayViewControllerTest extends CIUnitTestCase
 
     // ── Фикстура ─────────────────────────────────────────────────────────
 
+
+    // ── W2.N4-03: «🏠 База» ──────────────────────────────────────────────
+
+    public function testDockBaseButtonOpensNativeBase(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->seedScreen($charId, [['🧑 Я', '🏠 База']]);
+
+        $page = html_entity_decode($this->body($this->withSession($session)->get('play')), ENT_QUOTES | ENT_HTML5);
+        $this->assertMatchesRegularExpression('~action="[^"]*/play/view" method="post">.*?name="view" value="base">.*?🏠 База</button>~su', $page);
+    }
+
+    /** 2+ базы под сигналом — пикер; выбор — обзор этой базы со стопками и кнопками моста; чужая `b` — отказ. */
+    public function testBasePickerOverviewAndForeignBaseRefusal(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        [, $otherId]        = $this->character('Чужак');
+        $this->enableBase();
+        $this->place($charId, 300);
+        $b1 = $this->addBase($charId, 100, 'Первая', 1);
+        $b2 = $this->addBase($charId, 200, 'Вторая', 1);
+        $this->building($charId, 2, 200, 2, 900, 3);
+        $foreign = $this->addBase($otherId, 400, 'Чужая', null);
+        $this->building($otherId, 2, 400, 1, 1, 1);
+        $this->stubSheets();
+
+        $picker = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'base'], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-native="base"', $picker);
+        $this->assertStringContainsString('Активных баз: 2', $picker);
+        $this->assertMatchesRegularExpression('~name="view" value="base"><input type="hidden" name="b" value="' . $b1 . '"><button class="play-kb-btn" type="submit">🏠 Первая \(X=10, Y=10\)~su', $picker);
+        $this->assertStringContainsString('name="b" value="' . $b2 . '"', $picker);
+
+        $html = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'base', 'b' => (string) $b2], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('Мастерская <span class="play-base-stack">×3</span>', $html, 'стопка — из amount');
+        $this->assertStringContainsString('ур. 2 · налог 900', $html);
+        $this->assertStringContainsString('X=20 Y=20', $html);
+        $this->assertStringContainsString('сигнал Вышки связи (ур. 1)', $html, 'дистанционно — видно, откуда управление');
+        foreach (["building_2_Workshop_b{$b2}", "hangar_b{$b2}", "baseDevelopment_b{$b2}", 'teleportBeacon', 'DeleteBase', 'demolishBuilding', 'TeleportToCamp'] as $cb) {
+            $this->assertMatchesRegularExpression('~name="op" value="bridge">.*?name="data" value="' . preg_quote($cb, '~') . '">~su', $html, "кнопка моста {$cb}");
+        }
+        $this->assertMatchesRegularExpression('~name="section" value="upgrade"><input type="hidden" name="id" value="2">~su', $html, 'у постройки — «Улучшить»');
+
+        $refused = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'base', 'b' => (string) $foreign], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('Эта база сейчас недоступна', $refused);
+        $this->assertStringNotContainsString('X=40', $refused, 'чужая база не показывается');
+        $this->assertStringNotContainsString('Чужая', $refused);
+    }
+
+    public function testNoBaseOffersCampThroughTheBridgeFromTheBaseMenu(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableBase();
+        $this->place($charId, 100);
+        $act = $this->baseAct();
+        $this->stubSheets($act);
+
+        $html = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'base'], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('У тебя нет базы', $html);
+        $this->assertMatchesRegularExpression('~name="data" value="Camp"><button class="play-kb-btn" type="submit">🏕 Разбить лагерь</button>~su', $html);
+
+        $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'Camp', 'intent_id' => 'cb1'], true)->assertStatus(200);
+        $this->assertSame([
+            ['intent_id' => 'cb1:card', 'kind' => 'text', 'data' => BotMenuService::menuLabel('base')],
+            ['intent_id' => 'cb1:cb', 'kind' => 'callback', 'data' => 'Camp', 'message_id' => '51'],
+        ], $act->calls);
+    }
+
+    /** Карточка здания с суффиксом базы: «🏠 База» → выбор базы на пикере → «🏘 Постройки» → карточка. */
+    public function testBuildingCardBridgeWalksBaseMenuPickerAndConstruction(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableBase();
+        $act = $this->baseAct();
+        $this->stubSheets($act);
+
+        $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'building_2_Workshop_b7', 'intent_id' => 'w1'], true)->assertStatus(200);
+        $this->assertSame([
+            ['intent_id' => 'w1:card', 'kind' => 'text', 'data' => BotMenuService::menuLabel('base')],
+            ['intent_id' => 'w1:s0', 'kind' => 'callback', 'data' => 'Base_b7', 'message_id' => '51'],
+            ['intent_id' => 'w1:s1', 'kind' => 'callback', 'data' => 'construction_b7', 'message_id' => '52'],
+            ['intent_id' => 'w1:cb', 'kind' => 'callback', 'data' => 'building_2_Workshop_b7', 'message_id' => '53'],
+        ], $act->calls);
+
+        $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'building_2_Workshop', 'intent_id' => 'w2'], true)->response()->getStatusCode(), 'карточка без базы — не кнопка веб-базы');
+    }
+
+    /** Обзор — визит, как в боте; подсказка «первая постройка» веб-игроку — во входящих. */
+    public function testOpeningBaseIsAVisitAndWebOnlyHintLandsInTheInbox(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableBase();
+        $this->place($charId, 100);
+        $b = $this->addBase($charId, 100, null, null);
+        $this->stubSheets();
+
+        $this->postWithCsrf($session, 'play/view', ['view' => 'base'], true)->assertStatus(200);
+
+        $row = $this->conn->table('claimed_cells')->where('id', $b)->get()->getRowArray();
+        $this->assertNotNull($row['last_visited_at'] ?? null, 'открытие базы продлевает срок');
+        $inbox = $this->conn->table('web_inbox')->where('character_id', $charId)->get()->getResultArray();
+        $this->assertNotEmpty(array_filter($inbox, static fn (array $r): bool => str_contains((string) $r['payload'], 'Построй первую постройку')), 'подсказка — во входящих');
+    }
+
+    /** Каталог: замок уровня с путём; карточка — есть/нужно; старт — одна задача на intent_id, HUD с таймером; без JS — PRG. */
+    public function testBuildCatalogCardStartDedupsAndShowsTheTaskInHud(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableBase();
+        $this->place($charId, 100);
+        $b = $this->addBase($charId, 100, null, null);
+        $this->stockWorkshop($charId);
+        $this->conn->table('game_settings')->insert(['setting_key' => 'onboarding.cold_open_v2.build_locks', 'value_type' => 'bool', 'value_bool' => 1, 'category' => 'experimental']);
+        $this->stubSheets();
+        $nav = ['view' => 'base', 'b' => (string) $b];
+
+        $catalog = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', $nav + ['section' => 'catalog'], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('🔒 ⚔️ Арсенал (нужно: уровень 15)', $catalog);
+        $this->assertStringContainsString('Путь: уровень растёт с опытом', $catalog);
+        $this->assertMatchesRegularExpression('~name="section" value="building"><input type="hidden" name="key" value="Workshop"><button class="play-kb-btn" type="submit">🔧 Мастерская · 500</button>~su', $catalog);
+
+        $card = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', $nav + ['section' => 'building', 'key' => 'Workshop'], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('<span class="play-craft-req-qty">1500 / 1500</span>', $card);
+        $this->assertMatchesRegularExpression('~name="op" value="build_start"><input type="hidden" name="b" value="' . $b . '"><input type="hidden" name="key" value="Workshop">~su', $card);
+
+        $start = $this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'build_start', 'key' => 'Workshop', 'intent_id' => 'bs1'], true));
+        $this->assertStringStartsWith('🏗 Стройка начата: 🔧 Мастерская.', (string) $start['alert']);
+        $this->assertMatchesRegularExpression('~Стройка[^<]*</span>\s*<time class="play-hud-timer" data-ends-at="\d+"~u', $start['hud'], 'стройка — в строке задач с таймером');
+        $this->assertNull($this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'build_start', 'key' => 'Workshop', 'intent_id' => 'bs1'], true))['alert']);
+        $this->assertSame(1, $this->conn->table('character_tasks')->where('character_id', $charId)->countAllResults(), 'повтор intent_id — без второй стройки');
+        $settings = json_decode((string) $this->conn->table('character_tasks')->where('character_id', $charId)->get()->getRowArray()['task_settings'], true);
+        $this->assertSame(100, $settings['base_cell'] ?? null);
+
+        $prg = $this->postWithCsrf($session, 'play/view', $nav + ['section' => 'building', 'key' => 'Workshop']);
+        $this->assertSame(303, $prg->response()->getStatusCode());
+        $this->assertStringEndsWith('/play?view=base&b=' . $b . '&section=building&key=Workshop', $prg->response()->getHeaderLine('Location'));
+
+        $this->assertSame(400, $this->postWithCsrf($session, 'play/view', $nav + ['op' => 'build_start', 'key' => 'Work shop', 'intent_id' => 'bs2'], true)->response()->getStatusCode());
+    }
+
+    /** Апгрейд: превью с ценой, подтверждение один раз на intent_id — +1 уровень и одна оплата. */
+    public function testUpgradePreviewAndApplyDedups(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableBase();
+        $this->place($charId, 100);
+        $b = $this->addBase($charId, 100, null, null);
+        $this->building($charId, 2, 100, 1, 500, 1);
+        $this->conn->table('characters')->where('id', $charId)->update(['gold' => 60000]);
+        $this->stubSheets();
+        $nav = ['view' => 'base', 'b' => (string) $b];
+
+        $preview = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', $nav + ['section' => 'upgrade', 'id' => '2'], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('<dd>1 → 2</dd>', $preview);
+        $this->assertStringContainsString('50 000 (есть 60 000)', $preview);
+
+        $done = $this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'upgrade', 'id' => '2', 'intent_id' => 'up1'], true));
+        $this->assertSame('⬆️ «Мастерская»: уровень 1 → 2.', $done['alert']);
+        $this->assertNull($this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'upgrade', 'id' => '2', 'intent_id' => 'up1'], true))['alert']);
+        $this->assertSame(2, (int) $this->conn->table('character_buildings')->where('character_id', $charId)->get()->getRowArray()['level']);
+        $this->assertSame(10000, (int) $this->conn->table('characters')->where('id', $charId)->get()->getRowArray()['gold'], 'одна оплата');
+
+        $poor = $this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'upgrade', 'id' => '2', 'intent_id' => 'up2'], true));
+        $this->assertStringContainsString('Нужно иметь уровень >= 12', (string) $poor['alert'], 'следующий уровень — отказ ядра текстом');
+        $this->assertSame(2, (int) $this->conn->table('character_buildings')->where('character_id', $charId)->get()->getRowArray()['level']);
+    }
+
+    /** Хвосты W2.N3: один рыбный список; замок раздела — во всю строку, перенос по словам (375). */
+    public function testN3TailsFishListHasOneSourceAndLockDoesNotBreakWords(): void
+    {
+        $this->assertSame(CraftOrderService::FISH_RECIPES, \App\Controllers\Telegram\Commands\Actions\Craft\Cooking\CampfireCookingSelect::FISH_RECIPES);
+        $css = (string) file_get_contents(FCPATH . 'assets/css/wildworld-ui.css');
+        $this->assertMatchesRegularExpression('~\.play-kb-grid \.play-kb-btn\.is-locked \{[^}]*grid-column: 1 / -1;[^}]*overflow-wrap: break-word;~', $css);
+    }
+
     /**
      * Полная модель подменена фикстурой (имя — из БД), HUD — настоящий; инвентарь — из
      * заданных сырых строк `[gathered, crafted]` (по умолчанию пуст).
@@ -1094,6 +1269,98 @@ final class PlayViewControllerTest extends CIUnitTestCase
     }
 
     /** Задача «Поход» и legacy-колонка `task_settings` (создающей миграции нет) — для настоящего MarchService. */
+    /** Таблицы базы и стройки (миграции там, где пишет чужой код). */
+    private function enableBase(): void
+    {
+        $this->conn->query('SET FOREIGN_KEY_CHECKS = 0');
+        $forge = Database::forge();
+        foreach ([
+            '2024-05-23-061031_CreateClaimedCellsTable', '2024-05-23-090819_CreateBuildingsTable', '2024-05-27-105534_CreateCharacterBuildingsTable',
+            '2026-05-29-500000_W3aCreateBaseStorage', '2026-05-08-190000_AddEndgameSystem',
+        ] as $file) {
+            $this->migration($file, $forge instanceof Forge ? $forge : null)->up();
+        }
+        $this->conn->query('ALTER TABLE claimed_cells ADD last_visited_at DATETIME NULL, ADD last_warned_at DATETIME NULL, ADD camp_name VARCHAR(64) NULL, ADD camp_flag VARCHAR(16) NULL');
+        $this->conn->query('ALTER TABLE character_tasks ADD task_settings TEXT NULL');
+        $this->conn->query('ALTER TABLE tasks ADD handler_key VARCHAR(64) NULL');
+        $this->conn->query('CREATE TABLE resources (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL, name_en VARCHAR(255) NULL, type VARCHAR(255) NULL, rarity INT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
+        $this->conn->query('CREATE TABLE character_resources (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, id_characters INT UNSIGNED NOT NULL, id_resources INT UNSIGNED NOT NULL, quantity INT NOT NULL DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
+        $this->conn->query('SET FOREIGN_KEY_CHECKS = 1');
+        $this->conn->table('biomes')->insert(['id' => 1, 'name' => 'Лес']);
+        foreach ([[100, 10, 10], [200, 20, 20], [300, 15, 15], [400, 40, 40]] as [$cell, $x, $y]) {
+            $this->conn->table('map')->insert(['id' => $cell, 'cell_number' => $cell, 'coordinate_x' => $x, 'coordinate_y' => $y, 'biome_id' => 1]);
+        }
+        foreach ([1 => ['Вышка связи', 'CommunicationTower'], 2 => ['Мастерская', 'Workshop']] as $id => [$ru, $en]) {
+            $this->conn->table('buildings')->insert(['id' => $id, 'name_ru' => $ru, 'name_en' => $en, 'building_type' => 'production']);
+        }
+        $this->conn->table('tasks')->insert(['name' => 'buildWorkshop', 'name_rus' => 'Стройка Мастерской', 'min_duration' => 30, 'max_duration' => 90, 'parallel_execution_allowed' => 1, 'handler_key' => 'generic_building']);
+        $this->conn->resetDataCache();
+    }
+
+    private function place(int $charId, int $cell): void
+    {
+        $this->conn->table('characters')->where('id', $charId)->update(['cell_number' => $cell]);
+    }
+
+    private function addBase(int $charId, int $cell, ?string $name, ?int $towerLevel): int
+    {
+        $this->conn->table('claimed_cells')->insert(['character_id' => $charId, 'map_cell_id' => $cell, 'status' => 'active', 'camp_name' => $name, 'claimed_at' => date('Y-m-d H:i:s')]);
+        $id = (int) $this->conn->insertID();
+        if ($towerLevel !== null) {
+            $this->building($charId, 1, $cell, $towerLevel, 10, 1);
+        }
+
+        return $id;
+    }
+
+    private function building(int $charId, int $buildingId, int $cell, int $level, int $tax, int $amount): void
+    {
+        $this->conn->table('character_buildings')->insert(['character_id' => $charId, 'building_id' => $buildingId, 'map_cell_id' => $cell, 'level' => $level, 'tax' => $tax, 'amount' => $amount]);
+    }
+
+    /** Запас на одну Мастерскую: Wood 1500, Water 800, Clay 400; metalFragments 15, WoodMaterials 14, stoneBlocks 10. */
+    private function stockWorkshop(int $charId): void
+    {
+        foreach ([1 => ['Древесина', 'Wood', 1500], 2 => ['Вода', 'Water', 800], 3 => ['Глина', 'Clay', 400]] as $id => [$name, $en, $qty]) {
+            $this->conn->table('resources')->insert(['id' => $id, 'name' => $name, 'name_en' => $en]);
+            $this->conn->table('character_resources')->insert(['id_characters' => $charId, 'id_resources' => $id, 'quantity' => $qty]);
+        }
+        foreach ([1 => ['Металлические фрагменты', 'metalFragments', 15], 2 => ['Деревянные материалы', 'WoodMaterials', 14], 3 => ['Каменные блоки', 'stoneBlocks', 10]] as $id => [$rus, $eng, $qty]) {
+            $this->conn->table('crafted_items')->insert(['id' => $id, 'name_rus' => $rus, 'name_eng' => $eng, 'type' => 'component']);
+            $this->conn->table('crafted_items_log')->insert(['character_id' => $charId, 'crafted_item_id' => $id, 'type' => 'component', 'quantity' => $qty]);
+        }
+    }
+
+    /**
+     * Мост-двойник экрана базы бота: «🏠 База» текстом — пикер (51) с `Base_b7` и `Camp`; `Base_b7` — экран базы (52)
+     * с `construction_b7`; `construction_b7` — постройки (53) с карточкой `building_2_Workshop_b7`.
+     */
+    private function baseAct(): WebActService
+    {
+        return new class () extends WebActService {
+            /** @var list<array<string, mixed>> */
+            public array $calls = [];
+
+            public function act(int $accountId, int $characterId, array $intent): array
+            {
+                $this->calls[] = $intent;
+                [$mid, $kb] = match ($intent['data'] ?? null) {
+                    'Base_b7'         => [52, [[['text' => '🏘 Постройки', 'callback_data' => 'construction_b7']]]],
+                    'construction_b7' => [53, [[['text' => '🔧 Мастерская L1', 'callback_data' => 'building_2_Workshop_b7']]]],
+                    default           => [51, [[['text' => '🏠 Первая', 'callback_data' => 'Base_b7'], ['text' => '🏕 Разбить лагерь', 'callback_data' => 'Camp']]]],
+                };
+                $msg = ['message_id' => $mid, 'text' => 'База', 'caption' => null, 'parse_mode' => null, 'photo_url' => null, 'inline_keyboard' => $kb];
+
+                return ['state' => ['screen' => [$msg], 'history' => [], 'dock' => [['🧑 Я']], 'input' => null], 'alert' => null, 'unread' => 0];
+            }
+
+            public function current(int $characterId): array
+            {
+                return ['state' => ['screen' => [], 'history' => [], 'dock' => [['🧑 Я']], 'input' => null], 'alert' => null, 'unread' => 0];
+            }
+        };
+    }
+
     private function enableMarch(): void
     {
         $this->conn->query('ALTER TABLE character_tasks ADD task_settings TEXT NULL');

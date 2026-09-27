@@ -6,42 +6,29 @@ use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use App\Models\CharacterModel;
-use App\Models\QuestModel;
-use App\Models\QuestStepsModel;
-use App\Services\Endgame\EndgameProgressionService;
-use App\Services\Player\BuildingUpgrade\BuildingUpgradeApplier;
+use App\Services\Buildings\BuildingUpgradeService;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeMessageFormatter;
-use App\Services\Player\BuildingUpgrade\BuildingUpgradeValidator;
 use App\Services\Bases\BaseCallbackSuffix;
-use Config\BuildingUpgrades;
 
 /**
  * Двухэтапный апгрейд здания:
  *   1) askForUpgrade()  -> Показываем требования, кнопку «Подтвердить»
  *   2) confirmUpgrade() -> Если подтверждено, списываем ресурсы и повышаем уровень
+ *
+ * w2-n4-base-02 (ADR-190): проверка, атомарное применение и хуки после апгрейда — ядро
+ * {@see BuildingUpgradeService}, общее с вебом; здесь прежние тексты и кнопки.
  */
 class UpgradeBuildingAction extends BaseAction
 {
-    protected BuildingUpgradeValidator $validator;
     protected BuildingUpgradeMessageFormatter $formatter;
-    protected BuildingUpgradeApplier $applier;
-    protected BuildingUpgrades $upgrades;
-    protected EndgameProgressionService $endgameService;
+    protected BuildingUpgradeService $upgrades;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
 
-        // v0.51.62 (Step 5 polish) — services use null-default ctor pattern
-        // (each instantiates own model deps), Action no longer holds direct
-        // model refs. Steps 1-4 history: Validator (v0.51.57) + Formatter
-        // (v0.51.58) + Applier (v0.51.60) + Config\BuildingUpgrades (v0.51.61).
-        $this->validator      = new BuildingUpgradeValidator();
-        $this->formatter      = new BuildingUpgradeMessageFormatter();
-        $this->applier        = new BuildingUpgradeApplier();
-        $this->upgrades       = config(BuildingUpgrades::class);
-        $this->endgameService = new EndgameProgressionService();
+        $this->formatter = new BuildingUpgradeMessageFormatter();
+        $this->upgrades  = new BuildingUpgradeService();
     }
 
     /**
@@ -55,20 +42,15 @@ class UpgradeBuildingAction extends BaseAction
     }
 
     /**
-     * Обязательный метод из BaseAction.
-     * По умолчанию направляем пользователя в askForUpgrade().
+     * Обязательный метод из BaseAction — по умолчанию «шаг 1».
      */
     public function handle(): ServerResponse
     {
-        // Можно выводить сообщение об ошибке или перенаправлять в askForUpgrade().
-        // Для удобства вызовем "шаг 1" как поведение «по умолчанию».
         return $this->askForUpgrade();
     }
 
     /**
      * Шаг 1: проверяем возможность апгрейда и предлагаем подтверждение (кнопка).
-     *
-     * v0.51.57 (Step 1): validation chain extracted у BuildingUpgradeValidator.
      */
     public function askForUpgrade(): ServerResponse
     {
@@ -89,35 +71,23 @@ class UpgradeBuildingAction extends BaseAction
         }
 
         // Parse buildingId з callback_data ("upgrade_building_4" или "upgrade_building_4_b345")
-        $rawData    = $this->callbackQuery->getData();
-        [$withoutSuffix, $baseId] = BaseCallbackSuffix::split($rawData);
+        [$withoutSuffix, $baseId] = BaseCallbackSuffix::split((string) $this->callbackQuery->getData());
         $parts      = explode('_', $withoutSuffix);
         $buildingId = $parts[2] ?? null;
         if (!$buildingId) {
             return $this->send($chatId, $this->formatter->buildingIdMissingAsk());
         }
 
-        // Run full validation. story multibase-picker-03: суффикс `_b<baseId>`
-        // (если есть) — заново проверенный выбор базы; без суффикса работает
-        // прежнее правило `BaseScopeResolver::resolve()`.
-        $res = $this->validator->validate($character, (int) $buildingId, $this->upgrades->requirements, $baseId);
-
+        // story multibase-picker-03: суффикс `_b<baseId>` — заново проверенный выбор базы (в ядре).
+        $res = $this->upgrades->preview((int) $character['id'], $baseId, (int) $buildingId);
         if (!$res['ok']) {
-            if (!empty($res['missingResources'])) {
-                return $this->send($chatId, $this->formatter->missingResourcesAsk(
-                    (int) ($res['nextLevel'] ?? 0),
-                    $res['missingResources']
-                ));
+            if ($res['code'] === BuildingUpgradeService::MISSING) {
+                return $this->send($chatId, $this->formatter->missingResourcesAsk($res['next_level'], $res['missing']));
             }
-            return $this->send($chatId, $this->formatter->simpleError($res['error']));
+            return $this->send($chatId, $this->formatter->simpleError($res['message']));
         }
 
-        // Validated → build confirm prompt
-        $ctx          = $res['context'];
-        $buildingInfo = $ctx['buildingInfo'];
-        $req          = $ctx['requirements'];
-
-        $buildingNameRu = $buildingInfo['name_ru'] ?? "ID={$buildingId}";
+        $req = $res['requirements'];
 
         // Скрываем "загрузка" (answerCallbackQuery)
         Request::answerCallbackQuery([
@@ -128,13 +98,13 @@ class UpgradeBuildingAction extends BaseAction
 
         return $this->send($chatId, $this->formatter->askPrompt(
             (int) $buildingId,
-            $buildingNameRu,
-            $ctx['currentLevel'],
-            $ctx['nextLevel'],
+            $res['name'] ?? "ID={$buildingId}",
+            $res['current_level'],
+            $res['level'],
             (int) $req['level'],
             (int) $req['gold'],
             $req['resources'],
-            $character,
+            $res['character'],
             $baseId
         ));
     }
@@ -152,73 +122,27 @@ class UpgradeBuildingAction extends BaseAction
         }
 
         // Parse buildingId з callback_data: "confirm_upgrade_building_4" (или "..._b345")
-        $rawData    = $this->callbackQuery->getData();
-        [$withoutSuffix, $baseId] = BaseCallbackSuffix::split($rawData);
+        [$withoutSuffix, $baseId] = BaseCallbackSuffix::split((string) $this->callbackQuery->getData());
         $parts      = explode('_', $withoutSuffix);
         $buildingId = $parts[3] ?? null;
         if (!$buildingId) {
             return $this->send($chatId, $this->formatter->buildingIdMissingConfirm());
         }
 
-        // v0.51.57 — re-validate всю chain (resources могли поменяться після ask).
-        // story multibase-picker-03: суффикс `_b<baseId>` (если есть) — заново
-        // проверенный выбор базы; см. INTERFACES у story о том, откуда он берётся.
-        $res = $this->validator->validate($character, (int) $buildingId, $this->upgrades->requirements, $baseId);
+        // Ядро перепроверяет всё (запас мог измениться после шага 1) и применяет атомарно.
+        $res = $this->upgrades->apply((int) $character['id'], $baseId, (int) $buildingId);
         if (!$res['ok']) {
-            if (!empty($res['missingResources'])) {
-                return $this->send($chatId, $this->formatter->missingResourcesConfirm(
-                    $res['missingResources'][0]
-                ));
+            if ($res['code'] === BuildingUpgradeService::MISSING) {
+                return $this->send($chatId, $this->formatter->missingResourcesConfirm($res['missing'][0]));
             }
-            return $this->send($chatId, $this->formatter->simpleError($res['error']));
-        }
-
-        $ctx          = $res['context'];
-        $charBuilding = $ctx['charBuilding'];
-        $buildingInfo = $ctx['buildingInfo'];
-        $currentLevel = $ctx['currentLevel'];
-        $nextLevel    = $ctx['nextLevel'];
-        $req          = $ctx['requirements'];
-
-        // v0.51.60 (Step 3) — apply chain extracted у BuildingUpgradeApplier
-        // insurance-06: `apply()` теперь пробрасывает RuntimeException при гонке
-        // на списании ресурса (пул успел забрать остаток между validate() и этим
-        // вызовом) вместо того чтобы применить апгрейд, не заплатив. Без catch
-        // здесь необработанное исключение — это белый экран игроку, а не отказ;
-        // тот же путь ответа, что и у остальных ошибок этого экрана.
-        // story-09 (ревью team-lead, дефект 4): catch расширен на
-        // `DatabaseException` явно — `apply()` также бросает при откаченной без
-        // исключения транзакции (см. её докблок), и катастрофический сбой
-        // самой БД внутри `update()`/`insert()` обязан дойти до игрока текстом,
-        // а не пролететь мимо catch'а, ради которого он и заведён.
-        try {
-            $this->applier->apply($character, $charBuilding, $nextLevel, $req);
-        } catch (\RuntimeException|\CodeIgniter\Database\Exceptions\DatabaseException) {
-            Request::answerCallbackQuery([
-                'callback_query_id' => $this->callbackQuery->getId(),
-                'text'              => 'Ресурсы разошлись, пока ты подтверждал — проверь запас и попробуй ещё раз.',
-                'show_alert'        => false,
-            ]);
-            return $this->send($chatId, $this->formatter->simpleError(
-                'Ресурсы разошлись, пока ты подтверждал — проверь запас и попробуй ещё раз.'
-            ));
-        }
-
-        // v0.51.112 endgame hook: building upgrade → faction score.
-        $buildingNameEn = null;
-        if (isset($buildingInfo['name_eng']) && is_string($buildingInfo['name_eng'])) {
-            $buildingNameEn = $buildingInfo['name_eng'];
-        } elseif (isset($buildingInfo['name_en']) && is_string($buildingInfo['name_en'])) {
-            $buildingNameEn = $buildingInfo['name_en'];
-        }
-        if ($buildingNameEn !== null) {
-            $this->endgameService->recordBuildingUpgrade($buildingNameEn);
-
-            // v0.51.118 quest hook: FarmersHarvest auto-completion.
-            // Greenhouse upgrade → lvl 3+ марк active FarmersHarvest quest done.
-            if ($buildingNameEn === 'Greenhouse' && $nextLevel >= 3) {
-                $this->checkFarmersHarvestQuest((int) $character['id']);
+            if ($res['code'] === BuildingUpgradeService::RACE) {
+                Request::answerCallbackQuery([
+                    'callback_query_id' => $this->callbackQuery->getId(),
+                    'text'              => BuildingUpgradeService::TEXT_RACE,
+                    'show_alert'        => false,
+                ]);
             }
+            return $this->send($chatId, $this->formatter->simpleError($res['message']));
         }
 
         // Скрываем alert у кнопки
@@ -228,46 +152,10 @@ class UpgradeBuildingAction extends BaseAction
             'show_alert'        => false,
         ]);
 
-        $buildingNameRu = $buildingInfo['name_ru'] ?? "Здание #{$buildingId}";
         return $this->send($chatId, $this->formatter->upgradeSuccess(
-            $buildingNameRu,
-            $currentLevel,
-            $nextLevel
+            $res['name'] ?? "Здание #{$buildingId}",
+            $res['current_level'],
+            $res['level']
         ));
-    }
-
-    /**
-     * v0.51.118: Auto-complete FarmersHarvest quest на Greenhouse upgrade lvl 3+.
-     */
-    private function checkFarmersHarvestQuest(int $characterId): void
-    {
-        $questModel      = new QuestModel();
-        $questStepsModel = new QuestStepsModel();
-        $characterModel  = new CharacterModel();
-
-        $quest = $questModel->where('title_en', 'FarmersHarvest')->first();
-        if (!$quest) {
-            return;
-        }
-
-        $step = $questStepsModel
-            ->where('quest_id', $quest['id'])
-            ->where('character_id', $characterId)
-            ->where('is_completed', 0)
-            ->first();
-        if (!$step) {
-            return;
-        }
-
-        $questStepsModel->update($step['id'], ['is_completed' => 1]);
-
-        $reward = (int) ($quest['reward'] ?? 0);
-        if ($reward > 0) {
-            $characterModel->increaseGold($characterId, $reward);
-        }
-
-        $this->endgameService->recordQuestCompletion($characterId);
-
-        log_message('info', "[UpgradeBuildingAction] Auto-completed FarmersHarvest for char_id={$characterId} (+{$reward} gold)");
     }
 }

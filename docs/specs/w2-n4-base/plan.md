@@ -98,7 +98,8 @@
 
 **Approved:** Andrei Andrievskii, 2026-09-27 — «ДА» (стадия 02)
 **Briefed:** <written by scripts/cycle.sh briefed>
-**Branch:** <written by /vulyk-build>
+**Branch:** vulyk/w2-n4-base
 **Checked:** <written by scripts/human-check.sh>
-**Council:** <written by scripts/cycle.sh judge/escalate>
+**Council:** RED round 1, 2026-09-27, at 639618d4, pack 10bcc90aa632
+**Council:** GREEN round 2, 2026-09-27, at e17280d6, pack 3effcd6baf8a
 **Shipped:** <written by scripts/ship-check.sh --record>

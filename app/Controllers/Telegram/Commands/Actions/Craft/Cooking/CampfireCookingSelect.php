@@ -109,15 +109,12 @@ class CampfireCookingSelect extends BaseAction
 
     /**
      * W23 (ADR-078) — рыбные блюда (дают «Рыбе» применение). Показываются только
-     * при killswitch cooking.fish_dishes.enabled (dormant до активации).
+     * при killswitch cooking.fish_dishes.enabled (dormant до активации). w2-n4-base-03: список один — в ядре
+     * крафта ({@see \App\Services\Craft\CraftOrderService::FISH_RECIPES}), тот же гейт, что у веба.
      *
      * @var list<string>
      */
-    public const FISH_RECIPES = [
-        'FishSoup',
-        'GrilledFish',
-        'FishPreserve',
-    ];
+    public const FISH_RECIPES = \App\Services\Craft\CraftOrderService::FISH_RECIPES;
 
     public function handle(): ServerResponse
     {

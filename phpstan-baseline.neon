@@ -1717,176 +1717,8 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportationCenterHandler.php
 
 		-
-			message: '#^Cannot access offset ''buildingInfo'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''charBuilding'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''currentLevel'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''gold'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''level'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''name_en'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''name_eng'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''name_ru'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''nextLevel'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''requirements'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''resources'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''reward'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot access offset 0 on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot cast mixed to int\.$#'
-			identifier: cast.int
-			count: 3
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\UpgradeBuildingAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Parameter \#1 \$buildingNameRu of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:upgradeSuccess\(\) expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Parameter \#1 \$firstMissingLine of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:missingResourcesConfirm\(\) expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Parameter \#1 \$msg of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:simpleError\(\) expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Parameter \#2 \$buildingNameRu of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:askPrompt\(\) expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Parameter \#2 \$charBuilding of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeApplier\:\:apply\(\) expects array\<string, mixed\>, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Parameter \#2 \$currentLevel of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:upgradeSuccess\(\) expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Parameter \#2 \$missingLines of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:missingResourcesAsk\(\) expects array\<string\>, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Parameter \#3 \$currentLevel of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:askPrompt\(\) expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Parameter \#3 \$nextLevel of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeApplier\:\:apply\(\) expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Parameter \#3 \$nextLevel of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:upgradeSuccess\(\) expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Parameter \#4 \$nextLevel of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:askPrompt\(\) expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Parameter \#4 \$requirements of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeApplier\:\:apply\(\) expects array\{gold\: int, resources\: array\<string, int\>\}, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Parameter \#7 \$requirementResources of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:askPrompt\(\) expects array\<string, int\>, mixed given\.$#'
-			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
@@ -2203,124 +2035,10 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/DeleteBaseAction.php
 
 		-
-			message: '#^Cannot access offset ''biome_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
-
-		-
-			message: '#^Cannot access offset ''building_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
-			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
-
-		-
-			message: '#^Cannot access offset ''coordinate_x'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
-
-		-
-			message: '#^Cannot access offset ''coordinate_y'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
-
-		-
-			message: '#^Cannot access offset ''name_en'' on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
-
-		-
-			message: '#^Cannot access offset ''name_ru'' on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\DetailedBaseInfoAction\:\:handleNoBase\(\) has parameter \$character with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\DetailedBaseInfoAction\:\:handleNotOnBasePhysically\(\) has parameter \$character with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\DetailedBaseInfoAction\:\:handleNotOnBasePhysically\(\) has parameter \$claimedCell with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\DetailedBaseInfoAction\:\:showBuildings\(\) has parameter \$character with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\DetailedBaseInfoAction\:\:showBuildings\(\) has parameter \$claimedCell with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\DetailedBaseInfoAction\:\:showBuildings\(\) has parameter \$coverageResult with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
-
-		-
-			message: '#^Part \$biomeName \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
-
-		-
-			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
-			path: app/Controllers/Telegram/Commands/Actions/Camp/GenericBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''quantity'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/GenericBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/GenericBuildingAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\GenericBuildingAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/GenericBuildingAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\GenericBuildingAction\:\:calculateDuration\(\) has parameter \$character with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/GenericBuildingAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\GenericBuildingAction\:\:calculateDuration\(\) has parameter \$taskRow with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/GenericBuildingAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\GenericBuildingAction\:\:checkCraftedItems\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/GenericBuildingAction.php
 
 		-
 			message: '#^Cannot access offset ''durability_count'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
@@ -9909,19 +9627,13 @@ parameters:
 		-
 			message: '#^Cannot cast mixed to int\.$#'
 			identifier: cast.int
-			count: 8
+			count: 4
 			path: app/Services/BaseService.php
 
 		-
 			message: '#^Cannot cast mixed to string\.$#'
 			identifier: cast.string
-			count: 5
-			path: app/Services/BaseService.php
-
-		-
-			message: '#^Method App\\Services\\BaseService\:\:showBaseBuildings\(\) has parameter \$characterRow with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
+			count: 3
 			path: app/Services/BaseService.php
 
 		-
@@ -9943,12 +9655,6 @@ parameters:
 			path: app/Services/BaseService.php
 
 		-
-			message: '#^Parameter \#1 \$coordX of method App\\Services\\Bases\\BaseServiceMessageFormatter\:\:baseBuildings\(\) expects int\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/BaseService.php
-
-		-
 			message: '#^Parameter \#1 \$coordX of method App\\Services\\Bases\\BaseServiceMessageFormatter\:\:campCreationConfirm\(\) expects int\|string, mixed given\.$#'
 			identifier: argument.type
 			count: 1
@@ -9956,18 +9662,6 @@ parameters:
 
 		-
 			message: '#^Parameter \#1 \$coordX of method App\\Services\\Bases\\BaseServiceMessageFormatter\:\:noBaseInfo\(\) expects int\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/BaseService.php
-
-		-
-			message: '#^Parameter \#1 \$coordX of method App\\Services\\Bases\\BaseServiceMessageFormatter\:\:notOnBasePhysically\(\) expects int\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/BaseService.php
-
-		-
-			message: '#^Parameter \#2 \$coordY of method App\\Services\\Bases\\BaseServiceMessageFormatter\:\:baseBuildings\(\) expects int\|string, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/BaseService.php
@@ -9983,24 +9677,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Services/BaseService.php
-
-		-
-			message: '#^Parameter \#2 \$coordY of method App\\Services\\Bases\\BaseServiceMessageFormatter\:\:notOnBasePhysically\(\) expects int\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/BaseService.php
-
-		-
-			message: '#^Cannot access offset ''building_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Bases/BaseBuildingsList.php
-
-		-
-			message: '#^Cannot access offset ''name_ru'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Bases/BaseBuildingsList.php
 
 		-
 			message: '#^Cannot access offset ''biome_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
@@ -12287,12 +11963,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Services/PVE/RewardService.php
-
-		-
-			message: '#^Parameter \#1 \$id of method CodeIgniter\\Model\:\:update\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeApplier.php
 
 		-
 			message: '#^Part \$character\[''gold''\] \(mixed\) of encapsed string cannot be cast to string\.$#'

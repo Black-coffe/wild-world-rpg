@@ -119,7 +119,8 @@ class BuildingUpgradeMessageFormatter
             'inline_keyboard' => [
                 [
                     ['text' => '✅ Подтвердить', 'callback_data' => $confirmCallback],
-                    ['text' => '❌ Отмена',     'callback_data' => 'Base'],
+                    // w2-n4-base (ask 5): «назад» — на ту же базу, если она известна, а не в пикер.
+                    ['text' => '❌ Отмена',     'callback_data' => $baseId !== null ? BaseCallbackSuffix::append('Base', $baseId) : 'Base'],
                 ],
             ],
         ];
