@@ -38,5 +38,5 @@
 **Briefed:** via mini-brief, Andrei, 2026-09-27
 **Branch:** vulyk/w2-n3-craft-flags
 **Checked:** <written by scripts/human-check.sh>
-**Council:** <written by scripts/cycle.sh judge/escalate>
+**Council:** GREEN round 1, 2026-09-27, at e1f74493, pack 3e8a44032f1b
 **Shipped:** <written by scripts/ship-check.sh --record>
