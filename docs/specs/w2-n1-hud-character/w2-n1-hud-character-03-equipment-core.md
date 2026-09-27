@@ -1,8 +1,8 @@
 ---
 story: w2-n1-hud-character-03
 spec: w2-n1-hud-character
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: opus
@@ -42,6 +42,7 @@ int $itemRowId)` и `unequip(...)` — все проверки из `ToggleEquip
 - public/ui-kit.html
 - app/Views/site/_layout/meta.php
 - tests/database/EquipmentLoadoutServiceTest.php
+- phpstan-baseline.neon
 
 ## Non-goals
 - Продажа экипировки (ADR-165) и страховка остаются как есть (в вебе — мост).
@@ -62,5 +63,12 @@ int $itemRowId)` и `unequip(...)` — все проверки из `ToggleEquip
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- Модель: EquipmentLoadoutService - forCharacter() (arsenal, lock с required_level из BuildLockService и путём genericBuildInfo_Arsenal, on_base, sale_enabled, weapons/armor), item(), equip/unequip/toggle; проверки в порядке прежних handler'ов, тексты отказов - статический refusal(kind, code, name), формулировки прежние.
+- Атомарность: смена - один UPDATE на слот `equipped = IF(id=?,1,0)`; слот брони эффективный `COALESCE(NULLIF(outfits.slot,''), characters_outfits.slot)` - строка склада с пустым slot в справочнике больше не выпадает из «снять остальных».
+- Гейт Арсенала у персонажа теперь и в toggleEquipArmor (раньше только справочник); для игрока не меняется - список брони и так гейтил.
+- Бот: семь Gear*/ToggleEquip* - тонкие рендереры модели. Хаб «⚔️ Экип» без Арсенала - lock-кнопки «🔒 … (нужно: Арсенал)» + «🏗 К стройке Арсенала»; переключатель брони - один ряд из двух кнопок.
+- Веб: view=gear, op=equip|unequip + kind + item + intent_id; дедуп `intent_id:gear` в web_play_intents; без JS - flash + PRG /play?view=gear. Продажа/стройка Арсенала - через мост (BRIDGE_PATTERNS, genericBuildInfo_Arsenal).
+- Сверх Files: phpstan-baseline.neon - убраны 69 записей семи переписанных handler'ов.
+- Проверено: phpstan L9 OK; EquipmentLoadoutServiceTest - 14 тестов OK (смена в слоте, лечение двух надетых, все отказы, снятие вне базы, lock, идемпотентность веб-намерения и видимость для бота).
 
 ## Findings

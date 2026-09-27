@@ -32,7 +32,9 @@ use InvalidArgumentException;
  *
  * W2.N1 (ADR-190): `POST /play/view` — нативный экран (`view`) из модели экрана, те же гейты и
  * лимит `accountThrottle:play`; `op=bridge` + `data` — кнопка нативного экрана без своего экрана
- * уходит в мост. Без JS — PRG на `/play?view=…`. HUD (`hud`) едет в каждом JSON-ответе.
+ * уходит в мост; `view=gear` + `op=equip|unequip` + `kind` + `item` + `intent_id` — смена
+ * снаряжения тем же сервисом, что у бота (дедуп по `intent_id`). Без JS — PRG на `/play?view=…`
+ * (ответ смены — flash). HUD (`hud`) едет в каждом JSON-ответе.
  */
 class Play extends BaseController
 {
@@ -141,19 +143,43 @@ class Play extends BaseController
             return $this->bridgeResponse($characterId, $result);
         }
 
-        if (! is_string($view) || ! WebNativeScreenService::isView($view) || $op !== null) {
+        $alert = null;
+        if ($view === WebNativeScreenService::VIEW_GEAR && is_string($op)
+            && in_array($op, [WebNativeScreenService::OP_EQUIP, WebNativeScreenService::OP_UNEQUIP], true)) {
+            $kind     = $this->request->getPost('kind');
+            $item     = $this->request->getPost('item');
+            $intentId = $this->request->getPost('intent_id');
+            try {
+                $alert = $this->native()->gearChange(
+                    $accountId,
+                    $characterId,
+                    $op,
+                    is_string($kind) ? $kind : '',
+                    is_string($item) && ctype_digit($item) ? (int) $item : 0,
+                    is_string($intentId) ? $intentId : ''
+                );
+            } catch (InvalidArgumentException $e) {
+                log_message('info', '[Play.view] gear change rejected: ' . $e->getMessage());
+
+                return $this->rejected($characterId);
+            }
+        } elseif (! is_string($view) || ! WebNativeScreenService::isView($view) || $op !== null) {
             log_message('info', '[Play.view] rejected: bad view/op');
 
             return $this->rejected($characterId);
         }
 
         if (! $this->wantsJson()) {
+            if ($alert !== null) {
+                session()->setFlashdata(self::FLASH_ALERT, $alert);
+            }
+
             return redirect()->to('/play?view=' . rawurlencode($view), 303)->withCookies();
         }
 
         $current = $this->service()->current($characterId);
         try {
-            $html = $this->native()->render($characterId, $view, $current['state']);
+            $html = $this->native()->render($characterId, $view, $current['state'], $alert);
         } catch (InvalidArgumentException $e) {
             log_message('info', '[Play.view] render rejected: ' . $e->getMessage());
 
@@ -164,7 +190,7 @@ class Play extends BaseController
             'html'   => $html,
             'hud'    => $this->native()->hudHtml($characterId),
             'unread' => $current['unread'],
-            'alert'  => null,
+            'alert'  => $alert,
             'csrf'   => csrf_hash(),
         ]);
     }

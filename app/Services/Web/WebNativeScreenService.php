@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Services\Web;
 
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\WriteOutcome;
 use App\Services\Player\CharacterSheetService;
+use App\Services\Player\EquipmentLoadoutService;
 use App\Services\Player\InventoryViewService;
 use App\Services\Telegram\BotMenuService;
 use InvalidArgumentException;
@@ -24,6 +27,10 @@ use InvalidArgumentException;
  * проверкой «кнопка стоит на своём сообщении» и дедупом `intent_id` (суффиксы `:card`,
  * `:s<N>`, `:cb`).
  *
+ * Снаряжение (03) меняется нативно: {@see gearChange()} зовёт тот же
+ * {@see EquipmentLoadoutService}, что и бот, с дедупом `intent_id` в `web_play_intents`
+ * (повтор POST не меняет состояние второй раз).
+ *
  * @phpstan-import-type State from WebScreenStore
  * @phpstan-import-type Sheet from CharacterSheetService
  */
@@ -31,12 +38,17 @@ class WebNativeScreenService
 {
     public const VIEW_ME        = 'me';
     public const VIEW_INVENTORY = 'inventory';
+    public const VIEW_GEAR      = 'gear';
 
     /** Экраны, у которых уже есть нативная вьюха. */
-    public const VIEWS = [self::VIEW_ME, self::VIEW_INVENTORY];
+    public const VIEWS = [self::VIEW_ME, self::VIEW_INVENTORY, self::VIEW_GEAR];
 
     /** Действие экрана «Я» → нативный экран, который его заменяет. */
-    private const NATIVE_ACTIONS = ['inventory' => self::VIEW_INVENTORY];
+    private const NATIVE_ACTIONS = ['inventory' => self::VIEW_INVENTORY, 'gear' => self::VIEW_GEAR];
+
+    /** Операции снаряжения из веба. */
+    public const OP_EQUIP   = 'equip';
+    public const OP_UNEQUIP = 'unequip';
 
     /**
      * Кнопки моста на нативных экранах (кроме «Я», чьи кнопки берутся из модели) и путь от
@@ -48,19 +60,36 @@ class WebNativeScreenService
         'baseStorageList'  => ['inventory'],
         'whereItWent'      => ['inventory'],
         'resourceOverview' => ['inventory'],
+        // Снаряжение: путь к стройке Арсенала — с lock-экрана раздела «Оружие».
+        'genericBuildInfo_Arsenal' => ['equipMenu', 'gearWeapons'],
+    ];
+
+    /**
+     * Кнопки моста с id предмета: продажа снаряжения (ADR-165) стоит на карточке предмета.
+     * `$1` — id строки склада из самой кнопки.
+     *
+     * @var array<string, list<string>>
+     */
+    private const BRIDGE_PATTERNS = [
+        '/^sellGearItem_w_(\d+)$/' => ['equipMenu', 'gearWeapons', 'gearWeaponDetail_$1'],
+        '/^sellGearItem_a_(\d+)$/' => ['equipMenu', 'gearArmor', 'gearArmorDetail_$1'],
     ];
 
     private CharacterSheetService $sheets;
 
     private InventoryViewService $inventory;
 
+    private EquipmentLoadoutService $loadout;
+
     public function __construct(
         private ?WebActService $act = null,
         ?CharacterSheetService $sheets = null,
-        ?InventoryViewService $inventory = null
+        ?InventoryViewService $inventory = null,
+        ?EquipmentLoadoutService $loadout = null
     ) {
         $this->sheets    = $sheets ?? new CharacterSheetService();
         $this->inventory = $inventory ?? new InventoryViewService();
+        $this->loadout   = $loadout ?? new EquipmentLoadoutService();
     }
 
     public static function isView(mixed $view): bool
@@ -99,6 +128,13 @@ class WebNativeScreenService
     {
         $dock = is_array($state['dock'] ?? null) ? $state['dock'] : [];
 
+        if ($view === self::VIEW_GEAR) {
+            return view('site/_play/native_gear', [
+                'loadout' => $this->loadout->forCharacter($characterId),
+                'dock'    => $dock,
+                'alert'   => $alert,
+            ]);
+        }
         if ($view === self::VIEW_INVENTORY) {
             return view('site/_play/native_inventory', [
                 'inventory' => $this->inventory->forCharacter($characterId),
@@ -132,6 +168,51 @@ class WebNativeScreenService
         }
 
         return $hud === null ? '' : view('site/_play/hud', ['hud' => $hud]);
+    }
+
+    /**
+     * Надеть / снять из веба: тот же сервис, что у бота, один раз на `intent_id`.
+     *
+     * @return string|null текст для игрока; null — повтор того же намерения (ничего не менялось)
+     *
+     * @throws InvalidArgumentException неизвестная операция, вид предмета или намерение
+     */
+    public function gearChange(int $accountId, int $characterId, string $op, string $kind, int $rowId, string $intentId): ?string
+    {
+        if (! in_array($op, [self::OP_EQUIP, self::OP_UNEQUIP], true)
+            || ! in_array($kind, [EquipmentLoadoutService::KIND_WEAPON, EquipmentLoadoutService::KIND_ARMOR], true)
+            || $rowId <= 0) {
+            throw new InvalidArgumentException('bad gear change');
+        }
+        if ($intentId === '' || strlen($intentId) > 60) {
+            throw new InvalidArgumentException('bad intent_id');
+        }
+        $claimed = (new ConditionalWriteService())->insertUnique('web_play_intents', [
+            'account_id' => $accountId,
+            'intent_id'  => $intentId . ':gear',
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        if ($claimed !== WriteOutcome::Applied) {
+            return null;
+        }
+
+        $outcome = $op === self::OP_EQUIP
+            ? $this->loadout->equip($characterId, $kind, $rowId)
+            : $this->loadout->unequip($characterId, $kind, $rowId);
+        $name = $outcome['item']['name'] ?? '';
+        if (! $outcome['ok']) {
+            return EquipmentLoadoutService::refusal($kind, $outcome['code'], $name);
+        }
+
+        return match ($outcome['code']) {
+            EquipmentLoadoutService::EQUIPPED   => $kind === EquipmentLoadoutService::KIND_WEAPON
+                ? "Надето: «{$name}». Остальное оружие снято."
+                : "Надето: «{$name}». Остальное в слоте «{$outcome['slot']}» снято.",
+            EquipmentLoadoutService::UNEQUIPPED => "Снято: «{$name}».",
+            default                             => $outcome['item'] !== null && $outcome['item']['equipped']
+                ? "«{$name}» уже надето."
+                : "«{$name}» уже снято.",
+        };
     }
 
     /**
@@ -202,6 +283,11 @@ class WebNativeScreenService
     {
         if (isset(self::BRIDGE_ROUTES[$callback])) {
             return self::BRIDGE_ROUTES[$callback];
+        }
+        foreach (self::BRIDGE_PATTERNS as $pattern => $route) {
+            if (preg_match($pattern, $callback, $m) === 1) {
+                return array_map(static fn (string $step): string => str_replace('$1', $m[1], $step), $route);
+            }
         }
         $sheet = $this->sheets->forCharacter($characterId);
         if ($sheet !== null && in_array($callback, self::callbacks($sheet), true)) {

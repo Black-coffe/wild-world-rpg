@@ -3,41 +3,18 @@
 namespace App\Controllers\Telegram\Commands\Profile;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use App\Models\CharactersWeaponsModel;
-use App\Models\WeaponModel;
-// Дополнительно для проверки "на базе" подключим модели:
-use App\Models\ClaimedCellModel;
-use App\Models\CharacterModel;
-use App\Models\MapModel;
 use App\Services\Display\GearImageResolver;
+use App\Services\Player\EquipmentLoadoutService;
 
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
+/**
+ * Детали оружия — рендерер модели {@see EquipmentLoadoutService} (W2.N1-03, ADR-190): предмет,
+ * «на базе ли» и владение берутся из того же сервиса, что надевает и снимает.
+ */
 class GearWeaponDetailAction extends BaseAction
 {
-    /** @var CharactersWeaponsModel */
-    protected $charactersWeaponsModel;
-    /** @var WeaponModel */
-    protected $weaponModel;
-
-    // Добавим эти модели, чтобы проверить "игрок на базе?"
-    protected $claimedCellModel;
-    protected $characterModel;
-    protected $mapModel;
-
-    public function __construct($callbackQuery)
-    {
-        parent::__construct($callbackQuery);
-
-        $this->charactersWeaponsModel = new CharactersWeaponsModel();
-        $this->weaponModel = new WeaponModel();
-
-        // Для проверки "на базе"
-        $this->claimedCellModel = new ClaimedCellModel();
-        $this->characterModel   = new CharacterModel();
-        $this->mapModel         = new MapModel();
-    }
 
     /**
      * Сопоставление name_en => имя файла оружия.
@@ -46,6 +23,8 @@ class GearWeaponDetailAction extends BaseAction
      * стволов имели **и картинку на диске, и запись в `ImageRegistry`** — но без строки здесь
      * резолвер их не находил и отдавал `default_weapon.jpg`. Арт был нарисован и невидим.
      * Каталог не указываем: `GearImageResolver` ищет веером `standard→professional→general`.
+     *
+     * @return array<string, string>
      */
     protected function getWeaponImageMap(): array
     {
@@ -114,56 +93,44 @@ class GearWeaponDetailAction extends BaseAction
             ]);
         }
 
-        // Ищем запись в characters_weapons
-        $weaponRow = $this->charactersWeaponsModel->find($charWeaponId);
-        if (!$weaponRow) {
+        // Предмет персонажа из модели (чужая строка или нет записи в справочнике — не найдено)
+        $service = new EquipmentLoadoutService();
+        $charId  = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $item    = $service->item($charId, EquipmentLoadoutService::KIND_WEAPON, $charWeaponId);
+        if ($item === null) {
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
                 'text'    => 'Оружие не найдено в инвентаре.',
             ]);
         }
-
-        // Проверяем владение
-        if ((int)$weaponRow['character_id'] !== (int)$character['id']) {
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => 'Это оружие принадлежит другому персонажу!',
-            ]);
-        }
-
-        // Достаем информацию об оружии
-        $weaponInfo = $this->weaponModel->find($weaponRow['weapon_id']);
-        if (!$weaponInfo) {
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => 'Информация об оружии в базе не найдена.',
-            ]);
-        }
+        $weaponInfo = $item['info'];
+        // Поле справочника строкой — так, как его печатала интерполяция (null → '').
+        $f = static fn (string $key): string => is_scalar($weaponInfo[$key] ?? null) ? (string) $weaponInfo[$key] : '';
 
         // Собираем текст описания
-        $name         = $weaponInfo['name'];
-        $weaponType   = $weaponInfo['weapon_type'];
-        $damageValue  = $weaponInfo['damage_value'];
-        $damageType   = $weaponInfo['damage_type'];
-        $rangeValue   = $weaponInfo['range_value'];
-        $attackSpeed  = $weaponInfo['attack_speed'];
+        $name         = $item['name'];
+        $weaponType   = $f('weapon_type');
+        $damageValue  = $f('damage_value');
+        $damageType   = $f('damage_type');
+        $rangeValue   = $f('range_value');
+        $attackSpeed  = $f('attack_speed');
         // Прочность показываем как характеристику предмета, без дроби «текущая /
         // максимум»: износа у оружия и брони в игре нет (ничего не уменьшает
         // current_durability), а в БД у всех строк лежит константа 100 при максимуме
         // 15..120 — экран показывал то «100 / 25», то «100 / 200», то есть врал в
         // обе стороны. Вернуть дробь — когда появится реальный износ.
-        $durabilityMax= $weaponInfo['durability_max'];
-        $rarity       = $weaponInfo['rarity'];
-        $description  = $weaponInfo['description'];
+        $durabilityMax= $f('durability_max');
+        $rarity       = $f('rarity');
+        $description  = $f('description');
 
         // Требования
-        $reqStr       = $weaponInfo['required_strength'];
-        $reqAgi       = $weaponInfo['required_agility'];
-        $reqInt       = $weaponInfo['required_intellect'];
-        $reqLevel     = $weaponInfo['required_level'];
+        $reqStr       = $f('required_strength');
+        $reqAgi       = $f('required_agility');
+        $reqInt       = $f('required_intellect');
+        $reqLevel     = $f('required_level');
 
-        $quantity     = (int)$weaponRow['quantity'];
-        $isEquipped   = (bool)$weaponRow['equipped'];
+        $quantity     = $item['quantity'];
+        $isEquipped   = $item['equipped'];
 
         $text  = "🔎 *Информация об оружии*\n\n";
         $text .= "Название: *{$name}*\n";
@@ -179,19 +146,17 @@ class GearWeaponDetailAction extends BaseAction
         $text .= "Описание: _{$description}_\n\n";
 
         // WB9 (ADR-137): badge soulbound-трофея «Метка пустоши» с провенансом (media-off: весь смысл в тексте).
-        $wr          = is_array($weaponRow) ? $weaponRow : [];
-        $isSoulbound = ! empty($wr['is_soulbound']);
-        if ($isSoulbound) {
-            $src    = is_scalar($wr['soulbound_source'] ?? null) ? (string) $wr['soulbound_source'] : 'Узел';
-            $lvlRaw = $wr['soulbound_level'] ?? 0;
-            $lvl    = is_numeric($lvlRaw) ? (int) $lvlRaw : 0;
-            $crd    = is_scalar($wr['soulbound_coords'] ?? null) ? (string) $wr['soulbound_coords'] : '';
+        $isSoulbound = $item['soulbound'] !== null;
+        if ($item['soulbound'] !== null) {
+            $src = $item['soulbound']['source'];
+            $lvl = $item['soulbound']['level'];
+            $crd = $item['soulbound']['coords'];
             $text .= "🔒 *Метка пустоши*: трофей с узла _{$src}_ (L{$lvl}" . ($crd !== '' ? ", {$crd}" : '') . ").\n";
             $text .= "_Усиливает тебя ТОЛЬКО против узлов. Не надевается, не продаётся, не теряется._\n\n";
         }
 
         // Определяем, находится ли игрок на базе
-        $isOnBase = $this->isOnBase($character['id']);
+        $isOnBase = $service->isOnBase($charId);
 
         // Логика отображения кнопки «Надеть / Снять»
         // 1) Если оружие уже надето → "Снять" доступно всегда
@@ -232,7 +197,7 @@ class GearWeaponDetailAction extends BaseAction
         ]);
 
         // Определяем картинку (name_en)
-        $weaponEnName = $weaponInfo['name_en'] ?? 'default_weapon';
+        $weaponEnName = $item['name_en'] !== '' ? $item['name_en'] : 'default_weapon';
         $imagePath    = $this->getWeaponImagePath($weaponEnName);
 
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
@@ -255,36 +220,5 @@ class GearWeaponDetailAction extends BaseAction
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
-    }
-
-    /**
-     * Простейшая проверка: находится ли персонаж физически на своей базе
-     */
-    private function isOnBase(int $characterId): bool
-    {
-        // 1) Ищем запись с active-базой
-        $claimedCell = $this->claimedCellModel
-            ->where('character_id', $characterId)
-            ->where('status', 'active')
-            ->first();
-
-        if (!$claimedCell) {
-            return false;
-        }
-
-        // 2) Узнаём в map ID ячейки
-        $baseMapRow = $this->mapModel->find($claimedCell['map_cell_id']);
-        if (!$baseMapRow) {
-            return false;
-        }
-
-        // 3) Сравниваем mapRowBase['cell_number'] с character['cell_number']
-        $character = $this->characterModel->find($characterId);
-        if (!$character) {
-            return false;
-        }
-
-        return isset($baseMapRow['cell_number'])
-            && (int)$baseMapRow['cell_number'] === (int)$character['cell_number'];
     }
 }

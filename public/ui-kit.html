@@ -1755,6 +1755,17 @@ section.block:first-of-type { border-top: 0; }
 .play-inv-meta.is-warning { color: var(--warning); }
 .play-inv-empty { margin: 0; padding: 12px; border: 1px dashed var(--border-strong); color: var(--text-muted); font-size: 14px; }
 .play-inv-empty[hidden] { display: none; }
+
+/* Снаряжение /play (W2.N1-03): карточки предметов, надетое отмечено. */
+.play-gear-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.play-gear-item { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px 12px; background: var(--bg-elev-2); border: 1px solid var(--border); border-left: 3px solid var(--border-strong); }
+.play-gear-item.is-equipped { border-left-color: var(--success); }
+.play-gear-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-width: 0; }
+.play-gear-name { font-weight: 700; font-size: 15px; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+.play-gear-stats { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); overflow-wrap: anywhere; }
+.badge.is-on { color: var(--success); border-color: var(--success); }
+.play-kb-btn.is-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.play-kb-btn.is-primary:hover { background: var(--accent-hi); color: var(--accent-ink); border-color: var(--accent-hi); }
 </style>
 </head>
 
@@ -2424,6 +2435,48 @@ section.block:first-of-type { border-top: 0; }
               <form action="#play" method="post"><button class="play-kb-btn" type="submit">📊 Все мои ресурсы</button></form>
             </div>
           </nav>
+        </article>
+      </div>
+    </div>
+
+    <h3 class="mt-3" id="play-gear-demo">Снаряжение — надеть / снять (W2.N1-03)</h3>
+    <p class="muted">Надетое — зелёная кромка и бейдж; «Надеть» — основная кнопка, «Снять» — обычная; продажа — кнопка моста. Без Арсенала — замок с путём.</p>
+    <div class="play-shell is-native mt-2">
+      <div class="play-screen">
+        <article class="play-native" aria-label="Снаряжение">
+          <header class="play-native-head">
+            <h2 class="play-native-title">⚔️ Снаряжение</h2>
+            <dl class="play-sheet">
+              <div class="play-sheet-row"><dt>⚔️ Оружие</dt><dd>Трубный самопал</dd></div>
+              <div class="play-sheet-row"><dt>🛡 Броня</dt><dd>Кожаная куртка</dd></div>
+            </dl>
+          </header>
+          <section class="play-native-section" aria-label="Оружие">
+            <h3 class="play-native-subtitle is-plain">⚔️ Оружие</h3>
+            <ul class="play-gear-list">
+              <li class="play-gear-item is-equipped">
+                <div class="play-gear-head"><span class="play-gear-name">Трубный самопал</span><span class="play-inv-qty">× 1</span></div>
+                <div class="play-native-tags"><span class="badge is-on">✅ Надето</span><span class="badge">Редкость: Common</span></div>
+                <p class="play-gear-stats">💥 Урон 14 (physical) · 🎯 Дальность 3 · ⚡ Скорость атаки 1.2 · ⚙️ Прочность 60</p>
+                <div class="play-kb-grid"><form action="#play" method="post"><button class="play-kb-btn" type="submit">Снять</button></form></div>
+                <p class="play-native-hint">💰 Продать можно только снятое.</p>
+              </li>
+              <li class="play-gear-item">
+                <div class="play-gear-head"><span class="play-gear-name">Металлическое копьё с очень длинным названием для узкого экрана</span><span class="play-inv-qty">× 2</span></div>
+                <div class="play-native-tags"><span class="badge">Редкость: Uncommon</span></div>
+                <p class="play-gear-stats">💥 Урон 18 (physical) · 🎯 Дальность 1 · ⚡ Скорость атаки 0.9 · ⚙️ Прочность 80</p>
+                <div class="play-kb-grid">
+                  <form action="#play" method="post"><button class="play-kb-btn is-primary" type="submit">Надеть</button></form>
+                  <form action="#play" method="post"><button class="play-kb-btn" type="submit">💰 Продать торговцу</button></form>
+                </div>
+              </li>
+            </ul>
+          </section>
+          <div class="play-lock">
+            <span class="play-lock-title">🔒 Экипировка (нужно: Арсенал)</span>
+            <span class="play-lock-why">Надевать броню и брать в руки оружие можно только в здании «Арсенал», а на твоей базе его пока нет. Всё скрафтленное никуда не делось (ждут: 3).</span>
+            <span class="play-lock-path">Нужен уровень 12 и базовые здания. Путь: «🏗 К стройке Арсенала» — там список ресурсов.</span>
+          </div>
         </article>
       </div>
     </div>
