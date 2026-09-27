@@ -1766,6 +1766,27 @@ section.block:first-of-type { border-top: 0; }
 .badge.is-on { color: var(--success); border-color: var(--success); }
 .play-kb-btn.is-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .play-kb-btn.is-primary:hover { background: var(--accent-hi); color: var(--accent-ink); border-color: var(--accent-hi); }
+
+/* Карта «Мир» /play (W2.N2-01): сетка 12×12 из модели LiveMapService, роза направлений.
+   Клетка — кнопка в своей форме (работает без JS); ширина сетки тянется, клетка квадратная. */
+.play-map { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 1px; width: 100%; max-width: 480px; min-width: 0; background: var(--border-faint); border: 1px solid var(--border); }
+.play-map form { display: contents; }
+.play-map-cell { display: flex; align-items: center; justify-content: center; aspect-ratio: 1 / 1; min-width: 0; padding: 0; background: var(--bg-elev-2); color: var(--text); border: 0; font-family: var(--font-body); font-size: clamp(11px, 3.6vw, 22px); line-height: 1; cursor: pointer; overflow: hidden; }
+.play-map-cell:hover { background: var(--bg-elev-3); }
+.play-map-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; position: relative; }
+.play-map-cell.is-fog { background: var(--bg-surface); }
+.play-map-cell.is-out { background: var(--bg-base); cursor: default; }
+.play-map-cell.is-player { background: var(--accent-lo); }
+.play-map-cell.is-step { background: var(--bg-elev-3); }
+.play-map-cell.is-step:hover { background: var(--accent-lo); }
+.play-map-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); min-width: 0; }
+.play-rose { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: 100%; max-width: 360px; min-width: 0; }
+.play-rose form { display: contents; }
+.play-rose .play-kb-btn { min-height: 44px; font-size: 13px; }
+.play-map-legend { font-size: 13px; color: var(--text-dim); }
+.play-map-legend summary { cursor: pointer; font-family: var(--font-display); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); }
+.play-map-legend summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.play-map-legend ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px 12px; }
 </style>
 </head>
 
@@ -2477,6 +2498,191 @@ section.block:first-of-type { border-top: 0; }
             <span class="play-lock-why">Надевать броню и брать в руки оружие можно только в здании «Арсенал», а на твоей базе его пока нет. Всё скрафтленное никуда не делось (ждут: 3).</span>
             <span class="play-lock-path">Нужен уровень 12 и базовые здания. Путь: «🏗 К стройке Арсенала» — там список ресурсов.</span>
           </div>
+        </article>
+      </div>
+    </div>
+
+    <h3 class="mt-3" id="play-map-demo">Карта «Мир» — сетка 12×12 и роза (W2.N2-01)</h3>
+    <p class="muted">Серверная сетка из модели LiveMapService: клетка — кнопка в своей форме, без JS работает PRG. Соседняя клетка (подсвечена) — шаг, остальные — подсказка. Роза — те же формы. Без горизонтального скролла на 375 / 768 / 1440.</p>
+    <div class="play-shell is-native mt-2">
+      <div class="play-screen">
+        <article class="play-native" aria-label="Карта «Мир»">
+          <header class="play-native-head">
+            <h2 class="play-native-title">🌍 Мир</h2>
+            <div class="play-native-tags"><span class="badge">🧭 X=3 Y=500 · 🌲 Лес</span><span class="badge">🏕 2 хода ↗️</span></div>
+          </header>
+          <p class="play-map-meta"><span>❤️ Здоровье: 88</span><span>💤 Усталость: 12</span></p>
+          <div class="play-map" aria-label="Карта 12×12 вокруг тебя">
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=0 Y=494">❄️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=1 Y=494">🌲</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=2 Y=494">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=3 Y=494">🌾</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=4 Y=494">🏜️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=5 Y=494">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=6 Y=494">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=7 Y=494">🌊</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=8 Y=494">⬛️</button></form>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=0 Y=495">⛰️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=1 Y=495">🌲</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=2 Y=495">🕳️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=3 Y=495">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=4 Y=495">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=5 Y=495">❄️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=6 Y=495">❄️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=7 Y=495">🌴</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=8 Y=495">❄️</button></form>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=0 Y=496">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=1 Y=496">🌊</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=2 Y=496">🏜️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=3 Y=496">🌲</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=4 Y=496">🌋</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=5 Y=496">🕳️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=6 Y=496">🌋</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=7 Y=496">🌋</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=8 Y=496">🌊</button></form>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=0 Y=497">🌊</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=1 Y=497">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=2 Y=497">🌋</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=3 Y=497">🌋</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=4 Y=497">⛰️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=5 Y=497">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=6 Y=497">🌾</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=7 Y=497">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=8 Y=497">🌲</button></form>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=0 Y=498">⛰️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=1 Y=498">🌾</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=2 Y=498">🌾</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=3 Y=498">🌋</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=4 Y=498">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-own-base" type="submit" aria-label="X=5 Y=498">🏕</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=6 Y=498">⛰️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=7 Y=498">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=8 Y=498">🌋</button></form>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=0 Y=499">🕳️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=1 Y=499">🌾</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog is-step" type="submit" aria-label="X=2 Y=499">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome is-step" type="submit" aria-label="X=3 Y=499">❄️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome is-step" type="submit" aria-label="X=4 Y=499">🌋</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=5 Y=499">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=6 Y=499">❄️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-foreign-base" type="submit" aria-label="X=7 Y=499">🚫</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=8 Y=499">🌋</button></form>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=0 Y=500">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=1 Y=500">🏜️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome is-step" type="submit" aria-label="X=2 Y=500">❄️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-player" type="submit" aria-label="X=3 Y=500">🙎‍♂️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-npc is-step" type="submit" aria-label="X=4 Y=500">🥷</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=5 Y=500">🕳️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=6 Y=500">❄️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=7 Y=500">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=8 Y=500">⬛️</button></form>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=0 Y=501">🌲</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=1 Y=501">❄️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome is-step" type="submit" aria-label="X=2 Y=501">🌲</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog is-step" type="submit" aria-label="X=3 Y=501">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome is-step" type="submit" aria-label="X=4 Y=501">🌾</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=5 Y=501">🏜️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=6 Y=501">🌲</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=7 Y=501">🏜️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=8 Y=501">🕳️</button></form>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=0 Y=502">🌋</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=1 Y=502">🌲</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=2 Y=502">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=3 Y=502">🌋</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=4 Y=502">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=5 Y=502">🌲</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=6 Y=502">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=7 Y=502">🏜️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=8 Y=502">⬛️</button></form>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=0 Y=503">🌲</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=1 Y=503">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=2 Y=503">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=3 Y=503">🌴</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=4 Y=503">🌾</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=5 Y=503">⛰️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=6 Y=503">🌋</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=7 Y=503">🌴</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=8 Y=503">⬛️</button></form>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=0 Y=504">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=1 Y=504">🌴</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=2 Y=504">❄️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=3 Y=504">🌊</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=4 Y=504">🏜️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=5 Y=504">🏜️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=6 Y=504">🏜️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=7 Y=504">⛰️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=8 Y=504">🌴</button></form>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <span class="play-map-cell is-out" aria-hidden="true">⬜</span>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=0 Y=505">❄️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=1 Y=505">🌊</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=2 Y=505">🏜️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=3 Y=505">🌊</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=4 Y=505">🌊</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=5 Y=505">🕳️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=6 Y=505">🌊</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-fog" type="submit" aria-label="X=7 Y=505">⬛️</button></form>
+      <form action="#play" method="post"><button class="play-map-cell is-biome" type="submit" aria-label="X=8 Y=505">🌲</button></form>
+          </div>
+          <nav class="play-rose" aria-label="Роза направлений">
+            <form action="#play" method="post"><button class="play-kb-btn" type="submit">↖️ Сев-Запад</button></form>
+            <form action="#play" method="post"><button class="play-kb-btn" type="submit">⬆️ Север</button></form>
+            <form action="#play" method="post"><button class="play-kb-btn" type="submit">↗️ Сев-Восток</button></form>
+            <form action="#play" method="post"><button class="play-kb-btn" type="submit">⬅️ Запад</button></form>
+            <form action="#play" method="post"><button class="play-kb-btn" type="submit">🏠 База</button></form>
+            <form action="#play" method="post"><button class="play-kb-btn" type="submit">➡️ Восток</button></form>
+            <form action="#play" method="post"><button class="play-kb-btn" type="submit">↙️ Юго-Запад</button></form>
+            <form action="#play" method="post"><button class="play-kb-btn" type="submit">⬇️ Юг</button></form>
+            <form action="#play" method="post"><button class="play-kb-btn" type="submit">↘️ Юго-Восток</button></form>
+          </nav>
+          <nav class="play-kb" aria-label="Действия на карте">
+            <div class="play-kb-grid">
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">⛏️ Добыть ресурсы</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🗺️ Поход</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🌍 Остров живёт</button></form>
+            </div>
+          </nav>
+          <details class="play-map-legend">
+            <summary>Легенда</summary>
+            <ul>
+              <li>🙎‍♂️ — игрок</li><li>🏕 — ваша база</li><li>🚫 — чужая база</li><li>🥷 — NPC</li>
+              <li>⬛️ — не изучено</li><li>⬜ — за пределами мира</li><li>🌲 — Лес</li><li>🌋 — Вулкан</li>
+            </ul>
+          </details>
         </article>
       </div>
     </div>

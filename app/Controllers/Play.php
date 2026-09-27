@@ -35,6 +35,10 @@ use InvalidArgumentException;
  * уходит в мост; `view=gear` + `op=equip|unequip` + `kind` + `item` + `intent_id` — смена
  * снаряжения тем же сервисом, что у бота (дедуп по `intent_id`). Без JS — PRG на `/play?view=…`
  * (ответ смены — flash). HUD (`hud`) едет в каждом JSON-ответе.
+ *
+ * W2.N2-01: `view=map` — нативная сетка «Мир»; `view=map` + `op=cell` + `x` + `y` — подсказка по
+ * клетке окна (биом, координаты). Позиция и персонаж — только из сессии, `x`/`y` лишь выбирают
+ * клетку внутри окна; клетка вне окна — 400. Кнопки карты — `op=bridge`.
  */
 class Play extends BaseController
 {
@@ -160,6 +164,19 @@ class Play extends BaseController
                 );
             } catch (InvalidArgumentException $e) {
                 log_message('info', '[Play.view] gear change rejected: ' . $e->getMessage());
+
+                return $this->rejected($characterId);
+            }
+        } elseif ($view === WebNativeScreenService::VIEW_MAP && $op === WebNativeScreenService::OP_CELL) {
+            $x = self::coordinate($this->request->getPost('x'));
+            $y = self::coordinate($this->request->getPost('y'));
+            try {
+                if ($x === null || $y === null) {
+                    throw new InvalidArgumentException('bad cell');
+                }
+                $alert = $this->native()->cellHint($characterId, $x, $y);
+            } catch (InvalidArgumentException $e) {
+                log_message('info', '[Play.view] cell rejected: ' . $e->getMessage());
 
                 return $this->rejected($characterId);
             }
@@ -344,6 +361,12 @@ class Play extends BaseController
         $row = $res instanceof ResultInterface ? $res->getRowArray() : null;
 
         return is_array($row) && is_string($row['name'] ?? null) ? $row['name'] : '';
+    }
+
+    /** Целая координата из формы (окно карты может заходить за край мира: знак допустим). */
+    private static function coordinate(mixed $raw): ?int
+    {
+        return is_string($raw) && preg_match('/^-?\d{1,4}$/', $raw) === 1 ? (int) $raw : null;
     }
 
     private function wantsJson(): bool

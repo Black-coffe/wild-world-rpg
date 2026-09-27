@@ -1,8 +1,8 @@
 ---
 story: w2-n2-live-map-01
 spec: w2-n2-live-map
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: opus
@@ -70,5 +70,15 @@ story 02 они отвечают «скоро» или идут через мо�
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `LiveMapService` (новый): `forCharacter(int)`/`fromCharacter(row)` → контракт плана + `error` (прежний текст ошибки бота); `grid()`, `nearestBase()`, `actions()`, `legend()`; лестница, окно, гейты слоёв перенесены 1:1 из `TextMapService`. Коды: `out/player/own_base/settlement/node/node_cooldown/bait/npc/fog/foreign_base/biome`; `biome` у закрытой клетки — null (туман не выдаёт биом в веб).
+- `TextMapService`: `buildMapOnly`/`getDistanceLine` — рендер модели (`gridText`, `distanceText`); свои модели отдаёт в `LiveMapService` через конструктор, поэтому reflection-моки `TextMapMultiBaseTest`/`MapZeroEdgeTest` работают без правки. Легенда — из констант модели.
+- `MoveSurfaceService`: текст — `renderMapText(model)`; нав-ряд и ряд «мир» — из `LiveMapService::actions()` с прежними seam-флагами; подписи розы — из `LiveMapService::DIRECTIONS`. Дрейфа текста бота нет: паритет доказан тестом, эталоны (сетка, весь текст «Мир» при world_hub off/on, клавиатура) сняты с кода ДО правки.
+- Веб: `view=map` → `site/_play/native_map.php`; соседняя клетка и роза — `op=bridge` `move_dir_*` (шаг бота через мост до story 02); прочие клетки — `op=cell` (подсказка «биом · X/Y», вне окна — 400); кнопки карты — `op=bridge`, вход в мост для них — команда `/go` (не карточка «Я»). Док «🌍 Мир»/«Карта» → `view=map` (dock.php менять не пришлось, только docblock).
+- Хвост 1: `WebNativeScreenService::intentKey()` — `intent_id`+суффикс, если >64 — `md5(intent_id)`+суффикс; лимит 60 на входе прежний.
+- Хвост 2: `EquipmentLoadoutService::check()` получил `?bool $unequip`; броню снимают без своего Арсенала (как прежний `ToggleEquipArmorAction`), надевание/toggle-надевание — прежний `NO_ARSENAL`; оружие не тронуто.
+- `phpstan-baseline.neon`: снято 10 записей `TextMapService`, которые больше не совпадают.
+- `npc_spawns` не имеет создающей миграции — `LiveMapServiceTest` строит её DDL-копией прод-таблицы (без FK на `npcs`).
+- `wildworld-play.js` не менялся: формы карты идут общим обработчиком `/play/view`.
+- Cache-bust: CSS изменён, но `?v=` живёт в `app/Views/site/_layout/meta.php`, которого нет в `## Files` — бамп не сделан, нужен в следующей story/вручную.
 
 ## Findings

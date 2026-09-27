@@ -10,6 +10,7 @@ use App\Services\Player\CharacterSheetService;
 use App\Services\Player\EquipmentLoadoutService;
 use App\Services\Player\InventoryViewService;
 use App\Services\Telegram\BotMenuService;
+use App\Services\World\LiveMapService;
 use InvalidArgumentException;
 
 /**
@@ -31,6 +32,14 @@ use InvalidArgumentException;
  * {@see EquipmentLoadoutService}, что и бот, с дедупом `intent_id` в `web_play_intents`
  * (повтор POST не меняет состояние второй раз).
  *
+ * W2.N2-01: «Мир» — нативная сетка из {@see LiveMapService}, той же модели, из которой рисует бот.
+ * Кнопки карты без своего экрана (роза, база, остров, события, дроны, Поход…) идут в мост от
+ * карты бота: вход — `/go` (тот же экран «🌍 Мир»), затем нажатие кнопки на его сообщении.
+ * Клик по клетке — подсказка (биом, координаты).
+ *
+ * Ключ дедупа — `intent_id` + суффикс ступени; {@see intentKey()} держит его в VARCHAR(64)
+ * `web_play_intents` при любом допустимом `intent_id`.
+ *
  * @phpstan-import-type State from WebScreenStore
  * @phpstan-import-type Sheet from CharacterSheetService
  */
@@ -39,9 +48,20 @@ class WebNativeScreenService
     public const VIEW_ME        = 'me';
     public const VIEW_INVENTORY = 'inventory';
     public const VIEW_GEAR      = 'gear';
+    public const VIEW_MAP       = 'map';
 
     /** Экраны, у которых уже есть нативная вьюха. */
-    public const VIEWS = [self::VIEW_ME, self::VIEW_INVENTORY, self::VIEW_GEAR];
+    public const VIEWS = [self::VIEW_ME, self::VIEW_INVENTORY, self::VIEW_GEAR, self::VIEW_MAP];
+
+    /** Подписи нижнего меню → нативный экран. */
+    private const DOCK_VIEWS = ['🧑 Я' => self::VIEW_ME, 'Перс' => self::VIEW_ME, '🌍 Мир' => self::VIEW_MAP, 'Карта' => self::VIEW_MAP];
+
+    /** Длина `intent_id` из формы и колонки ключа дедупа (`web_play_intents.intent_id`). */
+    public const INTENT_MAX     = 60;
+    public const INTENT_KEY_MAX = 64;
+
+    /** Вход в мост к кнопкам карты — slash-команда экрана «🌍 Мир» (работает при любом флаге меню). */
+    private const MAP_ENTRY = '/go';
 
     /** Действие экрана «Я» → нативный экран, который его заменяет. */
     private const NATIVE_ACTIONS = ['inventory' => self::VIEW_INVENTORY, 'gear' => self::VIEW_GEAR];
@@ -49,6 +69,9 @@ class WebNativeScreenService
     /** Операции снаряжения из веба. */
     public const OP_EQUIP   = 'equip';
     public const OP_UNEQUIP = 'unequip';
+
+    /** Клик по клетке карты. */
+    public const OP_CELL = 'cell';
 
     /**
      * Кнопки моста на нативных экранах (кроме «Я», чьи кнопки берутся из модели) и путь от
@@ -81,15 +104,19 @@ class WebNativeScreenService
 
     private EquipmentLoadoutService $loadout;
 
+    private LiveMapService $liveMap;
+
     public function __construct(
         private ?WebActService $act = null,
         ?CharacterSheetService $sheets = null,
         ?InventoryViewService $inventory = null,
-        ?EquipmentLoadoutService $loadout = null
+        ?EquipmentLoadoutService $loadout = null,
+        ?LiveMapService $liveMap = null
     ) {
         $this->sheets    = $sheets ?? new CharacterSheetService();
         $this->inventory = $inventory ?? new InventoryViewService();
         $this->loadout   = $loadout ?? new EquipmentLoadoutService();
+        $this->liveMap   = $liveMap ?? new LiveMapService();
     }
 
     public static function isView(mixed $view): bool
@@ -128,6 +155,13 @@ class WebNativeScreenService
     {
         $dock = is_array($state['dock'] ?? null) ? $state['dock'] : [];
 
+        if ($view === self::VIEW_MAP) {
+            return view('site/_play/native_map', [
+                'map'   => $this->liveMap->forCharacter($characterId),
+                'dock'  => $dock,
+                'alert' => $alert,
+            ]);
+        }
         if ($view === self::VIEW_GEAR) {
             return view('site/_play/native_gear', [
                 'loadout' => $this->loadout->forCharacter($characterId),
@@ -184,12 +218,10 @@ class WebNativeScreenService
             || $rowId <= 0) {
             throw new InvalidArgumentException('bad gear change');
         }
-        if ($intentId === '' || strlen($intentId) > 60) {
-            throw new InvalidArgumentException('bad intent_id');
-        }
+        self::assertIntent($intentId);
         $claimed = (new ConditionalWriteService())->insertUnique('web_play_intents', [
             'account_id' => $accountId,
-            'intent_id'  => $intentId . ':gear',
+            'intent_id'  => self::intentKey($intentId, ':gear'),
             'created_at' => date('Y-m-d H:i:s'),
         ]);
         if ($claimed !== WriteOutcome::Applied) {
@@ -224,28 +256,35 @@ class WebNativeScreenService
      */
     public function bridge(int $accountId, int $characterId, string $callback, string $intentId): array
     {
-        if ($intentId === '' || strlen($intentId) > 60) {
-            throw new InvalidArgumentException('bad intent_id');
-        }
+        self::assertIntent($intentId);
         $route = $this->routeTo($characterId, $callback);
+        $onMap = $route === null;
+        if ($onMap && ! $this->isMapCallback($characterId, $callback)) {
+            throw new InvalidArgumentException('callback is not on a native screen');
+        }
         $act   = $this->act ?? new WebActService();
 
         $result = $act->current($characterId);
         if (self::messageWith($result['state'], $callback) === null) {
-            // Путь игрока в Telegram: карточка «Я», затем кнопки маршрута.
-            $result = $act->act($accountId, $characterId, [
-                'intent_id' => $intentId . ':card',
+            // Путь игрока в Telegram: карточка «Я» (для кнопок карты — экран «🌍 Мир»),
+            // затем кнопки маршрута.
+            $result = $act->act($accountId, $characterId, $onMap ? [
+                'intent_id' => self::intentKey($intentId, ':card'),
+                'kind'      => WebActService::KIND_COMMAND,
+                'data'      => self::MAP_ENTRY,
+            ] : [
+                'intent_id' => self::intentKey($intentId, ':card'),
                 'kind'      => WebActService::KIND_TEXT,
                 'data'      => BotMenuService::menuLabel('me'),
             ]);
-            foreach ($route as $i => $step) {
+            foreach ($route ?? [] as $i => $step) {
                 $messageId = self::messageWith($result['state'], $step);
                 if ($messageId === null) {
                     // Повтор того же намерения (экран уже ушёл дальше) — просто текущий экран.
                     return $result;
                 }
                 $result = $act->act($accountId, $characterId, [
-                    'intent_id'  => $intentId . ':s' . $i,
+                    'intent_id'  => self::intentKey($intentId, ':s' . $i),
                     'kind'       => WebActService::KIND_CALLBACK,
                     'data'       => $step,
                     'message_id' => (string) $messageId,
@@ -259,27 +298,87 @@ class WebNativeScreenService
         }
 
         return $act->act($accountId, $characterId, [
-            'intent_id'  => $intentId . ':cb',
+            'intent_id'  => self::intentKey($intentId, ':cb'),
             'kind'       => WebActService::KIND_CALLBACK,
             'data'       => $callback,
             'message_id' => (string) $messageId,
         ]);
     }
 
-    /** Текст кнопки нижнего меню, который открывает нативный экран; null — такого нет. */
-    public static function viewForDockLabel(string $label): ?string
+    /**
+     * Клик по клетке карты — подсказка: что на клетке, биом (если открыта), координаты.
+     *
+     * @throws InvalidArgumentException клетки нет в окне карты персонажа
+     */
+    public function cellHint(int $characterId, int $x, int $y): string
     {
-        return in_array($label, ['🧑 Я', 'Перс'], true) ? self::VIEW_ME : null;
+        $map = $this->liveMap->forCharacter($characterId);
+        foreach ($map['cells'] as $row) {
+            foreach ($row as $cell) {
+                if ($cell['x'] !== $x || $cell['y'] !== $y) {
+                    continue;
+                }
+                $what  = match ($cell['code']) {
+                    LiveMapService::CODE_OUT          => 'За пределами мира',
+                    LiveMapService::CODE_PLAYER       => 'Ты здесь',
+                    LiveMapService::CODE_OWN_BASE     => 'Твоя база',
+                    LiveMapService::CODE_FOREIGN_BASE => 'Чужая база',
+                    LiveMapService::CODE_FOG          => 'Не изучено',
+                    LiveMapService::CODE_NPC          => 'NPC рядом',
+                    default                           => null,
+                };
+                $parts = array_values(array_filter(
+                    [$what, LiveMapService::biomeName($cell['biome'])],
+                    static fn (?string $p): bool => $p !== null
+                ));
+                $label = $parts === [] ? $cell['marker'] : $cell['marker'] . ' ' . implode(' · ', $parts);
+
+                return $label . " — X={$x}, Y={$y}. Ходи розой под картой: шаг и Поход кликом по клетке — скоро.";
+            }
+        }
+
+        throw new InvalidArgumentException('cell is not in the map window');
     }
 
     /**
-     * Путь от карточки «Я» до сообщения с кнопкой; кнопка обязана стоять на нативном экране.
-     *
-     * @return list<string>
-     *
-     * @throws InvalidArgumentException кнопки нет ни на одном нативном экране
+     * Ключ дедупа ступени: `intent_id` + суффикс, не длиннее VARCHAR(64). Если с суффиксом не
+     * влезает, `intent_id` заменяется своим md5 (32 символа): ключ по-прежнему свой у каждого
+     * намерения и тот же у повтора.
      */
-    private function routeTo(int $characterId, string $callback): array
+    public static function intentKey(string $intentId, string $suffix): string
+    {
+        $key = $intentId . $suffix;
+
+        return strlen($key) <= self::INTENT_KEY_MAX ? $key : md5($intentId) . $suffix;
+    }
+
+    /** Текст кнопки нижнего меню, который открывает нативный экран; null — такого нет. */
+    public static function viewForDockLabel(string $label): ?string
+    {
+        return self::DOCK_VIEWS[$label] ?? null;
+    }
+
+    /** @throws InvalidArgumentException пустой или слишком длинный `intent_id` */
+    private static function assertIntent(string $intentId): void
+    {
+        if ($intentId === '' || strlen($intentId) > self::INTENT_MAX) {
+            throw new InvalidArgumentException('bad intent_id');
+        }
+    }
+
+    /** Кнопка стоит на экране «Мир» персонажа (роза, клетка, Поход, витрины острова). */
+    private function isMapCallback(int $characterId, string $callback): bool
+    {
+        return in_array($callback, array_column($this->liveMap->actions(['id' => $characterId]), 'callback'), true);
+    }
+
+    /**
+     * Путь от карточки «Я» до сообщения с кнопкой; null — кнопки нет на экранах от «Я»
+     * (тогда она может стоять только на карте).
+     *
+     * @return list<string>|null
+     */
+    private function routeTo(int $characterId, string $callback): ?array
     {
         if (isset(self::BRIDGE_ROUTES[$callback])) {
             return self::BRIDGE_ROUTES[$callback];
@@ -294,7 +393,7 @@ class WebNativeScreenService
             return [];
         }
 
-        throw new InvalidArgumentException('callback is not on a native screen');
+        return null;
     }
 
     /**

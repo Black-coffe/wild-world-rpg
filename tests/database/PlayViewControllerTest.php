@@ -14,6 +14,7 @@ use App\Services\Web\VirtualIdentityService;
 use App\Services\Web\WebActService;
 use App\Services\Web\WebDelivery;
 use App\Services\Web\WebNativeScreenService;
+use App\Services\World\LiveMapService;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Forge;
@@ -364,6 +365,109 @@ final class PlayViewControllerTest extends CIUnitTestCase
         ], $act->calls);
     }
 
+    // ── Карта «Мир» (W2.N2-01) ──────────────────────────────────────────
+
+    public function testDockWorldButtonOpensNativeMap(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->seedScreen($charId, [['🌍 Мир', '🧑 Я', '🏠 База']]);
+
+        $page = html_entity_decode($this->body($this->withSession($session)->get('play')), ENT_QUOTES | ENT_HTML5);
+
+        $this->assertMatchesRegularExpression('~action="[^"]*/play/view" method="post">.*?name="view" value="map">.*?🌍 Мир</button>~su', $page);
+        $this->assertSame('map', WebNativeScreenService::viewForDockLabel('Карта'), 'при world_hub OFF в доке «Карта»');
+    }
+
+    public function testMapViewRendersGridRoseAndHud(): void
+    {
+        [$session, , $tg] = $this->character('Ворон');
+        $this->stubSheets(null, [[], []], $this->stubMap());
+
+        $res = $this->postWithCsrf($session, 'play/view', ['view' => 'map'], true);
+        $res->assertStatus(200);
+        $json = $this->json($res);
+        $html = html_entity_decode($json['html'], ENT_QUOTES | ENT_HTML5);
+
+        $this->assertStringContainsString('data-native="map"', $html);
+        $this->assertSame(144, substr_count($html, 'class="play-map-cell'), 'окно 12×12');
+        $this->assertStringContainsString('🙎‍♂️', $html);
+        $this->assertStringContainsString('X=10 Y=10', $html);
+        $this->assertStringContainsString('🏕 База: 3 ходов ↗️', $html);
+        // Соседняя клетка и роза — шаг бота через мост; прочая клетка — подсказка.
+        $this->assertMatchesRegularExpression('~name="data" value="move_dir_north"><button class="play-map-cell is-biome is-step"~su', $html);
+        $this->assertMatchesRegularExpression('~name="data" value="move_dir_north"><button class="play-kb-btn" type="submit">⬆️ Север</button>~su', $html);
+        $this->assertMatchesRegularExpression('~name="op" value="cell"><input type="hidden" name="x" value="4"><input type="hidden" name="y" value="4">~su', $html);
+        $this->assertMatchesRegularExpression('~name="data" value="island"><button class="play-kb-btn" type="submit">🌍 Остров живёт</button>~su', $html);
+        $this->assertStringContainsString('class="play-dock"', $html);
+        $this->assertStringContainsString('id="play-hud"', $json['hud']);
+        $this->assertStringNotContainsString((string) $tg, $this->body($res), 'ни одного telegram id');
+    }
+
+    public function testMapCellGivesHintAndRejectsCellOutsideTheWindow(): void
+    {
+        [$session] = $this->character('Ворон');
+        $this->stubSheets(null, [[], []], $this->stubMap());
+
+        $json = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'cell', 'x' => '4', 'y' => '5'], true));
+        $this->assertIsString($json['alert']);
+        $this->assertStringContainsString('X=4, Y=5', $json['alert']);
+        $this->assertStringContainsString('Лес', $json['alert']);
+
+        $fog = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'cell', 'x' => '5', 'y' => '5'], true));
+        $this->assertStringContainsString('Не изучено', (string) $fog['alert']);
+
+        foreach ([['x' => '40', 'y' => '5'], ['x' => 'a', 'y' => '5'], ['y' => '5']] as $i => $xy) {
+            $res = $this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'cell'] + $xy, true);
+            $this->assertSame(400, $res->response()->getStatusCode(), "клетка #{$i}");
+        }
+    }
+
+    public function testMapButtonWithoutOwnScreenGoesThroughTheBridgeFromTheWorldScreen(): void
+    {
+        [$session] = $this->character('Ворон');
+        $act       = $this->fakeAct();
+        $this->stubSheets($act, [[], []], $this->stubMap());
+
+        $res = $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'island', 'intent_id' => 'm1'], true);
+        $res->assertStatus(200);
+
+        $this->assertSame([
+            ['intent_id' => 'm1:card', 'kind' => 'command', 'data' => '/go'],
+            ['intent_id' => 'm1:cb', 'kind' => 'callback', 'data' => 'island', 'message_id' => '44'],
+        ], $act->calls);
+    }
+
+    /** Хвост W2.N1: `intent_id` на пределе (60) с любым суффиксом ступени влезает в VARCHAR(64). */
+    public function testLongestIntentWithLongestSuffixFitsTheDedupColumn(): void
+    {
+        $long  = str_repeat('a', WebNativeScreenService::INTENT_MAX);
+        $other = str_repeat('a', WebNativeScreenService::INTENT_MAX - 1) . 'b';
+        foreach ([':gear', ':card', ':cb', ':s0', ':s12'] as $suffix) {
+            $key = WebNativeScreenService::intentKey($long, $suffix);
+            $this->assertLessThanOrEqual(64, strlen($key), $suffix);
+            $this->assertStringEndsWith($suffix, $key);
+            $this->assertSame($key, WebNativeScreenService::intentKey($long, $suffix), 'повтор — тот же ключ');
+            $this->assertNotSame($key, WebNativeScreenService::intentKey($other, $suffix), 'разные намерения — разные ключи');
+        }
+        $this->assertSame('short:gear', WebNativeScreenService::intentKey('short', ':gear'), 'короткий ключ не меняется');
+
+        [$session] = $this->character('Ворон');
+        $act       = $this->fakeAct();
+        $this->stubSheets($act);
+        $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'guide', 'intent_id' => $long], true)->assertStatus(200);
+        $this->assertCount(2, $act->calls);
+        foreach ($act->calls as $call) {
+            $this->assertLessThanOrEqual(64, strlen((string) $call['intent_id']));
+        }
+        // Колонка сама: ключ на пределе записывается целиком.
+        $key = WebNativeScreenService::intentKey($long, ':card');
+        $this->conn->table('web_play_intents')->insert(['account_id' => 1, 'intent_id' => $key, 'created_at' => date('Y-m-d H:i:s')]);
+        $this->assertSame(1, $this->conn->table('web_play_intents')->where('intent_id', $key)->countAllResults());
+
+        $tooLong = $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'guide', 'intent_id' => $long . 'x'], true);
+        $this->assertSame(400, $tooLong->response()->getStatusCode());
+    }
+
     public function testActAndInboxResponsesCarryHud(): void
     {
         [$session] = $this->character('Ворон');
@@ -384,7 +488,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
      *
      * @param array{0: list<array<string, mixed>>, 1: list<array<string, mixed>>} $inventoryRows
      */
-    private function stubSheets(?WebActService $act = null, array $inventoryRows = [[], []]): void
+    private function stubSheets(?WebActService $act = null, array $inventoryRows = [[], []], ?LiveMapService $map = null): void
     {
         $conn   = $this->conn;
         $sheets = new class ($conn) extends CharacterSheetService {
@@ -434,7 +538,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
                 return $this->rows[1];
             }
         };
-        Factories::injectMock('libraries', WebNativeScreenService::class, new WebNativeScreenService($act, $sheets, $inventory));
+        Factories::injectMock('libraries', WebNativeScreenService::class, new WebNativeScreenService($act, $sheets, $inventory, null, $map ?? $this->stubMap()));
         if ($act !== null) {
             Factories::injectMock('libraries', WebActService::class, $act);
         }
@@ -455,6 +559,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
                 $this->calls[] = $intent;
                 $id            = (string) ($intent['intent_id'] ?? '');
                 [$mid, $text, $kb] = match (true) {
+                    ($intent['data'] ?? null) === '/go' => [44, 'Карта', [[['text' => '⬆️ Север', 'callback_data' => 'move_dir_north'], ['text' => '🌍 Остров живёт', 'callback_data' => 'island']]]],
                     str_ends_with($id, ':card') => [41, 'Карточка', [[['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'], ['text' => '📖 Путь новичка', 'callback_data' => 'guide']]]],
                     str_ends_with($id, ':s0')   => [43, 'Хаб инвентаря', [[['text' => '🧾 Куда ушло', 'callback_data' => 'whereItWent']]]],
                     default                     => [42, 'Экран моста', []],
@@ -474,14 +579,64 @@ final class PlayViewControllerTest extends CIUnitTestCase
         };
     }
 
-    /** Сохранённый экран моста с доком — `/play` не делает первый вход. */
-    private function seedScreen(int $characterId): void
+    /**
+     * Модель карты-фикстура: игрок в (10, 10), окно 4..15; клетка (5, 5) — туман, (13, 7) — своя
+     * база, остальное — лес. Действия — роза, база, Поход и «Остров живёт».
+     */
+    private function stubMap(): LiveMapService
+    {
+        return new class () extends LiveMapService {
+            public function forCharacter(int $characterId): array
+            {
+                $cells = [];
+                for ($y = 4; $y < 16; $y++) {
+                    $row = [];
+                    for ($x = 4; $x < 16; $x++) {
+                        [$code, $biome, $marker, $open] = match (true) {
+                            $x === 10 && $y === 10 => [self::CODE_PLAYER, 1, '🙎‍♂️', true],
+                            $x === 5 && $y === 5   => [self::CODE_FOG, null, '⬛️', false],
+                            $x === 13 && $y === 7  => [self::CODE_OWN_BASE, 1, '🏕', true],
+                            default                => [self::CODE_BIOME, 1, '🌲', true],
+                        };
+                        $row[] = ['x' => $x, 'y' => $y, 'code' => $code, 'biome' => $biome, 'marker' => $marker, 'explored' => $open];
+                    }
+                    $cells[] = $row;
+                }
+
+                return [
+                    'error' => null, 'center' => ['x' => 10, 'y' => 10, 'biome' => 1], 'window' => ['x0' => 4, 'y0' => 4, 'size' => 12],
+                    'cells' => $cells, 'distance_to_base' => ['distance' => 3, 'x' => 13, 'y' => 7, 'arrow' => '↗️'],
+                    'stats' => ['health' => 88.0, 'tired' => 12.0], 'actions' => $this->actions(['id' => $characterId]), 'legend' => self::legend(),
+                ];
+            }
+
+            public function actions(array|\App\Entities\CharacterEntity $character, ?bool $islandEnabled = null, ?bool $worldHub = null, ?bool $finalGrid = null, ?bool $gatherOnCompass = null): array
+            {
+                $out = [];
+                foreach (self::DIRECTIONS as $dir => [, , $label]) {
+                    $out[] = ['id' => 'move_' . $dir, 'label' => $label, 'callback' => 'move_dir_' . $dir, 'group' => self::GROUP_DIR, 'dir' => $dir];
+                }
+                $out[] = ['id' => 'base', 'label' => '🏠 База', 'callback' => 'Base', 'group' => self::GROUP_CELL, 'dir' => null];
+                $out[] = ['id' => 'march', 'label' => '🗺️ Поход', 'callback' => 'march', 'group' => self::GROUP_NAV, 'dir' => null];
+                $out[] = ['id' => 'island', 'label' => '🌍 Остров живёт', 'callback' => 'island', 'group' => self::GROUP_WORLD, 'dir' => null];
+
+                return $out;
+            }
+        };
+    }
+
+    /**
+     * Сохранённый экран моста с доком — `/play` не делает первый вход.
+     *
+     * @param list<list<string>> $dock
+     */
+    private function seedScreen(int $characterId, array $dock = [['🧑 Я', '🏠 База']]): void
     {
         $this->conn->table('web_play_state')->insert([
             'character_id' => $characterId,
             'screen'       => json_encode([['message_id' => 1000000000, 'text' => 'Экран', 'caption' => null, 'parse_mode' => null, 'photo_url' => null, 'inline_keyboard' => []]], JSON_UNESCAPED_UNICODE),
             'history'      => '[]',
-            'dock'         => json_encode([['🧑 Я', '🏠 База']], JSON_UNESCAPED_UNICODE),
+            'dock'         => json_encode($dock, JSON_UNESCAPED_UNICODE),
             'input'        => null,
             'updated_at'   => date('Y-m-d H:i:s'),
         ]);

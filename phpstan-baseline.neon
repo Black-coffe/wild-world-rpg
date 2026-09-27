@@ -13435,54 +13435,6 @@ parameters:
 			path: app/Services/World/ObjectDiscoveryService.php
 
 		-
-			message: '#^Cannot access offset ''biome_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/World/TextMapService.php
-
-		-
-			message: '#^Cannot access offset ''cell_number'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/World/TextMapService.php
-
-		-
-			message: '#^Cannot access offset ''character_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/World/TextMapService.php
-
-		-
-			message: '#^Cannot access offset ''coordinate_x'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 4
-			path: app/Services/World/TextMapService.php
-
-		-
-			message: '#^Cannot access offset ''coordinate_x'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 4
-			path: app/Services/World/TextMapService.php
-
-		-
-			message: '#^Cannot access offset ''coordinate_y'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
-			path: app/Services/World/TextMapService.php
-
-		-
-			message: '#^Cannot access offset ''coordinate_y'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 4
-			path: app/Services/World/TextMapService.php
-
-		-
-			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/World/TextMapService.php
-
-		-
 			message: '#^Method App\\Services\\World\\TextMapService\:\:buildMapOnly\(\) has parameter \$characterRow with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -13490,18 +13442,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Services\\World\\TextMapService\:\:getDistanceLine\(\) has parameter \$characterRow with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/World/TextMapService.php
-
-		-
-			message: '#^Method App\\Services\\World\\TextMapService\:\:getNpcsInArea\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/World/TextMapService.php
-
-		-
-			message: '#^Property App\\Services\\World\\TextMapService\:\:\$biomeEmojis type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Services/World/TextMapService.php
