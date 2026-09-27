@@ -15,6 +15,7 @@
      (поправка на часы браузера — по data-now, времени сервера в момент отрисовки HUD);
    - инвентарь ([data-inv]): вкладка фильтрует полки на месте, поиск — строки по имени;
      без JS вкладки остаются якорями к полкам, строка поиска скрыта.
+   W2.N3-03: таймеры очереди крафта (#play-state [data-ends-at]) тикают тем же тиком, что HUD.
    ============================================================ */
 (() => {
   'use strict';
@@ -98,7 +99,7 @@
 
   const tick = () => {
     const now = Date.now() / 1000 + clockSkew;
-    document.querySelectorAll('#play-hud [data-ends-at]').forEach((el) => {
+    document.querySelectorAll('#play-hud [data-ends-at], #play-state [data-ends-at]').forEach((el) => {
       const endsAt = parseInt(el.dataset.endsAt || '', 10);
       if (Number.isNaN(endsAt)) return;
       const left = endsAt - now;

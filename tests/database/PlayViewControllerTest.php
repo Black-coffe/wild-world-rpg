@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Database;
 
+use App\Services\Craft\CraftOrderService;
+use App\Services\Craft\CraftQueueService;
 use App\Services\Logging\TelegramDeliveryProbe;
 use App\Services\Player\CharacterSheetService;
 use App\Services\Player\EquipmentLoadoutService;
@@ -62,6 +64,8 @@ final class PlayViewControllerTest extends CIUnitTestCase
         '2024-03-22-111828_CreateTasksTable',
         '2024-03-22-132411_CreateCharacterTasksTable',
         '2024-03-24-212921_CreateExploredCellsTable',
+        '2024-04-16-100640_CreateCraftedItemsTable',
+        '2024-04-16-122053_CreateCraftedItemsLogTable',
         '2026-05-08-220000_AddDisableMediaFlag',
         '2026-05-19-100000_CreateGameSettingsTable',
         '2026-05-22-330000_TipsCAddDailyToggle',
@@ -82,7 +86,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
 
     private const TABLES = [
         'biomes', 'map', 'telegram_users', 'accounts', 'account_identities', 'account_tokens', 'account_link_codes',
-        'characters', 'action_log', 'tasks', 'character_tasks', 'explored_cells', 'game_settings', 'player_action_log',
+        'characters', 'action_log', 'tasks', 'character_tasks', 'explored_cells', 'crafted_items', 'crafted_items_log', 'game_settings', 'player_action_log',
         'telegram_updates_seen', 'web_play_state', 'web_inbox', 'web_play_intents',
     ];
 
@@ -403,7 +407,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('~name="op" value="cell"><input type="hidden" name="x" value="4"><input type="hidden" name="y" value="5">~su', $html);
         // W2.N2-03: клетка на луче дальше соседней — превью Похода (n — расстояние по Чебышёву).
         $this->assertMatchesRegularExpression('~name="op" value="march_preview"><input type="hidden" name="dir" value="east"><input type="hidden" name="n" value="3"><button class="play-map-cell is-biome is-ray"~su', $html);
-        $this->assertMatchesRegularExpression('~name="op" value="march_preview"><input type="hidden" name="dir" value="northwest"><input type="hidden" name="n" value="6"><button class="play-map-cell is-biome is-ray"~su', $html);
+        $this->assertMatchesRegularExpression('~name="op" value="march_preview"><input type="hidden" name="dir" value="northwest"><input type="hidden" name="n" value="6"><button class="play-map-cell is-biome is-ray is-far"~su', $html);
         $this->assertStringContainsString('href="' . base_url('map') . '"', $html, 'ссылка «Весь мир»');
         $this->assertMatchesRegularExpression('~name="data" value="island"><button class="play-kb-btn" type="submit">🌍 Остров живёт</button>~su', $html);
         $this->assertStringContainsString('class="play-dock"', $html);
@@ -695,6 +699,151 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('id="play-hud"', $inbox['hud']);
     }
 
+    // ── W2.N3-03: «🔨 Крафт» ─────────────────────────────────────────────
+
+    public function testDockCraftButtonOpensNativeCraft(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->seedScreen($charId, [['🧑 Я', '🔨 Крафт']]);
+
+        $page = html_entity_decode($this->body($this->withSession($session)->get('play')), ENT_QUOTES | ENT_HTML5);
+        $this->assertMatchesRegularExpression('~action="[^"]*/play/view" method="post">.*?name="view" value="craft">.*?🔨 Крафт</button>~su', $page);
+    }
+
+    /** Верстак → категория → карточка → очередь; запертый «Проф.» — замок с требованием и путём. */
+    public function testCraftWalksBenchCategoryCardAndShowsTheQueue(): void
+    {
+        [$session] = $this->character('Ворон');
+        [$orders, $queue] = $this->stubCraft();
+        $this->stubSheets(null, [[], []], null, null, $orders, $queue);
+
+        $hub = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'craft'], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-native="craft"', $hub);
+        $this->assertStringContainsString('🔒 Профессиональный крафт (нужно: 🛠️ Профессиональный верстак)', $hub);
+        $this->assertStringContainsString('Путь: 🔨 Общий крафт → 🔬 Верстаки → 🛠️ Профессиональный верстак', $hub);
+        $this->assertMatchesRegularExpression('~name="bench" value="general"><input type="hidden" name="cat" value="workbenches"><input type="hidden" name="recipe" value="ProfessionalWorkbench"><button class="play-kb-btn is-locked"~su', $hub, 'замок ведёт к карточке цеха');
+        $this->assertStringContainsString('📋 Очередь крафта', $hub, 'очередь видна сразу');
+
+        $locked = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'craft', 'bench' => 'pro', 'cat' => 'weapons'], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringNotContainsString('Оружие T3', $locked, 'запертый раздел не открывается подделанной формой');
+
+        $bench = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'craft', 'bench' => 'general'], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('💊 Лекарства · 8', $bench);
+        $this->assertStringContainsString('🔥 Костёр · 5', $bench, 'рыбные блюда скрыты тем же флагом, что у бота');
+
+        $card = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'craft', 'bench' => 'general', 'cat' => 'medicine', 'recipe' => 'Bandage'], true));
+        $html = html_entity_decode($card['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('name="recipe" value="Antiseptic"', $html, 'список категории');
+        $this->assertStringContainsString('🩹 Повязка', $html);
+        $this->assertStringContainsString('<dd>5 мин</dd>', $html);
+        $this->assertStringContainsString('<dd>7 шт.</dd>', $html);
+        $this->assertStringContainsString('<span class="play-craft-req-qty">14 / 2</span>', $html);
+        $this->assertStringContainsString('🛠️ Крафт 1 шт', $html);
+        $this->assertStringContainsString('🛠️ Крафт 5 шт', $html);
+        $this->assertStringNotContainsString('🛠️ Крафт 10 шт', $html, 'шаги — не больше max_qty');
+        $this->assertMatchesRegularExpression('~name="qty" type="number" inputmode="numeric" min="1" max="7"~', $html);
+        $this->assertMatchesRegularExpression('~data-ends-at="\d+"[^>]*>\d+:\d\d</time>~', $html, 'активный — с таймером');
+        $this->assertStringContainsString('№1 · Повязка ×2', $html);
+        $this->assertStringContainsString('≈ старт через 10 мин · займёт ≈ 10 мин', $html);
+        $this->assertMatchesRegularExpression('~name="op" value="craft_cancel">.*?name="task" value="12">~su', $html);
+    }
+
+    /** Старт кнопкой шага и «своим числом»: повтор `intent_id` второй раз не стартует, больше `max_qty` и меньше 1 — нет. */
+    public function testCraftStartByStepAndOwnNumberDedupsAndCapsAtMaxQty(): void
+    {
+        [$session] = $this->character('Ворон');
+        [$orders, $queue] = $this->stubCraft();
+        $this->stubSheets(null, [[], []], null, null, $orders, $queue);
+        $nav = ['view' => 'craft', 'bench' => 'general', 'cat' => 'medicine', 'recipe' => 'Bandage', 'op' => 'craft_start'];
+
+        $one = $this->json($this->postWithCsrf($session, 'play/view', ['qty' => '1', 'intent_id' => 'c1'] + $nav, true));
+        $this->assertSame('🛠 Крафт начат: 🩹 Повязка ×1. Готово через 5 мин.', $one['alert']);
+        $this->assertNull($this->json($this->postWithCsrf($session, 'play/view', ['qty' => '1', 'intent_id' => 'c1'] + $nav, true))['alert']);
+        $this->assertSame([['Bandage', 1]], $orders->starts, 'повтор intent_id — без второго старта');
+
+        $own = $this->json($this->postWithCsrf($session, 'play/view', ['qty' => '7', 'intent_id' => 'c2'] + $nav, true));
+        $this->assertSame('📋 В очереди: 🩹 Повязка ×7 — №2. Начнётся, когда закончится текущий.', $own['alert']);
+
+        $over = $this->json($this->postWithCsrf($session, 'play/view', ['qty' => '8', 'intent_id' => 'c3'] + $nav, true));
+        $this->assertSame('Столько не выйдет: сейчас можно поставить не больше 7 шт.', $over['alert']);
+        $this->assertCount(2, $orders->starts, 'больше max_qty — без старта');
+
+        foreach ([['qty' => '0', 'intent_id' => 'c4'], ['qty' => '-3', 'intent_id' => 'c5'], ['qty' => '1', 'intent_id' => 'c6', 'recipe' => 'GoldBar']] as $i => $bad) {
+            $this->assertSame(400, $this->postWithCsrf($session, 'play/view', $bad + $nav, true)->response()->getStatusCode(), "плохой старт #{$i}");
+        }
+        $this->assertCount(2, $orders->starts);
+        $this->assertSame(1, $this->conn->table('web_play_intents')->where('intent_id', 'c1:craft_start')->countAllResults());
+    }
+
+    public function testCraftCancelDedupsAndWithoutJsIsPrgToTheCard(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->seedScreen($charId);
+        [$orders, $queue] = $this->stubCraft();
+        $this->stubSheets(null, [[], []], null, null, $orders, $queue);
+
+        $cancel = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'craft', 'op' => 'craft_cancel', 'task' => '12', 'intent_id' => 'x1'], true));
+        $this->assertSame('❌ Отменено: Повязка ×2. Сырьё и золото вернулись туда, откуда были взяты.', $cancel['alert']);
+        $this->assertNull($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'craft', 'op' => 'craft_cancel', 'task' => '12', 'intent_id' => 'x1'], true))['alert']);
+        $this->assertSame([12], $queue->cancels);
+        $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['view' => 'craft', 'op' => 'craft_cancel', 'task' => 'abc', 'intent_id' => 'x2'], true)->response()->getStatusCode());
+
+        $res = $this->postWithCsrf($session, 'play/view', ['view' => 'craft', 'bench' => 'general', 'cat' => 'medicine', 'recipe' => 'Bandage', 'op' => 'craft_start', 'qty' => '5', 'intent_id' => 'n1']);
+        $this->assertSame(303, $res->response()->getStatusCode());
+        $this->assertStringEndsWith('/play?view=craft&bench=general&cat=medicine&recipe=Bandage', $res->response()->getHeaderLine('Location'));
+        $this->assertSame([['Bandage', 5]], $orders->starts);
+
+        $page = html_entity_decode($this->body($this->withSession($session)->get('play?view=craft&bench=general&cat=medicine&recipe=Bandage')), ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-native="craft"', $page);
+        $this->assertStringContainsString('🛠️ Крафт 5 шт', $page);
+    }
+
+    /** Нехватка: кнопок старта нет, «Чего не хватает?» идёт мостом от хаба `/craft` по пути бота. */
+    public function testShortageCardBridgesToTheBotShortageScreen(): void
+    {
+        [$session] = $this->character('Ворон');
+        [$orders, $queue] = $this->stubCraft(0);
+        $act = $this->fakeAct();
+        $this->stubSheets($act, [[], []], null, null, $orders, $queue);
+
+        $html = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'craft', 'bench' => 'general', 'cat' => 'medicine', 'recipe' => 'Bandage'], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringNotContainsString('value="craft_start"', $html);
+        $this->assertMatchesRegularExpression('~name="op" value="bridge">.*?name="data" value="genericCraft_Bandage_1"><button class="play-kb-btn" type="submit">🛒 Чего не хватает\?</button>~su', $html);
+
+        $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'genericCraft_Bandage_1', 'intent_id' => 'sh1'], true)->assertStatus(200);
+        $this->assertSame(['intent_id' => 'sh1:card', 'kind' => 'command', 'data' => '/craft'], $act->calls[0]);
+
+        $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'genericCraft_GoldBar_1', 'intent_id' => 'sh2'], true)->response()->getStatusCode(), 'чужой рецепт — не кнопка веб-крафта');
+    }
+
+    /** Хвосты W2.N2: строка задач у идущего Похода не «готово»; клетки дальше 3 — `is-far` (окно 7×7 на 375). */
+    public function testMarchTaskRowCarriesNoPastDeadlineAndFarCellsAreMarked(): void
+    {
+        $stats = ['health' => '100', 'tired' => '100', 'gold' => 0, 'level' => 1, 'experience' => '0'];
+        $row   = ['name' => 'Marching', 'name_rus' => 'Поход', 'end_time' => date('Y-m-d H:i:s', time() - 5)];
+        $task = CharacterSheetService::buildHud($stats, null, null, null, null, [$row])['task'];
+        $this->assertNotNull($task);
+        $this->assertSame('Поход', $task['name']);
+        $this->assertNull($task['ends_at'], 'end_time = start_time Похода — не срок');
+        $eta = time() + 300;
+        $this->assertSame($eta, CharacterSheetService::buildHud($stats, null, null, null, null, [$row], $eta)['task']['ends_at'] ?? null);
+
+        [$session] = $this->character('Ворон');
+        $this->enableMarch();
+        $this->stubSheets(null, [[], []], $this->stubMap());
+        $start = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_start', 'dir' => 'east', 'n' => '3', 'intent_id' => 'hm1'], true));
+        $hud   = html_entity_decode($start['hud'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('⏳ Поход', $hud);
+        preg_match_all('~data-ends-at="(\d+)"~', $hud, $m);
+        $this->assertCount(2, $m[1], 'таймер строки задач и таймер Похода');
+        $this->assertSame($m[1][1], $m[1][0], 'срок строки «Поход» — прибытие из статуса Похода, а не end_time = start_time');
+
+        $html = html_entity_decode($start['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('class="play-map-cell is-fog is-ray is-far"', $html, '(5,5) дальше 3 от (10,10)');
+        $this->assertStringContainsString('class="play-map-cell is-biome is-ray is-far"', $html, 'луч дальше 3 — тоже вне окна 7×7');
+        $this->assertStringContainsString('<button class="play-map-cell is-biome is-ray" type="submit" aria-label="Поход ×3: X=13 Y=10">', $html, '(13,10) в окне 7×7');
+    }
+
     // ── Фикстура ─────────────────────────────────────────────────────────
 
     /**
@@ -703,7 +852,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
      *
      * @param array{0: list<array<string, mixed>>, 1: list<array<string, mixed>>} $inventoryRows
      */
-    private function stubSheets(?WebActService $act = null, array $inventoryRows = [[], []], ?LiveMapService $map = null, ?MoveService $move = null): void
+    private function stubSheets(?WebActService $act = null, array $inventoryRows = [[], []], ?LiveMapService $map = null, ?MoveService $move = null, ?CraftOrderService $orders = null, ?CraftQueueService $queue = null): void
     {
         $conn   = $this->conn;
         $sheets = new class ($conn) extends CharacterSheetService {
@@ -753,7 +902,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
                 return $this->rows[1];
             }
         };
-        Factories::injectMock('libraries', WebNativeScreenService::class, new WebNativeScreenService($act, $sheets, $inventory, null, $map ?? $this->stubMap(), $move));
+        Factories::injectMock('libraries', WebNativeScreenService::class, new WebNativeScreenService($act, $sheets, $inventory, null, $map ?? $this->stubMap(), $move, null, $orders, $queue));
         if ($act !== null) {
             Factories::injectMock('libraries', WebActService::class, $act);
         }
@@ -878,6 +1027,70 @@ final class PlayViewControllerTest extends CIUnitTestCase
                 ]);
             }
         };
+    }
+
+    /**
+     * Ядро крафта-двойник: карточка «Повязки» (5 мин, хлопок 14/2, `max_qty` = $max) и очередь — активный
+     * ×5 на 10 мин и ожидающий №1 ×2 (строка 12). Старт и отмена пишут вызовы.
+     *
+     * @return array{0: CraftOrderService, 1: CraftQueueService}
+     */
+    private function stubCraft(int $max = 7): array
+    {
+        $orders = new class ($max) extends CraftOrderService {
+            /** @var list<array{0:string, 1:int}> */
+            public array $starts = [];
+
+            public function __construct(private int $max)
+            {
+                parent::__construct();
+            }
+
+            public function preview(int $characterId, string $recipeKey, int $qty): array
+            {
+                return [
+                    'ok' => $this->max > 0, 'code' => $this->max > 0 ? self::STARTED : self::MISSING_MATERIALS,
+                    'message' => $this->max > 0 ? '' : 'Недостаточно ресурсов для крафта 1 шт.',
+                    'recipe' => ['key' => $recipeKey, 'name' => 'Повязка', 'icon' => '🩹', 'output_type' => 'item'],
+                    'resources' => [['name' => 'Хлопок', 'need' => 2 * $qty, 'have' => 14]], 'items' => [], 'gold' => 0,
+                    'minutes_one' => 5, 'minutes_total' => 5 * $qty, 'max_qty' => $this->max, 'queue_pos' => 1, 'gates' => [],
+                ];
+            }
+
+            public function start(int $characterId, string $recipeKey, int $qty): array
+            {
+                $this->starts[] = [$recipeKey, $qty];
+                $queued         = count($this->starts) > 1;
+
+                return [
+                    'ok' => true, 'code' => $queued ? self::QUEUED : self::STARTED, 'message' => '', 'log' => null,
+                    'char_task_id' => count($this->starts), 'status' => $queued ? 'queued' : 'in_work', 'started_at' => null, 'ends_at' => null,
+                    'minutes_total' => 5 * $qty, 'queue_pos' => count($this->starts), 'background' => true, 'breakdown' => null,
+                    'missing_resources' => [], 'missing_items' => [],
+                ];
+            }
+        };
+        $queue = new class () extends CraftQueueService {
+            /** @var list<int> */
+            public array $cancels = [];
+
+            public function forCharacter(int $characterId): array
+            {
+                return [
+                    'active' => [['charTaskId' => 11, 'task_id' => 3, 'recipe' => 'Bandage', 'name' => 'Повязка', 'qty' => 5, 'ends_at' => date('Y-m-d H:i:s', time() + 600), 'seconds_left' => 600]],
+                    'queued' => [['charTaskId' => 12, 'task_id' => 3, 'recipe' => 'Bandage', 'name' => 'Повязка', 'qty' => 2, 'position' => 1, 'minutes_total' => 10, 'starts_in_seconds' => 600]],
+                ];
+            }
+
+            public function cancel(int $characterId, int $charTaskId): array
+            {
+                $this->cancels[] = $charTaskId;
+
+                return ['ok' => true, 'code' => self::CANCELLED, 'message' => '', 'recipe' => 'Bandage', 'name' => 'Повязка', 'qty' => 2];
+            }
+        };
+
+        return [$orders, $queue];
     }
 
     /** Задача «Поход» и legacy-колонка `task_settings` (создающей миграции нет) — для настоящего MarchService. */

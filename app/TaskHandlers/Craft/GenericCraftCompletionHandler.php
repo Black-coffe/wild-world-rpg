@@ -13,13 +13,11 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\OutfitModel;
 use App\Models\ResourceModel;
-use App\Models\TaskModel;
 use App\Models\TelegramUserModel;
 use App\Models\WeaponModel;
 use App\Services\BuildingEffects\BuildingEffectsService;
 use App\TaskHandlers\BaseTaskHandler;
 use Config\CraftRecipes;
-use DateInterval;
 use DateTime;
 use Longman\TelegramBot\Exception\TelegramException;
 use App\Services\Telegram\Request;
@@ -279,76 +277,22 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
     }
 
     /**
-     * v0.51.129: знайти oldest queued task (FIFO) для same character + same
-     * task_id → activate (status='in_work', start_time=now, end_time=now+dur×qty).
+     * v0.51.129 → W2.N3-02 (ADR-190): продвижение очереди рецепта — в ядре
+     * {@see \App\Services\Craft\CraftQueueService::promoteNext()} (условный `UPDATE … WHERE
+     * status='queued'`: гонка с отменой не даёт двойного старта). Здесь — только уведомление.
      *
      * Worker.php picks status='in_work' AND end_time<now — наступний tick
      * (≤1 хв) обробить активований task через цей же handler.
      */
     private function activateNextQueuedTask(int $characterId, int $taskId): void
     {
-        $next = $this->characterTaskModel
-            ->where('character_id', $characterId)
-            ->where('task_id', $taskId)
-            ->where('status', 'queued')
-            ->orderBy('id', 'ASC')  // FIFO via auto-increment (created_at ties resolved)
-            ->first();
-
-        // Модель отдаёт массив (returnType='array'), но статически это `array|object`
-        // — сужаем явно, чтобы дальше не гадать (раньше это гасилось baseline-записями).
-        if (! is_array($next)) {
+        $promoted = (new \App\Services\Craft\CraftQueueService($this->characterTaskModel))->promoteNext($characterId, $taskId);
+        if ($promoted === null) {
             return;
         }
-
-        // Дюрація based on character (поточні stats) + qty з task_settings.
-        $taskRow = (new TaskModel())->find($taskId);
-        if (! is_array($taskRow)) {
-            log_message('error', "[GenericCraftCompletion] dequeue: tasks row {$taskId} не знайдено");
-            return;
-        }
-
-        // CharacterModel::find() отдаёт CharacterEntity, а не массив — сужаем по типу.
-        $character = $this->characterModel->find($characterId);
-        if (! $character instanceof \App\Entities\CharacterEntity) {
-            log_message('error', "[GenericCraftCompletion] dequeue: character {$characterId} не знайдено");
-            return;
-        }
-
-        // ADR-158: раньше здесь жила ВТОРАЯ копия формулы — голая интерполяция по
-        // статам, без duration_override и без единого множителя, при комментарии
-        // «та сама формула». Из-за этого первая вещь у игрока с Мастерской L10
-        // делалась за 55% времени, а следующая из той же очереди — за 100%.
-        // Теперь и старт, и активация из очереди зовут один сервис; рецепт достаём
-        // из task_settings, чтобы override часов и boost-постройка тоже применились.
-        $quantity  = $this->extractQuantity($next);
-        $recipeKey = $this->extractRecipeKey($next);
-        $recipeRow = [];
-        if ($recipeKey !== null) {
-            /** @var CraftRecipes $cfgRecipes */
-            $cfgRecipes = config('CraftRecipes');
-            $recipeRow  = $cfgRecipes->get($recipeKey) ?? [];
-        }
-        $durationOne   = (new \App\Services\Craft\CraftDurationService())
-            ->minutesForOne($character, $taskRow, $recipeRow);
-        $totalDuration = $durationOne * $quantity;
-
-        $startTime = new DateTime();
-        $endTime   = (clone $startTime)->add(new DateInterval('PT' . $totalDuration . 'M'));
-
-        $nextIdRaw = $next['id'] ?? null;
-        if (! is_numeric($nextIdRaw)) {
-            log_message('error', '[GenericCraftCompletion] dequeue: у queued-задачи нет id');
-            return;
-        }
-
-        $this->characterTaskModel->update((int) $nextIdRaw, [
-            'status'     => 'in_work',
-            'start_time' => $startTime->format('Y-m-d H:i:s'),
-            'end_time'   => $endTime->format('Y-m-d H:i:s'),
-        ]);
 
         // notify користувачу про активацію черги
-        $this->notifyQueuedActivated((int) $next['telegram_user_id'], $next, $quantity, $endTime);
+        $this->notifyQueuedActivated($promoted['telegram_user_id'], $promoted['row'], $promoted['qty'], $promoted['ends_at']);
     }
 
     /**

@@ -2545,80 +2545,8 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/CharacterGoActions.php
 
 		-
-			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Craft/CancelQueuedCraftAction.php
-
-		-
-			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Craft/CancelQueuedCraftAction.php
-
-		-
-			message: '#^Cannot cast mixed to int\.$#'
-			identifier: cast.int
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Craft/CancelQueuedCraftAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\CancelQueuedCraftAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/CancelQueuedCraftAction.php
-
-		-
-			message: '#^Parameter \#2 \$reqs of method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\CancelQueuedCraftAction\:\:refundCraftedItems\(\) expects array\<string, int\>, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/CancelQueuedCraftAction.php
-
-		-
-			message: '#^Parameter \#2 \$reqs of method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\CancelQueuedCraftAction\:\:refundResources\(\) expects array\<string, int\>, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/CancelQueuedCraftAction.php
-
-		-
-			message: '#^Part \$recipe\[''item_name_rus''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/CancelQueuedCraftAction.php
-
-		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
-
-		-
-			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
-
-		-
-			message: '#^Cannot cast mixed to int\.$#'
-			identifier: cast.int
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart\:\:calculateCraftingDuration\(\) has parameter \$character with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart\:\:calculateCraftingDuration\(\) has parameter \$taskRow with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
 
@@ -2637,54 +2565,6 @@ parameters:
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart\:\:pluralForm\(\) has parameter \$forms with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
-
-		-
-			message: '#^Parameter \#2 \$reqs of method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart\:\:checkCraftedItems\(\) expects array\<string, int\>, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
-
-		-
-			message: '#^Parameter \#2 \$reqs of method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart\:\:checkResources\(\) expects array\<string, int\>, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
-
-		-
-			message: '#^Parameter \#2 \$reqs of method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart\:\:subtractCraftedItems\(\) expects array\<string, int\>, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
-
-		-
-			message: '#^Parameter \#2 \$reqs of method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart\:\:subtractResources\(\) expects array\<string, int\>, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
-
-		-
-			message: '#^Part \$buildingNameEn \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
-
-		-
-			message: '#^Part \$recipe\[''item_name_rus''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
-
-		-
-			message: '#^Part \$recipe\[''task_name''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart\:\:\$cfg \(Config\\GameBalance\) does not accept object\|null\.$#'
-			identifier: assign.propertyType
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
 
@@ -14067,12 +13947,6 @@ parameters:
 		-
 			message: '#^Cannot access offset ''type'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
-
-		-
-			message: '#^Cannot cast bool\|float\|int\|object\|string\|null to int\.$#'
-			identifier: cast.int
 			count: 1
 			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
 

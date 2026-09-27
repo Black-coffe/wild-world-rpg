@@ -121,45 +121,19 @@ class ActiveTasksService
      */
     public function getCraftQueue(int $characterId): array
     {
-        $builder = $this->characterTaskModel->builder();
-        $builder->select('
-            character_tasks.id AS charTaskId,
-            character_tasks.end_time,
-            character_tasks.status,
-            character_tasks.task_settings,
-            tasks.name_rus
-        ');
-        $builder->join('tasks', 'tasks.id = character_tasks.task_id', 'left');
-        $builder->where('character_tasks.character_id', $characterId);
-        $builder->where('tasks.type', 'craft');
-        $builder->whereIn('character_tasks.status', ['in_work', 'queued']);
-        // 'in_work' < 'queued' лексикографически → активные первыми; затем по ETA, затем FIFO id.
-        $builder->orderBy('character_tasks.status', 'ASC');
-        $builder->orderBy('character_tasks.end_time', 'ASC');
-        $builder->orderBy('character_tasks.id', 'ASC');
-        $rows = $builder->get()->getResultArray();
+        // W2.N3-02 (ADR-190): список очереди живёт в ядре крафта; форма ответа — прежняя.
+        $rows = (new \App\Services\Craft\CraftQueueService())->rows($characterId);
 
-        $now    = Time::now()->getTimestamp();
-        $active = [];
-        $queued = [];
-        foreach ($rows as $r) {
-            $qty = 1;
-            $s   = json_decode((string) ($r['task_settings'] ?? '{}'), true);
-            if (is_array($s) && isset($s['quantity']) && is_numeric($s['quantity'])) {
-                $qty = max(1, (int) $s['quantity']);
-            }
-            $name = is_string($r['name_rus'] ?? null) && $r['name_rus'] !== '' ? $r['name_rus'] : 'Крафт';
-            $id   = (int) $r['charTaskId'];
-
-            if (($r['status'] ?? '') === 'in_work') {
-                $left = !empty($r['end_time']) ? max(0, strtotime((string) $r['end_time']) - $now) : 0;
-                $active[] = ['charTaskId' => $id, 'name' => $name, 'qty' => $qty, 'seconds_left' => $left];
-            } else {
-                $queued[] = ['charTaskId' => $id, 'name' => $name, 'qty' => $qty];
-            }
-        }
-
-        return ['active' => $active, 'queued' => $queued];
+        return [
+            'active' => array_map(
+                static fn (array $a): array => ['charTaskId' => $a['charTaskId'], 'name' => $a['name'], 'qty' => $a['qty'], 'seconds_left' => $a['seconds_left']],
+                $rows['active']
+            ),
+            'queued' => array_map(
+                static fn (array $q): array => ['charTaskId' => $q['charTaskId'], 'name' => $q['name'], 'qty' => $q['qty']],
+                $rows['queued']
+            ),
+        ];
     }
 
     /**

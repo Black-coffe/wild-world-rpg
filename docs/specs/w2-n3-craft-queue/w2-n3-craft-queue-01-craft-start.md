@@ -1,8 +1,8 @@
 ---
 story: w2-n3-craft-queue-01
 spec: w2-n3-craft-queue
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: opus
@@ -58,5 +58,16 @@ Handler бота становится рендерером: те же текст
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `CraftOrderService` (new): `preview/start/gateError` + `checkResources/checkCraftedItems/subtractResources/characterFactionId`; gates, texts and order moved 1:1 from the handler; refusal = `{code, message, log}`, the renderer writes action_log (it has the chat_id).
+- Atomicity: `start()` runs `transBegin` → `SELECT id FROM characters … FOR UPDATE` → re-checks queue/slot limits → consumes from the pool → crafted items via `decrementIfAtLeast(deleteWhenEmpty)` → gold via `decrementIfAtLeast` → insert. A refusal inside rolls back everything. Before this, gold was an unconditional `decrement`, and items were read-then-written (a missing log row went through for free).
+- `task_settings.consumed = {resources: {name: {backpack, storage}}, crafted_items: {eng: n}, gold}` is the breakdown that the cancel path in story 02 reads.
+- Limits: `craft.queue.max_per_recipe`=10 and `craft.queue.max_slots`=3 are seeded by the idempotent migration `2026-12-14-100000_SeedCraftQueueLimitSettings` (existing keys are not overwritten). The `Config\GameBalance` fields are removed (no other readers).
+- `GenericCraftActionStart` is now a renderer: user/recipe lookup plus rendering the outcome. `checkCanStartWithoutMaterials()` delegates to `gateError()`. `CraftShortfallBuyAction` is unchanged: it still calls this method.
+- Surprise: `CraftPoolConsumptionTest` and `VehicleRecipesTest` call the handler's private `checkResources/subtractResources/characterFactionId` via reflection. They stay as thin `protected` wrappers over the core (they were `private` → phpstan `method.unused`).
+- Parity: `CraftOrderServiceTest::BOT_BEFORE` has 10 cases (start, start with components, queue, shortage screen, shortage string, recipe limit, slot limit, exclusive, gold, unknown recipe). They were captured from the old handler BEFORE the edit and run in a separate process. Photo URLs are recorded through a stub `http` stream, media-off. After the edit all 10 match exactly.
+- Behaviour change only in races, plus `have` of missing components is now int (it used to be the raw DB string) in the log/shortage screen.
+- `phpstan-baseline.neon`: 13 entries for the handler that no longer matched are removed; phpstan is clean.
+- Order dependence of the shared test DB (not mine): `VehicleRecipesTest` leaves `characters(id, level)`, so `CampfireCustomQuantityTest` goes red right after it and green on a clean schema.
+- Tech-writing notes (vault: CraftOrderService, GenericCraftActionStart) are outside `## Files`; they go to drone-docs.
 
 ## Findings
