@@ -39,4 +39,4 @@
 **Branch:** vulyk/w2-n3-craft-flags
 **Checked:** <written by scripts/human-check.sh>
 **Council:** GREEN round 1, 2026-09-27, at e1f74493, pack 3e8a44032f1b
-**Shipped:** <written by scripts/ship-check.sh --record>
+**Shipped:** v0.51.680, 2026-09-27, at ebf4a53c - merged to develop, publish pending (тег после preprod-смоука)
