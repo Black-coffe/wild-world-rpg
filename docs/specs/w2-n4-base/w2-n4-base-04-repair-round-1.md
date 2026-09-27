@@ -1,7 +1,7 @@
 ---
 story: w2-n4-base-04
-status: todo
-returned:
+status: done
+returned: DONE
 worker: worker-code
 model: opus
 wave: 4
@@ -59,3 +59,9 @@ Make the asks and findings council round 1 left RED pass, and change nothing els
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+
+## Implementation notes
+- Finding 1: `BuildOrderService::start()` — гейт «уже строится» под той же блокировкой строки персонажа, что и лимит базы: задача этой постройки (`task_id`) в `in_work`/`queued` с `task_settings.base_cell` этой клетки → отказ `already_building` (код в `action_log`: `BUILD_<Key>` / `already_building`), откат без списания. JSON разбирается в PHP (у старых строк бывает не-JSON). Тесты: двойное нажатие при запасе на две стройки — одна задача, одно списание; второй клиент, закоммитивший ту же стройку до нашей блокировки, — отказ без списания.
+- Finding 2: «❌ Отмена» подтверждения апгрейда несёт `Base_b<id>`, когда база известна. Правка в `app/Services/Player/BuildingUpgrade/BuildingUpgradeMessageFormatter.php` — файла нет в списке этой story, но finding указывает именно на него (кнопку рисует он). Паритет бота: ожидание суффиксных сценариев дополнено `Base` → `Base_b<id>`.
+- Minor из отчёта (гейт переезда в вебе, уровень в `confirm_upgrade_building_<id>`, эффект в карточке апгрейда веба, asks 7/10) не трогались — repair меняет только RED.
+

@@ -40,8 +40,8 @@ use DateTime;
  *
  * Атомарность старта (ADR-181): материалы проверяются заранее по снимку, но списываются условной
  * записью в транзакции — ресурсы рюкзака `decrementIfAtLeast`, предметы `decrementIfAtLeast(deleteWhenEmpty)`.
- * Лимит построек базы (возведено + в работе) перепроверяется под `SELECT … FOR UPDATE` строки персонажа в
- * той же транзакции. Любой отказ посреди — откат целиком: ни задачи, ни частичного списания.
+ * Лимит построек базы (возведено + в работе) и «уже строится» (та же постройка на той же базе в работе —
+ * `already_building`) перепроверяются под `SELECT … FOR UPDATE` строки персонажа в той же транзакции. Любой отказ посреди — откат целиком: ни задачи, ни частичного списания.
  *
  * Материалы стройки — рюкзак (`character_resources`), как было у бота; склад базы стройка не берёт.
  *
@@ -64,6 +64,7 @@ final class BuildOrderService
     public const NO_CAMP           = 'no_camp';
     public const NOT_ON_BASE       = 'not_on_base';
     public const CELL_FULL         = 'cell_full';
+    public const ALREADY_BUILDING  = 'already_building';
     public const LOW_LEVEL         = 'low_level';
     public const MISSING_DEPS      = 'missing_deps';
     public const NO_TASK           = 'no_task';
@@ -306,6 +307,17 @@ final class BuildOrderService
 
                 return self::fail(self::CELL_FULL, self::cellFullText($maxPerCell, $load), self::log($action, 'cell_full', $load + ['max' => $maxPerCell]));
             }
+            // «Уже строится» (ask 4) — та же постройка на той же базе ещё в работе: второе нажатие бота или второй
+            // клиент при запасе на две стройки не ставят вторую задачу. Под той же блокировкой — сосед уже вставил.
+            if ($this->alreadyBuilding($characterId, self::int($taskRow['id'] ?? 0), $cell)) {
+                $db->transRollback();
+
+                return self::fail(
+                    self::ALREADY_BUILDING,
+                    "*{$recipe['name_rus']}* уже строится на этой базе — дождись окончания стройки.",
+                    self::log($action, 'already_building', ['base_cell' => $cell])
+                );
+            }
 
             $this->consume(new ConditionalWriteService($db), $characterId, $resources, $items);
 
@@ -386,6 +398,28 @@ final class BuildOrderService
             ->countAllResults();
 
         return ['built' => is_numeric($built) ? (int) $built : 0, 'inflight' => is_numeric($inflight) ? (int) $inflight : 0];
+    }
+
+    /**
+     * Идёт ли уже стройка этой постройки (та же задача) на этой базе: `in_work`/`queued` с `task_settings.base_cell`
+     * этой клетки. JSON разбирается здесь, а не в SQL — у старых строк бывает не-JSON.
+     */
+    private function alreadyBuilding(int $characterId, int $taskId, int $cell): bool
+    {
+        $rows = Database::connect()->table('character_tasks')
+            ->select('task_settings')
+            ->where('character_id', $characterId)
+            ->where('task_id', $taskId)
+            ->whereIn('status', ['in_work', 'queued'])
+            ->get();
+        foreach ($rows !== false ? $rows->getResultArray() : [] as $row) {
+            $settings = is_string($row['task_settings'] ?? null) ? json_decode($row['task_settings'], true) : null;
+            if (is_array($settings) && self::int($settings['base_cell'] ?? 0) === $cell) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @param array{built: int, inflight: int} $load */

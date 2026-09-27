@@ -1551,7 +1551,7 @@ final class BuildBotParityTest extends CIUnitTestCase
 
     /**
      * Ask 5: нажатие с суффиксом базы (`…_b<id>`) несёт его в кнопки, ведущие к стройке этой базы:
-     * карточки списка (`genericBuildInfo_<Key>`), «Строить» карточки (`genericStartBuild_<Key>`).
+     * карточки списка (`genericBuildInfo_<Key>`), «Строить» карточки (`genericStartBuild_<Key>`), «❌ Отмена» апгрейда (`Base`).
      *
      * @param array<string, mixed> $case
      * @return array<string, mixed>
@@ -1568,7 +1568,8 @@ final class BuildBotParityTest extends CIUnitTestCase
         foreach ($case['sent'] as $i => $msg) {
             foreach ((array) ($msg['buttons'] ?? []) as $r => $row) {
                 foreach ((array) $row as $b => $button) {
-                    if (preg_match('/^generic(BuildInfo|StartBuild)_[A-Za-z]+$/', (string) $button[1]) === 1) {
+                    // Ремонт круга 1: «❌ Отмена» подтверждения апгрейда (`Base`) — тоже на ту же базу.
+                    if (preg_match('/^(generic(BuildInfo|StartBuild)_[A-Za-z]+|Base)$/', (string) $button[1]) === 1) {
                         $case['sent'][$i]['buttons'][$r][$b][1] = $button[1] . '_b' . $m[1];
                     }
                 }

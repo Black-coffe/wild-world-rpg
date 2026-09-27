@@ -133,6 +133,43 @@ final class BuildOrderServiceTest extends CIUnitTestCase
         $this->assertSame($afterFirst, [$this->resources(), $this->items()]);
     }
 
+    public function testDoubleTapWithStockForTwoIsRefusedAsAlreadyBuilding(): void
+    {
+        // Запас на две Мастерские: без гейта «уже строится» второе нажатие ставило вторую стройку.
+        $this->conn->query('UPDATE character_resources SET quantity = quantity * 2');
+        $this->conn->query('UPDATE crafted_items_log SET quantity = quantity * 2');
+        $service = new BuildOrderService();
+        $this->assertTrue($service->start(1, null, 'Workshop')['ok']);
+        $afterFirst = [$this->resources(), $this->items()];
+
+        $second = $service->start(1, null, 'Workshop');
+
+        $this->assertFalse($second['ok']);
+        $this->assertSame(BuildOrderService::ALREADY_BUILDING, $second['code']);
+        $this->assertSame('already_building', $second['log']['reason'] ?? null);
+        $this->assertSame(1, $this->taskCount(), 'одна стройка на двойное нажатие');
+        $this->assertSame($afterFirst, [$this->resources(), $this->items()], 'вторая попытка ничего не списала');
+    }
+
+    public function testSecondClientStartingTheSameBuildIsSeenUnderTheLock(): void
+    {
+        $this->conn->query('UPDATE character_resources SET quantity = quantity * 2');
+        $this->conn->query('UPDATE crafted_items_log SET quantity = quantity * 2');
+        // Второй клиент закоммитил ту же стройку на этой базе, пока этот ждал блокировку.
+        $this->onQuery('FOR UPDATE', function (): void {
+            $other = $this->other();
+            $other->query('SET FOREIGN_KEY_CHECKS = 0');
+            $other->query("INSERT INTO character_tasks (character_id, telegram_user_id, task_id, status, start_time, task_settings) VALUES (1, 7, 1, 'in_work', NOW(), '{\"building\":\"Workshop\",\"base_cell\":5}')");
+            $other->query('SET FOREIGN_KEY_CHECKS = 1');
+        });
+
+        $r = (new BuildOrderService())->start(1, null, 'Workshop');
+
+        $this->assertSame(BuildOrderService::ALREADY_BUILDING, $r['code']);
+        $this->assertSame(1, $this->taskCount(), 'только стройка второго клиента');
+        $this->assertSame([3000, 1800, 800], $this->resources(), 'ничего не списано');
+    }
+
     public function testStockTakenBetweenCheckAndWriteRollsBackEverything(): void
     {
         // Соседний клиент забирает последний предмет рецепта в момент, когда старт уже прошёл проверку
