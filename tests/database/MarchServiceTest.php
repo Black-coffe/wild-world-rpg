@@ -496,6 +496,11 @@ final class MarchServiceTest extends CIUnitTestCase
 
     private bool $editFails = false;
 
+    private bool $captureRowsOnSend = false;
+
+    /** @var list<list<array<string, mixed>>> строки Похода на момент каждого запроса к Bot API */
+    private array $rowsOnSend = [];
+
     /** @var array<string, string|false> */
     private array $envBackup = [];
 
@@ -584,13 +589,53 @@ final class MarchServiceTest extends CIUnitTestCase
         $bot = json_decode(self::BOT_BEFORE, true)['go']['rows'][0];
         unset($bot['task_settings']['msg_chat_id'], $bot['task_settings']['msg_id']);
         $this->assertSame($bot, $rows[0], 'та же строка, что у бота, без msg_*');
+    }
 
-        // Бот дописывает сообщение после отправки; повторно не перезаписывает.
-        (new MarchService())->attachMessage(self::CHAR, self::TG, 77);
-        (new MarchService())->attachMessage(self::CHAR, self::TG, 99);
+    /**
+     * Ревью раунда 1, minor 1: бот-Поход несёт `msg_chat_id`/`msg_id` с момента вставки строки —
+     * на каждом запросе к Bot API, при котором строка уже есть (подсказки, правка экрана), она с ними.
+     * Отдельный процесс — как у снимка паритета: статическое состояние Bot API от соседних тестов.
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testBotStartRowCarriesMessageIdsFromTheInsert(): void
+    {
+        $this->resetCase();
+        $this->captureRowsOnSend = true;
+        $this->rowsOnSend        = [];
+        $this->press('march_go_east_3');
+        $this->captureRowsOnSend = false;
+
+        $seen = array_values(array_filter($this->rowsOnSend, static fn (array $rows): bool => $rows !== []));
+        $this->assertNotSame([], $seen, 'после вставки бот что-то отправил');
+        foreach ($seen as $i => $rows) {
+            $this->assertCount(1, $rows);
+            $settings = $rows[0]['task_settings'];
+            $this->assertSame([self::TG, 77], [$settings['msg_chat_id'] ?? null, $settings['msg_id'] ?? null], "запрос #{$i}");
+        }
+
+        $this->resetCase();
+        (new MarchService())->start(self::CHAR, 'east', 3, self::TG, 91);
         $settings = $this->marchRows()[0]['task_settings'];
-        $this->assertSame(77, $settings['msg_id']);
-        $this->assertSame(self::TG, $settings['msg_chat_id']);
+        $this->assertSame([self::TG, 91], [$settings['msg_chat_id'], $settings['msg_id']]);
+    }
+
+    /** Ревью раунда 1, minor 2: продление зажато в потолок заказа — и в сервисе, и через callback бота. */
+    public function testExtendIsClampedToTheOrderCap(): void
+    {
+        $march = new MarchService();
+        $row   = ['heading' => 'east', 'steps_planned' => 6, 'steps_done' => 2, 'started_cell' => self::cell(0, 500), 'acc' => [], 'log' => []];
+
+        $this->resetCase();
+        $this->marchRow('in_work', $row);
+        $out = $march->extend(self::CHAR, 9999);
+        $this->assertSame([true, 66], [$out['ok'], $out['total']], 'n зажат в потолок 60 нейтрального профиля');
+        $this->assertSame('Поход продлён на 60 клеток. Всего: 66.', $out['message']);
+
+        $this->resetCase();
+        $this->marchRow('in_work', $row);
+        $this->press('march_more_9999');
+        $this->assertSame(66, $this->marchRows()[0]['task_settings']['steps_planned']);
     }
 
     public function testRefusalsCarryCodesAndWriteNothing(): void
@@ -758,6 +803,9 @@ final class MarchServiceTest extends CIUnitTestCase
             parse_str((string) $request->getBody(), $params);
             $path         = explode('/', $request->getUri()->getPath());
             $this->sent[] = ['method' => (string) end($path)] + $params;
+            if ($this->captureRowsOnSend) {
+                $this->rowsOnSend[] = $this->marchRows();
+            }
 
             $fail = $this->editFails && str_starts_with((string) end($path), 'edit');
 

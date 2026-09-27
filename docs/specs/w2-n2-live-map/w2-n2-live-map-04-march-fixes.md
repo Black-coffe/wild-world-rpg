@@ -1,8 +1,8 @@
 ---
 story: w2-n2-live-map-04
 spec: w2-n2-live-map
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: opus
@@ -46,5 +46,11 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `MarchService::start()` получил `?int $msgChatId, ?int $msgId`: бот передаёт чат и нажатое сообщение, они пишутся в саму вставку (как в f20704b4); веб зовёт без них — строка прежняя.
+- `MarchService::attachMessage()` удалён (единственный вызов был в `MarchAction`); `MarchAction::startMarch` передаёт id в `start()` и больше ничего не дописывает после правки.
+- `MarchService::extend()` зажимает `n` в `cap()` по курсу Похода (тот же `clampOrderToCap`, что у превью/старта; при битом курсе — нейтральный профиль); закрывает оба пути (`op=march_extend` и `march_more_<n>`).
+- Тесты: `testBotStartRowCarriesMessageIdsFromTheInsert` снимает строки на каждом запросе к Bot API во время `march_go_*` (красный при старом порядке — проверено откатом вызова); `testExtendIsClampedToTheOrderCap` (сервис + callback 9999 → +60); веб-форма `n=9999` в `PlayViewControllerTest`.
+- Сюрприз: в полном наборе рекордер Bot API не видел запросов (статика соседних тестов) — тест msg_id идёт `RunInSeparateProcess`, как снимок паритета.
+- Снимок паритета бота не тронут и зелёный (task_settings сравнивается после ksort, порядок ключей не важен).
 
 ## Findings

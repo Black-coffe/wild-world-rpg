@@ -21,9 +21,10 @@ use Config\Database;
  * (`/play/view`, `op=march_*`) зовёт те же методы.
  *
  * Исход — `{ok, code, message, …}`: `message` — готовый текст отказа/ответа без Markdown.
- * Сервис сам в Telegram не пишет; `msg_chat_id`/`msg_id` в `task_settings` пишет только бот
- * ({@see attachMessage()}) после отправки своего сообщения — Поход из веба идёт без них, и тик
- * ({@see \App\TaskHandlers\MarchingTaskHandler}) шлёт прогресс новым сообщением (прежний фолбэк).
+ * Сервис сам в Telegram не пишет; `msg_chat_id`/`msg_id` в `task_settings` передаёт только бот —
+ * в {@see start()}, чтобы строка несла их с момента вставки (тик редактирует это сообщение). Поход
+ * из веба идёт без них, и тик ({@see \App\TaskHandlers\MarchingTaskHandler}) шлёт прогресс новым
+ * сообщением (прежний фолбэк).
  * Подсказки первого Похода, которым нужен чат, — {@see afterStart()} (веб зовёт её под захватом).
  *
  * Баланс — `world.march.*` (GameSettings, ADR-024), ключи и дефолты прежние.
@@ -176,11 +177,13 @@ class MarchService
     }
 
     /**
-     * Старт Похода: строка `character_tasks` Marching (`in_work`) без `msg_*`.
+     * Старт Похода: строка `character_tasks` Marching (`in_work`). Бот передаёт чат и сообщение,
+     * на котором нажата кнопка, — они пишутся в ту же вставку (окна без `msg_*`, в котором тик
+     * успел бы слать новые сообщения, нет); веб — без них.
      *
      * @return array{ok:bool, code:string, message:string, task_id:?int, dir:string, dir_label:string, n:int}
      */
-    public function start(int $characterId, string $dir, int $n): array
+    public function start(int $characterId, string $dir, int $n, ?int $msgChatId = null, ?int $msgId = null): array
     {
         $refusal = $this->refusalFor($characterId, $dir);
         if ($refusal !== null) {
@@ -202,9 +205,12 @@ class MarchService
             'steps_planned' => $n,
             'steps_done'    => 0,
             'started_cell'  => $cellNumber,
-            'acc'           => [],
-            'log'           => [],
         ];
+        if ($msgChatId !== null && $msgId !== null) {
+            $settings['msg_chat_id'] = $msgChatId;
+            $settings['msg_id']      = $msgId;
+        }
+        $settings += ['acc' => [], 'log' => []];
         $start = new \DateTime();
         $end   = (clone $start)->add($this->stepDueInterval());
         $model = new CharacterTaskModel();
@@ -261,40 +267,13 @@ class MarchService
     }
 
     /**
-     * Бот после отправки своего сообщения Похода: тик будет редактировать его. Пишется в
-     * активные строки Похода, у которых сообщения ещё нет (и в ту, что тик мог успеть породить).
-     */
-    public function attachMessage(int $characterId, int $chatId, int $messageId): void
-    {
-        $marchingTaskId = $this->marchingTaskId();
-        if ($marchingTaskId === null) {
-            return;
-        }
-        $res  = Database::connect()->query(
-            "SELECT id, task_settings FROM character_tasks WHERE character_id = ? AND task_id = ? AND status IN ('in_work','paused')",
-            [$characterId, $marchingTaskId]
-        );
-        $rows = $res instanceof BaseResult ? $res->getResultArray() : [];
-        $model = new CharacterTaskModel();
-        foreach ($rows as $row) {
-            $s = json_decode(self::str($row['task_settings'] ?? '{}', '{}'), true);
-            if (! is_array($s) || isset($s['msg_id'])) {
-                continue;
-            }
-            $s['msg_chat_id'] = $chatId;
-            $s['msg_id']      = $messageId;
-            $model->update(self::int($row['id'] ?? 0), ['task_settings' => json_encode($s)]);
-        }
-    }
-
-    /**
-     * Продлить идущий Поход на `$n` клеток.
+     * Продлить идущий Поход на `$n` клеток; `$n` зажат в потолок заказа ({@see cap()} по курсу
+     * Похода) — подделанная форма или callback не удлиняет Поход сверх него.
      *
      * @return array{ok:bool, code:string, message:string, total:int}
      */
     public function extend(int $characterId, int $n): array
     {
-        $n    = max(1, $n);
         $task = $this->activeMarchTask($characterId, 'in_work');
         if ($task === null) {
             return ['ok' => false, 'code' => self::NOT_ACTIVE, 'message' => 'Поход уже завершён — продлевать нечего.', 'total' => 0];
@@ -303,6 +282,11 @@ class MarchService
         if (! is_array($s)) {
             $s = [];
         }
+        $heading = self::str($s['heading'] ?? '');
+        $cap     = self::isDirection($heading)
+            ? $this->cap($characterId, $heading)
+            : self::clampOrderToCap(1, (new VehicleEffectsService())->neutralProfile())['cap'];
+        $n       = max(1, min($n, $cap));
         $total              = max(1, self::int($s['steps_planned'] ?? 1)) + $n;
         $s['steps_planned'] = $total;
         (new CharacterTaskModel())->update(self::int($task['id'] ?? 0), ['task_settings' => json_encode($s)]);

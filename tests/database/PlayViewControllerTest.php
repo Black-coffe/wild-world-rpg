@@ -578,6 +578,9 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $more = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_extend', 'n' => '5', 'intent_id' => 'me1'], true));
         $this->assertSame('Поход продлён на 5 клеток. Всего: 8.', $more['alert']);
 
+        $forged = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_extend', 'n' => '9999', 'intent_id' => 'me2'], true));
+        $this->assertSame('Поход продлён на 60 клеток. Всего: 68.', $forged['alert'], 'подделанный n зажат в потолок заказа');
+
         $stop = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_stop', 'intent_id' => 'mx1'], true));
         $this->assertStringStartsWith('🚜 Поход прерван. Пройдено 0 клеток.', (string) $stop['alert']);
         $this->assertStringNotContainsString('Поход идёт', html_entity_decode($stop['html'], ENT_QUOTES | ENT_HTML5));

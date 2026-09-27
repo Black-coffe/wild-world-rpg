@@ -151,8 +151,9 @@ class MarchAction extends BaseAction
         if ($blocked !== null) {
             return $blocked;
         }
+        // Тик Похода редактирует сообщение, на котором нажата кнопка: id уходят в саму вставку строки.
         $march   = new MarchService();
-        $outcome = $march->start($characterId, $dir, $n);
+        $outcome = $march->start($characterId, $dir, $n, $chatId, (int) $this->callbackQuery->getMessage()->getMessageId());
         if ($outcome['code'] === MarchService::NO_TASK) {
             return Request::sendMessage(['chat_id' => $chatId, 'text' => $outcome['message']]);
         }
@@ -168,12 +169,7 @@ class MarchAction extends BaseAction
             . "_Карта обновляется по мере движения — отряд идёт сам и довольно шустро "
             . "(темп ровный, от ❤️/💤 не зависит)._";
         $keyboard = [[['text' => '❌ Остановиться', 'callback_data' => 'cancelMarch']]];
-        $resp     = $this->editOrSendText($chatId, $text, $keyboard);
-
-        // Тик Похода редактирует это сообщение (то, на котором нажата кнопка).
-        $march->attachMessage($characterId, $chatId, (int) $this->callbackQuery->getMessage()->getMessageId());
-
-        return $resp;
+        return $this->editOrSendText($chatId, $text, $keyboard);
     }
 
     // ------------------------------------------------------------------ helpers
