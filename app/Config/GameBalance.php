@@ -350,21 +350,9 @@ class GameBalance extends BaseConfig
     // ===================================================================
 
     // ===================================================================
-    // Craft queue (GenericCraftActionStart) — community idea #1, v0.51.129
+    // Craft queue — W2.N3-01: лимиты переехали в GameSettings
+    // (`craft.queue.max_per_recipe`, `craft.queue.max_slots`), читает CraftOrderService.
     // ===================================================================
-
-    /**
-     * Максимум одночасних distinct active+queued recipes per character.
-     * Якщо гравець вже використовує N distinct recipes (active OR з queue) —
-     * новий recipe blocked. Same recipe можна стакати у queue до окремого ліміту.
-     */
-    public int $craftMaxConcurrentSlots = 3;
-
-    /**
-     * Максимум tasks per recipe (active + queued sum). 1-10 крафтів стакаються
-     * у one-recipe queue. Понад цього — sendError("queue full").
-     */
-    public int $craftMaxQueuePerRecipe = 10;
 
     // ===================================================================
     // Поход / Marching (MarchingTaskHandler, MarchAction) — ADR-019 Step 3
