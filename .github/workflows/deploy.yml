@@ -62,7 +62,7 @@ jobs:
         if: steps.reuse.outputs.skip != 'true'
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.3'
           extensions: mbstring, intl, mysqli, curl, gd
           coverage: none
 
