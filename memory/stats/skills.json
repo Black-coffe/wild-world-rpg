@@ -1,6 +1,6 @@
 {
   "vulyk-plan": {
-    "count": 6,
+    "count": 7,
     "last_used": "2026-09-27"
   },
   "google-mcp-browser": {
@@ -16,15 +16,15 @@
     "last_used": "2026-09-27"
   },
   "vulyk-build": {
-    "count": 13,
-    "last_used": "2026-09-26"
+    "count": 14,
+    "last_used": "2026-09-27"
   },
   "vulyk-review": {
     "count": 1,
     "last_used": "2026-09-02"
   },
   "vulyk-ship": {
-    "count": 10,
+    "count": 11,
     "last_used": "2026-09-27"
   },
   "vulyk-resume": {
