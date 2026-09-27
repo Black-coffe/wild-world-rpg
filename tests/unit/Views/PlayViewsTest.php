@@ -101,7 +101,7 @@ final class PlayViewsTest extends CIUnitTestCase
                 [self::msg(1_000_000_008, ['text' => 'Рюкзак-средний'])],
                 [self::msg(1_000_000_007, ['text' => 'Персонаж-старее'])],
             ],
-            'dock'        => [['🗺 Карта', '🎒 Рюкзак'], ['🏠 База']],
+            'dock'        => [['🗺 Карта', '🎒 Рюкзак'], ['📋 Дела']],
             'input'       => ['placeholder' => 'Введи имя базы', 'reply_to' => 1_000_000_011],
             'telegram_id' => self::TELEGRAM_ID,
         ];
@@ -289,7 +289,7 @@ final class PlayViewsTest extends CIUnitTestCase
         $forms = self::forms($this->renderState(self::state()), '//nav[@class="play-dock"]//');
 
         $this->assertCount(3, $forms);
-        foreach (['🗺 Карта', '🎒 Рюкзак', '🏠 База'] as $i => $label) {
+        foreach (['🗺 Карта', '🎒 Рюкзак', '📋 Дела'] as $i => $label) {
             $this->assertSame('text', $forms[$i]['kind']);
             $this->assertSame($label, $forms[$i]['data']);
             $this->assertSame($label, $forms[$i]['@button']);
