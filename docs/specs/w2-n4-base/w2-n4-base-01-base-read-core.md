@@ -1,8 +1,8 @@
 ---
 story: w2-n4-base-01
 spec: w2-n4-base
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: opus
@@ -55,5 +55,13 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `App\Services\Bases\BaseScreenService`: `resolve()` (правило «🏠 База»), `resolveConstruction()` (правило «🏘 Постройки»: без пикера, две базы вне сигнала → `far` первой по id — так было у бота), `overview()`, `open()`. Отклонения от контракта плана: у состояния есть пятое значение `far` (одна база вне сигнала — у бота это отдельный экран с координатами); `bases[]` пикера — строки `coverageByBase()` как есть (`base_id,cell,name,x,y,towerLevel,distance,maxCoverage,isCovered`), без биома; `open()` принимает необязательный `$chatId` (без него — чат персонажа через `VirtualIdentityService`, у веб-игрока виртуальный → входящие).
+- `resolve()` без побочных эффектов; бот зовёт `open()` перед `overview()` — порядок «визит → онбординг-подсказки → экран» прежний. Визит пишется только когда игрок на самой базе (как было).
+- Бот: `BaseService::showBaseInfo` и `DetailedBaseInfoAction` рисуют из модели прежние тексты; `BaseService` отдаёт ядру свой `claimedCellModel` (шов `BasePickerTest`, подмена рефлексией, не сломан).
+- N+1: `BaseBuildingsList::rows()` — строки базы + здания одним `whereIn`; `buildSummary()` переведён на него (раньше `where()->first()` на каждое здание). Тест: число запросов обзора с 1 и 5 постройками равно.
+- Ask 5: «🏗 Строить» → `Build_b<id>` (роутер резолвит по первому сегменту, `BuildListAction` пока суффикс игнорирует — разбор в story 02).
+- Паритет: `BaseScreenBotParityTest` — 15 сценариев (Base: на базе, нет баз, одна вне сигнала, одна под Вышкой, пикер 0/1/2 покрытых, `Base_b<id>`, недоступная; construction: на базе, под Вышкой, нет базы, вне сигнала, `_b<id>`, пустая). Снимок снят с кода до правки (фото — через подменённую обёртку `http`, вызовы — захватом `WebDelivery`); на старом коде тест красный ровно на `Build`→`Build_b1`, на новом зелёный.
+- Налог: строка налога на экране суммирует `tax` по строкам, не × `amount` — не менял (non-goal), стопка в модели идёт отдельным `amount`.
+- phpstan-baseline: удалено 19 устаревших записей, 2 счётчика уменьшены (код типизирован моделью ядра).
 
 ## Findings
