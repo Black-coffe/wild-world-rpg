@@ -78,9 +78,11 @@ class CraftOrderService
     private const DEFAULT_MAX_PER_RECIPE = 10;
     private const DEFAULT_MAX_SLOTS      = 3;
 
-    /** Рыбные блюда костра — за флагом фичи, как их экран в боте. */
-    private const FISH_FLAG    = 'cooking.fish_dishes.enabled';
-    private const FISH_RECIPES = ['FishSoup', 'GrilledFish', 'FishPreserve'];
+    /** Рыбные блюда костра — за флагом фичи; единственный список, экран костра бота читает его отсюда. */
+    private const FISH_FLAG = 'cooking.fish_dishes.enabled';
+
+    /** @var list<string> */
+    public const FISH_RECIPES = ['FishSoup', 'GrilledFish', 'FishPreserve'];
 
     private const RACE_TEXT = 'Сырьё разошлось, пока ты выбирал — проверь запас и попробуй ещё раз.';
 

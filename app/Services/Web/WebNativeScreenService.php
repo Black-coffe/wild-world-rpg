@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace App\Services\Web;
 
 use App\Models\ActionLogModel;
+use App\Services\Bases\BaseCallbackSuffix;
+use App\Services\Bases\BaseScreenService;
+use App\Services\Buildings\BuildingUpgradeService;
+use App\Services\Buildings\BuildOrderService;
 use App\Models\CraftedItemsLogModel;
 use App\Services\Craft\CraftCardHelper;
 use App\Services\Craft\CraftOrderService;
@@ -66,6 +70,13 @@ use InvalidArgumentException;
  * те же правила, что у бота (цех для «Проф.»), с путём к карточке требования. Нехватка — мост от хаба
  * `/craft` по пути бота до экрана нехватки (`genericCraft_<Key>_1`).
  *
+ * W2.N4-03: «🏠 База» (`view=base`) — пикер при 2+ базах, обзор, «что можно построить» с замками, карточка
+ * постройки и превью апгрейда из ядра {@see BaseScreenService} / {@see BuildOrderService} /
+ * {@see BuildingUpgradeService}, того же, что у бота. Старт стройки ({@see buildStart()}, `:build_start`) и
+ * апгрейд ({@see upgrade()}, `:upgrade`) — один раз на `intent_id`. Открытие обзора — визит ({@see BaseScreenService::open()}):
+ * одноразовые подсказки веб-игроку уходят в его чат (виртуальный — во входящие). Действия зданий и базы без
+ * нативного экрана — мост от «🏠 База» бота ({@see baseRoute()}).
+ *
  * Ключ дедупа — `intent_id` + суффикс ступени; {@see intentKey()} держит его в VARCHAR(64)
  * `web_play_intents` при любом допустимом `intent_id`.
  *
@@ -75,6 +86,7 @@ use InvalidArgumentException;
  * @phpstan-import-type Sheet from CharacterSheetService
  * @phpstan-import-type Preview from MarchService
  * @phpstan-type CraftNav array{bench?:string, cat?:string, recipe?:string}
+ * @phpstan-type BaseNav array{b?:int, section?:string, key?:string, id?:int}
  */
 class WebNativeScreenService
 {
@@ -83,15 +95,28 @@ class WebNativeScreenService
     public const VIEW_GEAR      = 'gear';
     public const VIEW_MAP       = 'map';
     public const VIEW_CRAFT     = 'craft';
+    public const VIEW_BASE      = 'base';
 
     /** Экраны, у которых уже есть нативная вьюха. */
-    public const VIEWS = [self::VIEW_ME, self::VIEW_INVENTORY, self::VIEW_GEAR, self::VIEW_MAP, self::VIEW_CRAFT];
+    public const VIEWS = [self::VIEW_ME, self::VIEW_INVENTORY, self::VIEW_GEAR, self::VIEW_MAP, self::VIEW_CRAFT, self::VIEW_BASE];
 
     /** Подписи нижнего меню → нативный экран. */
     private const DOCK_VIEWS = [
         '🧑 Я' => self::VIEW_ME, 'Перс' => self::VIEW_ME, '🌍 Мир' => self::VIEW_MAP, 'Карта' => self::VIEW_MAP,
-        '🔨 Крафт' => self::VIEW_CRAFT, 'Крафт' => self::VIEW_CRAFT,
+        '🔨 Крафт' => self::VIEW_CRAFT, 'Крафт' => self::VIEW_CRAFT, '🏠 База' => self::VIEW_BASE, 'База' => self::VIEW_BASE,
     ];
+
+    /** «🏠 База»: разделы экрана и мутации с дедупом по `intent_id`. */
+    public const BASE_SECTIONS    = ['overview', 'catalog', 'building', 'upgrade'];
+    public const OP_BUILD_START   = 'build_start';
+    public const OP_UPGRADE       = 'upgrade';
+
+    /** Кнопки экрана базы бота без нативного аналога — мост от «🏠 База» (подпись → callback строит модель). */
+    private const BASE_BRIDGE_EXACT = [
+        'teleportBeacon', 'baseStorageList', 'TeleportToCamp', 'DeleteBase', 'DeleteBase_FullRelocation', 'demolishBuilding', 'Camp',
+    ];
+
+    private const BASE_BRIDGE_PATTERN = '/^((hangar|campDecor|baseDevelopment)_b\d+|building_\d+_[A-Za-z]+_b\d+|genericBuildInfo_[A-Za-z]+(_b\d+)?)$/';
 
     /** Длина `intent_id` из формы и колонки ключа дедупа (`web_play_intents.intent_id`). */
     public const INTENT_MAX     = 60;
@@ -167,6 +192,12 @@ class WebNativeScreenService
 
     private CraftQueueService $queue;
 
+    private BaseScreenService $bases;
+
+    private BuildOrderService $builds;
+
+    private BuildingUpgradeService $upgrades;
+
     public function __construct(
         private ?WebActService $act = null,
         ?CharacterSheetService $sheets = null,
@@ -176,7 +207,10 @@ class WebNativeScreenService
         ?MoveService $move = null,
         ?MarchService $march = null,
         ?CraftOrderService $orders = null,
-        ?CraftQueueService $queue = null
+        ?CraftQueueService $queue = null,
+        ?BaseScreenService $bases = null,
+        ?BuildOrderService $builds = null,
+        ?BuildingUpgradeService $upgrades = null
     ) {
         $this->sheets    = $sheets ?? new CharacterSheetService();
         $this->inventory = $inventory ?? new InventoryViewService();
@@ -186,6 +220,9 @@ class WebNativeScreenService
         $this->march     = $march ?? new MarchService();
         $this->orders    = $orders ?? new CraftOrderService();
         $this->queue     = $queue ?? new CraftQueueService();
+        $this->bases     = $bases ?? new BaseScreenService();
+        $this->builds    = $builds ?? new BuildOrderService();
+        $this->upgrades  = $upgrades ?? new BuildingUpgradeService();
     }
 
     public static function isView(mixed $view): bool
@@ -220,12 +257,21 @@ class WebNativeScreenService
      * @param list<Msg>            $events события шага под картой (сообщения экрана моста)
      * @param Preview|null         $preview превью Похода под картой (клик по клетке на луче)
      * @param CraftNav             $craft   где стоит экран крафта: верстак, категория, рецепт
+     * @param BaseNav              $base    где стоит экран базы: база, раздел, постройка
      *
      * @throws InvalidArgumentException неизвестный экран или нет персонажа
      */
-    public function render(int $characterId, string $view, array $state, ?string $alert = null, array $events = [], ?array $preview = null, array $craft = []): string
+    public function render(int $characterId, string $view, array $state, ?string $alert = null, array $events = [], ?array $preview = null, array $craft = [], array $base = []): string
     {
         $dock = is_array($state['dock'] ?? null) ? $state['dock'] : [];
+
+        if ($view === self::VIEW_BASE) {
+            return view('site/_play/native_base', [
+                'base'  => $this->baseModel($characterId, $base),
+                'dock'  => $dock,
+                'alert' => $alert,
+            ]);
+        }
 
         if ($view === self::VIEW_CRAFT) {
             return view('site/_play/native_craft', [
@@ -469,6 +515,241 @@ class WebNativeScreenService
     }
 
     /**
+     * Модель экрана «🏠 База». Какая база — ядро (`resolve()`: своя клетка, единственная, выбор при 2+;
+     * `b` перепроверяется). Обзор — визит, как у бота ({@see BaseScreenService::open()}). Разделы: `catalog` —
+     * «что можно построить», `building` — карточка постройки `key`, `upgrade` — превью апгрейда постройки `id`
+     * (тип `buildings.id`). Неизвестный раздел — обзор.
+     *
+     * @param BaseNav $nav
+     *
+     * @return array<string, mixed>
+     */
+    public function baseModel(int $characterId, array $nav): array
+    {
+        $resolved = $this->bases->resolve($characterId, $nav['b'] ?? null);
+        $model    = [
+            'state'    => $resolved['state'],
+            'text'     => $resolved['text'],
+            'base_id'  => $resolved['base_id'],
+            'bases'    => array_map(static fn (array $b): array => [
+                'id' => $b['base_id'], 'name' => $b['name'], 'x' => $b['x'], 'y' => $b['y'], 'covered' => $b['isCovered'], 'distance' => $b['distance'],
+            ], $resolved['bases']),
+            'section'  => 'overview',
+            'overview' => null,
+            'bridge'   => [],
+            'catalog'  => null,
+            'card'     => null,
+            'upgrade'  => null,
+        ];
+        if ($resolved['state'] === BaseScreenService::STATE_FAR) {
+            $model['overview'] = $this->bases->overview($characterId, $resolved['base_id']);
+        }
+        if ($resolved['state'] !== BaseScreenService::STATE_BASE) {
+            return $model;
+        }
+
+        $baseId  = $resolved['base_id'];
+        $section = in_array($nav['section'] ?? null, self::BASE_SECTIONS, true) ? $nav['section'] : 'overview';
+        if ($section === 'overview') {
+            // Визит и онбординг-подсказки — как при открытии «🏠 База» в боте; сбой не роняет экран.
+            try {
+                $this->bases->open($characterId, $baseId);
+            } catch (\Throwable $e) {
+                log_message('error', '[WebNativeScreenService] base open failed: ' . $e::class . ': ' . $e->getMessage());
+            }
+        }
+        $overview = $this->bases->overview($characterId, $baseId, $resolved['coverage']);
+        if ($overview === null) {
+            $model['state'] = BaseScreenService::STATE_UNAVAILABLE;
+            $model['text']  = \App\Services\Bases\BaseScopeResolver::TEXT_UNAVAILABLE;
+
+            return $model;
+        }
+        $model['overview'] = $overview;
+        $model['bridge']   = self::baseBridgeButtons($baseId, $overview['base']['decor_enabled']);
+        $model['section']  = $section;
+
+        if ($section === 'catalog') {
+            $model['catalog'] = $this->builds->catalog($characterId, $baseId)['items'];
+        } elseif ($section === 'building' && isset($nav['key'])) {
+            $model['card'] = $this->builds->preview($characterId, $baseId, $nav['key']);
+        } elseif ($section === 'upgrade' && isset($nav['id'])) {
+            $model['upgrade'] = $this->upgrades->preview($characterId, $baseId, $nav['id']);
+        } else {
+            // Карточка без ключа или апгрейд без постройки — обзор.
+            $model['section'] = 'overview';
+        }
+
+        return $model;
+    }
+
+    /**
+     * Старт стройки из веба: то же ядро, что у бота, один раз на `intent_id`. Отказ пишется в `action_log`
+     * тем же кодом, что у бота (`BUILD_<Key>`, причина ядра).
+     *
+     * @return string|null ответ для игрока; null — повтор того же намерения
+     *
+     * @throws InvalidArgumentException плохой ключ постройки или намерение
+     */
+    public function buildStart(int $accountId, int $characterId, ?int $baseId, string $key, string $intentId): ?string
+    {
+        if (preg_match('/^[A-Za-z]{1,40}$/', $key) !== 1) {
+            throw new InvalidArgumentException('bad building key');
+        }
+        self::assertIntent($intentId);
+        if (! $this->claim($accountId, $intentId, ':' . self::OP_BUILD_START)) {
+            return null;
+        }
+
+        $out = $this->builds->start($characterId, $baseId, $key);
+        if (! $out['ok']) {
+            if ($out['log'] !== null) {
+                $this->logRejected($characterId, $out['log']['action'], $out['log']['reason'], $out['log']['extra']);
+            }
+
+            return self::plain($out['message']);
+        }
+        $name = $out['recipe'] !== null ? trim($out['recipe']['emoji'] . ' ' . $out['recipe']['name']) : $key;
+
+        return "🏗 Стройка начата: {$name}. Готово через {$out['minutes']} мин — таймер в строке задач сверху.";
+    }
+
+    /**
+     * Апгрейд постройки из веба: то же ядро, что у бота (условная оплата, уровень только из текущего), один
+     * раз на `intent_id`.
+     *
+     * @return string|null ответ для игрока; null — повтор того же намерения
+     *
+     * @throws InvalidArgumentException плохая постройка или намерение
+     */
+    public function upgrade(int $accountId, int $characterId, ?int $baseId, int $buildingId, string $intentId): ?string
+    {
+        if ($buildingId <= 0) {
+            throw new InvalidArgumentException('bad building id');
+        }
+        self::assertIntent($intentId);
+        if (! $this->claim($accountId, $intentId, ':' . self::OP_UPGRADE)) {
+            return null;
+        }
+
+        $out = $this->upgrades->apply($characterId, $baseId, $buildingId);
+        if ($out['ok']) {
+            return '⬆️ «' . ($out['name'] ?? 'Постройка') . "»: уровень {$out['current_level']} → {$out['level']}.";
+        }
+        if ($out['code'] === BuildingUpgradeService::MISSING) {
+            return "Не хватает ресурсов для уровня {$out['next_level']}: " . implode('; ', array_map(static fn (string $l): string => ltrim($l, '- '), $out['missing'])) . '.';
+        }
+
+        return self::plain($out['message']);
+    }
+
+    /**
+     * Кнопки экрана базы бота, у которых нет нативного экрана: они уходят в мост с той же `callback_data`
+     * (суффикс базы — у тех, что его несут в боте). Подписи — как у бота; раскладка — как в
+     * {@see \App\Services\Bases\BaseServiceMessageFormatter::baseBuildings()}.
+     *
+     * @return list<array{text: string, data: string}>
+     */
+    private static function baseBridgeButtons(int $baseId, bool $decorEnabled): array
+    {
+        $out = [
+            ['text' => '📡 Маяки', 'data' => 'teleportBeacon'],
+            ['text' => '🤖 Ангар', 'data' => BaseCallbackSuffix::append('hangar', $baseId)],
+        ];
+        if ($decorEnabled) {
+            $out[] = ['text' => '🎨 Декор', 'data' => BaseCallbackSuffix::append('campDecor', $baseId)];
+        }
+        $out[] = ['text' => '🏗 Развитие базы', 'data' => BaseCallbackSuffix::append('baseDevelopment', $baseId)];
+        if (BotMenuService::craftBaseHubEnabled()) {
+            $out[] = ['text' => '📦 Склад базы', 'data' => 'baseStorageList'];
+            $out[] = ['text' => '📡 Телепорт', 'data' => 'TeleportToCamp'];
+            $out[] = ['text' => '⚠️ Снести / переехать', 'data' => 'DeleteBase'];
+        } else {
+            $out[] = ['text' => '📡 Телепорт', 'data' => 'TeleportToCamp'];
+            $out[] = ['text' => '❌ Удалить базу', 'data' => 'DeleteBase'];
+            $out[] = ['text' => '🚚 Полноценный переезд', 'data' => 'DeleteBase_FullRelocation'];
+        }
+        $out[] = ['text' => '🔨 Снести постройку', 'data' => 'demolishBuilding'];
+
+        return $out;
+    }
+
+    /**
+     * Путь бота от «🏠 База» до сообщения с кнопкой экрана базы: выбор базы на пикере (`Base_b<id>`), затем
+     * экран построек (`construction_b<id>`) для карточек зданий или «🏗 Строить» (`Build_b<id>`) для карточки
+     * стройки. Ступени необязательные — пропускаются, если бот уже показал нужный экран. null — кнопка не с
+     * экрана базы.
+     *
+     * @return list<string>|null
+     */
+    private static function baseRoute(string $callback): ?array
+    {
+        if (! in_array($callback, self::BASE_BRIDGE_EXACT, true) && preg_match(self::BASE_BRIDGE_PATTERN, $callback) !== 1) {
+            return null;
+        }
+        [$plain, $baseId] = BaseCallbackSuffix::split($callback);
+        $steps = [];
+        if ($baseId !== null) {
+            $steps[] = BaseCallbackSuffix::append('Base', $baseId);
+        }
+        if (str_starts_with($plain, 'building_') || $plain === 'baseDevelopment') {
+            $steps[] = $baseId !== null ? BaseCallbackSuffix::append('construction', $baseId) : 'construction';
+        }
+        if (str_starts_with($plain, 'genericBuildInfo_')) {
+            $steps[] = $baseId !== null ? BaseCallbackSuffix::append('Build', $baseId) : 'Build';
+        }
+
+        return $steps;
+    }
+
+    /**
+     * Кнопка экрана базы через мост: «🏠 База» бота текстом нижнего меню, необязательные ступени
+     * {@see baseRoute()}, затем сама кнопка — только если она стоит на сообщении бота.
+     *
+     * @param list<string> $steps
+     *
+     * @return array{state: State, alert: ?string, unread: int}
+     */
+    private function baseBridge(WebActService $act, int $accountId, int $characterId, string $callback, string $intentId, array $steps): array
+    {
+        $result = $act->current($characterId);
+        if (self::messageWith($result['state'], $callback) === null) {
+            $result = $act->act($accountId, $characterId, [
+                'intent_id' => self::intentKey($intentId, ':card'),
+                'kind'      => WebActService::KIND_TEXT,
+                'data'      => BotMenuService::menuLabel('base'),
+            ]);
+            foreach ($steps as $i => $step) {
+                if (self::messageWith($result['state'], $callback) !== null) {
+                    break;
+                }
+                $messageId = self::messageWith($result['state'], $step);
+                if ($messageId === null) {
+                    continue;
+                }
+                $result = $act->act($accountId, $characterId, [
+                    'intent_id'  => self::intentKey($intentId, ':s' . $i),
+                    'kind'       => WebActService::KIND_CALLBACK,
+                    'data'       => $step,
+                    'message_id' => (string) $messageId,
+                ]);
+            }
+        }
+
+        $messageId = self::messageWith($result['state'], $callback);
+        if ($messageId === null) {
+            return $result;
+        }
+
+        return $act->act($accountId, $characterId, [
+            'intent_id'  => self::intentKey($intentId, ':cb'),
+            'kind'       => WebActService::KIND_CALLBACK,
+            'data'       => $callback,
+            'message_id' => (string) $messageId,
+        ]);
+    }
+
+    /**
      * Модель экрана «🔨 Крафт»: верстаки (с замками), категории выбранного верстака, рецепты выбранной
      * категории, карточка выбранного рецепта и очередь. Неизвестные или запертые ступени навигации
      * отбрасываются до ближайшей допустимой (ссылка из старой вкладки не роняет экран).
@@ -642,6 +923,10 @@ class WebNativeScreenService
     public function bridge(int $accountId, int $characterId, string $callback, string $intentId): array
     {
         self::assertIntent($intentId);
+        $baseSteps = isset(self::BRIDGE_ROUTES[$callback]) ? null : self::baseRoute($callback);
+        if ($baseSteps !== null) {
+            return $this->baseBridge($this->act ?? new WebActService(), $accountId, $characterId, $callback, $intentId, $baseSteps);
+        }
         $craft = self::craftRoute($callback);
         $route = $craft ?? $this->routeTo($characterId, $callback);
         $onMap = $route === null;
@@ -796,7 +1081,17 @@ class WebNativeScreenService
      */
     private function logCraftRejected(int $characterId, string $recipeKey, string $reason, array $extra = []): void
     {
-        $actionName = "CRAFT_{$recipeKey}";
+        $this->logRejected($characterId, "CRAFT_{$recipeKey}", $reason, $extra);
+    }
+
+    /**
+     * Отказ веб-действия — в `action_log` и firehose, как `BaseAction::logRejected` бота. Чата у веба нет —
+     * `chat_id` 0. Никогда не валит запрос.
+     *
+     * @param array<string, mixed> $extra
+     */
+    private function logRejected(int $characterId, string $actionName, string $reason, array $extra = []): void
+    {
         PlayerActionLogger::current()->markRejected($actionName . ': ' . $reason);
 
         try {
@@ -809,7 +1104,7 @@ class WebNativeScreenService
                 'description'   => mb_substr($description, 0, 500),
             ]);
         } catch (\Throwable $e) {
-            log_message('error', '[WebNativeScreenService] craft reject log failed: ' . $e->getMessage());
+            log_message('error', '[WebNativeScreenService] reject log failed: ' . $e->getMessage());
         }
     }
 

@@ -1822,6 +1822,23 @@ section.block:first-of-type { border-top: 0; }
 .play-craft-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .play-craft-crumbs { margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); overflow-wrap: anywhere; }
 .play-kb-btn.is-locked { background: transparent; color: var(--text-dim); border-style: dashed; }
+/* W2.N4-03: замок раздела переносится по словам, а не посреди слова (на 375 «Профессиональны/й»): вся строка сетки */
+.play-kb-grid .play-kb-btn.is-locked { grid-column: 1 / -1; overflow-wrap: break-word; hyphens: auto; }
+
+/* «🏠 База» /play (W2.N4-03): пикер баз, постройки со стопками и действиями */
+.play-base-picker, .play-base-buildings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.play-base-pick { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 8px; background: var(--bg-elev-2); border: 1px solid var(--border); }
+.play-base-pick form { display: contents; }
+.play-base-pick.is-far { background: transparent; border-style: dashed; color: var(--text-dim); }
+.play-base-pick-name { font-size: 14px; overflow-wrap: break-word; }
+.play-base-pick-meta, .play-base-building-meta { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }
+.play-base-building { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; padding: 8px; background: var(--bg-elev-2); border: 1px solid var(--border); }
+@media (min-width: 768px) { .play-base-building { grid-template-columns: minmax(0, 1fr) auto; align-items: center; } .play-base-building-actions { grid-column: 2; grid-row: 1 / span 2; } }
+.play-base-building-name { font-size: 15px; font-weight: 600; overflow-wrap: break-word; }
+.play-base-stack { font-family: var(--font-mono); font-size: 13px; color: var(--accent); }
+.play-base-building-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; min-width: 0; }
+.play-base-building-actions form { display: contents; }
+.play-base-effect { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text-dim); overflow-wrap: break-word; }
 .play-craft-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; background: var(--bg-elev-2); border: 1px solid var(--border); border-left: 3px solid var(--accent); }
 .play-craft-card-title { margin: 0; font-family: var(--font-display); font-size: 16px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text); overflow-wrap: anywhere; }
 .play-craft-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; min-width: 0; }
@@ -2869,6 +2886,42 @@ section.block:first-of-type { border-top: 0; }
               <p class="play-native-hint">Готовое придёт во входящие 🔔 и ляжет в инвентарь.</p>
             </aside>
           </div>
+        </article>
+      </div>
+    </div>
+    <h3 class="mt-3" id="play-base-demo">База — пикер, обзор со стопками, «что можно построить» с замком (W2.N4-03)</h3>
+    <p class="muted">Пикер: базы под сигналом своей Вышки — кнопками, остальные — пунктиром с расстоянием. Обзор: факты базы, постройки строкой (×N — стопка), у каждой «⬆️ Улучшить» и «⚙️ Действия» (карточка в боте). Список стройки: доступные — кнопками с налогом, запертые — блок «🔒 … (нужно: уровень N)» с путём. Замок раздела занимает всю строку сетки и переносится по словам.</p>
+    <div class="play-shell is-native mt-2">
+      <div class="play-screen">
+        <article class="play-native" aria-label="База">
+          <header class="play-native-head"><h2 class="play-native-title">🏠 База · 🏴 Лесной лагерь</h2></header>
+          <ul class="play-base-picker">
+            <li class="play-base-pick"><form action="#play" method="post"><button class="play-kb-btn" type="submit">🏠 Первая (X=10, Y=10)</button></form><span class="play-base-pick-meta">под сигналом Вышки</span></li>
+            <li class="play-base-pick is-far"><span class="play-base-pick-name">▫️ Вторая (X=20, Y=20)</span><span class="play-base-pick-meta">расстояние: 890 ходов</span></li>
+          </ul>
+          <dl class="play-craft-facts">
+            <div><dt>📍 Координаты</dt><dd>X=10 Y=10</dd></div>
+            <div><dt>🌍 Биом</dt><dd>Лес</dd></div>
+            <div><dt>🏘 Построек</dt><dd>3 шт.</dd></div>
+            <div><dt>💰 Налог</dt><dd>1 740 зол./сутки</dd></div>
+          </dl>
+          <ul class="play-base-buildings">
+            <li class="play-base-building">
+              <span class="play-base-building-name">🏚️ Склад <span class="play-base-stack">×3</span></span>
+              <span class="play-base-building-meta">ур. 2 · налог 900</span>
+              <span class="play-base-building-actions"><form action="#play" method="post"><button class="play-kb-btn" type="submit">⬆️ Улучшить</button></form><form action="#play" method="post"><button class="play-kb-btn" type="submit">⚙️ Действия</button></form></span>
+            </li>
+          </ul>
+          <div class="play-kb-grid">
+            <form action="#play" method="post"><button class="play-kb-btn" type="submit">🔧 Мастерская · 500</button></form>
+            <form action="#play" method="post"><button class="play-kb-btn is-locked" type="submit">🔒 Профессиональный крафт (нужно: 🛠️ Профессиональный верстак)</button></form>
+          </div>
+          <div class="play-lock">
+            <span class="play-lock-title">🔒 ⚔️ Арсенал (нужно: уровень 15)</span>
+            <span class="play-lock-why">Постройка откроется на 15-м уровне персонажа.</span>
+            <span class="play-lock-path">Путь: уровень растёт с опытом — добыча, крафт, стройка и задания.</span>
+          </div>
+          <p class="play-base-effect">Ускоряет изготовление всех предметов (со 2-го уровня; на 3-м — заметно сильнее).</p>
         </article>
       </div>
     </div>

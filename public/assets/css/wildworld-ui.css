@@ -1151,6 +1151,23 @@ section.block:first-of-type { border-top: 0; }
 .play-craft-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .play-craft-crumbs { margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); overflow-wrap: anywhere; }
 .play-kb-btn.is-locked { background: transparent; color: var(--text-dim); border-style: dashed; }
+/* W2.N4-03: замок раздела переносится по словам, а не посреди слова (на 375 «Профессиональны/й»): вся строка сетки */
+.play-kb-grid .play-kb-btn.is-locked { grid-column: 1 / -1; overflow-wrap: break-word; hyphens: auto; }
+
+/* «🏠 База» /play (W2.N4-03): пикер баз, постройки со стопками и действиями */
+.play-base-picker, .play-base-buildings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.play-base-pick { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 8px; background: var(--bg-elev-2); border: 1px solid var(--border); }
+.play-base-pick form { display: contents; }
+.play-base-pick.is-far { background: transparent; border-style: dashed; color: var(--text-dim); }
+.play-base-pick-name { font-size: 14px; overflow-wrap: break-word; }
+.play-base-pick-meta, .play-base-building-meta { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }
+.play-base-building { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; padding: 8px; background: var(--bg-elev-2); border: 1px solid var(--border); }
+@media (min-width: 768px) { .play-base-building { grid-template-columns: minmax(0, 1fr) auto; align-items: center; } .play-base-building-actions { grid-column: 2; grid-row: 1 / span 2; } }
+.play-base-building-name { font-size: 15px; font-weight: 600; overflow-wrap: break-word; }
+.play-base-stack { font-family: var(--font-mono); font-size: 13px; color: var(--accent); }
+.play-base-building-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; min-width: 0; }
+.play-base-building-actions form { display: contents; }
+.play-base-effect { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text-dim); overflow-wrap: break-word; }
 .play-craft-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; background: var(--bg-elev-2); border: 1px solid var(--border); border-left: 3px solid var(--accent); }
 .play-craft-card-title { margin: 0; font-family: var(--font-display); font-size: 16px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text); overflow-wrap: anywhere; }
 .play-craft-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; min-width: 0; }

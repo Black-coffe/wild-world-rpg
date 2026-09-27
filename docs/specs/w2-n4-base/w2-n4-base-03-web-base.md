@@ -1,8 +1,8 @@
 ---
 story: w2-n4-base-03
 spec: w2-n4-base
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: opus
@@ -63,5 +63,15 @@ blocked_by: [w2-n4-base-01, w2-n4-base-02]
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `view=base` (`WebNativeScreenService::VIEW_BASE`, вьюха `site/_play/native_base.php`) рисует из ядра story 01–02: `BaseScreenService::resolve()` (пикер / обзор / нет базы / далеко / недоступна), `overview()`, `BuildOrderService::catalog()/preview()`, `BuildingUpgradeService::preview()`. Отклонение от контракта плана: навигация — поля формы `b`/`section` (`overview|catalog|building|upgrade`)/`key`/`id`, как у крафта (`bench`/`cat`/`recipe`), а не `op=pick|catalog|building|upgrade_preview`; мутации — `op=build_start` (`key`) и `op=upgrade` (`id` — тип `buildings.id`, как у бота), обе с `intent_id` (`:build_start`, `:upgrade`). PRG: `/play?view=base&b=…&section=…&key=…`. После мутации — обзор этой базы.
+- Открытие обзора — `BaseScreenService::open()` без `chat_id`: визит (если игрок на базе) и онбординг-подсказки в чат персонажа — у веб-игрока виртуальный, `WebDelivery` кладёт во входящие (тест: `last_visited_at` записан, «Построй первую постройку» во `web_inbox`).
+- Мост: кнопки экрана базы бота без нативного экрана (маяки, ангар, декор, развитие, склад, телепорт, снос/переезд, снос постройки, «Разбить лагерь», карточки зданий `building_<id>_<Key>_b<id>` — там роботы/теплица/маяки/дрон/ремонт, экран нехватки `genericBuildInfo_<Key>_b<id>`) — `op=bridge` с той же `callback_data`. Путь бота: «🏠 База» текстом нижнего меню → (если нужно) `Base_b<id>` на пикере → `construction_b<id>` / `Build_b<id>` → кнопка; ступени необязательные, кнопка жмётся, только если стоит на сообщении бота. Раскладка кнопок — как в `BaseServiceMessageFormatter::baseBuildings()` (обе ветки `craftBaseHubEnabled`).
+- Док: «🏠 База»/«База» → нативный экран. Тест `testDockMeButtonOpensNativeViewOthersStayOnTheBridge` проверял мост на «🏠 База» — переведён на «📋 Дела» (база теперь нативная).
+- HUD: стройка — обычная задача `in_work`, строка задач показывает её с таймером `data-ends-at` без правок `hud.php`/`CharacterSheetService` (тест на ответе `build_start`); после завершения completion-handler снимает `in_work` — строка уходит. `CharacterSheetService`, `hud.php`, `dock.php`, `native_craft.php`, `wildworld-play.js` не менялись: док уже рисует нативные кнопки по `viewForDockLabel()`, таймер тикает по общему `data-ends-at`. Поэтому `?v=` у `wildworld-play.js` не поднят (файл не менялся); у `wildworld-ui.css` — `v=14`.
+- UI-kit: блок «База — пикер, обзор со стопками, …» + зеркало CSS в inline-стилях `ui-kit.html`. Новые классы `play-base-*` — только токены (0 радиусов, 0 теней).
+- Хвосты N3: `CraftOrderService::FISH_RECIPES` — публичная, единственный список; `CampfireCookingSelect::FISH_RECIPES` ссылается на неё (имя сохранено — его читают тесты костра). Замок раздела в сетке (`.play-kb-grid .play-kb-btn.is-locked`) — во всю строку и `overflow-wrap: break-word; hyphens: auto` вместо `anywhere` — «Профессиональный» не рвётся посреди слова.
+- Вне списка файлов story (вынужденно): `tests/unit/Views/PlayViewsTest.php` — фикстура дока несла «🏠 База» и ждала для неё мост; после ask 2 кнопка нативная, фикстура переведена на «📋 Дела» (остаётся мостом). Смысл тестов не менялся.
+- Не сделано кодом (закрывает Queen в конце сборки): Tier-2 визуальный проход 375/768/1440 и Tier-3 живой проход на preprod (asks 7, 10) — браузер не запускался.
 
 ## Findings
+- Превью апгрейда не показывает эффект уровня «сейчас / после» (контракт плана `effect_now/effect_next`): у валидатора и `Config\BuildingUpgrades` этих данных нет, эффект уровней живёт в витрине «🏗 Развитие базы» бота — на неё ведёт кнопка моста обзора.
