@@ -5,21 +5,26 @@
  * маркеры, туман, расстояние до базы и кнопки.
  *
  * Работает без JS: клетка — `<button>` в своей форме, роза и кнопки карты — тоже формы. Соседняя
- * клетка и роза — кнопки шага бота через мост (`op=bridge`, `move_dir_*`); прочие клетки —
- * `op=cell` (подсказка: что на клетке, биом, координаты). Кнопки карты без своего экрана
- * (база, добыча, хаб, Поход, легенда, обзор, остров, события, дроны) — `op=bridge`.
- * Id персонажа и telegram id в разметку не попадают.
+ * клетка и роза — нативный шаг (`op=step`, `dir`, W2.N2-02); прочие клетки — `op=cell`
+ * (подсказка: что на клетке, биом, координаты). Кнопки карты без своего экрана (база, добыча, хаб,
+ * Поход, легенда, обзор, остров, события, дроны) — `op=bridge`. События шага (подсказки, находка,
+ * рана, караван, узел, дроны…) — сообщения экрана моста под картой; их кнопки — `/play/act` с
+ * `message_id` своего сообщения. Id персонажа и telegram id в разметку не попадают.
  *
  * @var array<string, mixed>  $map
  * @var list<list<string>>    $dock
  * @var string|null           $alert
+ * @var list<array<string, mixed>> $events
  */
 
+use App\Services\Web\TelegramMarkupRenderer;
 use App\Services\World\LiveMapService;
 
 $m         = is_array($map ?? null) ? $map : [];
 $alertText = is_string($alert ?? null) && $alert !== '' ? $alert : null;
 $viewUrl   = base_url('play/view');
+$actUrl    = base_url('play/act');
+$stepEvents = is_array($events ?? null) ? $events : [];
 $error     = is_string($m['error'] ?? null) ? $m['error'] : null;
 $center    = is_array($m['center'] ?? null) ? $m['center'] : null;
 $rows      = is_array($m['cells'] ?? null) ? $m['cells'] : [];
@@ -51,6 +56,16 @@ $bridgeForm = static function (string $callback, string $label, string $class, ?
         . '<input type="hidden" name="op" value="bridge">'
         . '<input type="hidden" name="intent_id" value="' . bin2hex(random_bytes(16)) . '">'
         . '<input type="hidden" name="data" value="' . esc($callback, 'attr') . '">'
+        . '<button class="' . esc($class, 'attr') . '" type="submit"' . ($aria !== null ? ' aria-label="' . esc($aria, 'attr') . '"' : '') . '>' . esc($label) . '</button></form>';
+};
+
+// Шаг — нативная форма `op=step`.
+$stepForm = static function (string $dir, string $label, string $class, ?string $aria = null) use ($viewUrl): string {
+    return '<form action="' . esc($viewUrl, 'attr') . '" method="post">' . csrf_field()
+        . '<input type="hidden" name="view" value="map">'
+        . '<input type="hidden" name="op" value="step">'
+        . '<input type="hidden" name="dir" value="' . esc($dir, 'attr') . '">'
+        . '<input type="hidden" name="intent_id" value="' . bin2hex(random_bytes(16)) . '">'
         . '<button class="' . esc($class, 'attr') . '" type="submit"' . ($aria !== null ? ' aria-label="' . esc($aria, 'attr') . '"' : '') . '>' . esc($label) . '</button></form>';
 };
 
@@ -106,13 +121,13 @@ $bottom = array_merge(
                             $marker = is_string($cell['marker'] ?? null) ? $cell['marker'] : '';
                             $class  = 'play-map-cell is-' . str_replace('_', '-', $code);
                             $dir    = $center !== null ? ($dirAt[($x - (int) $center['x']) . '_' . ($y - (int) $center['y'])] ?? null) : null;
-                            $step   = $dir !== null && isset($dirCb[$dir]) && $code !== LiveMapService::CODE_OUT ? $dirCb[$dir] : null;
+                            $step   = $dir !== null && isset($dirCb[$dir]) && $code !== LiveMapService::CODE_OUT ? $dir : null;
                             $aria   = 'X=' . $x . ' Y=' . $y;
                             ?>
                             <?php if ($code === LiveMapService::CODE_OUT): ?>
                                 <span class="<?= esc($class, 'attr') ?>" aria-hidden="true"><?= esc($marker) ?></span>
                             <?php elseif ($step !== null): ?>
-                                <?= $bridgeForm($step, $marker, $class . ' is-step', 'Шаг: ' . $aria) ?>
+                                <?= $stepForm($step, $marker, $class . ' is-step', 'Шаг: ' . $aria) ?>
                             <?php else: ?>
                                 <form action="<?= esc($viewUrl, 'attr') ?>" method="post"><?= csrf_field() ?><input type="hidden" name="view" value="map"><input type="hidden" name="op" value="cell"><input type="hidden" name="x" value="<?= $x ?>"><input type="hidden" name="y" value="<?= $y ?>"><button class="<?= esc($class, 'attr') ?>" type="submit" aria-label="<?= esc($aria, 'attr') ?>"><?= esc($marker) ?></button></form>
                             <?php endif ?>
@@ -129,11 +144,36 @@ $bottom = array_merge(
                                 <span></span>
                             <?php endif ?>
                         <?php elseif (isset($dirCb[$dir])): ?>
-                            <?= $bridgeForm($dirCb[$dir], LiveMapService::DIRECTIONS[$dir][2], 'play-kb-btn') ?>
+                            <?= $stepForm($dir, LiveMapService::DIRECTIONS[$dir][2], 'play-kb-btn') ?>
                         <?php endif ?>
                     <?php endforeach ?>
                 </nav>
             <?php endif ?>
+
+            <?php foreach ($stepEvents as $msg): ?>
+                <?php
+                if (! is_array($msg) || ! is_int($msg['message_id'] ?? null)) {
+                    continue;
+                }
+                $msgText = is_string($msg['text'] ?? null) ? $msg['text'] : (is_string($msg['caption'] ?? null) ? $msg['caption'] : '');
+                $parse   = is_string($msg['parse_mode'] ?? null) ? $msg['parse_mode'] : null;
+                ?>
+                <article class="play-msg is-current" data-step-event>
+                    <?php if ($msgText !== ''): ?>
+                        <div class="play-msg-text"><?= TelegramMarkupRenderer::toHtml($msgText, $parse) ?></div>
+                    <?php endif ?>
+                    <?php foreach (is_array($msg['inline_keyboard'] ?? null) ? $msg['inline_keyboard'] : [] as $row): ?>
+                        <?php if (! is_array($row) || $row === []) { continue; } ?>
+                        <div class="play-kb-row">
+                            <?php foreach ($row as $btn): ?>
+                                <?php if (is_array($btn) && is_string($btn['text'] ?? null) && is_string($btn['callback_data'] ?? null)): ?>
+                                    <form action="<?= esc($actUrl, 'attr') ?>" method="post"><?= csrf_field() ?><input type="hidden" name="intent_id" value="<?= bin2hex(random_bytes(16)) ?>"><input type="hidden" name="kind" value="callback"><input type="hidden" name="data" value="<?= esc($btn['callback_data'], 'attr') ?>"><input type="hidden" name="message_id" value="<?= $msg['message_id'] ?>"><button class="play-kb-btn" type="submit"><?= esc($btn['text']) ?></button></form>
+                                <?php endif ?>
+                            <?php endforeach ?>
+                        </div>
+                    <?php endforeach ?>
+                </article>
+            <?php endforeach ?>
 
             <?php if ($bottom !== []): ?>
                 <nav class="play-kb" aria-label="Действия на карте">

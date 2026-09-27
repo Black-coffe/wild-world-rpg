@@ -39,6 +39,10 @@ use InvalidArgumentException;
  * W2.N2-01: `view=map` — нативная сетка «Мир»; `view=map` + `op=cell` + `x` + `y` — подсказка по
  * клетке окна (биом, координаты). Позиция и персонаж — только из сессии, `x`/`y` лишь выбирают
  * клетку внутри окна; клетка вне окна — 400. Кнопки карты — `op=bridge`.
+ *
+ * W2.N2-02: `view=map` + `op=step` + `dir` + `intent_id` — шаг тем же сервисом, что у бота (повтор
+ * `intent_id` второго шага не делает). События шага — под картой (JSON `html`; без JS — flash и PRG
+ * на `/play?view=map`), их кнопки — `/play/act` через мост.
  */
 class Play extends BaseController
 {
@@ -46,6 +50,9 @@ class Play extends BaseController
     private const INBOX_PAGE = 50;
 
     private const FLASH_ALERT = 'play_alert';
+
+    /** События шага под картой — переживают PRG без JS. */
+    private const FLASH_EVENTS = 'play_map_events';
 
     private const REJECTED_ALERT = 'Эта кнопка уже недоступна — экран обновлён.';
 
@@ -72,13 +79,14 @@ class Play extends BaseController
         }
         $flash  = session()->getFlashdata(self::FLASH_ALERT);
         $alert  = is_string($flash) ? $flash : $result['alert'];
+        $events = session()->getFlashdata(self::FLASH_EVENTS);
 
         // PRG нативного экрана: `/play?view=me` рисует экран из модели поверх того же дока.
         $view   = $this->request->getGet('view');
         $native = null;
         if (is_string($view) && WebNativeScreenService::isView($view)) {
             try {
-                $native = $this->native()->render($characterId, $view, $result['state'], $alert);
+                $native = $this->native()->render($characterId, $view, $result['state'], $alert, self::eventList($events));
             } catch (\Throwable $e) {
                 log_message('error', '[Play.index] native view failed: ' . $e::class . ': ' . $e->getMessage());
             }
@@ -147,7 +155,8 @@ class Play extends BaseController
             return $this->bridgeResponse($characterId, $result);
         }
 
-        $alert = null;
+        $alert  = null;
+        $events = [];
         if ($view === WebNativeScreenService::VIEW_GEAR && is_string($op)
             && in_array($op, [WebNativeScreenService::OP_EQUIP, WebNativeScreenService::OP_UNEQUIP], true)) {
             $kind     = $this->request->getPost('kind');
@@ -180,6 +189,23 @@ class Play extends BaseController
 
                 return $this->rejected($characterId);
             }
+        } elseif ($view === WebNativeScreenService::VIEW_MAP && $op === WebNativeScreenService::OP_STEP) {
+            $dir      = $this->request->getPost('dir');
+            $intentId = $this->request->getPost('intent_id');
+            try {
+                $step   = $this->native()->step(
+                    $accountId,
+                    $characterId,
+                    is_string($dir) ? $dir : '',
+                    is_string($intentId) ? $intentId : ''
+                );
+                $alert  = $step['alert'];
+                $events = $step['events'];
+            } catch (InvalidArgumentException $e) {
+                log_message('info', '[Play.view] step rejected: ' . $e->getMessage());
+
+                return $this->rejected($characterId);
+            }
         } elseif (! is_string($view) || ! WebNativeScreenService::isView($view) || $op !== null) {
             log_message('info', '[Play.view] rejected: bad view/op');
 
@@ -190,13 +216,16 @@ class Play extends BaseController
             if ($alert !== null) {
                 session()->setFlashdata(self::FLASH_ALERT, $alert);
             }
+            if ($events !== []) {
+                session()->setFlashdata(self::FLASH_EVENTS, $events);
+            }
 
             return redirect()->to('/play?view=' . rawurlencode($view), 303)->withCookies();
         }
 
         $current = $this->service()->current($characterId);
         try {
-            $html = $this->native()->render($characterId, $view, $current['state'], $alert);
+            $html = $this->native()->render($characterId, $view, $current['state'], $alert, $events);
         } catch (InvalidArgumentException $e) {
             log_message('info', '[Play.view] render rejected: ' . $e->getMessage());
 
@@ -361,6 +390,41 @@ class Play extends BaseController
         $row = $res instanceof ResultInterface ? $res->getRowArray() : null;
 
         return is_array($row) && is_string($row['name'] ?? null) ? $row['name'] : '';
+    }
+
+    /**
+     * События шага из flash: только сообщения экрана моста нужной формы.
+     *
+     * @return list<array{message_id:int, text:?string, caption:?string, parse_mode:?string, photo_url:?string, inline_keyboard:list<list<array{text:string, callback_data?:string, url?:string}>>}>
+     */
+    private static function eventList(mixed $raw): array
+    {
+        $out = [];
+        foreach (is_array($raw) ? $raw : [] as $msg) {
+            if (! is_array($msg) || ! is_int($msg['message_id'] ?? null) || ! is_array($msg['inline_keyboard'] ?? null)) {
+                continue;
+            }
+            $rows = [];
+            foreach ($msg['inline_keyboard'] as $row) {
+                $buttons = [];
+                foreach (is_array($row) ? $row : [] as $btn) {
+                    if (is_array($btn) && is_string($btn['text'] ?? null) && is_string($btn['callback_data'] ?? null)) {
+                        $buttons[] = ['text' => $btn['text'], 'callback_data' => $btn['callback_data']];
+                    }
+                }
+                $rows[] = $buttons;
+            }
+            $out[] = [
+                'message_id'      => $msg['message_id'],
+                'text'            => is_string($msg['text'] ?? null) ? $msg['text'] : null,
+                'caption'         => is_string($msg['caption'] ?? null) ? $msg['caption'] : null,
+                'parse_mode'      => is_string($msg['parse_mode'] ?? null) ? $msg['parse_mode'] : null,
+                'photo_url'       => null,
+                'inline_keyboard' => $rows,
+            ];
+        }
+
+        return $out;
     }
 
     /** Целая координата из формы (окно карты может заходить за край мира: знак допустим). */

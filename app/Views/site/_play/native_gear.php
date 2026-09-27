@@ -4,6 +4,7 @@
  * {@see \App\Services\Player\EquipmentLoadoutService}, из которой рисуют и экраны «⚔️ Экип» бота.
  *
  * Без Арсенала — замок с объяснением и путём к стройке (кнопка моста), а не ошибка после тапа.
+ * Замок — только на «Надеть»: надетую броню и без Арсенала можно снять (`op=unequip`, как в боте).
  * С Арсеналом — оружие и броня, надетое отмечено; «Надеть» / «Снять» — формы POST `/play/view`
  * (`op=equip|unequip`, `intent_id` — повтор не меняет состояние второй раз). Продажа (ADR-165) —
  * кнопка моста. Работает без JS. Telegram/chat id сюда не передаётся.
@@ -87,6 +88,24 @@ $sections = [
                 <nav class="play-kb" aria-label="Путь к Арсеналу">
                     <div class="play-kb-grid"><?= $bridge($str($lock['button'] ?? ''), $str($lock['callback'] ?? '')) ?></div>
                 </nav>
+                <?php $wornArmor = array_values(array_filter($armor, static fn (mixed $it): bool => is_array($it) && ($it['equipped'] ?? false) === true && ! is_array($it['soulbound'] ?? null))); ?>
+                <?php if ($wornArmor !== []): ?>
+                    <section class="play-native-section" aria-label="Надетая броня">
+                        <h3 class="play-native-subtitle is-plain">👕 Надето сейчас</h3>
+                        <p class="play-native-hint">Снять можно и без Арсенала — надеть обратно получится, когда он будет построен.</p>
+                        <ul class="play-gear-list">
+                            <?php foreach ($wornArmor as $it): ?>
+                                <li class="play-gear-item is-equipped">
+                                    <div class="play-gear-head">
+                                        <span class="play-gear-name"><?= esc($str($it['name'] ?? '', '???')) ?></span>
+                                        <?php if (is_string($it['slot'] ?? null)): ?><span class="badge">Слот: <?= esc($it['slot']) ?></span><?php endif ?>
+                                    </div>
+                                    <div class="play-kb-grid"><?= $change('unequip', EquipmentLoadoutService::KIND_ARMOR, is_int($it['row_id'] ?? null) ? $it['row_id'] : 0, 'Снять') ?></div>
+                                </li>
+                            <?php endforeach ?>
+                        </ul>
+                    </section>
+                <?php endif ?>
             <?php else: ?>
                 <?php if (! $onBase): ?>
                     <p class="play-native-hint">⚠️ Надеть можно только на базе. Снять — где угодно.</p>

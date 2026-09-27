@@ -11,6 +11,7 @@ use App\Services\Player\EquipmentLoadoutService;
 use App\Services\Player\InventoryViewService;
 use App\Services\Telegram\BotMenuService;
 use App\Services\World\LiveMapService;
+use App\Services\World\MoveService;
 use InvalidArgumentException;
 
 /**
@@ -37,10 +38,18 @@ use InvalidArgumentException;
  * карты бота: вход — `/go` (тот же экран «🌍 Мир»), затем нажатие кнопки на его сообщении.
  * Клик по клетке — подсказка (биом, координаты).
  *
+ * W2.N2-02: соседняя клетка и роза — нативный шаг {@see step()} тем же {@see MoveService}, что у
+ * бота, один раз на `intent_id` (`:step`). Хуки шага, которым нужен чат (подсказки, находка,
+ * атмосфера…), идут под захватом {@see WebDelivery}: их сообщения вместе с событиями шага (рана,
+ * «хвост» клетки) ложатся на экран моста и показываются под картой, а их кнопки жмутся через мост
+ * (`/play/act` с `message_id` своего сообщения).
+ *
  * Ключ дедупа — `intent_id` + суффикс ступени; {@see intentKey()} держит его в VARCHAR(64)
  * `web_play_intents` при любом допустимом `intent_id`.
  *
  * @phpstan-import-type State from WebScreenStore
+ * @phpstan-import-type Msg from WebScreenStore
+ * @phpstan-import-type Capture from WebScreenStore
  * @phpstan-import-type Sheet from CharacterSheetService
  */
 class WebNativeScreenService
@@ -72,6 +81,9 @@ class WebNativeScreenService
 
     /** Клик по клетке карты. */
     public const OP_CELL = 'cell';
+
+    /** Шаг на соседнюю клетку (клик по соседу или роза). */
+    public const OP_STEP = 'step';
 
     /**
      * Кнопки моста на нативных экранах (кроме «Я», чьи кнопки берутся из модели) и путь от
@@ -106,17 +118,21 @@ class WebNativeScreenService
 
     private LiveMapService $liveMap;
 
+    private MoveService $move;
+
     public function __construct(
         private ?WebActService $act = null,
         ?CharacterSheetService $sheets = null,
         ?InventoryViewService $inventory = null,
         ?EquipmentLoadoutService $loadout = null,
-        ?LiveMapService $liveMap = null
+        ?LiveMapService $liveMap = null,
+        ?MoveService $move = null
     ) {
         $this->sheets    = $sheets ?? new CharacterSheetService();
         $this->inventory = $inventory ?? new InventoryViewService();
         $this->loadout   = $loadout ?? new EquipmentLoadoutService();
         $this->liveMap   = $liveMap ?? new LiveMapService();
+        $this->move      = $move ?? new MoveService();
     }
 
     public static function isView(mixed $view): bool
@@ -147,19 +163,21 @@ class WebNativeScreenService
     /**
      * Нативный экран по имени — готовый HTML для `#play-state`.
      *
-     * @param array<string, mixed> $state текущее состояние моста (из него берётся док)
+     * @param array<string, mixed> $state  текущее состояние моста (из него берётся док)
+     * @param list<Msg>            $events события шага под картой (сообщения экрана моста)
      *
      * @throws InvalidArgumentException неизвестный экран или нет персонажа
      */
-    public function render(int $characterId, string $view, array $state, ?string $alert = null): string
+    public function render(int $characterId, string $view, array $state, ?string $alert = null, array $events = []): string
     {
         $dock = is_array($state['dock'] ?? null) ? $state['dock'] : [];
 
         if ($view === self::VIEW_MAP) {
             return view('site/_play/native_map', [
-                'map'   => $this->liveMap->forCharacter($characterId),
-                'dock'  => $dock,
-                'alert' => $alert,
+                'map'    => $this->liveMap->forCharacter($characterId),
+                'dock'   => $dock,
+                'alert'  => $alert,
+                'events' => $events,
             ]);
         }
         if ($view === self::VIEW_GEAR) {
@@ -248,6 +266,71 @@ class WebNativeScreenService
     }
 
     /**
+     * Шаг из веба: тот же {@see MoveService}, что у бота, один раз на `intent_id`. Хуки шага с чатом
+     * идут под захватом; их сообщения и события шага ложатся на экран моста (кнопки — через мост).
+     *
+     * @return array{alert: ?string, events: list<Msg>} ответ и события под картой; повтор того же
+     *                                                  намерения — `alert = null`, событий нет
+     *
+     * @throws InvalidArgumentException неизвестное направление, намерение или у персонажа нет личности
+     */
+    public function step(int $accountId, int $characterId, string $dir, string $intentId): array
+    {
+        if (! MoveService::isDirection($dir)) {
+            throw new InvalidArgumentException('bad direction');
+        }
+        self::assertIntent($intentId);
+        $identity = (new VirtualIdentityService())->identityForCharacter($characterId);
+        if ($identity === null) {
+            throw new InvalidArgumentException('character has no identity');
+        }
+        $claimed = (new ConditionalWriteService())->insertUnique('web_play_intents', [
+            'account_id' => $accountId,
+            'intent_id'  => self::intentKey($intentId, ':step'),
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        if ($claimed !== WriteOutcome::Applied) {
+            return ['alert' => null, 'events' => []];
+        }
+
+        $store = new WebScreenStore();
+        WebDelivery::beginCapture($identity['telegram_id'], $characterId);
+        try {
+            $outcome = $this->move->step($characterId, $dir);
+            if ($outcome['ok']) {
+                try {
+                    $this->move->afterStep($outcome, $identity['telegram_id']);
+                } catch (\Throwable $e) {
+                    // Шаг уже записан: сбой хука не должен превращать его в ошибку для игрока.
+                    log_message('error', '[WebNativeScreenService] step hooks failed: ' . $e::class . ': ' . $e->getMessage());
+                }
+            }
+        } finally {
+            $capture = WebDelivery::endCapture();
+        }
+
+        if (! $outcome['ok']) {
+            return ['alert' => str_replace('*', '', (string) $outcome['message']), 'events' => []];
+        }
+
+        foreach ($outcome['events'] as $event) {
+            $capture['sent'][] = [
+                'message_id'      => $store->nextMessageId($characterId),
+                'text'            => $event['text'],
+                'caption'         => null,
+                'parse_mode'      => $event['type'] === MoveService::EVENT_DEBUFF ? 'Markdown' : null,
+                'photo_url'       => null,
+                'inline_keyboard' => [$event['buttons']],
+            ];
+        }
+        if ($capture['sent'] !== []) {
+            $store->applyCapture($characterId, $capture);
+        }
+
+        return ['alert' => 'Вы двинулись на: ' . MoveService::DIRECTION_RU[$dir] . '.', 'events' => $capture['sent']];
+    }
+
+    /**
      * Кнопка нативного экрана без нативного аналога → тот же callback через мост.
      *
      * @return array{state: State, alert: ?string, unread: int}
@@ -333,7 +416,7 @@ class WebNativeScreenService
                 ));
                 $label = $parts === [] ? $cell['marker'] : $cell['marker'] . ' ' . implode(' · ', $parts);
 
-                return $label . " — X={$x}, Y={$y}. Ходи розой под картой: шаг и Поход кликом по клетке — скоро.";
+                return $label . " — X={$x}, Y={$y}. Шаг — клик по соседней клетке или роза под картой; Поход кликом по клетке — скоро.";
             }
         }
 
