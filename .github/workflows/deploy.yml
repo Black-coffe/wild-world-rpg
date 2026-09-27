@@ -14,6 +14,12 @@ jobs:
   test:
     name: PHPUnit
     runs-on: ubuntu-latest
+    # Норма ~6 мин. Потолок, чтобы медленный раннер или зависший тест не держал очередь деплоев
+    # (concurrency без cancel) дефолтные 360 мин.
+    timeout-minutes: 25
+    permissions:
+      actions: read
+      contents: read
     services:
       mysql:
         image: mysql:8.0
@@ -22,15 +28,38 @@ jobs:
           MYSQL_DATABASE: wildworld_tests
         ports:
           - 3306:3306
+        # Тест-БД одноразовая: данные в RAM, без fsync (см. «Fast MySQL» ниже). 2026-09-27 раннер с
+        # медленным диском растянул набор с ~6 до ~40 мин — DB-тесты упираются в IO.
         options: >-
+          --tmpfs /var/lib/mysql:rw
           --health-cmd="mysqladmin ping -h 127.0.0.1"
           --health-interval=5s
           --health-timeout=3s
           --health-retries=20
     steps:
+      # Тег ставится на коммит, уже прошедший develop → preprod-смоук. Если PHPUnit на этом SHA уже
+      # зелёный в develop-прогоне, второй раз набор не гоняем — тег сразу идёт к деплою.
+      - name: Reuse develop test result for tag
+        id: reuse
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ok=$(gh api "repos/${{ github.repository }}/actions/runs?head_sha=${{ github.sha }}&branch=develop&event=push&per_page=20" \
+                 --jq '.workflow_runs[].id' | while read -r id; do
+                 gh api "repos/${{ github.repository }}/actions/runs/$id/jobs" \
+                   --jq '.jobs[] | select(.name=="PHPUnit" and .conclusion=="success") | .id'
+               done | head -1)
+          if [ -n "$ok" ]; then
+            echo "PHPUnit уже зелёный на ${{ github.sha }} (develop job $ok) — пропускаю повторный прогон"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.reuse.outputs.skip != 'true'
 
       - name: Setup PHP
+        if: steps.reuse.outputs.skip != 'true'
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
@@ -38,6 +67,7 @@ jobs:
           coverage: none
 
       - name: Cache composer
+        if: steps.reuse.outputs.skip != 'true'
         uses: actions/cache@v4
         with:
           path: vendor
@@ -45,9 +75,11 @@ jobs:
           restore-keys: composer-
 
       - name: Composer install
+        if: steps.reuse.outputs.skip != 'true'
         run: composer install --prefer-dist --no-progress --no-interaction
 
       - name: Wait for MySQL
+        if: steps.reuse.outputs.skip != 'true'
         run: |
           for i in {1..30}; do
             mysql -h 127.0.0.1 -uroot -e "SELECT 1" wildworld_tests && break
@@ -55,13 +87,20 @@ jobs:
             sleep 2
           done
 
+      # Fast MySQL: сервис-контейнеру нельзя передать аргументы mysqld, но эти переменные динамические.
+      - name: Fast MySQL (no fsync)
+        if: steps.reuse.outputs.skip != 'true'
+        run: mysql -h 127.0.0.1 -uroot -e "SET GLOBAL innodb_flush_log_at_trx_commit=0; SET GLOBAL sync_binlog=0;"
+
       # F1.3: PHPStan static analysis (level 5, baseline для legacy).
       # Любая новая ошибка типа в новом коде блочит deploy. Baseline
       # обновляется отдельным коммитом с ясным intention.
       - name: Run PHPStan
+        if: steps.reuse.outputs.skip != 'true'
         run: composer phpstan
 
       - name: Run PHPUnit
+        if: steps.reuse.outputs.skip != 'true'
         run: vendor/bin/phpunit --no-coverage
 
   deploy:
