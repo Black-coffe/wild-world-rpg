@@ -8,6 +8,13 @@
    - один запрос за раз, кнопки на это время выключены;
    - опрос GET /play/inbox раз в poll_seconds (не чаще серверного минимума) — счётчик колокола;
    - колокол открывает панель входящих и шлёт POST /play/inbox/read.
+   W2.N1 (ADR-190):
+   - формы нативных экранов (POST /play/view) идут тем же путём, что и /play/act;
+   - HUD (#play-hud) подменяется из поля `hud` любого ответа (действие, экран, входящие);
+   - таймер активной задачи тикает раз в секунду от data-ends-at, без запросов к серверу
+     (поправка на часы браузера — по data-now, времени сервера в момент отрисовки HUD);
+   - инвентарь ([data-inv]): вкладка фильтрует полки на месте, поиск — строки по имени;
+     без JS вкладки остаются якорями к полкам, строка поиска скрыта.
    ============================================================ */
 (() => {
   'use strict';
@@ -23,6 +30,7 @@
   const pollMin = Math.max(1, parseInt(root.dataset.pollMin || '10', 10) || 10);
   const pollSeconds = Math.max(pollMin, parseInt(root.dataset.pollSeconds || '0', 10) || pollMin);
   let busy = false;
+  let clockSkew = 0; // серверное время − время браузера, секунды
 
   const csrfValue = () => {
     const input = csrfName ? document.querySelector('input[name="' + CSS.escape(csrfName) + '"]') : null;
@@ -72,6 +80,102 @@
     screen.insertBefore(box, screen.firstChild);
   };
 
+  /* ---- HUD: подмена целиком и живой таймер задачи ---- */
+  const formatLeft = (seconds) => {
+    const s = Math.max(0, Math.floor(seconds));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    const pad = (n) => (n < 10 ? '0' : '') + n;
+    return h > 0 ? h + ':' + pad(m) + ':' + pad(sec) : m + ':' + pad(sec);
+  };
+
+  const syncClock = () => {
+    const hud = document.getElementById('play-hud');
+    const now = hud ? parseInt(hud.dataset.now || '', 10) : NaN;
+    if (!Number.isNaN(now)) clockSkew = now - Date.now() / 1000;
+  };
+
+  const tick = () => {
+    const now = Date.now() / 1000 + clockSkew;
+    document.querySelectorAll('#play-hud [data-ends-at]').forEach((el) => {
+      const endsAt = parseInt(el.dataset.endsAt || '', 10);
+      if (Number.isNaN(endsAt)) return;
+      const left = endsAt - now;
+      el.textContent = left > 0 ? formatLeft(left) : 'готово';
+      el.classList.toggle('is-done', left <= 0);
+    });
+  };
+
+  const setHud = (html) => {
+    if (typeof html !== 'string' || html === '') return;
+    const current = document.getElementById('play-hud');
+    if (!current) return;
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html.trim();
+    const next = tpl.content.firstElementChild;
+    if (!next || next.id !== 'play-hud') return;
+    current.replaceWith(next);
+    syncClock();
+    tick();
+  };
+
+  syncClock();
+  tick();
+  window.setInterval(tick, 1000);
+
+  /* ---- Инвентарь: вкладки + поиск (только улучшение) ---- */
+  const filterInventory = (inv) => {
+    const tab = inv.dataset.invActive || 'all';
+    const search = inv.querySelector('[data-inv-search]');
+    const query = search ? search.value.trim().toLowerCase() : '';
+    let shown = 0;
+    inv.querySelectorAll('[data-inv-cat]').forEach((shelf) => {
+      let visible = 0;
+      const onTab = tab === 'all' || shelf.dataset.invCat === tab;
+      shelf.querySelectorAll('[data-inv-name]').forEach((row) => {
+        const match = onTab && (query === '' || row.dataset.invName.indexOf(query) !== -1);
+        row.hidden = !match;
+        if (match) visible++;
+      });
+      shelf.hidden = visible === 0;
+      shown += visible;
+    });
+    const nothing = inv.querySelector('[data-inv-nothing]');
+    if (nothing) nothing.hidden = shown > 0;
+  };
+
+  const enhanceNative = () => {
+    stateBox.querySelectorAll('[data-inv]').forEach((inv) => {
+      const row = inv.querySelector('[data-inv-search-row]');
+      if (row) row.hidden = false;
+    });
+  };
+
+  document.addEventListener('click', (event) => {
+    const tab = event.target instanceof Element ? event.target.closest('[data-inv-tab]') : null;
+    if (!tab || !stateBox.contains(tab)) return;
+    const inv = tab.closest('[data-inv]');
+    if (!inv) return;
+    event.preventDefault();
+    inv.dataset.invActive = tab.dataset.invTab || 'all';
+    inv.querySelectorAll('[data-inv-tab]').forEach((el) => {
+      const active = el === tab;
+      el.classList.toggle('is-active', active);
+      if (active) el.setAttribute('aria-current', 'true'); else el.removeAttribute('aria-current');
+    });
+    filterInventory(inv);
+  });
+
+  document.addEventListener('input', (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || !input.matches('[data-inv-search]') || !stateBox.contains(input)) return;
+    const inv = input.closest('[data-inv]');
+    if (inv) filterInventory(inv);
+  });
+
+  enhanceNative();
+
   /* Ответ с JSON-телом любого статуса → {ok, json}. Отказ промиса — только сеть или нечитаемое тело. */
   const fetchJson = (url, options) => fetch(url, Object.assign({
     credentials: 'same-origin',
@@ -105,7 +209,8 @@
   const applyAct = (form, r) => {
     const json = r.json;
     setCsrf(json.csrf);
-    if (typeof json.html === 'string') stateBox.innerHTML = json.html;
+    if (typeof json.html === 'string') { stateBox.innerHTML = json.html; enhanceNative(); }
+    setHud(json.hud);
     if (json.unread !== undefined) setUnread(json.unread);
     const hasAlert = typeof json.alert === 'string' && json.alert !== '';
     if (!r.ok && !hasAlert && typeof json.html !== 'string') {
@@ -121,7 +226,8 @@
   document.addEventListener('submit', (event) => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement) || !root.contains(form)) return;
-    if (form.getAttribute('action') !== root.dataset.actUrl) return;
+    const action = form.getAttribute('action');
+    if (action !== root.dataset.actUrl && action !== root.dataset.viewUrl) return;
     event.preventDefault();
     if (busy) return;
     const body = new FormData(form);
@@ -138,6 +244,7 @@
   /* ---- Входящие: опрос счётчика, панель по колоколу ---- */
   const loadInbox = () => request(root.dataset.inboxUrl).then((json) => {
     setUnread(json.unread);
+    setHud(json.hud);
     if (inboxList && typeof json.html === 'string' && panel && !panel.hidden) inboxList.innerHTML = json.html;
     return json;
   });

@@ -48,9 +48,13 @@ handler'ы бота переписываются под модель, веб р�
 
 ## Plan deltas
 
+- 01: док вынесен в общий партиал `site/_play/dock.php` (+ `state.php` его подключает) — нативные экраны 01–03 рисуют тот же док; «🧑 Я» в доке ведёт в `/play/view`. Контракт `/play/view` расширен `op=bridge` + `data` (кнопка нативного экрана без своего экрана → карточка бота через мост → callback с её кнопки). Из `phpstan-baseline.neon` убраны 12 устаревших записей `CharacterService`.
+- 02: вкладки инвентаря без JS — якоря к полкам (не параметр запроса: `Play.php` вне Files story), с JS — фильтр + поиск. Мост обобщён маршрутами (`BRIDGE_ROUTES`: карточка «Я» → хаб инвентаря → кнопка). Гейт `CraftedItemTypeHeadingCoverageTest` переведён на карту модели `InventoryViewService::CRAFTED_TYPES`; `PlayViewControllerTest` дополнен.
+- 03: смена снаряжения - один UPDATE на слот (эффективный слот брони с запасным `characters_outfits.slot`); гейт Арсенала у персонажа добавлен в путь брони; хаб «⚔️ Экип» без Арсенала - lock-кнопки с путём к стройке. Веб-мутации дедупятся суффиксом `:gear` в `web_play_intents`. Из `phpstan-baseline.neon` убраны 69 записей переписанных handler'ов.
+
 **Approved:** Andrei Andrievskii, 2026-09-27 — «да» (стадия 02)
 **Briefed:** <written by scripts/cycle.sh briefed>
-**Branch:** <written by /vulyk-build before wave 1>
+**Branch:** vulyk/w2-n1-hud-character
 **Checked:** <written by scripts/human-check.sh>
-**Council:** <written by scripts/cycle.sh judge/escalate>
+**Council:** GREEN round 1, 2026-09-27, at 97350f17, pack 8a5655d90bad
 **Shipped:** <written by scripts/ship-check.sh --record>

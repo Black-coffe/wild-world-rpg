@@ -127,18 +127,7 @@ $body = static function (array $msg): string {
             </div>
         </form>
 
-        <nav class="play-dock" aria-label="Меню игры">
-            <?php $dockCount = 0; ?>
-            <?php foreach ($dock as $row): ?>
-                <?php foreach (is_array($row) ? $row : [] as $label): ?>
-                    <?php if (! is_string($label) || $label === '') { continue; } $dockCount++; ?>
-                    <form action="<?= esc($actUrl, 'attr') ?>" method="post"><?= $hidden('text', $label, null) ?><button class="play-dock-btn" type="submit"><?= esc($label) ?></button></form>
-                <?php endforeach ?>
-            <?php endforeach ?>
-            <?php if ($dockCount === 0): ?>
-                <form action="<?= esc($actUrl, 'attr') ?>" method="post"><?= $hidden('command', '/menu', null) ?><button class="play-dock-btn" type="submit">Меню</button></form>
-            <?php endif ?>
-        </nav>
+        <?= view('site/_play/dock', ['dock' => $dock]) ?>
     </div>
 
     <aside class="play-history" aria-label="История экранов">

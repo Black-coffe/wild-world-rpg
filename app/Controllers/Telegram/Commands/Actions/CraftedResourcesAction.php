@@ -5,14 +5,17 @@ namespace App\Controllers\Telegram\Commands\Actions;
 use App\Entities\CharacterEntity;
 use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
-use App\Models\CraftedItemsLogModel;
-use App\Models\CraftedItemsModel;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\InventorySortService;
+use App\Services\Player\InventoryViewService;
 use App\Services\Telegram\ButtonPacker;
 use App\Services\World\VehicleEffectsService;
 use Config\Database;
 
+/**
+ * «🔨 Крафтовые ресурсы» — рендерер бота поверх модели инвентаря {@see InventoryViewService}
+ * (W2.N1-02, ADR-190: полки, пометка еды и строки — из той же модели, что и веб-список).
+ */
 class CraftedResourcesAction extends BaseAction
 {
     /**
@@ -64,25 +67,12 @@ class CraftedResourcesAction extends BaseAction
 
     /**
      * bugs-info-0923-02: предметы `crafted_items.type='food'` нигде не применяются —
-     * Аптечка и Провизия читают только `type='drug'`. Экран обязан сказать это честно,
-     * а не молча показывать «еду», которую некуда деть. Признак — `type`, не имена.
-     * Вывод из обращения с компенсацией — ADR-185, не здесь.
-     * Подписи пути сверены с кнопками: `💊 Аптечка` (экран персонажа, callback `pharmacy`)
-     * → `🍲 Провизия` (PharmacyAction, callback `provision`). Без `*`/`_` — Markdown-safe.
+     * Аптечка и Провизия читают только `type='drug'`. Экран обязан сказать это честно.
+     * Тексты живут в модели ({@see InventoryViewService::FOOD_MARKER}) — их же пишет веб.
      */
-    private const FOOD_MARKER = 'не применяется, выводится из обращения';
+    private const FOOD_MARKER = InventoryViewService::FOOD_MARKER;
 
-    private const FOOD_PATH_LINE = '↳ Еда и питьё, которые работают: 💊 Аптечка → 🍲 Провизия';
-
-    protected $craftedItemsLogModel;
-    protected $craftedItemsModel;
-
-    public function __construct($callbackQuery)
-    {
-        parent::__construct($callbackQuery);
-        $this->craftedItemsLogModel = new CraftedItemsLogModel();
-        $this->craftedItemsModel = new CraftedItemsModel();
-    }
+    private const FOOD_PATH_LINE = InventoryViewService::FOOD_PATH_LINE;
 
     public function handle(): ServerResponse
     {
@@ -97,7 +87,8 @@ class CraftedResourcesAction extends BaseAction
 
         $mode = $this->parseSortMode((string) $this->callbackQuery->getData());
 
-        $rows = $this->loadRows($character['id']);
+        $charId = $character['id'] ?? null;
+        $rows   = (new InventoryViewService())->crafted(is_numeric($charId) ? (int) $charId : 0);
 
         if ($rows === []) {
             $text = "🤷‍♂️ *Не переживай, друг!* Твои усилия в крафтинге всё ещё впереди.\n\n"
@@ -111,31 +102,6 @@ class CraftedResourcesAction extends BaseAction
             : $this->renderFlat($rows, $mode);
 
         return $this->reply($text, $mode, $character);
-    }
-
-    /**
-     * Строки склада крафта персонажа: массивы с `name` (= name_rus) для InventorySortService.
-     *
-     * @return list<array<string,mixed>>
-     */
-    private function loadRows(mixed $characterId): array
-    {
-        // price нужен для сортировки «по стоимости» (value = price * quantity).
-        $craftedItemsLogs = $this->craftedItemsLogModel
-            ->select('crafted_items_log.quantity, crafted_items.name_rus, crafted_items.type, crafted_items.price')
-            ->join('crafted_items', 'crafted_items.id = crafted_items_log.crafted_item_id')
-            ->where('crafted_items_log.character_id', $characterId)
-            ->orderBy('crafted_items_log.id', 'DESC') // базовый порядок для группировки (по свежести)
-            ->findAll();
-
-        $rows = [];
-        foreach ($craftedItemsLogs as $item) {
-            $r = is_array($item) ? $item : (array) $item;
-            $r['name'] = $r['name_rus'] ?? '';
-            $rows[] = $r;
-        }
-
-        return $rows;
     }
 
     private function parseSortMode(string $callbackData): string
@@ -160,32 +126,14 @@ class CraftedResourcesAction extends BaseAction
             $groupedItems[$type][] = $item;
         }
 
-        // 🔴 Карта обязана покрывать ВСЕ значения `crafted_items.type`, иначе предмет
-        // молча уезжает в «Прочие» и читается как недоделка. Аудит 12.08.2026 (повод —
-        // «Метеоритное укрытие»): в проде 18 типов против 14 в карте. Без полки жили
-        // defense, drones, food, accessory — 9 предметов, 20 владельцев. Добавили все 4.
-        // Если заводишь новый `type` в crafted_items — заводи и заголовок здесь.
-        $typeHeadings = [
-            'component'    => "📐 *Компоненты* 📐",
-            'drug'         => "💊 *Лекарства* 💊",
-            'food'         => "🍲 *Еда* 🍲",
-            'tool'         => "🛠️ *Инструменты* 🛠️",
-            'weapon'       => "⚔️ *Оружие* ⚔️",
-            'clothing'     => "👕 *Одежда* 👕",
-            'accessory'    => "💍 *Украшения* 💍",
-            'defense'      => "🛡 *Защита от событий* 🛡",
-            'building'     => "🏠 *Постройки* 🏠",
-            'workbench'    => "🔬 *Верстаки* 🔬",
-            'robots'       => "🤖 *Роботы* 🤖",
-            'drones'       => "🛸 *Дроны* 🛸",
-            'transport'    => "🚚 *Транспорт* 🚚",
-            'teleport'     => "🌀 *Телепорты* 🌀",
-            'utility'      => "🔧 *Полезные штуки* 🔧",
-            'decorative'   => "🎨 *Декор* 🎨",
-            'magical item' => "🔮 *Магические предметы* 🔮",
-            'military'     => "🛡️ *Военное* 🛡️",
-        ];
-        $defaultHeading = "🔸 *Прочие предметы* 🔸";
+        // 🔴 Полки — карта модели {@see InventoryViewService::CRAFTED_TYPES}: она обязана
+        // покрывать ВСЕ значения `crafted_items.type` (иначе предмет уезжает в «Прочие»).
+        $typeHeadings = [];
+        foreach (InventoryViewService::CRAFTED_TYPES as $type => $meta) {
+            $typeHeadings[$type] = "{$meta['emoji']} *{$meta['title']}* {$meta['emoji']}";
+        }
+        $other          = InventoryViewService::OTHER;
+        $defaultHeading = "{$other['emoji']} *{$other['title']}* {$other['emoji']}";
 
         $textParts = [];
         foreach ($typeHeadings as $type => $heading) {

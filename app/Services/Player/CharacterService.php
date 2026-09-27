@@ -2,56 +2,21 @@
 
 namespace App\Services\Player;
 
-use App\Models\BiomeModel;
-use App\Models\CharacterFactionModel;
-use App\Models\CharacterModel;
-use App\Models\CharacterResourceModel;
-use App\Models\ExploredCellsModel;
-use App\Models\FactionModel;
-use App\Models\MapModel;
-use App\Models\ResourceModel;
-use App\Models\CharactersWeaponsModel;
-use App\Models\WeaponModel;
-use App\Models\CharactersOutfitsModel;
-use App\Models\OutfitModel;
-use DateTime;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\ButtonPacker;
 use App\Services\Telegram\Request;
 
+/**
+ * Карточка персонажа в боте — тонкий рендерер модели {@see CharacterSheetService} (W2.N1-01, ADR-190).
+ *
+ * @phpstan-import-type Sheet from CharacterSheetService
+ * @phpstan-import-type Action from CharacterSheetService
+ */
 class CharacterService
 {
-    protected $characterModel;
-    protected $exploredCellsModel;
-    protected $mapModel;
-    protected $biomeModel;
-    protected $resourceModel;
-    protected $characterResourceModel;
-    protected $characterFactionModel;
-    protected $factionModel;
-    protected $charactersWeaponsModel;
-    protected $weaponsModel;
-    protected $charactersOutfitsModel;
-    protected $outfitsModel;
-
-    public function __construct()
-    {
-        $this->characterModel         = new CharacterModel();
-        $this->exploredCellsModel     = new ExploredCellsModel();
-        $this->mapModel               = new MapModel();
-        $this->biomeModel             = new BiomeModel();
-        $this->characterResourceModel = new CharacterResourceModel();
-        $this->resourceModel          = new ResourceModel();
-        $this->characterFactionModel  = new CharacterFactionModel();
-        $this->factionModel           = new FactionModel();
-        $this->charactersWeaponsModel = new CharactersWeaponsModel();
-        $this->weaponsModel           = new WeaponModel();
-        $this->charactersOutfitsModel = new CharactersOutfitsModel();
-        $this->outfitsModel           = new OutfitModel();
-    }
-
     /**
-     * Показ информации о персонаже + установка клавиатуры.
+     * Показ информации о персонаже — рендерер модели {@see CharacterSheetService} для бота
+     * (W2.N1-01, ADR-190: веб рисует экран «Я» из той же модели).
      */
     public function showCharacterInfo(int $chatId, array|\App\Entities\CharacterEntity $characterRow): ServerResponse
     {
@@ -62,184 +27,121 @@ class CharacterService
         // переотправил), либо по нажатию reply-кнопки «Перс» (клавиатура уже на экране).
         // Карточке нужен inline-keyboard, а reply+inline на одном сообщении Telegram не
         // совмещает → отдельное «привязочное» сообщение тут было бы мусором.
+        $sheet = (new CharacterSheetService())->fromRow($characterRow);
 
-        // Собираем сведения о персонаже
-        $exploredCount = $this->exploredCellsModel->where('character_id', $characterRow['id'])->countAllResults();
-        $totalResources = $this->characterResourceModel->where('id_characters', $characterRow['id'])->countAllResults();
+        return Request::sendMessage([
+            'chat_id'      => $chatId,
+            'text'         => self::cardText($sheet),
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode(['inline_keyboard' => self::cardKeyboard($sheet)]),
+        ]);
+    }
 
-        $cell  = $this->mapModel->where('cell_number', $characterRow['cell_number'])->first();
-        $biome = ($cell) ? $this->biomeModel->find($cell['biome_id']) : null;
-
-        // v0.51.121 hotfix: cast Time|null|string → string. CI4 Entity wraps
-        // `created_at` як Time object (per F1.4.4-B v0.48.0 dates array).
-        $createdAtRaw = $characterRow['created_at'] ?? null;
-        $createdAtStr = $createdAtRaw instanceof \DateTimeInterface
-            ? $createdAtRaw->format('Y-m-d H:i:s')
-            : (string) ($createdAtRaw ?? '1970-01-01');
-        $createdDate = new DateTime($createdAtStr);
-        $interval   = $createdDate->diff(new DateTime());
-        $timeInGame = $interval->format('%m мес. %d дн. %h чс.');
-
-        $gold = $characterRow['gold'] ?? 0;
+    /**
+     * Текст карточки бота (legacy-Markdown) из модели персонажа.
+     *
+     * @param Sheet $sheet модель {@see CharacterSheetService::fromRow()}
+     */
+    public static function cardText(array $sheet): string
+    {
+        $gold     = $sheet['gold'];
         $goldText = ($gold > 0)
             ? "🧰 Есть 💰*" . number_format($gold) . "* золота"
             : "🧰 Золото отсутствует!";
 
-        // Фракция персонажа
-        $factionName = '';
-        $charFaction = $this->characterFactionModel->where('character_id', $characterRow['id'])->first();
-        if ($charFaction) {
-            $faction = $this->factionModel->find($charFaction['faction_id']);
-            if ($faction) {
-                $factionName = $faction['name'];
-            }
+        $text = "🤖 *Персонаж {$sheet['name']}*\n";
+        if ($sheet['faction'] !== null) {
+            $text .= "🏳️ *Фракция:* {$sheet['faction']}\n";
         }
-
-        // Получаем экипировку (броня и оружие)
-        $equippedWeapon = $this->getEquippedWeapon($characterRow['id']);
-        $equippedArmor  = $this->getEquippedArmor($characterRow['id']);
-
-        // Итоговый текст
-        $cleanName  = $this->sanitizeName($characterRow['name'] ?? '');
-        $biomeName  = $biome['name'] ?? '???';
-        $text = "🤖 *Персонаж {$cleanName}*\n";
-        if ($factionName) {
-            $text .= "🏳️ *Фракция:* {$factionName}\n";
-        }
-        if ($cell) {
-            $text .= "🧭 *Координаты:* X={$cell['coordinate_x']} Y={$cell['coordinate_y']} | 🌄 {$biomeName}\n";
+        if ($sheet['cell'] !== null) {
+            $text .= "🧭 *Координаты:* X={$sheet['cell']['x']} Y={$sheet['cell']['y']} | 🌄 {$sheet['biome']}\n";
         }
 
         // S4 (ROADMAP-RETENTION-10) — «полярная звезда»: текущая цель онбординг-цепочки
-        // (OnbStep*) видна ВВЕРХУ карточки, чтобы растерявшийся новичок всегда знал «что
-        // дальше». gated onboarding.cold_open_v2.enabled → null = строки нет (byte-identical).
-        $polarLine = (new \App\Services\Onboarding\PolarStarService())->line((int) ($characterRow['id'] ?? 0));
-        if ($polarLine !== null) {
-            $text .= $polarLine . "\n";
+        // видна ВВЕРХУ карточки (gated onboarding.cold_open_v2.enabled → null = строки нет).
+        if ($sheet['polar_line'] !== null) {
+            $text .= $sheet['polar_line'] . "\n";
         }
 
-        $text .= "🎢 *Изучено ячеек:* {$exploredCount}\n"
-            . "💼 *Всего видов ресурсов:* {$totalResources}\n"
-            . "⏳ *В игре:* {$timeInGame}\n"
-            . "📈 *Уровень:* {$characterRow['level']}\n";
+        $text .= "🎢 *Изучено ячеек:* {$sheet['explored']}\n"
+            . "💼 *Всего видов ресурсов:* {$sheet['resource_kinds']}\n"
+            . "⏳ *В игре:* {$sheet['time_in_game']}\n"
+            . "📈 *Уровень:* {$sheet['level']}\n";
 
-        // Слайс «Видимая лестница L1→L10» — прогресс к следующему уровню и что он откроет.
-        // До этого карточка показывала четыре сырых числа и ни слова о том, сколько осталось:
-        // прод-замер 2026-07-26 нашёл игрока с 292 действиями, стоящего на 68% пути к L2.
-        // Gated progression.ladder.enabled → null = строк нет (byte-identical, ADR-024).
-        $ladder     = new \App\Services\Player\Progression\LevelProgressService();
-        $ladderLine = $ladder->cardLine($characterRow);
-        if ($ladderLine !== null) {
-            $text .= $ladderLine . "\n";
-            $nextLevel  = \App\Services\Player\Progression\LevelProgressService::levelForSum(
-                \App\Services\Player\Progression\LevelProgressService::statSum($characterRow)
-            ) + 1;
-            $unlockLine = (new \App\Services\Player\Progression\LevelUnlockService())->summaryFor($nextLevel);
-            if ($unlockLine !== null) {
-                $text .= $unlockLine . "\n";
+        // Слайс «Видимая лестница L1→L10» — прогресс к следующему уровню и что он откроет
+        // (gated progression.ladder.enabled → null = строк нет, ADR-024).
+        if ($sheet['ladder_line'] !== null) {
+            $text .= $sheet['ladder_line'] . "\n";
+            if ($sheet['unlock_line'] !== null) {
+                $text .= $sheet['unlock_line'] . "\n";
             }
         }
 
-        $text .= "🌟 *Опыт:* {$characterRow['experience']}\n"
-            . "🤸‍♂️ *Ловкость:* {$characterRow['agility']}\n"
-            . "🧠 *Интеллект:* {$characterRow['intellect']}\n"
-            . "💪 *Сила:* {$characterRow['strength']}\n\n"
-            . "💖 *Здоровье:* {$characterRow['health']}\n"
-            . "🥱 *Выносливость:* {$characterRow['tired']}\n\n"
-            . "💹 *Карма торговли:* {$characterRow['trading_karma']}\n"
+        $text .= "🌟 *Опыт:* {$sheet['experience']}\n"
+            . "🤸‍♂️ *Ловкость:* {$sheet['agility']}\n"
+            . "🧠 *Интеллект:* {$sheet['intellect']}\n"
+            . "💪 *Сила:* {$sheet['strength']}\n\n"
+            . "💖 *Здоровье:* {$sheet['health']}\n"
+            . "🥱 *Выносливость:* {$sheet['tired']}\n\n"
+            . "💹 *Карма торговли:* {$sheet['trading_karma']}\n"
             . $goldText . "\n";
 
-        // Раны, которые не лечатся едой: если они есть, игрок обязан видеть их там же,
-        // где смотрит здоровье, — иначе «еда не долечивает» читается как поломка.
-        $debuffService = new \App\Services\Player\DebuffService();
-        $activeDebuffs = $debuffService->active((int) $characterRow['id']);
-        if ($activeDebuffs !== []) {
+        // Раны, которые не лечатся едой: игрок видит их там же, где смотрит здоровье.
+        if ($sheet['debuffs'] !== []) {
             $text .= "🩺 *Раны:*\n";
-            foreach ($activeDebuffs as $debuffRow) {
-                $line = $debuffService->describe($debuffRow);
-                if ($line !== '') {
-                    $text .= $line . "\n";
-                }
+            foreach ($sheet['debuffs'] as $line) {
+                $text .= $line . "\n";
             }
             $text .= "_Еда их не снимает — нужен предмет из «💊 Аптечки»._\n\n";
         }
 
-        // E6 (ADR-108) Ф3 — серия входов (discoverability: видна всем при killswitch ON).
-        $streakLine = (new \App\Services\Player\LoginStreakService())->streakLine($characterRow);
-        $text .= ($streakLine !== null ? $streakLine . "\n" : '');
-
-        // ADR-132 Ф2 — следующая веха серии (discoverability лестницы; gated milestones_enabled).
-        $streakRaw = $characterRow['login_streak'] ?? 0;
-        $curStreak = is_numeric($streakRaw) ? (int) $streakRaw : 0;
-        $msLine    = (new \App\Services\Player\StreakMilestoneService())->cardProgressLine((int) $characterRow['id'], $curStreak);
-        $text .= ($msLine !== null ? $msLine . "\n" : '');
-
-        // E11 (ADR-112) — активный титул (видимая идентичность; строка есть при killswitch ON И наличии титула).
-        $titleSvc = new \App\Services\Player\TitleService();
-        if ($titleSvc->enabled()) {
-            $titleLabel = $titleSvc->activeTitleLabel((int) $characterRow['id']);
-            if ($titleLabel !== null) {
-                $text .= "🎖 *Титул:* {$titleLabel}\n";
-            }
+        // E6 (ADR-108) серия входов; ADR-132 Ф2 следующая веха; E11 (ADR-112) титул.
+        $text .= ($sheet['streak_line'] !== null ? $sheet['streak_line'] . "\n" : '');
+        $text .= ($sheet['milestone_line'] !== null ? $sheet['milestone_line'] . "\n" : '');
+        if ($sheet['title'] !== null) {
+            $text .= "🎖 *Титул:* {$sheet['title']}\n";
         }
         $text .= "\n";
 
-        // Добавляем броню и оружие
-        $text .= "🛡 *Броня:* " . ($equippedArmor ?: "❌ Нет") . "\n";
-        $text .= "⚔️ *Оружие:* " . ($equippedWeapon ?: "❌ Нет") . "\n";
+        $text .= "🛡 *Броня:* " . (($sheet['armor'] ?? '') !== '' ? $sheet['armor'] : "❌ Нет") . "\n";
+        $text .= "⚔️ *Оружие:* " . (($sheet['weapon'] ?? '') !== '' ? $sheet['weapon'] : "❌ Нет") . "\n";
 
-        // V16 (ADR-047): крафт-специализация.
-        $specSvc = new \App\Services\Player\SpecializationService();
-        if ($specSvc->isEnabled()) {
-            $specRaw = $characterRow['specialization'] ?? null;
-            $text .= "🎓 *Специализация:* " . $specSvc->labelFor(is_string($specRaw) ? $specRaw : null) . "\n";
+        // V16 (ADR-047): крафт-специализация (null — фича выключена).
+        if ($sheet['specialization'] !== null) {
+            $text .= "🎓 *Специализация:* {$sheet['specialization']}\n";
         }
 
-        // W5 (ADR-064): combat-drone active status line (только если активен).
-        $droneSvc = new \App\Services\Player\DroneService();
-        if ($droneSvc->combatIsEnabled()) {
-            $activeUntilRaw = $characterRow['combat_drone_active_until'] ?? null;
-            $activeUntilTs  = is_string($activeUntilRaw) && $activeUntilRaw !== '' ? strtotime($activeUntilRaw) : 0;
-            if ($activeUntilTs !== false && $activeUntilTs > time()) {
-                $minsLeft = max(1, (int) ceil(($activeUntilTs - time()) / 60));
-                $bonus    = $droneSvc->combatInitiativeBonusPercent();
-                $text .= "🛡 *Боевой дрон:* активен `{$minsLeft}` мин (+{$bonus}% инициативы)\n";
-            }
+        // W5 (ADR-064): активный боевой дрон.
+        if ($sheet['drone'] !== null) {
+            $text .= "🛡 *Боевой дрон:* активен `{$sheet['drone']['minutes']}` мин (+{$sheet['drone']['bonus']}% инициативы)\n";
         }
 
-        // Инлайн-кнопки. ADR-150 Слайс 2: при me_hub ON персональный блок «Я»
-        // (🎒 Инвентарь / ⚔️ Экип / 💊 Аптечка / 🧍 Страховка) собран В ЕДИНЫЙ блок сверху,
-        // а чужегрупповые кнопки (Действия/Маяки/Магазин/Развлечения/События — мигрируют
-        // в свои группы на финале ADR-150) идут ниже. OFF — исходные 3 ряда byte-identical.
-        $finalGrid = \App\Services\Telegram\BotMenuService::finalGridEnabled();
+        return $text;
+    }
 
-        if ($finalGrid) {
-            // ADR-150 ФИНАЛ: карточка Перса становится домом ТОЛЬКО личного. Кросс-групповые
-            // кнопки убраны — у каждой уже есть канонический дом в нижнем меню, и ни одна не
-            // осиротеет: 📡 Маяки → «🏠 База», 🛒 Магазин / 🎮 Развлечения → «⚙️ Ещё».
-            // «🧑‍🌾 Действия» остаются: это живой контекстный вход к действиям на клетке
-            // (самая нагруженная кнопка игры). «🎉 События» ушли в свой дом — экран «🌍 Мир»
-            // (они про состояние острова, а не про персонажа).
-            //
-            // Раскладка 2026-07-27 (фидбэк владельца): порядок сверху вниз ПО ЧАСТОТЕ +
-            // НИ ОДНОЙ одиночной кнопки в ряду. «🧑‍🌾 Действия» переехали в левый верхний
-            // угол (были третьим рядом и в одиночку) — самое частое ближе к пальцу. Ряды не
-            // прописываются руками: набор кнопок плавает (фракция / дейлики / хабы / подать —
-            // условные), поэтому плоский список режет {@see ButtonPacker::packByCount()}.
-            // tripleAt=2 → при нечётном числе кнопок ряд из трёх соберётся на самых КОРОТКИХ
-            // подписях (Экип/Аптечка/Страховка), а не на длинных — иначе перенос на 375px.
-            $personalFlat = [
-                ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                ['text' => '🎒 Инвентарь',      'callback_data' => 'inventory'],
-                ['text' => '⚔️ Экип',           'callback_data' => 'equipMenu'],
-                ['text' => '💊 Аптечка',        'callback_data' => 'pharmacy'],
-                ['text' => '🧍 Страховка',      'callback_data' => 'PersonalInsurance'],
-            ];
-            $inlineRows = [];
-        } elseif (\App\Services\Telegram\BotMenuService::meHubEnabled()) {
-            $personalFlat = [];
+    /**
+     * Inline-клавиатура карточки. ADR-150 ФИНАЛ: личное + хвост одним списком по частоте, ряды
+     * режет {@see ButtonPacker::packByCount()} (ни одной одиночки; tripleAt=2 — тройка на коротких
+     * подписях Экип/Аптечка/Страховка). Legacy-сетки (killswitch OFF) — прежние ряды byte-identical,
+     * хвост — тем же упаковщиком.
+     *
+     * @param Sheet $sheet
+     *
+     * @return array<int, array<int, array<string, string>>>
+     */
+    public static function cardKeyboard(array $sheet): array
+    {
+        $tailFlat = self::buttons($sheet['tail_actions']);
+
+        if (\App\Services\Telegram\BotMenuService::finalGridEnabled()) {
+            $personalFlat = self::buttons($sheet['personal_actions']);
+
+            return ButtonPacker::packByCount(array_merge($personalFlat, $tailFlat), 2);
+        }
+
+        if (\App\Services\Telegram\BotMenuService::meHubEnabled()) {
+            // ADR-150 Слайс 2: личный блок «Я» сверху, чужегрупповые кнопки ниже.
             $inlineRows = [
-                // Личный блок «Я»
                 [
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                     ['text' => '⚔️ Экип',      'callback_data' => 'equipMenu'],
@@ -248,7 +150,6 @@ class CharacterService
                     ['text' => '💊 Аптечка',   'callback_data' => 'pharmacy'],
                     ['text' => '🧍 Страховка', 'callback_data' => 'PersonalInsurance'],
                 ],
-                // Прочее (кросс-групповое — до постройки своих групп остаётся здесь)
                 [
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ['text' => '📡 Маяки',          'callback_data' => 'teleportBeacon'],
@@ -260,7 +161,6 @@ class CharacterService
                 ],
             ];
         } else {
-            $personalFlat = [];
             $inlineRows = [
                 [
                     ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
@@ -280,150 +180,27 @@ class CharacterService
             ];
         }
 
-        // N4 (ADR-039): on-demand вход к выбору фракции — кнопка появляется только
-        // когда lvl≥10 и фракция ещё не выбрана (faction_id=5/нет записи, joined_at пуст).
-        // Раньше попасть на выбор можно было лишь по крон-пингу (FactionNotificationHandler,
-        // повтор раз в 24ч). После выбора кнопка исчезает.
-        $level            = (int) ($characterRow['level'] ?? 0);
-        $hasChosenFaction = $charFaction
-            && (int) ($charFaction['faction_id'] ?? 0) !== 5
-            && !empty($charFaction['joined_at']);
-
-        // Хвост карточки (цели → хабы → справочник → профиль) собирается ПЛОСКИМ списком
-        // в порядке частоты, а на ряды его режет ButtonPacker::packByCount(). Раньше каждый блок
-        // клал СВОЙ ряд, и при выключенном соседе кнопка оставалась в ряду одна
-        // (фидбэк владельца 2026-06-11 про пару «Фракция + Задания дня» лечил лишь один
-        // такой случай; 2026-07-27 — правило распространено на весь хвост).
-        $tailFlat = [];
-
-        // transport-10 (ADR-174) — «🚚 Мой транспорт»: вход виден ВСЕГДА (UX-DISCOVERABILITY),
-        // даже у персонажа без единой машины и без фракции — экран сам объясняет витрину
-        // и путь к ней (гараж пуст → подсказка на крафт, показ 🔒 у фракционных машин).
-        $tailFlat[] = ['text' => '🚚 Мой транспорт', 'callback_data' => 'vehicleScreen'];
-
-        if ($level >= 10 && !$hasChosenFaction) {
-            $tailFlat[] = ['text' => '⚑ Выбрать фракцию', 'callback_data' => 'chooseFaction_info'];
-        } elseif ($level < 10 && !$hasChosenFaction) {
-            // E7 (ROADMAP-100): lock-кнопка для <L10 — ранняя посадка цели. Срез показал:
-            // 62% доросших до L10 выбирают фракцию, но до L10 цель была НЕВИДИМА. Клик →
-            // alert с prerequisite + value-prop teaser (UX-DISCOVERABILITY, не скрываем молча).
-            $tailFlat[] = ['text' => '🔒 ⚑ Фракция (с lvl 10)', 'callback_data' => 'chooseFactionLocked'];
-        }
-
-        // N-навигация (2026-06-11) — АНТИ button-soup (memory feedback_character_card_button_soup):
-        // карточка Перса разрослась до ~19 кнопок. Свернули read-only виды и прогресс-фичи в ДВА
-        // подменю-хаба (единый источник кнопок — ProfileHubService). Discoverability сохранена:
-        // фичи находимы через хаб, а сам хаб виден только если внутри есть ≥1 включённая фича.
-        //
-        // E8 (ADR-109) «🗓 Задания дня» — daily-engagement, остаётся НА карточке (важна видимость).
-        $charId       = (int) ($characterRow['id'] ?? 0);
-        $dailyEnabled = (new \App\Services\Quest\DailyTaskService())->enabled();
-        if ($dailyEnabled) {
-            $tailFlat[] = ['text' => '🗓 Задания дня', 'callback_data' => 'dailyTasks'];
-        }
-
-        // ДВА хаба: «📊 Прогресс» (достижения/титулы/рейтинг/экономика/что нового) +
-        // «⚙️ Развитие» (специализация/проект фракции/дрон/модернизация). Каждый — только если
-        // в группе есть включённые фичи.
-        if (\App\Services\Player\ProfileHubService::progressButtons() !== []) {
-            $tailFlat[] = ['text' => \App\Services\Player\ProfileHubService::HUB_PROGRESS_LABEL, 'callback_data' => 'progressHub'];
-        }
-        if (\App\Services\Player\ProfileHubService::developmentButtons($charId, $level) !== []) {
-            $tailFlat[] = ['text' => \App\Services\Player\ProfileHubService::HUB_DEVELOPMENT_LABEL, 'callback_data' => 'developmentHub'];
-        }
-
-        // ADR-135 — «⚖️ Трофейная подать»: вход виден ТОЛЬКО когда механика включена И у игрока
-        // есть активная подать (как вассал ИЛИ хозяин). При dormant killswitch enabled()=false →
-        // query не идёт, кнопка скрыта → не обещаем невидимую фичу (live-vs-dormant honesty, ADR-132).
-        // ADR-150 ФИНАЛ: канон подати — «⚙️ Ещё», но эта кнопка появляется ТОЛЬКО у того, у кого
-        // подать реально активна (вассал/хозяин). Это допустимый контекстный вход (не дуал-хоминг
-        // «на всякий случай»), и терять его вассалу дороже, чем сэкономить строку → остаётся.
-        $tributeSvc = new \App\Services\PVE\TributeService();
-        if ($tributeSvc->enabled() && $tributeSvc->hasAnyTributeRelation($charId)) {
-            $tailFlat[] = ['text' => '⚖️ Трофейная подать', 'callback_data' => 'tributeStatus'];
-        }
-
-        // ADR-127 — «📖 Путь новичка»: вход в справочник-онбординг (`/guide`). ВСЕГДА виден —
-        // точка спасения для растерявшегося игрока (пропустил обучение / забыл механику).
-        // Read-only, без наград (можно жать сколько угодно). ADR-150 ФИНАЛ: канон переехал в
-        // «⚙️ Ещё», но точку спасения с карточки НЕ убираем — растерявшийся игрок ищет её
-        // именно здесь. 2026-07-27: больше НЕ отдельной строкой — «мета»-низ карточки
-        // (справочник + профиль) идёт парой, одиночек в раскладке не осталось.
-        $tailFlat[] = ['text' => '📖 Путь новичка', 'callback_data' => 'guide'];
-
-        // S8 (ADR-146) — «👥 Позови выжившего»: вход в реферальную петлю (личная ссылка +
-        // honor-титул «Зовущий» за реального приглашённого). Виден ТОЛЬКО при killswitch
-        // referral.enabled (dormant → скрыт, карточка byte-identical). Без player-prerequisite →
-        // доступен сразу как кнопка (UX-DISCOVERABILITY). Отдельная строка (рядом с viral-петлёй).
-        // ADR-150 ФИНАЛ: канон реферала — «⚙️ Ещё» (там он и живёт). С карточки убран: это не
-        // контекстный вход, а вторая копия (дуал-хоминг). За всё время — 8 тапов.
-        if (! $finalGrid && (new \App\Services\Player\ReferralService())->enabled()) {
-            $tailFlat[] = ['text' => '👥 Позови выжившего', 'callback_data' => 'referral'];
-        }
-
-        // E30 (ROADMAP-100) — viral-петля: URL-кнопка на публичный веб-профиль (flat ADR-062).
-        // Игроку есть что показать наружу (уровень/титулы/достижения/PvP, БЕЗ локации) → бесплатный
-        // приток. URL-кнопка открывает /profile/{id} в браузере, откуда игрок делится ссылкой.
-        // 2026-07-27: подпись укорочена «🔗 Мой профиль (поделиться)» → «🔗 Мой профиль»,
-        // чтобы кнопка вставала В ПАРУ с «📖 Путь новичка» и не переносилась на узком экране.
-        // Смысл «наружу» не теряется: у url-кнопки Telegram сам рисует стрелку ↗.
-        $rawCharId = $characterRow['id'] ?? null;
-        $profCharId = is_numeric($rawCharId) ? (int) $rawCharId : 0;
-        if ($profCharId > 0) {
-            $tailFlat[] = ['text' => '🔗 Мой профиль', 'url' => base_url('profile/' . $profCharId)];
-        }
-
-        // Раскладка: при финальной сетке карточка целиком пакуется одним списком (частота
-        // сверху вниз, тройка коротких — на Экип/Аптечка/Страховка). При выключенном
-        // killswitch'е верхние ряды legacy-веток остаются как были (rollback byte-identical),
-        // а хвост всё равно едет через тот же упаковщик — одиночек не остаётся нигде.
-        $inlineRows = $finalGrid
-            ? ButtonPacker::packByCount(array_merge($personalFlat, $tailFlat), 2)
-            : array_merge($inlineRows, ButtonPacker::packByCount($tailFlat));
-
-        $inlineKeyboard = ['inline_keyboard' => $inlineRows];
-
-        return Request::sendMessage([
-            'chat_id'    => $chatId,
-            'text'       => $text,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($inlineKeyboard),
-        ]);
+        return array_merge($inlineRows, ButtonPacker::packByCount($tailFlat));
     }
 
-    private function getEquippedWeapon(int $characterId): ?string
+    /**
+     * Действия модели → кнопки Telegram.
+     *
+     * @param list<Action> $actions
+     *
+     * @return list<array<string, string>>
+     */
+    private static function buttons(array $actions): array
     {
-        $row = $this->charactersWeaponsModel->where('character_id', $characterId)->where('equipped', 1)->first();
-        return $row ? ($this->weaponsModel->find($row['weapon_id'])['name'] ?? null) : null;
-    }
-
-    private function getEquippedArmor(int $characterId): ?string
-    {
-        // Берём все экипированные предметы
-        $equippedItems = $this->charactersOutfitsModel
-            ->where('character_id', $characterId)
-            ->where('equipped', 1)
-            ->findAll();
-
-        if (empty($equippedItems)) {
-            return null;
-        }
-
-        $armorNames = [];
-        foreach ($equippedItems as $item) {
-            // Для каждого предмета достаём запись из outfits
-            $outfitRow = $this->outfitsModel->find($item['outfit_id']);
-            if ($outfitRow) {
-                $armorNames[] = $outfitRow['name'];
+        $out = [];
+        foreach ($actions as $a) {
+            if (isset($a['callback'])) {
+                $out[] = ['text' => $a['label'], 'callback_data' => $a['callback']];
+            } elseif (isset($a['url'])) {
+                $out[] = ['text' => $a['label'], 'url' => $a['url']];
             }
         }
 
-        // Склеиваем все названия запятой или любым нужным разделителем
-        return !empty($armorNames) ? implode(', ', $armorNames) : null;
-    }
-
-    private function sanitizeName(string $name): string
-    {
-        return preg_replace('/[^a-zA-Zа-яА-ЯёЁґҐєЄїЇ0-9 ]/u', '', str_replace(['_', '-'], ' ', $name)) ?? '';
+        return $out;
     }
 }

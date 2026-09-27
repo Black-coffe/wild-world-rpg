@@ -1688,6 +1688,84 @@ section.block:first-of-type { border-top: 0; }
 .play-lock-title { font-family: var(--font-display); font-size: 14px; letter-spacing: .1em; text-transform: uppercase; color: var(--text); }
 .play-lock-why { font-size: 14px; line-height: 1.5; }
 .play-lock-path { font-family: var(--font-mono); font-size: 12px; color: var(--accent); }
+
+/* HUD /play (W2.N1, ADR-190): постоянная полоса состояния над экраном. */
+.play-hud { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px 0 12px; border-bottom: 1px solid var(--border); }
+.play-hud-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; min-width: 0; }
+@media (min-width: 640px) { .play-hud-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.play-hud-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 6px 10px; background: var(--bg-elev-1); border: 1px solid var(--border); border-left: 3px solid var(--border-strong); }
+.play-hud-stat.is-health { border-left-color: var(--danger); }
+.play-hud-stat.is-tired { border-left-color: var(--info); }
+.play-hud-stat.is-gold { border-left-color: var(--accent); }
+.play-hud-stat.is-level { border-left-color: var(--success); }
+.play-hud-stat.is-cell { grid-column: 1 / -1; }
+@media (min-width: 640px) { .play-hud-stat.is-cell { grid-column: auto; } }
+.play-hud-stat dt { font-family: var(--font-display); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); overflow-wrap: anywhere; }
+.play-hud-stat dd { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-family: var(--font-mono); font-size: 16px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+.play-hud-sub { font-family: var(--font-body); font-size: 12px; font-weight: 500; color: var(--text-muted); overflow-wrap: anywhere; }
+.play-hud-bar { display: block; width: 100%; height: 4px; margin-top: 2px; border: 0; background: var(--bg-elev-3); color: var(--success); appearance: none; -webkit-appearance: none; }
+.play-hud-bar::-webkit-progress-bar { background: var(--bg-elev-3); }
+.play-hud-bar::-webkit-progress-value { background: var(--success); }
+.play-hud-bar::-moz-progress-bar { background: var(--success); }
+.play-hud-task { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; min-width: 0; padding: 6px 10px; background: var(--bg-elev-2); border: 1px solid var(--border-strong); border-left: 3px solid var(--accent); font-size: 14px; }
+.play-hud-task.is-idle { background: transparent; border-style: dashed; border-left-style: solid; border-left-color: var(--border-strong); color: var(--text-muted); }
+.play-hud-task-name { min-width: 0; overflow-wrap: anywhere; }
+.play-hud-timer { font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.play-hud-timer.is-done { color: var(--success); }
+
+/* Нативные экраны /play (W2.N1, ADR-190): «Я» и далее. */
+.play-native { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px; background: var(--bg-elev-1); border: 1px solid var(--border); border-left: 3px solid var(--accent); }
+.play-native-head { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.play-native-title { margin: 0; font-size: 20px; overflow-wrap: anywhere; }
+.play-native-tags { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.play-native-tags .badge { overflow-wrap: anywhere; max-width: 100%; }
+.play-native-note { padding: 8px 12px; background: var(--bg-elev-2); border-left: 3px solid var(--info); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.play-native-section { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--border); }
+.play-native-section.is-warning { border-top-color: var(--warning); }
+.play-native-subtitle { margin: 0; font-size: 14px; letter-spacing: .1em; text-transform: uppercase; color: var(--warning); }
+.play-native-hint { margin: 0; font-size: 13px; font-style: italic; color: var(--text-dim); }
+.play-sheet { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; margin: 0; min-width: 0; }
+@media (min-width: 640px) { .play-sheet { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; } }
+.play-sheet-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-width: 0; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+.play-sheet-row dt { font-size: 14px; color: var(--text-dim); overflow-wrap: anywhere; min-width: 0; }
+.play-sheet-row dd { margin: 0; font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--text); text-align: right; overflow-wrap: anywhere; min-width: 0; }
+.play-kb-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; min-width: 0; }
+@media (min-width: 640px) { .play-kb-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.play-kb-grid form { display: contents; }
+
+/* Инвентарь /play (W2.N1-02): полки, вкладки-фильтр, поиск. */
+.play-native-subtitle.is-plain { color: var(--text-dim); }
+.play-inv-search { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.play-inv-search[hidden] { display: none; }
+.play-inv-tabs { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.play-inv-tab { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; max-width: 100%; padding: 6px 10px; background: var(--bg-elev-2); color: var(--text-dim); border: 1px solid var(--border); font-size: 13px; font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.play-inv-tab:hover { color: var(--text); border-color: var(--border-strong); }
+.play-inv-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.play-inv-tab.is-active { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+.play-inv-count { font-family: var(--font-mono); font-size: 11px; opacity: .8; }
+.play-inv-shelves { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.play-inv-shelf { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.play-inv-shelf[hidden] { display: none; }
+.play-inv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; min-width: 0; }
+.play-inv-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: baseline; padding: 7px 0; border-bottom: 1px dashed var(--border); min-width: 0; }
+.play-inv-item[hidden] { display: none; }
+.play-inv-name { font-size: 14px; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+.play-inv-qty { font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.play-inv-meta { grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); overflow-wrap: anywhere; }
+.play-inv-meta.is-warning { color: var(--warning); }
+.play-inv-empty { margin: 0; padding: 12px; border: 1px dashed var(--border-strong); color: var(--text-muted); font-size: 14px; }
+.play-inv-empty[hidden] { display: none; }
+
+/* Снаряжение /play (W2.N1-03): карточки предметов, надетое отмечено. */
+.play-gear-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.play-gear-item { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px 12px; background: var(--bg-elev-2); border: 1px solid var(--border); border-left: 3px solid var(--border-strong); }
+.play-gear-item.is-equipped { border-left-color: var(--success); }
+.play-gear-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-width: 0; }
+.play-gear-name { font-weight: 700; font-size: 15px; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+.play-gear-stats { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); overflow-wrap: anywhere; }
+.badge.is-on { color: var(--success); border-color: var(--success); }
+.play-kb-btn.is-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.play-kb-btn.is-primary:hover { background: var(--accent-hi); color: var(--accent-ink); border-color: var(--accent-hi); }
 </style>
 </head>
 
@@ -2242,6 +2320,164 @@ section.block:first-of-type { border-top: 0; }
             <button class="play-kb-btn" type="button">Три</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <h3 class="mt-3" id="play-hud-demo">HUD и нативный экран «Я» (W2.N1, ADR-190)</h3>
+    <p class="muted">HUD висит над экраном всегда и обновляется из каждого ответа; таймер задачи тикает в браузере. «Я» — нативный экран из модели персонажа, кнопки без своего экрана уходят в мост.</p>
+    <div class="play-hud" role="region" aria-label="Состояние персонажа">
+      <dl class="play-hud-stats">
+        <div class="play-hud-stat is-health"><dt>💖 Здоровье</dt><dd>87.5</dd></div>
+        <div class="play-hud-stat is-tired"><dt>🥱 Выносливость</dt><dd>64</dd></div>
+        <div class="play-hud-stat is-gold"><dt>💰 Золото</dt><dd>12 480</dd></div>
+        <div class="play-hud-stat is-level"><dt>📈 Уровень</dt><dd>4<span class="play-hud-sub">опыт 31.2</span></dd><progress class="play-hud-bar" max="100" value="68" aria-label="До уровня 5: 68%">68%</progress></div>
+        <div class="play-hud-stat is-cell"><dt>🧭 Клетка</dt><dd>X=12 Y=7<span class="play-hud-sub">Пустошь</span></dd></div>
+      </dl>
+      <div class="play-hud-task"><span class="play-hud-task-name">⏳ Добыча металла <span class="play-hud-sub">и ещё 1</span></span><time class="play-hud-timer">12:04</time></div>
+    </div>
+    <div class="play-hud mt-2" role="region" aria-label="Состояние персонажа — без задачи">
+      <div class="play-hud-task is-idle"><span class="play-hud-task-name">Свободен — активных задач нет</span></div>
+    </div>
+
+    <div class="play-shell is-native mt-2">
+      <div class="play-screen">
+        <article class="play-native" aria-label="Экран «Я»">
+          <header class="play-native-head">
+            <h2 class="play-native-title">🤖 Ворон 7</h2>
+            <div class="play-native-tags">
+              <span class="badge">📈 Уровень 4</span>
+              <span class="badge">🏳️ Вольные</span>
+              <span class="badge">🎖 Первопроходец</span>
+              <span class="badge">🧭 X=12 Y=7 · 🌄 Пустошь</span>
+            </div>
+          </header>
+          <div class="play-native-note">🌟 <b>Цель:</b> построй первое укрытие</div>
+          <section class="play-native-section" aria-label="Прогресс уровня">
+            <div class="play-msg-text">🪜 <b>До уровня 5:</b> ▰▰▰▰▰▰▱▱▱▱ 68% — набрано 5.5 из 8.0</div>
+          </section>
+          <section class="play-native-section" aria-label="Характеристики">
+            <dl class="play-sheet">
+              <div class="play-sheet-row"><dt>🌟 Опыт</dt><dd>31.2</dd></div>
+              <div class="play-sheet-row"><dt>💪 Сила</dt><dd>4.1</dd></div>
+              <div class="play-sheet-row"><dt>💖 Здоровье</dt><dd>87.5</dd></div>
+              <div class="play-sheet-row"><dt>💰 Золото</dt><dd>12 480</dd></div>
+            </dl>
+          </section>
+          <section class="play-native-section is-warning" aria-label="Раны">
+            <h3 class="play-native-subtitle">🩺 Раны</h3>
+            <div class="play-msg-text">🦴 <b>Перелом</b> — выносливость восстанавливается медленнее</div>
+            <p class="play-native-hint">Еда их не снимает — нужен предмет из «💊 Аптечки».</p>
+          </section>
+          <nav class="play-kb" aria-label="Действия персонажа">
+            <div class="play-kb-grid">
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🎒 Инвентарь</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">⚔️ Экип</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🧍 Страховка</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🔒 ⚑ Фракция (с lvl 10)</button></form>
+              <a class="play-kb-btn is-url" href="#play">🔗 Мой профиль</a>
+            </div>
+          </nav>
+        </article>
+      </div>
+    </div>
+
+    <h3 class="mt-3" id="play-inventory-demo">Инвентарь — единый список (W2.N1-02)</h3>
+    <p class="muted">Полки подряд; вкладки без JS — якоря к полкам, с JS — фильтр на месте. Поиск по имени появляется только с JS.</p>
+    <div class="play-shell is-native mt-2">
+      <div class="play-screen">
+        <article class="play-native" aria-label="Инвентарь">
+          <header class="play-native-head">
+            <h2 class="play-native-title">🎒 Инвентарь</h2>
+            <div class="play-native-tags"><span class="badge">Позиций: 4</span><span class="badge">💰 Добытое ~ 1 240</span></div>
+          </header>
+          <div class="play-inv-search">
+            <label class="label" for="uikit-inv-q">Поиск по названию</label>
+            <input class="input" id="uikit-inv-q" type="search" placeholder="Например, металл">
+          </div>
+          <nav class="play-inv-tabs" aria-label="Полки инвентаря">
+            <a class="play-inv-tab is-active" href="#uikit-inv-all" aria-current="true">Все <span class="play-inv-count">4</span></a>
+            <a class="play-inv-tab" href="#uikit-inv-res">📦 Добытые ресурсы <span class="play-inv-count">2</span></a>
+            <a class="play-inv-tab" href="#uikit-inv-food">🍲 Еда <span class="play-inv-count">1</span></a>
+            <a class="play-inv-tab" href="#uikit-inv-tool">🛠️ Инструменты <span class="play-inv-count">1</span></a>
+          </nav>
+          <div class="play-inv-shelves" id="uikit-inv-all">
+            <section class="play-inv-shelf" id="uikit-inv-res" aria-label="Добытые ресурсы">
+              <h3 class="play-native-subtitle is-plain">📦 Добытые ресурсы</h3>
+              <ul class="play-inv-list">
+                <li class="play-inv-item"><span class="play-inv-name">Металлолом</span><span class="play-inv-qty">× 1 204</span><span class="play-inv-meta">Редкость 2</span></li>
+                <li class="play-inv-item"><span class="play-inv-name">Очень длинное название ресурса, которое обязано переноситься на узком экране</span><span class="play-inv-qty">× 3</span><span class="play-inv-meta">Редкость 5</span></li>
+              </ul>
+            </section>
+            <section class="play-inv-shelf" id="uikit-inv-food" aria-label="Еда">
+              <h3 class="play-native-subtitle is-plain">🍲 Еда</h3>
+              <ul class="play-inv-list">
+                <li class="play-inv-item"><span class="play-inv-name">Рыбный суп</span><span class="play-inv-qty">× 2</span><span class="play-inv-meta is-warning">не применяется, выводится из обращения</span></li>
+              </ul>
+              <p class="play-native-hint">↳ Еда и питьё, которые работают: 💊 Аптечка → 🍲 Провизия</p>
+            </section>
+            <section class="play-inv-shelf" id="uikit-inv-tool" aria-label="Инструменты">
+              <h3 class="play-native-subtitle is-plain">🛠️ Инструменты</h3>
+              <ul class="play-inv-list">
+                <li class="play-inv-item"><span class="play-inv-name">Кирка</span><span class="play-inv-qty">× 1</span></li>
+              </ul>
+            </section>
+            <p class="play-inv-empty">Ничего не найдено на этой полке.</p>
+          </div>
+          <div class="play-lock">
+            <span class="play-lock-title">Рюкзак пуст</span>
+            <span class="play-lock-why">Здесь появится всё, что ты несёшь: добытые ресурсы и созданные предметы.</span>
+            <span class="play-lock-path">Ресурсы: «🧑 Я» → «🧑‍🌾 Действия 🛠️» → добыча на клетке. Предметы: «🔨 Крафт» в нижнем меню.</span>
+          </div>
+          <nav class="play-kb" aria-label="Ещё об инвентаре">
+            <div class="play-kb-grid">
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">📦 Склад базы</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🧾 Куда ушло</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">📊 Все мои ресурсы</button></form>
+            </div>
+          </nav>
+        </article>
+      </div>
+    </div>
+
+    <h3 class="mt-3" id="play-gear-demo">Снаряжение — надеть / снять (W2.N1-03)</h3>
+    <p class="muted">Надетое — зелёная кромка и бейдж; «Надеть» — основная кнопка, «Снять» — обычная; продажа — кнопка моста. Без Арсенала — замок с путём.</p>
+    <div class="play-shell is-native mt-2">
+      <div class="play-screen">
+        <article class="play-native" aria-label="Снаряжение">
+          <header class="play-native-head">
+            <h2 class="play-native-title">⚔️ Снаряжение</h2>
+            <dl class="play-sheet">
+              <div class="play-sheet-row"><dt>⚔️ Оружие</dt><dd>Трубный самопал</dd></div>
+              <div class="play-sheet-row"><dt>🛡 Броня</dt><dd>Кожаная куртка</dd></div>
+            </dl>
+          </header>
+          <section class="play-native-section" aria-label="Оружие">
+            <h3 class="play-native-subtitle is-plain">⚔️ Оружие</h3>
+            <ul class="play-gear-list">
+              <li class="play-gear-item is-equipped">
+                <div class="play-gear-head"><span class="play-gear-name">Трубный самопал</span><span class="play-inv-qty">× 1</span></div>
+                <div class="play-native-tags"><span class="badge is-on">✅ Надето</span><span class="badge">Редкость: Common</span></div>
+                <p class="play-gear-stats">💥 Урон 14 (physical) · 🎯 Дальность 3 · ⚡ Скорость атаки 1.2 · ⚙️ Прочность 60</p>
+                <div class="play-kb-grid"><form action="#play" method="post"><button class="play-kb-btn" type="submit">Снять</button></form></div>
+                <p class="play-native-hint">💰 Продать можно только снятое.</p>
+              </li>
+              <li class="play-gear-item">
+                <div class="play-gear-head"><span class="play-gear-name">Металлическое копьё с очень длинным названием для узкого экрана</span><span class="play-inv-qty">× 2</span></div>
+                <div class="play-native-tags"><span class="badge">Редкость: Uncommon</span></div>
+                <p class="play-gear-stats">💥 Урон 18 (physical) · 🎯 Дальность 1 · ⚡ Скорость атаки 0.9 · ⚙️ Прочность 80</p>
+                <div class="play-kb-grid">
+                  <form action="#play" method="post"><button class="play-kb-btn is-primary" type="submit">Надеть</button></form>
+                  <form action="#play" method="post"><button class="play-kb-btn" type="submit">💰 Продать торговцу</button></form>
+                </div>
+              </li>
+            </ul>
+          </section>
+          <div class="play-lock">
+            <span class="play-lock-title">🔒 Экипировка (нужно: Арсенал)</span>
+            <span class="play-lock-why">Надевать броню и брать в руки оружие можно только в здании «Арсенал», а на твоей базе его пока нет. Всё скрафтленное никуда не делось (ждут: 3).</span>
+            <span class="play-lock-path">Нужен уровень 12 и базовые здания. Путь: «🏗 К стройке Арсенала» — там список ресурсов.</span>
+          </div>
+        </article>
       </div>
     </div>
   </div>

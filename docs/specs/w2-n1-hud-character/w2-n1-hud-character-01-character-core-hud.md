@@ -1,8 +1,8 @@
 ---
 story: w2-n1-hud-character-01
 spec: w2-n1-hud-character
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: opus
@@ -35,6 +35,9 @@ blocked_by: []
 - app/Views/site/play.php
 - app/Views/site/_play/hud.php
 - app/Views/site/_play/native_me.php
+- app/Views/site/_play/dock.php
+- app/Views/site/_play/state.php
+- phpstan-baseline.neon
 - public/assets/js/wildworld-play.js
 - public/assets/css/wildworld-ui.css
 - public/ui-kit.html
@@ -61,5 +64,10 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- Модель: CharacterSheetService::fromRow()/forCharacter() - все поля карточки (сырые строки статов как печатал бот), personal_actions/tail_actions, hud; hud() - дешёвый срез, свой запрос активных задач (name + end_time). Данные - прямыми SQL: BiomeModel отдаёт Entity, is_array на нём ложен (биом стал бы ???).
+- Бот: CharacterService - тонкий рендерер: cardText(sheet) + cardKeyboard(sheet), legacy-сетки (killswitch OFF) byte-identical; фикстура-тест сверяет текст с прежним форматом.
+- Веб: POST /play/view (view=me; op=bridge+data - кнопка «Я» без нативного экрана уходит в мост: карточка бота текстом «🧑 Я» с intent :card, затем callback с её кнопки, intent :cb; обе ступени - обычный WebActService::act с проверкой «кнопка на своём сообщении»). Без JS - PRG на /play?view=me. HUD в каждом JSON (act/view/inbox), сбой HUD не роняет ответ.
+- Отступление от плана: док вынесен в site/_play/dock.php (его рисуют и мост, и нативные экраны 02/03; кнопка «🧑 Я»/«Перс» идёт в /play/view), state.php его подключает; из phpstan-baseline убраны 12 записей о свойствах CharacterService, которых больше нет. Контракт /play/view расширен op=bridge.
+- Проверено: phpunit полный набор 4555 OK; phpstan L9 OK. Tier-2 (375/768/1440) и Tier-3 - на смоуке после совета.
 
 ## Findings

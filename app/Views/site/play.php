@@ -5,12 +5,16 @@
  * Верхняя строка — имя персонажа и колокол со счётчиком непрочитанного; `#play-state` — экран,
  * история, ввод и док (`site/_play/state`); слот панели входящих заполняет JS из GET `/play/inbox`.
  * Без JS все кнопки работают через PRG. JS — `wildworld-play.js`, только улучшение.
+ * W2.N1 (ADR-190): над `#play-state` — постоянный HUD (`site/_play/hud`); `native_html` — нативный
+ * экран из модели (`/play?view=…`), иначе экран моста.
  * Telegram/chat id сюда не передаётся (ADR-189 инв. 6).
  *
  * @var array<string,mixed> $state
  * @var int                 $unread
  * @var int                 $poll_seconds
  * @var string              $character_name
+ * @var string|null         $native_html
+ * @var string              $hud_html
  */
 $unreadCount = is_int($unread ?? null) && $unread > 0 ? $unread : 0;
 $pollMin     = config(\Config\WebPlay::class)->inboxPollMinSeconds;
@@ -24,6 +28,7 @@ $countLabel  = $unreadCount > 99 ? '99+' : ($unreadCount > 0 ? (string) $unreadC
 <section class="block">
     <div class="container">
         <div id="play-root"
+             data-view-url="<?= esc(base_url('play/view'), 'attr') ?>"
              data-act-url="<?= esc(base_url('play/act'), 'attr') ?>"
              data-inbox-url="<?= esc(base_url('play/inbox'), 'attr') ?>"
              data-read-url="<?= esc(base_url('play/inbox/read'), 'attr') ?>"
@@ -43,8 +48,14 @@ $countLabel  = $unreadCount > 99 ? '99+' : ($unreadCount > 0 ? (string) $unreadC
                 <div id="play-inbox-list"></div>
             </section>
 
+            <?= is_string($hud_html ?? null) ? $hud_html : '' ?>
+
             <div id="play-state">
-                <?= view('site/_play/state', ['state' => is_array($state ?? null) ? $state : [], 'alert' => is_string($alert ?? null) ? $alert : null]) ?>
+                <?php if (is_string($native_html ?? null) && $native_html !== ''): ?>
+                    <?= $native_html ?>
+                <?php else: ?>
+                    <?= view('site/_play/state', ['state' => is_array($state ?? null) ? $state : [], 'alert' => is_string($alert ?? null) ? $alert : null]) ?>
+                <?php endif ?>
             </div>
         </div>
     </div>
@@ -52,5 +63,5 @@ $countLabel  = $unreadCount > 99 ? '99+' : ($unreadCount > 0 ? (string) $unreadC
 
 <?= $this->endSection() ?>
 <?= $this->section('scripts') ?>
-<script src="<?= base_url('assets/js/wildworld-play.js') ?>?v=1" defer></script>
+<script src="<?= base_url('assets/js/wildworld-play.js') ?>?v=2" defer></script>
 <?= $this->endSection() ?>
