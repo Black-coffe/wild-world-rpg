@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Web;
 
 use App\Services\Player\CharacterSheetService;
+use App\Services\Player\InventoryViewService;
 use App\Services\Telegram\BotMenuService;
 use InvalidArgumentException;
 
@@ -17,31 +18,74 @@ use InvalidArgumentException;
  * выводятся telegram/chat id (ADR-189 инв. 6).
  *
  * Кнопка нативного экрана, которой нет нативного аналога, уходит в мост «как сейчас»: если
- * на текущем экране моста нет сообщения с этой кнопкой, сначала вызывается карточка бота
- * (текст нижнего меню «Я»), затем — callback с её кнопки. Обе ступени — обычные
- * {@see WebActService::act()} с проверкой «кнопка стоит на своём сообщении» и дедупом
- * `intent_id` (суффиксы `:card` / `:cb`).
+ * на текущем экране моста нет сообщения с этой кнопкой, бот проходит тот же путь, что игрок
+ * в Telegram — карточка «Я» (текст нижнего меню), затем кнопки по {@see BRIDGE_ROUTES}, — и
+ * только потом жмётся нужная кнопка. Каждая ступень — обычный {@see WebActService::act()} с
+ * проверкой «кнопка стоит на своём сообщении» и дедупом `intent_id` (суффиксы `:card`,
+ * `:s<N>`, `:cb`).
  *
  * @phpstan-import-type State from WebScreenStore
  * @phpstan-import-type Sheet from CharacterSheetService
  */
 class WebNativeScreenService
 {
-    public const VIEW_ME = 'me';
+    public const VIEW_ME        = 'me';
+    public const VIEW_INVENTORY = 'inventory';
 
     /** Экраны, у которых уже есть нативная вьюха. */
-    public const VIEWS = [self::VIEW_ME];
+    public const VIEWS = [self::VIEW_ME, self::VIEW_INVENTORY];
+
+    /** Действие экрана «Я» → нативный экран, который его заменяет. */
+    private const NATIVE_ACTIONS = ['inventory' => self::VIEW_INVENTORY];
+
+    /**
+     * Кнопки моста на нативных экранах (кроме «Я», чьи кнопки берутся из модели) и путь от
+     * карточки «Я» до сообщения бота, на котором такая кнопка стоит.
+     *
+     * @var array<string, list<string>>
+     */
+    private const BRIDGE_ROUTES = [
+        'baseStorageList'  => ['inventory'],
+        'whereItWent'      => ['inventory'],
+        'resourceOverview' => ['inventory'],
+    ];
 
     private CharacterSheetService $sheets;
 
-    public function __construct(private ?WebActService $act = null, ?CharacterSheetService $sheets = null)
-    {
-        $this->sheets = $sheets ?? new CharacterSheetService();
+    private InventoryViewService $inventory;
+
+    public function __construct(
+        private ?WebActService $act = null,
+        ?CharacterSheetService $sheets = null,
+        ?InventoryViewService $inventory = null
+    ) {
+        $this->sheets    = $sheets ?? new CharacterSheetService();
+        $this->inventory = $inventory ?? new InventoryViewService();
     }
 
     public static function isView(mixed $view): bool
     {
         return is_string($view) && in_array($view, self::VIEWS, true);
+    }
+
+    /** Нативный экран, заменяющий действие экрана «Я»; null — действие идёт через мост. */
+    public static function viewForAction(string $actionId): ?string
+    {
+        return self::NATIVE_ACTIONS[$actionId] ?? null;
+    }
+
+    /**
+     * Кнопки моста, которые рисует нативный экран инвентаря (подпись → callback).
+     *
+     * @return array<string, string>
+     */
+    public static function inventoryBridgeButtons(): array
+    {
+        return [
+            '📦 Склад базы'      => 'baseStorageList',
+            '🧾 Куда ушло'       => 'whereItWent',
+            '📊 Все мои ресурсы' => 'resourceOverview',
+        ];
     }
 
     /**
@@ -53,6 +97,15 @@ class WebNativeScreenService
      */
     public function render(int $characterId, string $view, array $state, ?string $alert = null): string
     {
+        $dock = is_array($state['dock'] ?? null) ? $state['dock'] : [];
+
+        if ($view === self::VIEW_INVENTORY) {
+            return view('site/_play/native_inventory', [
+                'inventory' => $this->inventory->forCharacter($characterId),
+                'dock'      => $dock,
+                'alert'     => $alert,
+            ]);
+        }
         if ($view !== self::VIEW_ME) {
             throw new InvalidArgumentException('unknown view');
         }
@@ -61,7 +114,7 @@ class WebNativeScreenService
             throw new InvalidArgumentException('character not found');
         }
 
-        return view('site/_play/native_me', ['sheet' => $sheet, 'dock' => is_array($state['dock'] ?? null) ? $state['dock'] : [], 'alert' => $alert]);
+        return view('site/_play/native_me', ['sheet' => $sheet, 'dock' => $dock, 'alert' => $alert]);
     }
 
     /**
@@ -82,35 +135,46 @@ class WebNativeScreenService
     }
 
     /**
-     * Кнопка нативного «Я» без нативного экрана → тот же callback через мост.
+     * Кнопка нативного экрана без нативного аналога → тот же callback через мост.
      *
      * @return array{state: State, alert: ?string, unread: int}
      *
-     * @throws InvalidArgumentException кнопки нет на экране «Я» или намерение отвергнуто мостом
+     * @throws InvalidArgumentException кнопки нет ни на одном нативном экране или намерение отвергнуто мостом
      */
     public function bridge(int $accountId, int $characterId, string $callback, string $intentId): array
     {
-        $sheet = $this->sheets->forCharacter($characterId);
-        if ($sheet === null || ! in_array($callback, self::callbacks($sheet), true)) {
-            throw new InvalidArgumentException('callback is not on the character screen');
-        }
         if ($intentId === '' || strlen($intentId) > 60) {
             throw new InvalidArgumentException('bad intent_id');
         }
-        $act = $this->act ?? new WebActService();
+        $route = $this->routeTo($characterId, $callback);
+        $act   = $this->act ?? new WebActService();
 
-        $messageId = self::messageWith($act->current($characterId)['state'], $callback);
-        if ($messageId === null) {
-            $card      = $act->act($accountId, $characterId, [
+        $result = $act->current($characterId);
+        if (self::messageWith($result['state'], $callback) === null) {
+            // Путь игрока в Telegram: карточка «Я», затем кнопки маршрута.
+            $result = $act->act($accountId, $characterId, [
                 'intent_id' => $intentId . ':card',
                 'kind'      => WebActService::KIND_TEXT,
                 'data'      => BotMenuService::menuLabel('me'),
             ]);
-            $messageId = self::messageWith($card['state'], $callback);
-            if ($messageId === null) {
-                // Повтор того же намерения (карточка уже сменилась ответом) — просто текущий экран.
-                return $card;
+            foreach ($route as $i => $step) {
+                $messageId = self::messageWith($result['state'], $step);
+                if ($messageId === null) {
+                    // Повтор того же намерения (экран уже ушёл дальше) — просто текущий экран.
+                    return $result;
+                }
+                $result = $act->act($accountId, $characterId, [
+                    'intent_id'  => $intentId . ':s' . $i,
+                    'kind'       => WebActService::KIND_CALLBACK,
+                    'data'       => $step,
+                    'message_id' => (string) $messageId,
+                ]);
             }
+        }
+
+        $messageId = self::messageWith($result['state'], $callback);
+        if ($messageId === null) {
+            return $result;
         }
 
         return $act->act($accountId, $characterId, [
@@ -128,7 +192,27 @@ class WebNativeScreenService
     }
 
     /**
-     * Callback-кнопки экрана «Я» (то, что можно отправить через мост).
+     * Путь от карточки «Я» до сообщения с кнопкой; кнопка обязана стоять на нативном экране.
+     *
+     * @return list<string>
+     *
+     * @throws InvalidArgumentException кнопки нет ни на одном нативном экране
+     */
+    private function routeTo(int $characterId, string $callback): array
+    {
+        if (isset(self::BRIDGE_ROUTES[$callback])) {
+            return self::BRIDGE_ROUTES[$callback];
+        }
+        $sheet = $this->sheets->forCharacter($characterId);
+        if ($sheet !== null && in_array($callback, self::callbacks($sheet), true)) {
+            return [];
+        }
+
+        throw new InvalidArgumentException('callback is not on a native screen');
+    }
+
+    /**
+     * Callback-кнопки экрана «Я», которые уходят в мост (нативные — не в их числе).
      *
      * @param Sheet $sheet
      *
@@ -138,7 +222,7 @@ class WebNativeScreenService
     {
         $out = [];
         foreach (array_merge($sheet['personal_actions'], $sheet['tail_actions']) as $action) {
-            if (isset($action['callback'])) {
+            if (isset($action['callback']) && self::viewForAction($action['id']) === null) {
                 $out[] = $action['callback'];
             }
         }

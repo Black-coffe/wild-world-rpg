@@ -12,7 +12,9 @@
    - формы нативных экранов (POST /play/view) идут тем же путём, что и /play/act;
    - HUD (#play-hud) подменяется из поля `hud` любого ответа (действие, экран, входящие);
    - таймер активной задачи тикает раз в секунду от data-ends-at, без запросов к серверу
-     (поправка на часы браузера — по data-now, времени сервера в момент отрисовки HUD).
+     (поправка на часы браузера — по data-now, времени сервера в момент отрисовки HUD);
+   - инвентарь ([data-inv]): вкладка фильтрует полки на месте, поиск — строки по имени;
+     без JS вкладки остаются якорями к полкам, строка поиска скрыта.
    ============================================================ */
 (() => {
   'use strict';
@@ -122,6 +124,58 @@
   tick();
   window.setInterval(tick, 1000);
 
+  /* ---- Инвентарь: вкладки + поиск (только улучшение) ---- */
+  const filterInventory = (inv) => {
+    const tab = inv.dataset.invActive || 'all';
+    const search = inv.querySelector('[data-inv-search]');
+    const query = search ? search.value.trim().toLowerCase() : '';
+    let shown = 0;
+    inv.querySelectorAll('[data-inv-cat]').forEach((shelf) => {
+      let visible = 0;
+      const onTab = tab === 'all' || shelf.dataset.invCat === tab;
+      shelf.querySelectorAll('[data-inv-name]').forEach((row) => {
+        const match = onTab && (query === '' || row.dataset.invName.indexOf(query) !== -1);
+        row.hidden = !match;
+        if (match) visible++;
+      });
+      shelf.hidden = visible === 0;
+      shown += visible;
+    });
+    const nothing = inv.querySelector('[data-inv-nothing]');
+    if (nothing) nothing.hidden = shown > 0;
+  };
+
+  const enhanceNative = () => {
+    stateBox.querySelectorAll('[data-inv]').forEach((inv) => {
+      const row = inv.querySelector('[data-inv-search-row]');
+      if (row) row.hidden = false;
+    });
+  };
+
+  document.addEventListener('click', (event) => {
+    const tab = event.target instanceof Element ? event.target.closest('[data-inv-tab]') : null;
+    if (!tab || !stateBox.contains(tab)) return;
+    const inv = tab.closest('[data-inv]');
+    if (!inv) return;
+    event.preventDefault();
+    inv.dataset.invActive = tab.dataset.invTab || 'all';
+    inv.querySelectorAll('[data-inv-tab]').forEach((el) => {
+      const active = el === tab;
+      el.classList.toggle('is-active', active);
+      if (active) el.setAttribute('aria-current', 'true'); else el.removeAttribute('aria-current');
+    });
+    filterInventory(inv);
+  });
+
+  document.addEventListener('input', (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || !input.matches('[data-inv-search]') || !stateBox.contains(input)) return;
+    const inv = input.closest('[data-inv]');
+    if (inv) filterInventory(inv);
+  });
+
+  enhanceNative();
+
   /* Ответ с JSON-телом любого статуса → {ok, json}. Отказ промиса — только сеть или нечитаемое тело. */
   const fetchJson = (url, options) => fetch(url, Object.assign({
     credentials: 'same-origin',
@@ -155,7 +209,7 @@
   const applyAct = (form, r) => {
     const json = r.json;
     setCsrf(json.csrf);
-    if (typeof json.html === 'string') stateBox.innerHTML = json.html;
+    if (typeof json.html === 'string') { stateBox.innerHTML = json.html; enhanceNative(); }
     setHud(json.hud);
     if (json.unread !== undefined) setUnread(json.unread);
     const hasAlert = typeof json.alert === 'string' && json.alert !== '';

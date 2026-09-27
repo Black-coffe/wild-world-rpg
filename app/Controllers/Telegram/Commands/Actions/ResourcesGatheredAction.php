@@ -4,22 +4,16 @@ namespace App\Controllers\Telegram\Commands\Actions;
 
 use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
-use App\Models\CharacterResourceModel;
-use App\Models\ResourceModel;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\InventorySortService;
+use App\Services\Player\InventoryViewService;
 
+/**
+ * «🔄 Добытые ресурсы» — рендерер бота поверх модели инвентаря {@see InventoryViewService}
+ * (W2.N1-02, ADR-190: веб показывает те же строки единым списком).
+ */
 class ResourcesGatheredAction extends BaseAction
 {
-    protected $characterResourceModel;
-    protected $resourceModel;
-
-    public function __construct($callbackQuery)
-    {
-        parent::__construct($callbackQuery);
-        $this->characterResourceModel = new CharacterResourceModel();
-        $this->resourceModel = new ResourceModel();
-    }
 
     public function handle(): ServerResponse
     {
@@ -35,24 +29,15 @@ class ResourcesGatheredAction extends BaseAction
         // W8: режим сортировки из callback `resourcesGathered_sort_<mode>` (stateless).
         $mode = $this->parseSortMode((string) $this->callbackQuery->getData());
 
-        $characterResources = $this->characterResourceModel
-            ->select('character_resources.quantity, resources.name, resources.rarity, resources.price')
-            ->join('resources', 'resources.id = character_resources.id_resources')
-            ->where('character_resources.id_characters', $character['id'])
-            ->findAll();
+        $charId = $character['id'] ?? null;
+        $rows   = (new InventoryViewService())->gathered(is_numeric($charId) ? (int) $charId : 0);
 
-        if (empty($characterResources)) {
+        if ($rows === []) {
             $text = "🤷‍♂️ *Не переживай, друг!* Всё ещё впереди.\n\n"
                 . "Тебе всего лишь нужно раз выйти за лутом, и твой складской сундук наполнится сокровищами! 🗝️💎\n\n"
                 . "Собери свои снаряжение, наберись смелости и вперёд к приключениям! 🏹🧭\n\n"
                 . "И помни, каждый великий начинал с малого! 🌟";
             return $this->reply($text, $mode);
-        }
-
-        // Нормализуем строки к массиву (Model может вернуть Entity при ином returnType).
-        $rows = [];
-        foreach ($characterResources as $r) {
-            $rows[] = is_array($r) ? $r : (array) $r;
         }
 
         $totalValue = 0.0;

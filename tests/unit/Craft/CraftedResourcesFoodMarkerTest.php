@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Tests\Unit\Craft;
 
 use App\Controllers\Telegram\Commands\Actions\CraftedResourcesAction;
+use App\Services\Player\InventoryViewService;
 use App\Database\Migrations\CreateCraftedItemsLogTable;
 use App\Database\Migrations\CreateCraftedItemsTable;
-use App\Models\CraftedItemsLogModel;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Forge;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -153,14 +153,13 @@ final class CraftedResourcesFoodMarkerTest extends CIUnitTestCase
     }
 
     /**
+     * Строки экрана — из модели инвентаря (W2.N1-02: handler берёт их у `InventoryViewService`).
+     *
      * @return list<array<string,mixed>>
      */
     private function loadRows(): array
     {
-        /** @var list<array<string,mixed>> $rows */
-        $rows = $this->invokeRaw('loadRows', self::CHARACTER_ID);
-
-        return $rows;
+        return (new InventoryViewService($this->conn))->crafted(self::CHARACTER_ID);
     }
 
     private function invoke(string $method, mixed ...$args): string
@@ -175,9 +174,6 @@ final class CraftedResourcesFoodMarkerTest extends CIUnitTestCase
     {
         $refl   = new ReflectionClass(CraftedResourcesAction::class);
         $action = $refl->newInstanceWithoutConstructor();
-
-        $prop = $refl->getProperty('craftedItemsLogModel');
-        $prop->setValue($action, new CraftedItemsLogModel());
 
         return $refl->getMethod($method)->invoke($action, ...$args);
     }

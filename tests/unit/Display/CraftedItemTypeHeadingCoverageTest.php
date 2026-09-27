@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Display;
 
+use App\Services\Player\InventoryViewService;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
  * 🔴 АНТИ-ДРИФТ ГЕЙТ полок инвентаря.
  *
- * `CraftedResourcesAction::renderGrouped()` — ручная карта `crafted_items.type`
- * → заголовок раздела. Тип без заголовка не ломает ничего заметного: предмет
+ * `InventoryViewService::CRAFTED_TYPES` — ручная карта `crafted_items.type` → полка
+ * (W2.N1-02: карта переехала из `CraftedResourcesAction` в модель инвентаря, её читают и
+ * бот, и веб-список). Тип без полки не ломает ничего заметного: предмет
  * молча падает в «🔸 Прочие предметы» и читается игроком как недоделка.
  *
  * Аудит 12.08.2026 (повод — «Метеоритное укрытие»): в проде 18 типов против 14
@@ -30,8 +32,6 @@ use CodeIgniter\Test\CIUnitTestCase;
  */
 final class CraftedItemTypeHeadingCoverageTest extends CIUnitTestCase
 {
-    private const ACTION = 'app/Controllers/Telegram/Commands/Actions/CraftedResourcesAction.php';
-
     private const MIGRATIONS = 'app/Database/Migrations';
 
     private const TABLE_CALL = "table('crafted_items')";
@@ -54,9 +54,9 @@ final class CraftedItemTypeHeadingCoverageTest extends CIUnitTestCase
         }
 
         $this->assertSame([], $missing, sprintf(
-            "Типы crafted_items без заголовка в CraftedResourcesAction: %s.\n"
+            "Типы crafted_items без полки в InventoryViewService::CRAFTED_TYPES: %s.\n"
             . "Предметы этих типов молча уедут в «🔸 Прочие предметы» и будут читаться как недоделка.\n"
-            . 'Добавь заголовок в карту $typeHeadings.',
+            . 'Добавь полку в карту CRAFTED_TYPES.',
             implode(', ', $missing)
         ));
     }
@@ -68,20 +68,9 @@ final class CraftedItemTypeHeadingCoverageTest extends CIUnitTestCase
      */
     private function headingKeys(): array
     {
-        $path = ROOTPATH . self::ACTION;
-        $this->assertFileExists($path, 'CraftedResourcesAction не найден — гейт был бы фиктивно зелёным.');
+        $keys = array_keys(InventoryViewService::CRAFTED_TYPES);
 
-        $src = (string) file_get_contents($path);
-        $pos = strpos($src, '$typeHeadings = [');
-        $this->assertNotFalse($pos, 'Карта $typeHeadings не найдена — гейт был бы фиктивно зелёным.');
-
-        $end   = strpos($src, '];', $pos);
-        $chunk = substr($src, $pos, $end === false ? null : $end - $pos);
-
-        preg_match_all("/'([a-z ]+)'\s*=>/", $chunk, $m);
-        $keys = array_values(array_unique($m[1]));
-
-        $this->assertNotSame([], $keys, 'Карта заголовков разобрана пустой — гейт был бы фиктивно зелёным.');
+        $this->assertNotSame([], $keys, 'Карта полок пуста — гейт был бы фиктивно зелёным.');
 
         return $keys;
     }

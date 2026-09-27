@@ -5,7 +5,8 @@
  *
  * Отдаётся целиком в `#play-state` (как экран моста) и работает без JS. Готовые фразы чужих
  * сервисов (полярная звезда, лестница, раны, серия) — legacy-Markdown Telegram, переводятся в
- * HTML тем же `TelegramMarkupRenderer`, что и мост. Кнопки без нативного экрана — формы
+ * HTML тем же `TelegramMarkupRenderer`, что и мост. «🎒 Инвентарь» — нативный экран (W2.N1-02);
+ * остальные кнопки без нативного экрана — формы
  * POST `/play/view` с `op=bridge`: тот же callback уходит в мост (ADR-189). Telegram/chat id
  * сюда не передаётся и не выводится.
  *
@@ -16,6 +17,7 @@
 
 use App\Services\Player\CharacterSheetService;
 use App\Services\Web\TelegramMarkupRenderer;
+use App\Services\Web\WebNativeScreenService;
 
 $s         = is_array($sheet ?? null) ? $sheet : [];
 $alertText = is_string($alert ?? null) && $alert !== '' ? $alert : null;
@@ -129,6 +131,8 @@ $stats = [
                         <?php if (! is_array($action) || ! is_string($action['label'] ?? null)) { continue; } ?>
                         <?php if (is_string($action['url'] ?? null) && preg_match('~^https?://~i', $action['url']) === 1): ?>
                             <a class="play-kb-btn is-url" href="<?= esc($action['url'], 'attr') ?>" target="_blank" rel="noopener"><?= esc($action['label']) ?></a>
+                        <?php elseif (is_string($action['id'] ?? null) && ($nativeView = WebNativeScreenService::viewForAction($action['id'])) !== null): ?>
+                            <form action="<?= esc($viewUrl, 'attr') ?>" method="post"><?= csrf_field() ?><input type="hidden" name="view" value="<?= esc($nativeView, 'attr') ?>"><button class="play-kb-btn" type="submit"><?= esc($action['label']) ?></button></form>
                         <?php elseif (is_string($action['callback'] ?? null)): ?>
                             <form action="<?= esc($viewUrl, 'attr') ?>" method="post"><?= csrf_field() ?><input type="hidden" name="op" value="bridge"><input type="hidden" name="intent_id" value="<?= bin2hex(random_bytes(16)) ?>"><input type="hidden" name="data" value="<?= esc($action['callback'], 'attr') ?>"><button class="play-kb-btn" type="submit"><?= esc($action['label']) ?></button></form>
                         <?php endif ?>

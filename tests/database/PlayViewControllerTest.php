@@ -6,6 +6,7 @@ namespace Tests\Database;
 
 use App\Services\Logging\TelegramDeliveryProbe;
 use App\Services\Player\CharacterSheetService;
+use App\Services\Player\InventoryViewService;
 use App\Services\Telegram\BotMenuService;
 use App\Services\Web\AccountService;
 use App\Services\Web\DeliveryContext;
@@ -32,7 +33,7 @@ use Longman\TelegramBot\Request as LongmanRequest;
 use Psr\Http\Message\RequestInterface;
 
 /**
- * W2.N1-01 (ADR-190) — `POST /play/view` и HUD: нативный «Я» из модели персонажа, те же гейты,
+ * W2.N1-01/02 (ADR-190) — `POST /play/view` и HUD, нативные «Я» и инвентарь: нативный «Я» из модели персонажа, те же гейты,
  * что у `/play/act` (флаг, сессия, CSRF, лимит), персонаж только из сессии, HUD в каждом ответе,
  * кнопки без нативного экрана — через мост, док «🧑 Я» — в нативный экран.
  *
@@ -279,15 +280,88 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $act       = $this->fakeAct();
         $this->stubSheets($act);
 
-        $res = $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'inventory', 'intent_id' => 'b2'], true);
+        $res = $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'guide', 'intent_id' => 'b2'], true);
         $res->assertStatus(200);
 
         $this->assertSame([
             ['intent_id' => 'b2:card', 'kind' => 'text', 'data' => BotMenuService::menuLabel('me')],
-            ['intent_id' => 'b2:cb', 'kind' => 'callback', 'data' => 'inventory', 'message_id' => '41'],
+            ['intent_id' => 'b2:cb', 'kind' => 'callback', 'data' => 'guide', 'message_id' => '41'],
         ], $act->calls);
-        $this->assertStringContainsString('Инвентарь моста', $this->json($res)['html']);
+        $this->assertStringContainsString('Экран моста', $this->json($res)['html']);
         $this->assertStringContainsString('id="play-hud"', $this->json($res)['hud']);
+    }
+
+    public function testNativeActionIsNotSentThroughTheBridge(): void
+    {
+        [$session] = $this->character('Ворон');
+        $act       = $this->fakeAct();
+        $this->stubSheets($act);
+
+        $res = $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'inventory', 'intent_id' => 'b3'], true);
+
+        $this->assertSame(400, $res->response()->getStatusCode(), '«Инвентарь» — нативный экран, не мост');
+        $this->assertSame([], $act->calls);
+    }
+
+    // ── Инвентарь (02) ───────────────────────────────────────────────────
+
+    public function testInventoryViewRendersShelvesTabsSearchAndBridgeButtons(): void
+    {
+        [$session] = $this->character('Ворон');
+        $this->stubSheets(null, [
+            [['quantity' => '1204', 'name' => 'Металлолом', 'rarity' => '2', 'price' => '1']],
+            [['quantity' => '2', 'name_rus' => 'Рыбный суп', 'type' => 'food', 'price' => '1', 'name' => 'Рыбный суп']],
+        ]);
+
+        $html = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'inventory'], true))['html'], ENT_QUOTES | ENT_HTML5);
+
+        $this->assertStringContainsString('data-native="inventory"', $html);
+        $this->assertMatchesRegularExpression('~data-inv-name="металлолом">.*?Металлолом.*?× 1 204~su', $html);
+        $this->assertStringContainsString('href="#play-inv-resources"', $html, 'вкладка без JS — якорь к полке');
+        $this->assertStringContainsString('id="play-inv-food"', $html);
+        $this->assertStringContainsString(InventoryViewService::FOOD_MARKER, $html);
+        $this->assertStringContainsString(InventoryViewService::FOOD_PATH_LINE, $html);
+        $this->assertMatchesRegularExpression('~data-inv-search-row hidden~', $html, 'поиск — только с JS');
+        foreach (['baseStorageList', 'whereItWent', 'resourceOverview'] as $cb) {
+            $this->assertMatchesRegularExpression('~name="op" value="bridge">.*?name="data" value="' . $cb . '">~s', $html);
+        }
+    }
+
+    public function testEmptyInventoryExplainsWhereThingsComeFrom(): void
+    {
+        [$session] = $this->character('Ворон');
+        $this->stubSheets(null, [[], []]);
+
+        $html = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'inventory'], true))['html'], ENT_QUOTES | ENT_HTML5);
+
+        $this->assertStringContainsString('Рюкзак пуст', $html);
+        $this->assertStringContainsString('«🧑‍🌾 Действия 🛠️» → добыча на клетке', $html);
+        $this->assertStringNotContainsString('data-inv-tab', $html);
+    }
+
+    public function testMeScreenOpensInventoryNatively(): void
+    {
+        [$session] = $this->character('Ворон');
+        $this->stubSheets();
+
+        $html = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'me'], true))['html'];
+
+        $this->assertMatchesRegularExpression('~name="view" value="inventory"><button class="play-kb-btn" type="submit">🎒 Инвентарь</button>~u', $html);
+    }
+
+    public function testInventoryBridgeButtonWalksCardThenHubThenPressesIt(): void
+    {
+        [$session] = $this->character('Ворон');
+        $act       = $this->fakeAct();
+        $this->stubSheets($act);
+
+        $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'whereItWent', 'intent_id' => 'w1'], true)->assertStatus(200);
+
+        $this->assertSame([
+            ['intent_id' => 'w1:card', 'kind' => 'text', 'data' => BotMenuService::menuLabel('me')],
+            ['intent_id' => 'w1:s0', 'kind' => 'callback', 'data' => 'inventory', 'message_id' => '41'],
+            ['intent_id' => 'w1:cb', 'kind' => 'callback', 'data' => 'whereItWent', 'message_id' => '43'],
+        ], $act->calls);
     }
 
     public function testActAndInboxResponsesCarryHud(): void
@@ -304,8 +378,13 @@ final class PlayViewControllerTest extends CIUnitTestCase
 
     // ── Фикстура ─────────────────────────────────────────────────────────
 
-    /** Полная модель подменена фикстурой (имя — из БД), HUD — настоящий. */
-    private function stubSheets(?WebActService $act = null): void
+    /**
+     * Полная модель подменена фикстурой (имя — из БД), HUD — настоящий; инвентарь — из
+     * заданных сырых строк `[gathered, crafted]` (по умолчанию пуст).
+     *
+     * @param array{0: list<array<string, mixed>>, 1: list<array<string, mixed>>} $inventoryRows
+     */
+    private function stubSheets(?WebActService $act = null, array $inventoryRows = [[], []]): void
     {
         $conn   = $this->conn;
         $sheets = new class ($conn) extends CharacterSheetService {
@@ -335,13 +414,36 @@ final class PlayViewControllerTest extends CIUnitTestCase
                 ];
             }
         };
-        Factories::injectMock('libraries', WebNativeScreenService::class, new WebNativeScreenService($act, $sheets));
+        $inventory = new class ($conn, $inventoryRows) extends InventoryViewService {
+            /**
+             * @param BaseConnection<object, object>                                   $conn
+             * @param array{0: list<array<string, mixed>>, 1: list<array<string, mixed>>} $rows
+             */
+            public function __construct(BaseConnection $conn, private array $rows)
+            {
+                parent::__construct($conn);
+            }
+
+            public function gathered(int $characterId): array
+            {
+                return $this->rows[0];
+            }
+
+            public function crafted(int $characterId): array
+            {
+                return $this->rows[1];
+            }
+        };
+        Factories::injectMock('libraries', WebNativeScreenService::class, new WebNativeScreenService($act, $sheets, $inventory));
         if ($act !== null) {
             Factories::injectMock('libraries', WebActService::class, $act);
         }
     }
 
-    /** Мост-двойник: пишет намерения, «карточка» несёт кнопку `inventory` на сообщении 41. */
+    /**
+     * Мост-двойник: пишет намерения. «Карточка» (`:card`) — сообщение 41 с кнопками `inventory`
+     * и `guide`; хаб инвентаря (`:s0`) — сообщение 43 с `whereItWent`; остальное — 42.
+     */
     private function fakeAct(): WebActService
     {
         return new class () extends WebActService {
@@ -351,11 +453,15 @@ final class PlayViewControllerTest extends CIUnitTestCase
             public function act(int $accountId, int $characterId, array $intent): array
             {
                 $this->calls[] = $intent;
-                $card          = str_ends_with((string) ($intent['intent_id'] ?? ''), ':card');
-                $msg           = [
-                    'message_id' => $card ? 41 : 42, 'text' => $card ? 'Карточка' : 'Инвентарь моста', 'caption' => null,
-                    'parse_mode' => null, 'photo_url' => null,
-                    'inline_keyboard' => $card ? [[['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']]] : [],
+                $id            = (string) ($intent['intent_id'] ?? '');
+                [$mid, $text, $kb] = match (true) {
+                    str_ends_with($id, ':card') => [41, 'Карточка', [[['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'], ['text' => '📖 Путь новичка', 'callback_data' => 'guide']]]],
+                    str_ends_with($id, ':s0')   => [43, 'Хаб инвентаря', [[['text' => '🧾 Куда ушло', 'callback_data' => 'whereItWent']]]],
+                    default                     => [42, 'Экран моста', []],
+                };
+                $msg = [
+                    'message_id' => $mid, 'text' => $text, 'caption' => null,
+                    'parse_mode' => null, 'photo_url' => null, 'inline_keyboard' => $kb,
                 ];
 
                 return ['state' => ['screen' => [$msg], 'history' => [], 'dock' => [['🧑 Я']], 'input' => null], 'alert' => null, 'unread' => 0];

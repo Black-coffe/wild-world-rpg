@@ -1732,6 +1732,29 @@ section.block:first-of-type { border-top: 0; }
 .play-kb-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; min-width: 0; }
 @media (min-width: 640px) { .play-kb-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .play-kb-grid form { display: contents; }
+
+/* Инвентарь /play (W2.N1-02): полки, вкладки-фильтр, поиск. */
+.play-native-subtitle.is-plain { color: var(--text-dim); }
+.play-inv-search { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.play-inv-search[hidden] { display: none; }
+.play-inv-tabs { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.play-inv-tab { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; max-width: 100%; padding: 6px 10px; background: var(--bg-elev-2); color: var(--text-dim); border: 1px solid var(--border); font-size: 13px; font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.play-inv-tab:hover { color: var(--text); border-color: var(--border-strong); }
+.play-inv-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.play-inv-tab.is-active { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+.play-inv-count { font-family: var(--font-mono); font-size: 11px; opacity: .8; }
+.play-inv-shelves { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.play-inv-shelf { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.play-inv-shelf[hidden] { display: none; }
+.play-inv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; min-width: 0; }
+.play-inv-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: baseline; padding: 7px 0; border-bottom: 1px dashed var(--border); min-width: 0; }
+.play-inv-item[hidden] { display: none; }
+.play-inv-name { font-size: 14px; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+.play-inv-qty { font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.play-inv-meta { grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); overflow-wrap: anywhere; }
+.play-inv-meta.is-warning { color: var(--warning); }
+.play-inv-empty { margin: 0; padding: 12px; border: 1px dashed var(--border-strong); color: var(--text-muted); font-size: 14px; }
+.play-inv-empty[hidden] { display: none; }
 </style>
 </head>
 
@@ -2341,6 +2364,64 @@ section.block:first-of-type { border-top: 0; }
               <form action="#play" method="post"><button class="play-kb-btn" type="submit">🧍 Страховка</button></form>
               <form action="#play" method="post"><button class="play-kb-btn" type="submit">🔒 ⚑ Фракция (с lvl 10)</button></form>
               <a class="play-kb-btn is-url" href="#play">🔗 Мой профиль</a>
+            </div>
+          </nav>
+        </article>
+      </div>
+    </div>
+
+    <h3 class="mt-3" id="play-inventory-demo">Инвентарь — единый список (W2.N1-02)</h3>
+    <p class="muted">Полки подряд; вкладки без JS — якоря к полкам, с JS — фильтр на месте. Поиск по имени появляется только с JS.</p>
+    <div class="play-shell is-native mt-2">
+      <div class="play-screen">
+        <article class="play-native" aria-label="Инвентарь">
+          <header class="play-native-head">
+            <h2 class="play-native-title">🎒 Инвентарь</h2>
+            <div class="play-native-tags"><span class="badge">Позиций: 4</span><span class="badge">💰 Добытое ~ 1 240</span></div>
+          </header>
+          <div class="play-inv-search">
+            <label class="label" for="uikit-inv-q">Поиск по названию</label>
+            <input class="input" id="uikit-inv-q" type="search" placeholder="Например, металл">
+          </div>
+          <nav class="play-inv-tabs" aria-label="Полки инвентаря">
+            <a class="play-inv-tab is-active" href="#uikit-inv-all" aria-current="true">Все <span class="play-inv-count">4</span></a>
+            <a class="play-inv-tab" href="#uikit-inv-res">📦 Добытые ресурсы <span class="play-inv-count">2</span></a>
+            <a class="play-inv-tab" href="#uikit-inv-food">🍲 Еда <span class="play-inv-count">1</span></a>
+            <a class="play-inv-tab" href="#uikit-inv-tool">🛠️ Инструменты <span class="play-inv-count">1</span></a>
+          </nav>
+          <div class="play-inv-shelves" id="uikit-inv-all">
+            <section class="play-inv-shelf" id="uikit-inv-res" aria-label="Добытые ресурсы">
+              <h3 class="play-native-subtitle is-plain">📦 Добытые ресурсы</h3>
+              <ul class="play-inv-list">
+                <li class="play-inv-item"><span class="play-inv-name">Металлолом</span><span class="play-inv-qty">× 1 204</span><span class="play-inv-meta">Редкость 2</span></li>
+                <li class="play-inv-item"><span class="play-inv-name">Очень длинное название ресурса, которое обязано переноситься на узком экране</span><span class="play-inv-qty">× 3</span><span class="play-inv-meta">Редкость 5</span></li>
+              </ul>
+            </section>
+            <section class="play-inv-shelf" id="uikit-inv-food" aria-label="Еда">
+              <h3 class="play-native-subtitle is-plain">🍲 Еда</h3>
+              <ul class="play-inv-list">
+                <li class="play-inv-item"><span class="play-inv-name">Рыбный суп</span><span class="play-inv-qty">× 2</span><span class="play-inv-meta is-warning">не применяется, выводится из обращения</span></li>
+              </ul>
+              <p class="play-native-hint">↳ Еда и питьё, которые работают: 💊 Аптечка → 🍲 Провизия</p>
+            </section>
+            <section class="play-inv-shelf" id="uikit-inv-tool" aria-label="Инструменты">
+              <h3 class="play-native-subtitle is-plain">🛠️ Инструменты</h3>
+              <ul class="play-inv-list">
+                <li class="play-inv-item"><span class="play-inv-name">Кирка</span><span class="play-inv-qty">× 1</span></li>
+              </ul>
+            </section>
+            <p class="play-inv-empty">Ничего не найдено на этой полке.</p>
+          </div>
+          <div class="play-lock">
+            <span class="play-lock-title">Рюкзак пуст</span>
+            <span class="play-lock-why">Здесь появится всё, что ты несёшь: добытые ресурсы и созданные предметы.</span>
+            <span class="play-lock-path">Ресурсы: «🧑 Я» → «🧑‍🌾 Действия 🛠️» → добыча на клетке. Предметы: «🔨 Крафт» в нижнем меню.</span>
+          </div>
+          <nav class="play-kb" aria-label="Ещё об инвентаре">
+            <div class="play-kb-grid">
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">📦 Склад базы</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🧾 Куда ушло</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">📊 Все мои ресурсы</button></form>
             </div>
           </nav>
         </article>
