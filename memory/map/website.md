@@ -31,9 +31,11 @@ last-verified: 2026-09-27
   (колокольчик), `VirtualIdentityService`, `SyntheticUpdateFactory`, `BridgeClient`. Инфра-числа —
   `Config\WebPlay` (не баланс). Флаг `web.play_enabled` (GameSettings, default off).
   Нативные экраны (ADR-190): `POST /play/view` → `WebNativeScreenService` рендерит «Я»/«Инвентарь»/
-  «Снаряжение» из сервис-моделей `Services/Player` (см. `player.md`); вьюхи `site/_play/native_*`,
-  `hud`, `dock`, `state`; JS `public/assets/js/wildworld-play.js`.
-- Statable: `app/Views/site/_layout/statable.php`, из `meta.php`; env `STATABLE_SITE_HASH`, пусто — не рендерится.
+  «Снаряжение» из `Services/Player` (см. `player.md`) и «Мир» (`view=map`) из `LiveMapService` +
+  `MarchService::status` (см. `world.md`); `op=cell|step|march_preview|march_start|march_extend|
+  march_resume|march_stop`. Вьюхи `site/_play/native_*`, `hud`, `dock`, `state`; JS `wildworld-play.js`.
+- Публичная карта `/map` → `app/Controllers/Map.php`: цвета легенды из `BiomePalette`, PNG с
+  `?v=filemtime`; вошедшему при `web.play_enabled` — «Играть отсюда» → `/play?view=map`.
 
 ## Key types / contracts
 Стиль — «Найденная фотоплёнка», flat-stencil (ADR-062): **ноль** `border-radius`, `box-shadow`,
@@ -60,18 +62,17 @@ outbound: модели постов, `Services/Web/TelegramLoginVerifier`, `Serv
 - `/account/reset` отдаёт одну страницу при любом исходе (нет почты / ушло / SMTP упал) — иначе
   оракул адресов; реальный отказ — только `error`-лог `[PasswordReset]`.
 - `/play`: флаг проверяется **до** входа — при выключенном заглушку `site/play_stub` видит и гость.
-  Персонаж только из сессии; из запроса — лишь `intent_id/kind/data/message_id`, id в HTML/JSON не
-  выводятся. Callback принимается, только если `data` на кнопке сообщения с тем `message_id`.
+  Персонаж только из сессии; из запроса — лишь `intent_id/kind/data/message_id` (+ у `/play/view`
+  `view/op/item/x/y/dir/n`), id в HTML/JSON не выводятся. Callback принимается, только если `data` на кнопке сообщения с тем `message_id`.
 - CSRF `regenerate` включён: JSON-ответы `/play/*` несут `csrf`, JS обязан брать свежий токен.
 - Return target после входа — только ровно `/play` (`AccountSession::RETURN_PLAY`).
-- Тексты под F1: `/web` (`WebLinkCodeAction`) и совет (миграция `…100011`) говорят «выйди из другого
-  входа и введи код»; заглушка берёт `can_register` из `AccountRegister::registrationOpen()`.
-- `/play/view` `op=equip|unequip` дедупится по `intent_id . ':gear'` в `web_play_intents`
-  (`WebNativeScreenService.php:190-192`); без JS — PRG на `/play?view=…`.
-- Кнопка нативного экрана без своего экрана идёт `op=bridge` через мост (карточка «Я» → ступени
-  маршрута → callback бота), а не напрямую.
+- Мутации `/play/view` дедупятся в `web_play_intents` по `intentKey(intent_id, ':gear'|':step'|':<march_op>')`
+  (≤64); без JS — PRG на `/play?view=…`. Хуки шага/Похода с чатом — под `WebDelivery`-захватом, под картой.
+- Поход из веба стартует без `msg_id` → прогресс тика приходит в Telegram новыми сообщениями.
+- Кнопка нативного экрана без своего экрана идёт `op=bridge` через мост (карточка «Я» / у карты `/go` →
+  ступени маршрута → callback бота), а не напрямую.
 - Сессия: ключи `account_id`, `character_id`, legacy `tg_user_id`; legacy-сессия апгрейдится в `current()`.
 
 ## Vault
 `mmorpg-vault/apps/website/index.md` · ADR-062, ADR-052, ADR-188, ADR-189, ADR-190 ·
-`tech-writing/controllers/{AccountControllers,Play}.md`, `tech-writing/services/{Account*,Web*}.md`
+`tech-writing/controllers/{AccountControllers,Play,Map}.md`, `tech-writing/services/{Account*,Web*}.md`
