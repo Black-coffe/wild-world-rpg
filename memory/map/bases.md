@@ -1,99 +1,77 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-15
+last-verified: 2026-09-27
 
 # Scout report: Базы, лагерь, постройки
 
 ## Purpose
 Строительство и жизненный цикл баз: лагерь, здания, апгрейды, лимиты, налог, мульти-база,
-защита от рейда, выбор базы кнопками (spec `multibase-picker`, shipped v0.51.669).
+защита от рейда, выбор базы кнопками (ADR-187). С w2-n4-base (v0.51.681, ADR-190) — ядро без
+`chat_id`, два рендерера: бот и веб `/play?view=base` (см. `website.md`).
 
 ## Entry points
-- **«🏠 База» (живой путь):** `Base`[`_b<id>`] → `Camp/Buildings/ShowBaseInfoAction` →
-  `App\Services\BaseService::showBaseInfo()` → `App\Services\Bases\BaseServiceMessageFormatter`
-  (`basePicker()` при 2+ базах). `DetailedBaseInfoAction` — НЕ этот экран: висит на `construction`
-  (кнопки построек `building_<id>_<name>[_b<id>]`). С суффиксом — база из `resolveForBase()`;
-  голый `construction` под вышкой (с multibase-picker-11) — база из `BaseScopeResolver::resolve()`,
-  шапка из строки `coverageByBase()` той же базы, суффикс кнопок — её id; без покрытия —
-  легаси `handleNotOnBasePhysically()` с `findAllActiveCells()[0]`.
-- `app/Services/Bases/` — `BaseLifecycleService`, `BaseLimitService`, `BaseCheckService`,
-  `CampCheckService`, `BaseLocationResolver`, `BaseBuildingsList`, `BaseServiceMessageFormatter`,
-  `BaseCallbackSuffix`, `BaseScopeResolver` (angela-second-base-bugs-07, расширен
-  multibase-picker-01/09) — единая точка «с какой базой работает этот экран», зовётся всеми
-  14 карточками построек (`Camp/Buildings/{...}Handler.php`) и `Camp/Buildings/
-  UpgradeBuildingAction` (`CallbackPrefixDispatcher`, префикс `upgrade_building_`).
+- **Ядро экрана базы — `App\Services\Bases\BaseScreenService`**: `resolve()` («🏠 База», с пикером),
+  `resolveConstruction()` («🏘 Постройки», без пикера), `overview()` (модель, `null` для чужой/неактивной),
+  `open()` (визит + онбординг). Рендереры: `BaseService::showBaseInfo()` (`Base`[`_b<id>`] через
+  `ShowBaseInfoAction`), `Camp\DetailedBaseInfoAction` (`construction`[`_b<id>`]), `WebNativeScreenService::baseModel()`.
+  Строки построек — `BaseBuildingsList::rows()`; тексты/кнопки бота — `BaseServiceMessageFormatter`.
+- **Ядро стройки — `App\Services\Buildings\BuildOrderService`**: `catalog()`/`preview()`/`start()`.
+  Рендереры: `Camp\BuildListAction` (`Build`[`_b<id>`]), `Camp\GenericBuildingInfoAction`
+  (`genericBuildInfo_<Key>`[`_b<id>`]), `Camp\GenericBuildingAction` (`genericStartBuild_<Key>`[`_b<id>`]), веб.
+- **Ядро апгрейда — `App\Services\Buildings\BuildingUpgradeService`**: `preview()`/`apply()` + хуки
+  (endgame, `FarmersHarvest`). Рендереры: `Camp\Buildings\UpgradeBuildingAction` (`CallbackPrefixDispatcher`,
+  `upgrade_building_<id>` / `confirm_upgrade_building_<id>`, опц. `_b<id>`), веб. Запись —
+  `Player/BuildingUpgrade/BuildingUpgradeApplier`, проверка — `BuildingUpgradeValidator`.
+- `app/Services/Bases/` — также `BaseLifecycleService`, `BaseLimitService`, `BaseCheckService`,
+  `CampCheckService`, `BaseLocationResolver`, `BaseCallbackSuffix`, `BaseScopeResolver`.
 - **`BaseCallbackSuffix`** — кодек `<callback>_b<claimed_cells.id>`: `append()` (`\LengthException`
-  >64 байт), `split(): [данные, baseId|null]` по `/_b(\d+)$/`. Роутер суффикс не снимает —
-  каждый обработчик сам зовёт `split()`.
-- **`BaseScopeResolver::resolve(characterId, currentCell)`** — cell / `no_bases` / `ambiguous`;
-  ветка «под сигналом» с multibase-picker-09 берёт первую по `id` базу, ПОКРЫТУЮ её собственной
-  Вышкой (раньше — первую активную вообще). `resolveForBase(characterId, currentCell, baseId)`
-  (multibase-picker-01) — явный id из суффикса: `on_base`/`tower`/`unavailable`.
-- **`App\Services\Coverage\CommunicationTowerCoverageService::coverageByBase(characterId,
-  playerCell)`** — покрытие по КАЖДОЙ активной базе (ASC `id`); Вышка засчитывается только своей
-  базе (`character_buildings.map_cell_id` = клетке этой базы). `maxCoverage = towerLevel ×
-  GameSettings('communication_tower.coverage_per_level')`; `checkCoverage()` — дешёвый гейт.
-- **`HangarAction`** (`Camp\HangarAction`, `hangar`[`_b<id>`]) — с суффиксом показывает
-  Мастерскую именно той базы; без суффикса и `resolve()==null` (multibase-picker-10) —
-  `renderNoBaseHub()`: хаб ADR-120 с честным lock, ни одна база не называется местной.
-- **Робот:** `Camp\Buildings\Robots\StartRobotGatheringAction::launchBase()`/`workshopAtBase()`/
-  `baseLabel()` — база запуска: игрок на ней, иначе первая база, покрытая её собственной Вышкой
-  и со своей Мастерской. Клетка пишется в `character_tasks.task_settings.base_cell` (JSON).
-  `CompleteRobotGatheringHandler` (`app/TaskHandlers/CompleteRobotGatheringHandler.php`, task
-  `GatheringResourcesRobot`) читает `base_cell`; легаси/неактивная база → активная с наименьшим
-  `id` (`orderBy('id','ASC')->first()`).
-- `app/Services/Buildings/`, `app/Services/BuildingEffects/`, `app/Services/Housing/`.
-- `app/Services/Player/BuildingUpgrade/`.
-- TaskHandlers — `app/TaskHandlers/Built/`, `BaseLifecycleHandler.php`, `TaxCollectionHandler.php`.
-- Таблица `character_buildings`.
+  >64 байт), `split()` по `/_b(\d+)$/`. Роутер суффикс не снимает — каждый обработчик сам.
+- **`BaseScopeResolver`** — `resolve(charId, cell)`: cell / `no_bases` / `ambiguous`, под сигналом — первая
+  по `id` база, покрытая своей Вышкой; `resolveForBase(charId, cell, baseId)`: `on_base`/`tower`/`unavailable`.
+- **`CommunicationTowerCoverageService::coverageByBase()`** — покрытие по каждой активной базе, Вышка
+  засчитывается только своей базе; `checkCoverage()` — дешёвый гейт.
+- `HangarAction` (`hangar`[`_b<id>`]), робот `StartRobotGatheringAction` / `CompleteRobotGatheringHandler`
+  (`task_settings.base_cell`).
+- `app/Services/BuildingEffects/`, `app/Services/Housing/`; TaskHandlers `app/TaskHandlers/Built/`,
+  `BaseLifecycleHandler.php`, `TaxCollectionHandler.php`; таблица `character_buildings`.
 
 ## Key types / contracts
 Дубли зданий разрешены намеренно: бонусы не суммируются, но налог растёт ×N и база крепче.
-Налог — per-base (ADR-122).
+Налог — per-base (ADR-122). Явный `baseId` (`_b<id>` бота, `b` веба) — только подсказка: ядро
+перепроверяет `resolveForBase()`. Строить можно только стоя на базе (покрытие Вышки не разрешает).
 
 ## Dependencies
-inbound: action-handler'ы лагеря, `Worker` (стройка, налог), PvP-рейды.
-outbound: ресурсы, `GameSettings`, `Services/Coverage`.
+inbound: action-handler'ы лагеря, веб `/play`, `Worker` (стройка, налог), PvP-рейды.
+outbound: ресурсы, `GameSettings`, `Services/Coverage`, `Services/Onboarding`.
 
 ## Gotchas
-- Защита базы не должна собираться из И-НЕ флагов: комбинация делается недостижимой, и база
-  перестаёт укрывать. База обязана укрывать всегда, когда игрок на ней.
-- Смерть: −3% с базой, −50% без базы.
-- Открытый хвост: штраф при сносе одной базы из нескольких.
-- Ловушка (exploit-audit, `docs/specs/exploit-audit/REPORT.md` #3, `EA-economy-04`), **ОТКРЫТА,
-  сознательно descoped из exploit-fix (решение владельца 2026-09-02)**:
-  `ResourcesBankModel::updatePurchasedQuantity()` / `ResourceTradeService::buyResource()` не
-  ограничивают объём покупки сырья — арбитраж «купи → дождись тика крона → продай дороже»,
-  цена меняется только между тиками `ResourceBankUpdateHandler`. Это вопрос цены/лимита (свой ADR,
-  ключи `economy.resource.max_purchase_per_trade`/`.repricing_mode`), не гонки — отдельная спека.
-  PoC `EconomyLimitsTest::testSingleUnguardedPurchasePumpsSellPriceAboveOriginalBuyPrice` остаётся
-  красным намеренно.
-- **ЗАКРЫТО (exploit-fix-07, F5, ADR-181).** `BeaconInstaller::install()` ставил маяк до
-  подтверждённого списания предмета — при неудаче выдавался бесплатно. Порядок перевёрнут:
-  условное списание первым, вставка маяка только на `Applied`. См.
-  `mmorpg-vault/tech-writing/services/BeaconInstaller.md`.
-- **(ADR-181) Заряд карго-дрона и списание ремонта — условная запись, не снимок.**
-  `CargoDroneSendAction`/`CargoDroneAutoSendAction` списывали абсолютным значением заряда
-  до транзакции (гонка); `RepairBuildingAction` при отказе коммитил уже списанные строки плана.
-  Оба — через `decrementIfAtLeast()`/условный откат внутри транзакции.
-- **(angela-second-base-bugs-07) Building-карточки мульти-база-aware.** Раньше 14 карточек,
-  `BaseBuildingUpgradeAction` и `BuildingUpgradeValidator` звали `resolveTargetBaseCell()`
-  напрямую и на `null` отвечали ОДНИМ текстом на «баз нет» и «баз несколько». `BaseBuildingUpgradeAction`
-  (abstract) на практике недостижим — живой путь апгрейда `CallbackPrefixDispatcher` →
-  `UpgradeBuildingAction` → `BuildingUpgradeValidator`.
-- **(multibase-picker, shipped v0.51.669) Выбор базы живёт в `callback_data`, не в хранилище.**
-  До этого «🏠 База» вне базы всегда открывала первую активную базу (`first()` без `orderBy`),
-  даже в шаге от второй под её собственной Вышкой. Открытые хвосты (не чинятся этой спекой, см.
-  `docs/specs/multibase-picker/plan.md` `## Открытые хвосты`): голые кнопки «🏠 База»/«назад» без
-  суффикса ведут в пикер, а не на просматриваемую базу; кнопки экрана базы без суффикса
-  («🏗 Строить», «📦 Склад базы», «🔨 Снести», `DeleteBase`, «📡 Маяки») не проверяют выбранную
-  базу повторно; при двух покрытых базах со своими Мастерскими робот уходит с меньшей по `id`.
-  Правило маяков «Центр телепортации на любой базе» записано намеренным в ADR-187.
-- **Экран «📡 Маяки» — две двери, обе в `BaseServiceMessageFormatter`**: `baseBuildings()`
-  (happy-path) и `notOnBasePhysically()` (заглушка). Маяк ставится в клетке игрока, вне базы.
-  Отказ «нет Центра телепортации» в `TeleportBeacon::handle()` — под текстом «🏗 Строить»/«🏠 База».
-  См. `mmorpg-vault/tech-writing/handlers/buildings/TeleportBeaconScreen.md`.
+- Защита базы не собирается из И-НЕ флагов: база обязана укрывать всегда, когда игрок на ней.
+- Смерть: −3% с базой, −50% без базы. Открытый хвост: штраф при сносе одной базы из нескольких.
+- **Переезд не проверяется ядром.** `ActiveTasksService::checkRelocationAndBlock()` зовут только бот-экраны
+  `BuildListAction`, `GenericBuildingInfoAction`, `UpgradeBuildingAction::askForUpgrade()`; его нет в
+  `GenericBuildingAction`, `confirmUpgrade()` и во всех веб-путях (`buildStart`, `upgrade`).
+- **`confirm_upgrade_building_<id>` не несёт уровень**: `<id>` — `buildings.id`, цель = текущий + 1 на момент
+  подтверждения. Двойное подтверждение гасит `BuildingUpgradeApplier` (`WHERE level = nextLevel - 1`,
+  золото — `decrementIfAtLeast`): +1 уровень и одна оплата.
+- **Старт стройки (ADR-181)**: лимит базы и `already_building` (та же задача `in_work|queued` с
+  `task_settings.base_cell` этой клетки) перепроверяются под `SELECT … FOR UPDATE` строки персонажа;
+  списание условное; лог отказа `BUILD_<Key>` пишет рендерер (ядро отдаёт `log`). `cellLoad()` считает
+  стройки в работе по всем базам персонажа, возведённые — по клетке.
+- «❌ Отмена» подтверждения апгрейда ведёт на `Base_b<id>` (та же база), без базы — голый `Base`.
+- Открытые хвосты multibase-picker (`docs/specs/multibase-picker/plan.md`): голые «🏠 База»/«назад» ведут в
+  пикер; «📦 Склад базы», «🔨 Снести», `DeleteBase`, «📡 Маяки» без суффикса базу не перепроверяют; робот
+  при двух покрытых базах с Мастерскими уходит с меньшей по `id`. «🏗 Строить» суффикс несёт с w2-n4-base-01.
+- **ОТКРЫТО, descoped (EA-economy-04, `docs/specs/exploit-audit/REPORT.md` #3)**: объём покупки сырья
+  (`ResourceTradeService::buyResource()`) не ограничен — арбитраж между тиками `ResourceBankUpdateHandler`;
+  PoC `EconomyLimitsTest::testSingleUnguardedPurchasePumpsSellPriceAboveOriginalBuyPrice` красный намеренно.
+- ЗАКРЫТО (ADR-181): `BeaconInstaller::install()` — списание до вставки маяка; заряд карго-дрона и ремонт —
+  условная запись. `BaseBuildingUpgradeAction` (abstract) недостижим.
+- «📡 Маяки» — две двери в `BaseServiceMessageFormatter` (`baseBuildings()`, `notOnBasePhysically()`),
+  маяк ставится в клетке игрока; «Центр телепортации на любой базе» — намеренно (ADR-187).
 
 ## Vault
-`mmorpg-vault/apps/bases/index.md`
+`mmorpg-vault/apps/bases/index.md` · `tech-writing/services/{BaseScreenService,BuildOrderService,
+BuildingUpgradeService,BuildingUpgradeApplier,BaseService,BaseBuildingsList,BeaconInstaller}.md` ·
+`tech-writing/handlers/camp/{BuildListAction,GenericBuildingInfoAction,GenericBuildingAction,
+UpgradeBuildingAction,DetailedBaseInfoAction}.md`, `handlers/buildings/TeleportBeaconScreen.md`

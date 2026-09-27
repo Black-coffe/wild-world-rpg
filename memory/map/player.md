@@ -52,6 +52,9 @@ outbound: модели `app/Models/*`, `Services/GameSettings`, `Services/Notifi
   предмета. См. `bases.md` (`BeaconInstaller`).
 - Ресурсы персонажа матчатся по (`id_characters`, `id_resources`) — см. Key types выше;
   `decreaseResources()` (F0/ADR-181, 2026-09) удалена, см. `craft.md`.
+- `Player/BuildingUpgrade/BuildingUpgradeApplier` (w2-n4-base-02): золото апгрейда — `decrementIfAtLeast`, не
+  `CharacterStatsService::adjust()`; уровень — `WHERE level = nextLevel - 1`. Зовётся только из
+  `Buildings/BuildingUpgradeService` (см. `bases.md`).
 - Смена снаряжения — **один UPDATE на слот** (`equipped = IF(id = ?,1,0)`), не «снять всех» +
   «надеть»; слот брони эффективный `COALESCE(NULLIF(outfits.slot,''), characters_outfits.slot)`
   (`EquipmentLoadoutService.php:280-290`). Писать equipped в обход сервиса нельзя.

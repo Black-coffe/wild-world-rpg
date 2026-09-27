@@ -48,6 +48,7 @@ outbound: ресурсы персонажа, `GameSettings`, `Images`.
   (`task_settings.consumed{resources{backpack,storage},crafted_items,gold}`); без `consumed` — в рюкзак.
 - **(W2.N3-01) Лимиты очереди — GameSettings** `craft.queue.max_per_recipe` (10) / `craft.queue.max_slots`
   (3), не `Config\GameBalance` (поля удалены). Перепроверяются под `SELECT … FOR UPDATE` строки персонажа.
+- Рыбные рецепты — один список `CraftOrderService::FISH_RECIPES` (w2-n4-base-03); `CampfireCookingSelect::FISH_RECIPES` — алиас.
 - Ядро в `action_log` не пишет: отказ несёт `log{reason,extra}`, пишет рендерер (`CRAFT_<Key>`).
 - **(2026-09, ADR-181) Списание ресурсов** — `CharacterResourceModel::decreaseResources()` удалено
   (читало-считало-писало, при нехватке удаляло строку и рапортовало успех); заменено
