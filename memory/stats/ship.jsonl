@@ -15,3 +15,4 @@
 {"ts":"2026-09-27T15:03:19Z","spec":"w2-n3-craft-queue","version":"v0.51.678","head":"10296ccc","pack":"acbd19c31a59","note":"merged to develop, publish pending (тег на develop после зелёного preprod-смоука)"}
 {"ts":"2026-09-27T15:57:08Z","spec":"w2-n3-craft-tails","version":"v0.51.679","head":"460eb52f","pack":"5b753339e458","note":"merged to develop, publish pending (тег после preprod-смоука)"}
 {"ts":"2026-09-27T16:58:47Z","spec":"w2-n3-craft-flags","version":"v0.51.680","head":"ebf4a53c","pack":"3e8a44032f1b","note":"merged to develop, publish pending (тег после preprod-смоука)"}
+{"ts":"2026-09-27T20:46:42Z","spec":"w2-n4-base","version":"v0.51.681","head":"b9d58707","pack":"3effcd6baf8a","note":"merged to develop, publish pending"}

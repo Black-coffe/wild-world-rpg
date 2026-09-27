@@ -102,4 +102,4 @@
 **Checked:** <written by scripts/human-check.sh>
 **Council:** RED round 1, 2026-09-27, at 639618d4, pack 10bcc90aa632
 **Council:** GREEN round 2, 2026-09-27, at e17280d6, pack 3effcd6baf8a
-**Shipped:** <written by scripts/ship-check.sh --record>
+**Shipped:** v0.51.681, 2026-09-27, at b9d58707 - merged to develop, publish pending
