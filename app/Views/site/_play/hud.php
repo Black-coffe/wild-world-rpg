@@ -8,6 +8,11 @@
  * `data-ends-at` (unix, секунды) без запросов к серверу. HUD приходит заново в каждом ответе
  * `/play/act`, `/play/view`, `/play/inbox` и подменяет `#play-hud` целиком.
  *
+ * W2.N2-03: идущий Поход ({@see \App\Services\World\MarchService::status()}) — направление,
+ * пройдено/всего, таймер до прибытия (тот же `data-ends-at`) и «Остановиться» (`op=march_stop`);
+ * на паузе — «Продолжить» (`op=march_resume`). Опрос входящих обновляет полосу — прогресс виден
+ * без перезагрузки.
+ *
  * @var array<string, mixed> $hud
  */
 
@@ -23,6 +28,8 @@ $cell    = is_array($h['cell'] ?? null) ? $h['cell'] : null;
 $biome   = is_string($h['biome'] ?? null) ? $h['biome'] : null;
 $task    = is_array($h['task'] ?? null) ? $h['task'] : null;
 $more    = is_int($h['tasks_more'] ?? null) ? $h['tasks_more'] : 0;
+$march   = is_array($h['march'] ?? null) ? $h['march'] : null;
+$viewUrl = base_url('play/view');
 
 $endsAt = $task !== null && is_int($task['ends_at'] ?? null) ? $task['ends_at'] : null;
 $left   = static function (int $seconds): string {
@@ -61,4 +68,30 @@ $left   = static function (int $seconds): string {
             <?php endif ?>
         <?php endif ?>
     </div>
+    <?php if ($march !== null): ?>
+        <?php
+        $mDone    = is_int($march['steps_done'] ?? null) ? $march['steps_done'] : 0;
+        $mPlanned = is_int($march['steps_planned'] ?? null) ? max(1, $march['steps_planned']) : 1;
+        $mPaused  = ($march['status'] ?? '') === 'paused';
+        $mEta     = is_int($march['eta'] ?? null) ? $march['eta'] : null;
+        $mForm    = static function (string $op, string $label) use ($viewUrl): string {
+            return '<form action="' . esc($viewUrl, 'attr') . '" method="post">' . csrf_field()
+                . '<input type="hidden" name="view" value="map"><input type="hidden" name="op" value="' . esc($op, 'attr') . '">'
+                . '<input type="hidden" name="intent_id" value="' . bin2hex(random_bytes(16)) . '">'
+                . '<button class="play-hud-march-btn" type="submit">' . esc($label) . '</button></form>';
+        };
+        ?>
+        <div class="play-hud-march<?= $mPaused ? ' is-paused' : '' ?>">
+            <span class="play-hud-task-name"><?= $mPaused ? '⏸ Поход на паузе' : '🚜 Поход' ?>: <?= esc(is_string($march['heading_label'] ?? null) ? $march['heading_label'] : '') ?> · <?= $mDone ?>/<?= $mPlanned ?> клеток</span>
+            <progress class="play-hud-bar" max="<?= $mPlanned ?>" value="<?= min($mDone, $mPlanned) ?>" aria-label="Пройдено <?= $mDone ?> из <?= $mPlanned ?> клеток"><?= $mDone ?>/<?= $mPlanned ?></progress>
+            <?php if ($mEta !== null): ?>
+                <span class="play-hud-sub">до прибытия</span>
+                <time class="play-hud-timer" data-ends-at="<?= $mEta ?>" datetime="<?= esc(date('c', $mEta), 'attr') ?>"><?= esc($left($mEta - time())) ?></time>
+            <?php endif ?>
+            <?php if ($mPaused): ?>
+                <?= $mForm('march_resume', '🚜 Продолжить') ?>
+            <?php endif ?>
+            <?= $mForm('march_stop', '❌ Остановиться') ?>
+        </div>
+    <?php endif ?>
 </div>

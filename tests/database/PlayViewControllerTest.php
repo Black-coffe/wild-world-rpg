@@ -6,6 +6,7 @@ namespace Tests\Database;
 
 use App\Services\Logging\TelegramDeliveryProbe;
 use App\Services\Player\CharacterSheetService;
+use App\Services\Player\EquipmentLoadoutService;
 use App\Services\Player\InventoryViewService;
 use App\Services\Telegram\BotMenuService;
 use App\Services\Web\AccountService;
@@ -14,6 +15,9 @@ use App\Services\Web\VirtualIdentityService;
 use App\Services\Web\WebActService;
 use App\Services\Web\WebDelivery;
 use App\Services\Web\WebNativeScreenService;
+use App\Services\Web\WebScreenStore;
+use App\Services\World\LiveMapService;
+use App\Services\World\MoveService;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Forge;
@@ -364,6 +368,321 @@ final class PlayViewControllerTest extends CIUnitTestCase
         ], $act->calls);
     }
 
+    // ── Карта «Мир» (W2.N2-01) ──────────────────────────────────────────
+
+    public function testDockWorldButtonOpensNativeMap(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->seedScreen($charId, [['🌍 Мир', '🧑 Я', '🏠 База']]);
+
+        $page = html_entity_decode($this->body($this->withSession($session)->get('play')), ENT_QUOTES | ENT_HTML5);
+
+        $this->assertMatchesRegularExpression('~action="[^"]*/play/view" method="post">.*?name="view" value="map">.*?🌍 Мир</button>~su', $page);
+        $this->assertSame('map', WebNativeScreenService::viewForDockLabel('Карта'), 'при world_hub OFF в доке «Карта»');
+    }
+
+    public function testMapViewRendersGridRoseAndHud(): void
+    {
+        [$session, , $tg] = $this->character('Ворон');
+        $this->stubSheets(null, [[], []], $this->stubMap());
+
+        $res = $this->postWithCsrf($session, 'play/view', ['view' => 'map'], true);
+        $res->assertStatus(200);
+        $json = $this->json($res);
+        $html = html_entity_decode($json['html'], ENT_QUOTES | ENT_HTML5);
+
+        $this->assertStringContainsString('data-native="map"', $html);
+        $this->assertSame(144, substr_count($html, 'class="play-map-cell'), 'окно 12×12');
+        $this->assertStringContainsString('🙎‍♂️', $html);
+        $this->assertStringContainsString('X=10 Y=10', $html);
+        $this->assertStringContainsString('🏕 База: 3 ходов ↗️', $html);
+        // Соседняя клетка и роза — нативный шаг (op=step); прочая клетка — подсказка.
+        $this->assertMatchesRegularExpression('~name="op" value="step"><input type="hidden" name="dir" value="north"><input type="hidden" name="intent_id" value="[0-9a-f]{32}"><button class="play-map-cell is-biome is-step"~su', $html);
+        $this->assertMatchesRegularExpression('~name="op" value="step"><input type="hidden" name="dir" value="north"><input type="hidden" name="intent_id" value="[0-9a-f]{32}"><button class="play-kb-btn" type="submit">⬆️ Север</button>~su', $html);
+        $this->assertStringNotContainsString('value="move_dir_', $html, 'шаг больше не идёт через мост');
+        $this->assertMatchesRegularExpression('~name="op" value="cell"><input type="hidden" name="x" value="4"><input type="hidden" name="y" value="5">~su', $html);
+        // W2.N2-03: клетка на луче дальше соседней — превью Похода (n — расстояние по Чебышёву).
+        $this->assertMatchesRegularExpression('~name="op" value="march_preview"><input type="hidden" name="dir" value="east"><input type="hidden" name="n" value="3"><button class="play-map-cell is-biome is-ray"~su', $html);
+        $this->assertMatchesRegularExpression('~name="op" value="march_preview"><input type="hidden" name="dir" value="northwest"><input type="hidden" name="n" value="6"><button class="play-map-cell is-biome is-ray"~su', $html);
+        $this->assertStringContainsString('href="' . base_url('map') . '"', $html, 'ссылка «Весь мир»');
+        $this->assertMatchesRegularExpression('~name="data" value="island"><button class="play-kb-btn" type="submit">🌍 Остров живёт</button>~su', $html);
+        $this->assertStringContainsString('class="play-dock"', $html);
+        $this->assertStringContainsString('id="play-hud"', $json['hud']);
+        $this->assertStringNotContainsString((string) $tg, $this->body($res), 'ни одного telegram id');
+    }
+
+    public function testMapCellGivesHintAndRejectsCellOutsideTheWindow(): void
+    {
+        [$session] = $this->character('Ворон');
+        $this->stubSheets(null, [[], []], $this->stubMap());
+
+        $json = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'cell', 'x' => '4', 'y' => '5'], true));
+        $this->assertIsString($json['alert']);
+        $this->assertStringContainsString('X=4, Y=5', $json['alert']);
+        $this->assertStringContainsString('Лес', $json['alert']);
+
+        $fog = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'cell', 'x' => '5', 'y' => '5'], true));
+        $this->assertStringContainsString('Не изучено', (string) $fog['alert']);
+
+        foreach ([['x' => '40', 'y' => '5'], ['x' => 'a', 'y' => '5'], ['y' => '5']] as $i => $xy) {
+            $res = $this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'cell'] + $xy, true);
+            $this->assertSame(400, $res->response()->getStatusCode(), "клетка #{$i}");
+        }
+    }
+
+    public function testMapButtonWithoutOwnScreenGoesThroughTheBridgeFromTheWorldScreen(): void
+    {
+        [$session] = $this->character('Ворон');
+        $act       = $this->fakeAct();
+        $this->stubSheets($act, [[], []], $this->stubMap());
+
+        $res = $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'island', 'intent_id' => 'm1'], true);
+        $res->assertStatus(200);
+
+        $this->assertSame([
+            ['intent_id' => 'm1:card', 'kind' => 'command', 'data' => '/go'],
+            ['intent_id' => 'm1:cb', 'kind' => 'callback', 'data' => 'island', 'message_id' => '44'],
+        ], $act->calls);
+    }
+
+    /**
+     * W2.N2-02: клик по соседней клетке и роза — нативный шаг тем же сервисом, что у бота; хуки шага
+     * (здесь — подсказка) и события (рана) ложатся на экран моста и видны под картой, их кнопки —
+     * `/play/act` с `message_id` своего сообщения. Повтор `intent_id` второго шага не делает.
+     */
+    public function testStepMovesShowsEventsUnderTheMapAndDedupsTheIntent(): void
+    {
+        [$session, $charId, $tg] = $this->character('Ворон');
+        $move = $this->stubMove();
+        $this->stubSheets(null, [[], []], $this->stubMap(), $move);
+
+        $res = $this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'step', 'dir' => 'north', 'intent_id' => 'st1'], true);
+        $res->assertStatus(200);
+        $json = $this->json($res);
+        $html = html_entity_decode($json['html'], ENT_QUOTES | ENT_HTML5);
+
+        $this->assertSame([[$charId, 'north', $tg]], $move->calls, 'шаг и хуки — персонаж сессии, чат его личности');
+        $this->assertSame('Вы двинулись на: север.', $json['alert']);
+        $this->assertStringContainsString('data-native="map"', $html);
+        $this->assertStringContainsString('Подсказка новичку', $html, 'сообщение хука под картой');
+        $this->assertStringContainsString('<b>Перелом!</b>', $html, 'событие шага под картой, Markdown отрисован');
+
+        $screen = (new WebScreenStore($this->conn))->state($charId)['screen'];
+        $this->assertCount(2, $screen, 'хук и событие — на экране моста');
+        foreach ([[$screen[0], 'Base'], [$screen[1], 'pharmacy']] as [$msg, $cb]) {
+            $this->assertMatchesRegularExpression(
+                '~action="[^"]*/play/act" method="post">.*?name="kind" value="callback"><input type="hidden" name="data" value="' . $cb . '"><input type="hidden" name="message_id" value="' . $msg['message_id'] . '">~su',
+                $html
+            );
+        }
+
+        $again = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'step', 'dir' => 'north', 'intent_id' => 'st1'], true));
+        $this->assertCount(1, $move->calls, 'повтор intent_id — без второго шага');
+        $this->assertNull($again['alert']);
+        $this->assertSame(1, $this->conn->table('web_play_intents')->where('intent_id', 'st1:step')->countAllResults());
+
+        $refused = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'step', 'dir' => 'west', 'intent_id' => 'st2'], true));
+        $this->assertSame('🧭 Там край острова — дальше на запад пути нет.', $refused['alert'], 'отказ — ответом кнопки');
+
+        foreach ([['dir' => 'up', 'intent_id' => 'st3'], ['dir' => 'north'], ['dir' => 'north', 'intent_id' => str_repeat('a', 61)]] as $i => $bad) {
+            $res = $this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'step'] + $bad, true);
+            $this->assertSame(400, $res->response()->getStatusCode(), "шаг #{$i}");
+        }
+        $this->assertCount(2, $move->calls);
+    }
+
+    public function testStepWithoutJsIsPrgToTheMapWithEventsUnderIt(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->seedScreen($charId);
+        $this->stubSheets(null, [[], []], $this->stubMap(), $this->stubMove());
+
+        $res = $this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'step', 'dir' => 'east', 'intent_id' => 'nj1']);
+        $this->assertSame(303, $res->response()->getStatusCode());
+        $this->assertStringEndsWith('/play?view=map', $res->response()->getHeaderLine('Location'));
+
+        $flash = [
+            'play_alert'      => $_SESSION['play_alert'] ?? null,
+            'play_map_events' => $_SESSION['play_map_events'] ?? null,
+            '__ci_vars'       => ['play_alert' => 'new', 'play_map_events' => 'new'],
+        ];
+        $this->assertSame('Вы двинулись на: восток.', $flash['play_alert']);
+        $this->assertIsArray($flash['play_map_events']);
+
+        $page = html_entity_decode($this->body($this->withSession($session + $flash)->get('play?view=map')), ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-native="map"', $page);
+        $this->assertStringContainsString('Вы двинулись на: восток.', $page);
+        $this->assertStringContainsString('Подсказка новичку', $page);
+        $this->assertStringContainsString('<b>Перелом!</b>', $page);
+    }
+
+    /**
+     * W2.N2-03: клик по клетке на луче — превью Похода тем же сервисом, что экран маршрута бота:
+     * число клеток (зажато в потолок заказа), ETA, расход, ➖/➕ и «Выступить».
+     */
+    public function testRayCellOpensMarchPreviewWithCellsEtaAndCost(): void
+    {
+        [$session] = $this->character('Ворон');
+        $this->enableMarch();
+        $this->stubSheets(null, [[], []], $this->stubMap());
+
+        $res = $this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_preview', 'dir' => 'east', 'n' => '999'], true);
+        $res->assertStatus(200);
+        $html = html_entity_decode($this->json($res)['html'], ENT_QUOTES | ENT_HTML5);
+
+        $this->assertStringContainsString('🚜 Поход: ➡️ Восток ×60', $html, 'n зажат в потолок заказа');
+        $this->assertStringContainsString('60 из 60 возможных', $html);
+        $this->assertStringContainsString('<dt>В пути</dt><dd>~0 мин</dd>', $html);
+        $this->assertStringContainsString('❤️ 1.2 · 💤 30', $html, 'расход — world.march.* по умолчанию');
+        $this->assertMatchesRegularExpression('~name="op" value="march_start"><input type="hidden" name="dir" value="east"><input type="hidden" name="n" value="60"><input type="hidden" name="intent_id" value="[0-9a-f]{32}"><button class="play-kb-btn is-primary" type="submit">🚜 Выступить</button>~su', $html);
+        $this->assertMatchesRegularExpression('~name="op" value="march_preview"><input type="hidden" name="dir" value="east"><input type="hidden" name="n" value="59">~su', $html, '➖');
+        $this->assertSame(0, $this->conn->table('character_tasks')->countAllResults(), 'превью ничего не пишет');
+
+        $bad = $this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_preview', 'dir' => 'up', 'n' => '3'], true);
+        $this->assertSame(400, $bad->response()->getStatusCode());
+    }
+
+    /**
+     * «Выступить» пишет ту же строку Похода, что бот, без `msg_*`; HUD и карта показывают прогресс,
+     * «Продлить» и «Остановиться» работают; повтор `intent_id` не создаёт второй Поход.
+     */
+    public function testMarchStartShowsProgressExtendsStopsAndDedupsTheIntent(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableMarch();
+        $this->stubSheets(null, [[], []], $this->stubMap());
+
+        $start = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_start', 'dir' => 'east', 'n' => '3', 'intent_id' => 'ms1'], true));
+        $this->assertStringStartsWith('🚜 Поход начат: ➡️ Восток ×3.', (string) $start['alert']);
+        $html = html_entity_decode($start['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('🚜 Поход идёт: ➡️ Восток · 0/3 клеток', $html);
+        $this->assertMatchesRegularExpression('~name="op" value="march_stop"><input type="hidden" name="intent_id" value="[0-9a-f]{32}"><button class="play-kb-btn" type="submit">❌ Остановиться</button>~su', $html);
+        $hud = html_entity_decode($start['hud'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('class="play-hud-march"', $hud);
+        $this->assertStringContainsString('🚜 Поход: ➡️ Восток · 0/3 клеток', $hud);
+        $this->assertStringContainsString('value="march_stop"', $hud);
+
+        $rows = $this->conn->table('character_tasks')->get()->getResultArray();
+        $this->assertCount(1, $rows);
+        $this->assertSame(['in_work', (string) $charId], [$rows[0]['status'], (string) $rows[0]['character_id']]);
+        $settings = json_decode((string) $rows[0]['task_settings'], true);
+        $this->assertSame(['heading' => 'east', 'steps_planned' => 3, 'steps_done' => 0, 'started_cell' => 0, 'acc' => [], 'log' => []], $settings, 'без msg_* — тик шлёт прогресс новым сообщением');
+
+        $again = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_start', 'dir' => 'east', 'n' => '3', 'intent_id' => 'ms1'], true));
+        $this->assertNull($again['alert']);
+        $this->assertSame(1, $this->conn->table('character_tasks')->countAllResults(), 'повтор intent_id — без второго Похода');
+
+        $busy = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_start', 'dir' => 'north', 'n' => '2', 'intent_id' => 'ms2'], true));
+        $this->assertStringContainsString('Вы уже заняты задачей «Поход»', (string) $busy['alert'], 'второй Поход поверх идущего — отказ');
+
+        $more = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_extend', 'n' => '5', 'intent_id' => 'me1'], true));
+        $this->assertSame('Поход продлён на 5 клеток. Всего: 8.', $more['alert']);
+
+        $forged = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_extend', 'n' => '9999', 'intent_id' => 'me2'], true));
+        $this->assertSame('Поход продлён на 60 клеток. Всего: 68.', $forged['alert'], 'подделанный n зажат в потолок заказа');
+
+        $stop = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_stop', 'intent_id' => 'mx1'], true));
+        $this->assertStringStartsWith('🚜 Поход прерван. Пройдено 0 клеток.', (string) $stop['alert']);
+        $this->assertStringNotContainsString('Поход идёт', html_entity_decode($stop['html'], ENT_QUOTES | ENT_HTML5));
+        $this->assertStringNotContainsString('play-hud-march', $stop['hud']);
+        $this->assertSame('completed', $this->conn->table('character_tasks')->get()->getRowArray()['status'] ?? null);
+
+        $resume = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_resume', 'intent_id' => 'mr1'], true));
+        $this->assertSame('Походов на паузе нет.', $resume['alert']);
+        $this->assertSame(1, $this->conn->table('web_play_intents')->where('intent_id', 'ms1:march_start')->countAllResults());
+
+        foreach ([['op' => 'march_start', 'dir' => 'up', 'n' => '3', 'intent_id' => 'b1'], ['op' => 'march_stop'], ['op' => 'march_fly', 'intent_id' => 'b2']] as $i => $bad) {
+            $res = $this->postWithCsrf($session, 'play/view', ['view' => 'map'] + $bad, true);
+            $this->assertSame(400, $res->response()->getStatusCode(), "Поход #{$i}");
+        }
+    }
+
+    public function testMarchPreviewWithoutJsIsPrgToTheMapWithThePreview(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->seedScreen($charId);
+        $this->enableMarch();
+        $this->stubSheets(null, [[], []], $this->stubMap());
+
+        $res = $this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_preview', 'dir' => 'south', 'n' => '4']);
+        $this->assertSame(303, $res->response()->getStatusCode());
+        $this->assertStringEndsWith('/play?view=map', $res->response()->getHeaderLine('Location'));
+        $this->assertSame(['dir' => 'south', 'n' => 4], $_SESSION['play_map_preview'] ?? null);
+
+        $flash = ['play_map_preview' => ['dir' => 'south', 'n' => 4], '__ci_vars' => ['play_map_preview' => 'new']];
+        $page  = html_entity_decode($this->body($this->withSession($session + $flash)->get('play?view=map')), ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('🚜 Поход: ⬇️ Юг ×4', $page);
+        $this->assertStringContainsString('value="march_start"', $page);
+    }
+
+    /** Хвост story 01 (Ask 7): без Арсенала надетую броню можно снять, замок — только на «Надеть». */
+    public function testGearWithoutArsenalOffersUnequipOfWornArmor(): void
+    {
+        [$session] = $this->character('Ворон');
+        $item = static fn (int $id, string $name, bool $on): array => [
+            'kind' => EquipmentLoadoutService::KIND_ARMOR, 'row_id' => $id, 'name' => $name, 'name_en' => 'X', 'quantity' => 1,
+            'equipped' => $on, 'slot' => 'Тело', 'soulbound' => null, 'info' => [],
+        ];
+        $loadout = new class ($this->conn, [$item(5, 'Кожанка', true), $item(6, 'Плащ', false)]) extends EquipmentLoadoutService {
+            /**
+             * @param BaseConnection<object, object> $conn
+             * @param list<array<string, mixed>>     $armor
+             */
+            public function __construct(BaseConnection $conn, private array $armor)
+            {
+                parent::__construct($conn);
+            }
+
+            public function forCharacter(int $characterId): array
+            {
+                return [
+                    'arsenal' => false, 'lock' => ['title' => 'Нужен Арсенал', 'required_level' => 3, 'callback' => 'genericBuildInfo_Arsenal', 'button' => '🏗 К стройке Арсенала'],
+                    'on_base' => true, 'sale_enabled' => false, 'weapons' => [], 'armor' => $this->armor,
+                ];
+            }
+        };
+        Factories::injectMock('libraries', WebNativeScreenService::class, new WebNativeScreenService(null, null, null, $loadout, $this->stubMap()));
+
+        $html = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'gear'], true))['html'], ENT_QUOTES | ENT_HTML5);
+
+        $this->assertStringContainsString('🔒 Экипировка (нужно: Арсенал)', $html);
+        $this->assertMatchesRegularExpression('~name="op" value="unequip"><input type="hidden" name="kind" value="armor"><input type="hidden" name="item" value="5">~su', $html);
+        $this->assertStringContainsString('Кожанка', $html);
+        $this->assertStringNotContainsString('Плащ', $html, 'не надетое без Арсенала не показывается');
+        $this->assertStringNotContainsString('value="equip"', $html, '«Надеть» под замком');
+    }
+
+    /** Хвост W2.N1: `intent_id` на пределе (60) с любым суффиксом ступени влезает в VARCHAR(64). */
+    public function testLongestIntentWithLongestSuffixFitsTheDedupColumn(): void
+    {
+        $long  = str_repeat('a', WebNativeScreenService::INTENT_MAX);
+        $other = str_repeat('a', WebNativeScreenService::INTENT_MAX - 1) . 'b';
+        foreach ([':gear', ':step', ':card', ':cb', ':s0', ':s12'] as $suffix) {
+            $key = WebNativeScreenService::intentKey($long, $suffix);
+            $this->assertLessThanOrEqual(64, strlen($key), $suffix);
+            $this->assertStringEndsWith($suffix, $key);
+            $this->assertSame($key, WebNativeScreenService::intentKey($long, $suffix), 'повтор — тот же ключ');
+            $this->assertNotSame($key, WebNativeScreenService::intentKey($other, $suffix), 'разные намерения — разные ключи');
+        }
+        $this->assertSame('short:gear', WebNativeScreenService::intentKey('short', ':gear'), 'короткий ключ не меняется');
+
+        [$session] = $this->character('Ворон');
+        $act       = $this->fakeAct();
+        $this->stubSheets($act);
+        $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'guide', 'intent_id' => $long], true)->assertStatus(200);
+        $this->assertCount(2, $act->calls);
+        foreach ($act->calls as $call) {
+            $this->assertLessThanOrEqual(64, strlen((string) $call['intent_id']));
+        }
+        // Колонка сама: ключ на пределе записывается целиком.
+        $key = WebNativeScreenService::intentKey($long, ':card');
+        $this->conn->table('web_play_intents')->insert(['account_id' => 1, 'intent_id' => $key, 'created_at' => date('Y-m-d H:i:s')]);
+        $this->assertSame(1, $this->conn->table('web_play_intents')->where('intent_id', $key)->countAllResults());
+
+        $tooLong = $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'guide', 'intent_id' => $long . 'x'], true);
+        $this->assertSame(400, $tooLong->response()->getStatusCode());
+    }
+
     public function testActAndInboxResponsesCarryHud(): void
     {
         [$session] = $this->character('Ворон');
@@ -384,7 +703,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
      *
      * @param array{0: list<array<string, mixed>>, 1: list<array<string, mixed>>} $inventoryRows
      */
-    private function stubSheets(?WebActService $act = null, array $inventoryRows = [[], []]): void
+    private function stubSheets(?WebActService $act = null, array $inventoryRows = [[], []], ?LiveMapService $map = null, ?MoveService $move = null): void
     {
         $conn   = $this->conn;
         $sheets = new class ($conn) extends CharacterSheetService {
@@ -434,7 +753,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
                 return $this->rows[1];
             }
         };
-        Factories::injectMock('libraries', WebNativeScreenService::class, new WebNativeScreenService($act, $sheets, $inventory));
+        Factories::injectMock('libraries', WebNativeScreenService::class, new WebNativeScreenService($act, $sheets, $inventory, null, $map ?? $this->stubMap(), $move));
         if ($act !== null) {
             Factories::injectMock('libraries', WebActService::class, $act);
         }
@@ -455,6 +774,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
                 $this->calls[] = $intent;
                 $id            = (string) ($intent['intent_id'] ?? '');
                 [$mid, $text, $kb] = match (true) {
+                    ($intent['data'] ?? null) === '/go' => [44, 'Карта', [[['text' => '⬆️ Север', 'callback_data' => 'move_dir_north'], ['text' => '🌍 Остров живёт', 'callback_data' => 'island']]]],
                     str_ends_with($id, ':card') => [41, 'Карточка', [[['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'], ['text' => '📖 Путь новичка', 'callback_data' => 'guide']]]],
                     str_ends_with($id, ':s0')   => [43, 'Хаб инвентаря', [[['text' => '🧾 Куда ушло', 'callback_data' => 'whereItWent']]]],
                     default                     => [42, 'Экран моста', []],
@@ -474,14 +794,113 @@ final class PlayViewControllerTest extends CIUnitTestCase
         };
     }
 
-    /** Сохранённый экран моста с доком — `/play` не делает первый вход. */
-    private function seedScreen(int $characterId): void
+    /**
+     * Модель карты-фикстура: игрок в (10, 10), окно 4..15; клетка (5, 5) — туман, (13, 7) — своя
+     * база, остальное — лес. Действия — роза, база, Поход и «Остров живёт».
+     */
+    private function stubMap(): LiveMapService
+    {
+        return new class () extends LiveMapService {
+            public function forCharacter(int $characterId): array
+            {
+                $cells = [];
+                for ($y = 4; $y < 16; $y++) {
+                    $row = [];
+                    for ($x = 4; $x < 16; $x++) {
+                        [$code, $biome, $marker, $open] = match (true) {
+                            $x === 10 && $y === 10 => [self::CODE_PLAYER, 1, '🙎‍♂️', true],
+                            $x === 5 && $y === 5   => [self::CODE_FOG, null, '⬛️', false],
+                            $x === 13 && $y === 7  => [self::CODE_OWN_BASE, 1, '🏕', true],
+                            default                => [self::CODE_BIOME, 1, '🌲', true],
+                        };
+                        $row[] = ['x' => $x, 'y' => $y, 'code' => $code, 'biome' => $biome, 'marker' => $marker, 'explored' => $open];
+                    }
+                    $cells[] = $row;
+                }
+
+                return [
+                    'error' => null, 'center' => ['x' => 10, 'y' => 10, 'biome' => 1], 'window' => ['x0' => 4, 'y0' => 4, 'size' => 12],
+                    'cells' => $cells, 'distance_to_base' => ['distance' => 3, 'x' => 13, 'y' => 7, 'arrow' => '↗️'],
+                    'stats' => ['health' => 88.0, 'tired' => 12.0], 'actions' => $this->actions(['id' => $characterId]), 'legend' => self::legend(),
+                ];
+            }
+
+            public function actions(array|\App\Entities\CharacterEntity $character, ?bool $islandEnabled = null, ?bool $worldHub = null, ?bool $finalGrid = null, ?bool $gatherOnCompass = null): array
+            {
+                $out = [];
+                foreach (self::DIRECTIONS as $dir => [, , $label]) {
+                    $out[] = ['id' => 'move_' . $dir, 'label' => $label, 'callback' => 'move_dir_' . $dir, 'group' => self::GROUP_DIR, 'dir' => $dir];
+                }
+                $out[] = ['id' => 'base', 'label' => '🏠 База', 'callback' => 'Base', 'group' => self::GROUP_CELL, 'dir' => null];
+                $out[] = ['id' => 'march', 'label' => '🗺️ Поход', 'callback' => 'march', 'group' => self::GROUP_NAV, 'dir' => null];
+                $out[] = ['id' => 'island', 'label' => '🌍 Остров живёт', 'callback' => 'island', 'group' => self::GROUP_WORLD, 'dir' => null];
+
+                return $out;
+            }
+        };
+    }
+
+    /**
+     * Шаг-двойник: на север/восток — успех с событием «рана», на запад — край мира. Хуки шага шлют
+     * подсказку с кнопками в чат персонажа, как настоящие (`Request::sendMessage`).
+     */
+    private function stubMove(): MoveService
+    {
+        return new class () extends MoveService {
+            /** @var list<array{0:int, 1:string, 2:?int}> */
+            public array $calls = [];
+
+            public function step(int $characterId, string $dir): array
+            {
+                $this->calls[] = [$characterId, $dir, null];
+                if ($dir === 'west') {
+                    return [
+                        'ok' => false, 'code' => self::EDGE, 'message' => '🧭 Там край острова — дальше на запад пути нет.', 'from' => null, 'to' => null,
+                        'cost' => null, 'events' => [], 'node_sighted' => false, 'character' => null, 'target' => null,
+                    ];
+                }
+
+                return [
+                    'ok' => true, 'code' => self::MOVED, 'message' => null, 'from' => ['x' => 10, 'y' => 10, 'cell' => 1], 'to' => ['x' => 10, 'y' => 9, 'cell' => 2],
+                    'cost' => ['health' => 0.1, 'tired' => 3.35], 'node_sighted' => false, 'character' => null, 'target' => [],
+                    'events' => [['type' => self::EVENT_DEBUFF, 'text' => '🦴 *Перелом!*', 'buttons' => [['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'], ['text' => '⚕️ Скрафтить', 'callback_data' => 'medicinesCraft1']]]],
+                ];
+            }
+
+            public function afterStep(array $outcome, int $chatId, bool $coldOpen = true): void
+            {
+                $last                  = count($this->calls) - 1;
+                $this->calls[$last][2] = $chatId;
+                \App\Services\Telegram\Request::sendMessage([
+                    'chat_id'      => $chatId,
+                    'text'         => '💡 Подсказка новичку',
+                    'reply_markup' => json_encode(['inline_keyboard' => [[['text' => '🏠 База', 'callback_data' => 'Base'], ['text' => '🏗 Строить', 'callback_data' => 'build']]]]),
+                ]);
+            }
+        };
+    }
+
+    /** Задача «Поход» и legacy-колонка `task_settings` (создающей миграции нет) — для настоящего MarchService. */
+    private function enableMarch(): void
+    {
+        $this->conn->query('ALTER TABLE character_tasks ADD task_settings TEXT NULL');
+        $this->conn->query("ALTER TABLE character_tasks MODIFY COLUMN status ENUM('in_work','completed','interrupted','queued','paused') NOT NULL DEFAULT 'in_work'");
+        $this->conn->table('tasks')->insert(['name' => 'Marching', 'name_rus' => 'Поход', 'parallel_execution_allowed' => 0]);
+        $this->conn->resetDataCache();
+    }
+
+    /**
+     * Сохранённый экран моста с доком — `/play` не делает первый вход.
+     *
+     * @param list<list<string>> $dock
+     */
+    private function seedScreen(int $characterId, array $dock = [['🧑 Я', '🏠 База']]): void
     {
         $this->conn->table('web_play_state')->insert([
             'character_id' => $characterId,
             'screen'       => json_encode([['message_id' => 1000000000, 'text' => 'Экран', 'caption' => null, 'parse_mode' => null, 'photo_url' => null, 'inline_keyboard' => []]], JSON_UNESCAPED_UNICODE),
             'history'      => '[]',
-            'dock'         => json_encode([['🧑 Я', '🏠 База']], JSON_UNESCAPED_UNICODE),
+            'dock'         => json_encode($dock, JSON_UNESCAPED_UNICODE),
             'input'        => null,
             'updated_at'   => date('Y-m-d H:i:s'),
         ]);

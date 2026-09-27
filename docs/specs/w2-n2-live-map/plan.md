@@ -56,6 +56,9 @@
 **Wave 3**
 - `w2-n2-live-map-03` — сервис Похода (превью, старт, продление, возобновление, стоп), `MarchAction`/`CancelMarchAction` — рендереры; веб: Поход с луча, прогресс в HUD, «Остановиться»; публичный `/map` на токенах + мостики.
 
+**Wave 4**
+- `w2-n2-live-map-04` — два minor ревью раунда 1 (решение владельца 2026-09-27): `msg_id` бот-Похода при создании строки, потолок `march_extend` на обоих путях.
+
 ## Contracts
 - `POST /play/view` получает `view=map`. Новые `op`: `step` (`dir`), `march_preview` (`dir`, `n`),
   `march_start` (`dir`, `n`), `march_extend` (`n`), `march_resume`, `march_stop`. Мутации идут с
@@ -82,7 +85,8 @@
 
 **Approved:** Andrei Andrievskii, 2026-09-27 — «да» (стадия 02)
 **Briefed:** <written by scripts/cycle.sh briefed>
-**Branch:** <written by /vulyk-build before wave 1>
+**Branch:** vulyk/w2-n2-live-map
 **Checked:** <written by scripts/human-check.sh>
-**Council:** <written by scripts/cycle.sh judge/escalate>
+**Council:** GREEN round 1, 2026-09-27, at 40433ecc, pack a320be6f49b7
+**Council:** GREEN round 2, 2026-09-27, at 410c13ff, pack 90440d84eb31
 **Shipped:** <written by scripts/ship-check.sh --record>

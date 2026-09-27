@@ -134,7 +134,7 @@ class EquipmentLoadoutService
      */
     public function equip(int $characterId, string $kind, int $rowId): array
     {
-        $check = $this->check($characterId, $kind, $rowId);
+        $check = $this->check($characterId, $kind, $rowId, false);
         if (! $check['ok'] || $check['item'] === null) {
             return $check;
         }
@@ -147,13 +147,13 @@ class EquipmentLoadoutService
     }
 
     /**
-     * Снять (можно где угодно, как и раньше).
+     * Снять (можно где угодно, как и раньше; броню — и без своего Арсенала).
      *
      * @return Outcome
      */
     public function unequip(int $characterId, string $kind, int $rowId): array
     {
-        $check = $this->check($characterId, $kind, $rowId);
+        $check = $this->check($characterId, $kind, $rowId, true);
         if (! $check['ok'] || $check['item'] === null) {
             return $check;
         }
@@ -172,7 +172,7 @@ class EquipmentLoadoutService
      */
     public function toggle(int $characterId, string $kind, int $rowId): array
     {
-        $check = $this->check($characterId, $kind, $rowId);
+        $check = $this->check($characterId, $kind, $rowId, null);
         if (! $check['ok'] || $check['item'] === null) {
             return $check;
         }
@@ -231,19 +231,28 @@ class EquipmentLoadoutService
      * Общие проверки до смены — порядок прежних handler'ов: Арсенал в справочнике → Арсенал у
      * персонажа → владение → (оружие) количество → справочник предмета → (броня) слот.
      *
+     * Броню прежний `ToggleEquipArmorAction` снимал и без своего Арсенала (гейт был только на
+     * Арсенал в справочнике), поэтому для брони свой Арсенал проверяется лишь когда смена —
+     * надевание: `$unequip` false — надеть, true — снять, null — переключатель (решает строка).
+     *
      * @return Outcome
      */
-    private function check(int $characterId, string $kind, int $rowId): array
+    private function check(int $characterId, string $kind, int $rowId, ?bool $unequip): array
     {
         if ($this->arsenalId() === null) {
             return self::outcome(false, self::NO_ARSENAL_CATALOG);
         }
-        if (! $this->hasArsenal($characterId)) {
+        $armorMayUnequip = $kind === self::KIND_ARMOR && $unequip !== false;
+        if (! $armorMayUnequip && ! $this->hasArsenal($characterId)) {
             return self::outcome(false, self::NO_ARSENAL);
         }
         $row = $this->first('SELECT * FROM ' . self::table($kind) . ' WHERE id = ? LIMIT 1', [$rowId]);
         if ($row === null || self::int($row['character_id'] ?? 0) !== $characterId) {
             return self::outcome(false, self::NOT_FOUND);
+        }
+        if ($armorMayUnequip && $unequip === null && empty($row['equipped']) && ! $this->hasArsenal($characterId)) {
+            // Переключатель на не надетой броне — это надевание: свой Арсенал обязателен.
+            return self::outcome(false, self::NO_ARSENAL);
         }
         if ($kind === self::KIND_WEAPON && self::int($row['quantity'] ?? 0) < 1) {
             return self::outcome(false, self::NO_QUANTITY);

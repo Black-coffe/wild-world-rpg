@@ -136,6 +136,39 @@ final class EquipmentLoadoutServiceTest extends CIUnitTestCase
         $this->assertRefused(EquipmentLoadoutService::NO_ARSENAL, $this->svc->unequip(self::CHAR, 'weapon', $w));
     }
 
+    /** W2.N2-01 (хвост W2.N1): броню снимают и без своего Арсенала, как в прежнем handler'е. */
+    public function testArmorUnequipsWithoutOwnArsenalButEquipStaysLocked(): void
+    {
+        $helmet = $this->outfitCatalog('Каска', 'head');
+        $worn   = $this->armor(self::CHAR, $helmet, equipped: true);
+        $spare  = $this->armor(self::CHAR, $helmet);
+        $this->conn->query('DELETE FROM character_buildings');
+
+        $this->assertSame(EquipmentLoadoutService::UNEQUIPPED, $this->svc->unequip(self::CHAR, 'armor', $worn)['code']);
+        $this->assertSame([], $this->equipped('characters_outfits'));
+
+        $this->assertRefused(EquipmentLoadoutService::NO_ARSENAL, $this->svc->equip(self::CHAR, 'armor', $spare));
+        $this->assertRefused(EquipmentLoadoutService::NO_ARSENAL, $this->svc->toggle(self::CHAR, 'armor', $spare));
+        $this->assertSame([], $this->equipped('characters_outfits'));
+    }
+
+    public function testArmorToggleOffWorksWithoutOwnArsenal(): void
+    {
+        $worn = $this->armor(self::CHAR, $this->outfitCatalog('Жилет', 'body'), equipped: true);
+        $this->conn->query('DELETE FROM character_buildings');
+
+        $this->assertSame(EquipmentLoadoutService::UNEQUIPPED, $this->svc->toggle(self::CHAR, 'armor', $worn)['code']);
+        $this->assertSame([], $this->equipped('characters_outfits'));
+    }
+
+    public function testArmorUnequipStillNeedsArsenalInCatalog(): void
+    {
+        $worn = $this->armor(self::CHAR, $this->outfitCatalog('Каска', 'head'), equipped: true);
+        $this->conn->query('DELETE FROM buildings');
+
+        $this->assertRefused(EquipmentLoadoutService::NO_ARSENAL_CATALOG, $this->svc->unequip(self::CHAR, 'armor', $worn));
+    }
+
     public function testRefusalForeignItem(): void
     {
         $w = $this->weapon(self::STRANGER, 'Чужой нож');

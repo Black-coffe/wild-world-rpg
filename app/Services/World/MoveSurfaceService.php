@@ -7,7 +7,6 @@ namespace App\Services\World;
 use App\Entities\CharacterEntity;
 use App\Models\MapModel;
 use App\Models\TelegramUserModel;
-use App\Services\GameSettings\GameSettingsService;
 use App\Services\Logging\ActionOrigin;
 use App\Services\Telegram\BotMenuService;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -106,42 +105,54 @@ class MoveSurfaceService
 
     /**
      * Текст: 12×12 карта + легенда + здоровье и координаты (перенос из MoveCharacterAction).
+     * W2.N2-01: рисуется из модели {@see LiveMapService} — той же, из которой веб рисует сетку.
      *
      * @param array<string, mixed>|CharacterEntity $character
      */
     protected function buildMapText(array|CharacterEntity $character, TextMapService $textMapService): string
     {
-        $text = "Куда пойдём? Выберите направление с клавиатуры ниже:\n\n";
+        return $this->renderMapText($textMapService->liveMap()->fromCharacter($character, false), $textMapService);
+    }
+
+    /**
+     * Текст экрана из модели карты.
+     *
+     * @param array{error:?string, center:?array{x:int, y:int, biome:?int}, cells:list<list<array{marker:string}>>, distance_to_base:?array{distance:int, arrow:string}, stats:array{health:float, tired:float}} $model
+     */
+    protected function renderMapText(array $model, TextMapService $textMapService): string
+    {
+        $text = "Куда пойдём? Выберите направление с клавиатуры ниже:
+
+";
 
         // ADR-150 Слайс 1 — при world_hub ON легенда съедала ~80% сообщения, поэтому
         // прячем её за кнопку «❓ Легенда» (тумблер ⇄ карта). При OFF — оставляем в теле
         // (рендер byte-identical прежнему MoveCharacterAction).
         if (! $this->worldHubEnabled()) {
-            $text .= $textMapService->getLegend() . "\n";
+            $text .= $textMapService->getLegend() . "
+";
         }
 
-        $distanceLine = $textMapService->getDistanceLine($character);
+        $distanceLine = TextMapService::distanceText($model['distance_to_base']);
         if ($distanceLine) {
-            $text .= $distanceLine . "\n";
+            $text .= $distanceLine . "
+";
         }
 
-        $hpRaw    = $character['health'] ?? 0;
-        $tiredRaw = $character['tired'] ?? 0;
-        $hp       = is_numeric($hpRaw) ? (float) $hpRaw : 0.0;
-        $tired    = is_numeric($tiredRaw) ? (float) $tiredRaw : 0.0;
-        $text .= "❤️ Здоровье: {$hp}\n"
-            . "💤 Усталость: {$tired}\n\n";
+        $hp    = $model['stats']['health'];
+        $tired = $model['stats']['tired'];
+        $text .= "❤️ Здоровье: {$hp}
+"
+            . "💤 Усталость: {$tired}
 
-        $mapOnly = $textMapService->buildMapOnly($character);
-        $text   .= $mapOnly . "\n";
+";
 
-        $mapRow = $this->mapModel->where('cell_number', $character['cell_number'])->first();
-        if (is_array($mapRow)) {
-            $pxRaw = $mapRow['coordinate_x'] ?? null;
-            $pyRaw = $mapRow['coordinate_y'] ?? null;
-            $px    = is_numeric($pxRaw) ? (int) $pxRaw : 0;
-            $py    = is_numeric($pyRaw) ? (int) $pyRaw : 0;
-            $text .= "Игрок по центру (X={$px}, Y={$py})\n";
+        $text .= TextMapService::gridText($model) . "
+";
+
+        if ($model['center'] !== null) {
+            $text .= "Игрок по центру (X={$model['center']['x']}, Y={$model['center']['y']})
+";
         }
 
         return $text;
@@ -160,64 +171,34 @@ class MoveSurfaceService
     {
         $rows = $this->compassRows();
 
-        // Нижний нав-ряд. При world_hub ON — ТРИ кнопки в ОДИН ряд: [Поход, Легенда, Обзор]
-        // (Легенда посередине). При OFF — только [Поход] → byte-identical прежнему.
-        if ($this->worldHubEnabled()) {
-            $rows[] = [
-                ['text' => '🗺️ Поход',   'callback_data' => 'march'],       // ADR-019
-                ['text' => '❓ Легенда', 'callback_data' => 'mapLegend'],   // тумблер легенды
-                ['text' => '🗺 Обзор',   'callback_data' => 'mapOverview'], // фото карты мира
-            ];
-        } else {
-            $rows[] = [
-                ['text' => '🗺️ Поход', 'callback_data' => 'march'],
-            ];
-        }
-
-        // Нижний ряд «состояние мира». Обе кнопки — read-only витрины про остров, а не про
-        // персонажа, поэтому живут именно здесь.
-        //  - S7 (ADR-145) «🌍 Остров живёт» — только при своём killswitch.
-        //  - ADR-150 (чистка дублей) «🎉 События» — канонический дом экрана `events`. Раньше дома
-        //    не было вовсе: кнопку копировали на 17 чужих экранов, а сам экран «События» имел
-        //    кнопку «События» на себя же. Появляется при final_grid ON, чтобы не осиротеть.
-        $worldRow = [];
-        if ($islandEnabled) {
-            $worldRow[] = ['text' => '🌍 Остров живёт', 'callback_data' => 'island'];
-        }
-        if ($this->finalGridEnabled()) {
-            $worldRow[] = ['text' => '🎉 События', 'callback_data' => 'events'];
-        }
-
-        // Drone-discoverability story 02 — «🚁 Дрон» на компас-экране карты, на тех же
-        // условиях, что и близнец в MoveCharacterToDirectionAction:379 (killswitch,
-        // затем владение). Проверка владения выполняется ТОЛЬКО после isEnabled() —
-        // это самый горячий экран игры, лишний запрос при выключенном killswitch'е
-        // недопустим.
-        $droneService = new \App\Services\Player\DroneService();
-        if ($droneService->isEnabled()) {
-            $droneRow = (new \App\Models\CraftedItemsModel())->where('name_eng', 'DroneScout')->first();
-            if (is_array($droneRow)) {
-                $rawDroneId = $droneRow['id'] ?? null;
-                $droneId    = is_numeric($rawDroneId) ? (int) $rawDroneId : 0;
-                if ($droneId > 0) {
-                    $hasDrone = (new \App\Models\CraftedItemsLogModel())
-                        ->where('character_id', $character['id'])
-                        ->where('crafted_item_id', $droneId)
-                        ->where('quantity >', 0)
-                        ->first();
-                    if ($hasDrone) {
-                        $worldRow[] = ['text' => '🚁 Дроны', 'callback_data' => 'droneScoutList'];
-                    }
-                }
+        // W2.N2-01: кнопки под розой — действия модели карты (те же гейты, что и раньше):
+        // нав-ряд [Поход · Легенда · Обзор] (при world_hub OFF — только [Поход]) и ряд
+        // «состояние мира» [Остров живёт · События · Дроны].
+        $actions = (new LiveMapService($this->mapModel))->actions(
+            $character,
+            $islandEnabled,
+            $this->worldHubEnabled(),
+            $this->finalGridEnabled(),
+            $this->gatherOnCompassEnabled()
+        );
+        $nav   = [];
+        $world = [];
+        foreach ($actions as $action) {
+            $button = ['text' => $action['label'], 'callback_data' => $action['callback']];
+            if ($action['group'] === LiveMapService::GROUP_NAV) {
+                $nav[] = $button;
+            } elseif ($action['group'] === LiveMapService::GROUP_WORLD) {
+                $world[] = $button;
             }
         }
+        $rows[] = $nav;
 
         // Ряд «состояние мира» пакуется по 3 кнопки (унаследованное поведение самого ряда,
         // не новая гарантия): при обоих killswitch'ах мира (island, final_grid) выключенных
         // и наличии дрона у чара ряд выродится в одну кнопку «🚁 Дрон» — на проде оба
         // killswitch'а сейчас ON, поэтому сегодня это недостижимо, но код такую конфигурацию
         // не запрещает.
-        foreach (array_chunk($worldRow, 3) as $chunk) {
+        foreach (array_chunk($world, 3) as $chunk) {
             $rows[] = $chunk;
         }
 
@@ -251,25 +232,22 @@ class MoveSurfaceService
      */
     public function compassRows(): array
     {
-        $north = [
-            ['text' => '↖️ Сев-Запад', 'callback_data' => 'move_dir_northwest'],
-            ['text' => '⬆️ Север',     'callback_data' => 'move_dir_north'],
-            ['text' => '↗️ Сев-Восток','callback_data' => 'move_dir_northeast'],
+        // Подписи и коды направлений — из модели карты (одна роза для бота и веба).
+        $dir = static fn (string $code): array => [
+            'text'          => LiveMapService::DIRECTIONS[$code][2],
+            'callback_data' => 'move_dir_' . $code,
         ];
-        $south = [
-            ['text' => '↙️ Юго-Запад','callback_data' => 'move_dir_southwest'],
-            ['text' => '⬇️ Юг',      'callback_data' => 'move_dir_south'],
-            ['text' => '↘️ Юго-Восток','callback_data' => 'move_dir_southeast'],
-        ];
+        $north = [$dir('northwest'), $dir('north'), $dir('northeast')];
+        $south = [$dir('southwest'), $dir('south'), $dir('southeast')];
 
         if (! $this->gatherOnCompassEnabled()) {
             return [
                 $north,
                 [
-                    ['text' => '⬅️ Запад', 'callback_data' => 'move_dir_west'],
+                    $dir('west'),
                     ['text' => '🏠 База',       'callback_data' => 'Base'],
                     ['text' => BotMenuService::actionLabel('actionsHubCompact'), 'callback_data' => 'characterActions'],
-                    ['text' => '➡️ Восток','callback_data' => 'move_dir_east'],
+                    $dir('east'),
                 ],
                 $south,
             ];
@@ -278,9 +256,9 @@ class MoveSurfaceService
         return [
             $north,
             [
-                ['text' => '⬅️ Запад', 'callback_data' => 'move_dir_west'],
+                $dir('west'),
                 ['text' => '🏠 База',       'callback_data' => 'Base'],
-                ['text' => '➡️ Восток','callback_data' => 'move_dir_east'],
+                $dir('east'),
             ],
             $south,
             [
@@ -339,11 +317,6 @@ class MoveSurfaceService
     /** Killswitch ADR-150 Слайс 1 (navigation.world_hub.enabled). Overridable seam для тестов. */
     protected function worldHubEnabled(): bool
     {
-        $raw = (new GameSettingsService())->get('navigation.world_hub.enabled', false);
-        if (is_bool($raw)) {
-            return $raw;
-        }
-
-        return is_numeric($raw) ? (int) $raw === 1 : false;
+        return LiveMapService::worldHubEnabled();
     }
 }

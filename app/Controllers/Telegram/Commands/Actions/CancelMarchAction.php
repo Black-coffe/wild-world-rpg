@@ -2,6 +2,7 @@
 
 namespace App\Controllers\Telegram\Commands\Actions;
 
+use App\Services\World\MarchService;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -15,6 +16,8 @@ use App\Services\Telegram\Request;
  * шаг. Пройденные/раскрытые клетки остаются (применены при каждом шаге; никакого
  * «всё или ничего», в отличие от старого ExploreTheArea-cancel — тот handler удалён
  * cleanup-тегом после дренажа in-flight задач).
+ *
+ * W2.N2-03 (ADR-190): остановка — {@see MarchService::stop()} (тот же сервис зовёт веб), handler рендерит исход.
  */
 class CancelMarchAction extends BaseAction
 {
@@ -34,35 +37,16 @@ class CancelMarchAction extends BaseAction
         }
         $characterId = $this->asInt($charRow['id'] ?? 0);
 
-        $marchingTaskId = $this->marchingTaskId();
-        $task = $marchingTaskId === null ? null : $this->fetchRow(
-            "SELECT id, status, task_settings FROM character_tasks
-             WHERE character_id = ? AND task_id = ? AND status IN ('in_work','paused') ORDER BY id DESC LIMIT 1",
-            [$characterId, $marchingTaskId]
-        );
-        if ($task === null) {
+        $outcome = (new MarchService())->stop($characterId);
+        if (!$outcome['ok']) {
             return Request::answerCallbackQuery([
                 'callback_query_id' => $this->callbackQuery->getId(),
-                'text'              => 'Активного похода нет.',
+                'text'              => $outcome['message'],
             ]);
         }
+        $stepsDone = $outcome['steps_done'];
 
-        // Метим completed ВСЕ in_work/paused Marching-задачи персонажа одним UPDATE'ом
-        // (не только последнюю): цепочка 1-клеточных задач + гонка с Worker'ом могут
-        // оставить >1 такой строки; цепочка спавнит ≤1 задачи/мин, так что этот UPDATE
-        // ловит и spawn, успевший возникнуть между SELECT и UPDATE.
-        if ($marchingTaskId !== null) {
-            Database::connect()->table('character_tasks')
-                ->where('character_id', $characterId)
-                ->where('task_id', $marchingTaskId)
-                ->whereIn('status', ['in_work', 'paused'])
-                ->update(['status' => 'completed', 'updated_at' => date('Y-m-d H:i:s')]);
-        }
-
-        $s = json_decode($this->asStr($task['task_settings'] ?? '{}', '{}'), true);
-        $stepsDone = is_array($s) ? max(0, $this->asInt($s['steps_done'] ?? 0)) : 0;
-
-        $text = "🚜 *Поход прерван.* Пройдено `{$stepsDone}` " . $this->plural($stepsDone, 'клетку', 'клетки', 'клеток') . ".\n"
+        $text = "🚜 *Поход прерван.* Пройдено `{$stepsDone}` " . MarchService::plural($stepsDone, 'клетку', 'клетки', 'клеток') . ".\n"
             . "_Раскрытые клетки остаются на карте._";
         $keyboard = [[['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']]];
 
@@ -84,16 +68,6 @@ class CancelMarchAction extends BaseAction
         return Request::sendMessage($payload);
     }
 
-    private function marchingTaskId(): ?int
-    {
-        $row = $this->fetchRow("SELECT id FROM tasks WHERE name = 'Marching' LIMIT 1", []);
-        if ($row === null) {
-            return null;
-        }
-        $id = $this->asInt($row['id'] ?? 0);
-        return $id > 0 ? $id : null;
-    }
-
     /**
      * @param array<int, int|string> $bind
      * @return array<int|string, mixed>|null
@@ -112,26 +86,5 @@ class CancelMarchAction extends BaseAction
     private function asInt(mixed $v, int $default = 0): int
     {
         return is_numeric($v) ? (int) $v : $default;
-    }
-
-    private function asStr(mixed $v, string $default = ''): string
-    {
-        return is_scalar($v) ? (string) $v : $default;
-    }
-
-    private function plural(int $n, string $one, string $few, string $many): string
-    {
-        $n  = abs($n) % 100;
-        $n1 = $n % 10;
-        if ($n > 10 && $n < 20) {
-            return $many;
-        }
-        if ($n1 > 1 && $n1 < 5) {
-            return $few;
-        }
-        if ($n1 === 1) {
-            return $one;
-        }
-        return $many;
     }
 }

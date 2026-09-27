@@ -9,13 +9,13 @@ use App\Models\ClaimedCellModel;
 use App\Models\NpcSpawnModel;
 
 /**
- * Сервис для отрисовки 12×12 карты вокруг игрока (или другого персонажа).
- * Включает:
- *  - биомы (emoji)
- *  - положение игрока
- *  - свою и чужую базу
- *  - NPC (рейдеры и т.п.) в радиусе отображения
- *  - легенду и строку расстояния до базы
+ * Текстовый рендерер экрана «Мир» бота: 12×12 карта вокруг игрока, легенда и строка расстояния
+ * до базы.
+ *
+ * W2.N2-01 (ADR-190): клетки, маркеры и ближайшая база больше не считаются здесь — их отдаёт
+ * модель {@see LiveMapService}, из которой рисует и `/play`. Этот сервис только превращает модель
+ * в строки Telegram. Модели мира он по-прежнему держит у себя и передаёт в модель (тесты
+ * подменяют их через reflection).
  */
 class TextMapService
 {
@@ -24,22 +24,6 @@ class TextMapService
     protected CharacterModel $characterModel;
     protected ClaimedCellModel $claimedCellModel;
     protected NpcSpawnModel $npcSpawnModel;
-
-    /**
-     * biome_id -> эмодзи
-     */
-    protected array $biomeEmojis = [
-        1 => "🌲",
-        2 => "⛰️",
-        3 => "❄️",
-        4 => "🌊",
-        5 => "🌴",
-        6 => "🌾",
-        7 => "🕳️",
-        8 => "🌋",
-        9 => "🏜️",
-        0 => "❓",
-    ];
 
     public function __construct()
     {
@@ -50,6 +34,17 @@ class TextMapService
         $this->npcSpawnModel      = new NpcSpawnModel();
     }
 
+    /** Модель карты поверх моделей этого сервиса. */
+    public function liveMap(): LiveMapService
+    {
+        return new LiveMapService(
+            $this->mapModel,
+            $this->exploredCellsModel,
+            $this->claimedCellModel,
+            $this->npcSpawnModel
+        );
+    }
+
     /**
      * Генерация 12×12 карты (эмоджи) вокруг персонажа.
      *
@@ -58,262 +53,29 @@ class TextMapService
      */
     public function buildMapOnly(array|\App\Entities\CharacterEntity $characterRow): string
     {
-        // 1) Проверяем cell_number
-        $cellNumber = $characterRow['cell_number'] ?? 0;
-        if (!$cellNumber) {
-            return "Нет cell_number у персонажа";
+        return self::gridText($this->liveMap()->grid($characterRow));
+    }
+
+    /**
+     * Строки карты из модели: значки клеток по рядам; модель с ошибкой — прежний текст ошибки.
+     *
+     * @param array{error:?string, cells:list<list<array{marker:string}>>} $grid
+     */
+    public static function gridText(array $grid): string
+    {
+        if ($grid['error'] !== null) {
+            return $grid['error'];
         }
-
-        // Находим координаты игрока
-        $mapRow = $this->mapModel->where('cell_number', $cellNumber)->first();
-        if (!$mapRow) {
-            return "Map не найдена для cell_number={$cellNumber}";
-        }
-
-        $pX = (int)$mapRow['coordinate_x'];
-        $pY = (int)$mapRow['coordinate_y'];
-
-        // Границы отображаемого участка (12×12)
-        $offset = 6;
-        $width  = 12;
-        $height = 12;
-
-        $xMin = $pX - $offset;
-        $xMax = $pX + ($offset - 1);
-        $yMin = $pY - $offset;
-        $yMax = $pY + ($offset - 1);
-
-        // Собираем ячейки, которые персонаж «изучил»
-        $exploredRows = $this->exploredCellsModel
-            ->select('map_cell_id')
-            ->where('character_id', $characterRow['id'])
-            ->whereIn('map_cell_id', function($builder) use ($xMin, $xMax, $yMin, $yMax) {
-                $builder->select('cell_number')
-                    ->from('map')
-                    ->where("coordinate_x >= {$xMin}")
-                    ->where("coordinate_x <= {$xMax}")
-                    ->where("coordinate_y >= {$yMin}")
-                    ->where("coordinate_y <= {$yMax}");
-            })
-            ->findAll();
-
-        $exploredSet = [];
-        foreach ($exploredRows as $er) {
-            $exploredSet[$er['map_cell_id']] = true;
-        }
-
-        // Достаём данные о ячейках (биомы, и т.д.) в этом диапазоне
-        $mapData = $this->mapModel
-            ->select('cell_number, biome_id, coordinate_x, coordinate_y')
-            ->where('coordinate_x >=', $xMin)
-            ->where('coordinate_x <=', $xMax)
-            ->where('coordinate_y >=', $yMin)
-            ->where('coordinate_y <=', $yMax)
-            ->findAll();
-
-        $cells = [];
-        foreach ($mapData as $row) {
-            $xx = (int) $row['coordinate_x'];
-            $yy = (int) $row['coordinate_y'];
-            $cells["{$xx}_{$yy}"] = [
-                'biome_id'    => (int) $row['biome_id'],
-                'cell_number' => (int) $row['cell_number'],
-            ];
-        }
-
-        // story angela-second-base-bugs-01 — ВСЕ активные базы персонажа, не одна
-        // случайная (`first()` без `orderBy`): каждая попавшая в окно карты клетка
-        // помечается 🏕, а не только та, что вернула БД первой.
-        $ownBaseCells = [];
-        foreach ($this->claimedCellModel->findAllActiveCells((int) $characterRow['id']) as $claimedRow) {
-            $mapCellIdRaw = $claimedRow['map_cell_id'] ?? null;
-            if (! is_numeric($mapCellIdRaw)) {
-                continue;
-            }
-            $baseMapRow = $this->mapModel->find((int) $mapCellIdRaw);
-            if ($baseMapRow) {
-                $bx = (int) $baseMapRow['coordinate_x'];
-                $by = (int) $baseMapRow['coordinate_y'];
-                $ownBaseCells["{$bx}_{$by}"] = true;
-            }
-        }
-
-        // Смотрим чужие базы в этом регионе
-        $otherBases = [];
-        $claimedInArea = $this->claimedCellModel
-            ->select('claimed_cells.character_id, claimed_cells.map_cell_id, map.coordinate_x, map.coordinate_y')
-            ->join('map', 'map.id = claimed_cells.map_cell_id', 'left')
-            ->where('claimed_cells.status', 'active')
-            ->where('coordinate_x >=', $xMin)
-            ->where('coordinate_x <=', $xMax)
-            ->where('coordinate_y >=', $yMin)
-            ->where('coordinate_y <=', $yMax)
-            ->findAll();
-
-        foreach ($claimedInArea as $cRow) {
-            if ((int)$cRow['character_id'] !== (int)$characterRow['id']) {
-                $xx = (int) $cRow['coordinate_x'];
-                $yy = (int) $cRow['coordinate_y'];
-                $key = "{$xx}_{$yy}";
-                $otherBases[$key] = true;
-            }
-        }
-
-        // ADR-101 — активные поселения в видимой области (маркер-ландмарк для discoverability,
-        // gated killswitch settlements.enabled).
-        $settlementCells = [];
-        $settleZone      = new \App\Services\Settlement\SettlementZoneService();
-        if ($settleZone->layerEnabled()) {
-            foreach ((new \App\Models\SettlementModel())->allActive() as $st) {
-                $sx = is_numeric($st['coordinate_x'] ?? null) ? (int) $st['coordinate_x'] : null;
-                $sy = is_numeric($st['coordinate_y'] ?? null) ? (int) $st['coordinate_y'] : null;
-                if ($sx === null || $sy === null) {
-                    continue;
-                }
-                if ($sx >= $xMin && $sx <= $xMax && $sy >= $yMin && $sy <= $yMax) {
-                    $settlementCells["{$sx}_{$sy}"] = is_string($st['icon'] ?? null) && $st['icon'] !== '' ? $st['icon'] : '🏚';
-                }
-            }
-        }
-
-        // WB12 (ADR-137 «Узлы») — узлы-боссы в видимой области приоритетным слоем (как поселения),
-        // для находимости. Gated killswitch world.nodes.point_mode_enabled (OFF → слоя нет). ☠ — живой
-        // узел (можно сразиться), ⏳ — в кулдауне (точку расчистили, скоро поднимется).
-        $nodeCells = [];
-        if ((new \App\Services\GameSettings\GameSettingsService())->get('world.nodes.point_mode_enabled', false) === true) {
-            $nodeRows = (new \App\Models\BossPointModel())
-                ->select('coordinate_x, coordinate_y, status')
-                ->where('coordinate_x >=', $xMin)->where('coordinate_x <=', $xMax)
-                ->where('coordinate_y >=', $yMin)->where('coordinate_y <=', $yMax)
-                ->whereIn('status', ['alive', 'cooldown'])
-                ->findAll();
-            foreach ($nodeRows as $nr) {
-                if (! is_array($nr)) {
-                    continue;
-                }
-                $nx = is_numeric($nr['coordinate_x'] ?? null) ? (int) $nr['coordinate_x'] : null;
-                $ny = is_numeric($nr['coordinate_y'] ?? null) ? (int) $nr['coordinate_y'] : null;
-                if ($nx === null || $ny === null) {
-                    continue;
-                }
-                $nodeCells["{$nx}_{$ny}"] = ($nr['status'] ?? '') === 'alive' ? '☠' : '⏳';
-            }
-        }
-
-        // S4 (ADR-139 «Узлы»→cold-open) слайс 3 — 🎯-маркер cold-open приманки в видимой области
-        // (gated onboarding.cold_open_v2.signal_hook + level ≤ cap). OFF / ветеран → пусто = карта
-        // byte-identical. Показываем даже на неизученной клетке — это и есть направленный крючок.
-        $rawBaitLevel = $characterRow['level'] ?? 0;
-        $baitLevel    = is_numeric($rawBaitLevel) ? (int) $rawBaitLevel : 0;
-        $baitCells    = (new \App\Services\Onboarding\ColdOpenSignalService())
-            ->markerCellsInViewport($baitLevel, $xMin, $xMax, $yMin, $yMax);
-
-        // Получаем NPC вокруг игрока (в 12×12)
-        $npcsInArea = $this->getNpcsInArea($pX, $pY);
-
-        // Генерация строк карты
-        $mapText = "";
-        for ($localY = 0; $localY < $height; $localY++) {
-            $worldY = $yMin + $localY;
-
-            for ($localX = 0; $localX < $width; $localX++) {
-                $worldX = $xMin + $localX;
-
-                // Если вышли за «границы» глобальной карты
-                if ($worldX < 0 || $worldX > 999 || $worldY < 0 || $worldY > 999) {
-                    // Условно ставим «⬜» (за пределами)
-                    $mapText .= "⬜";
-                    continue;
-                }
-
-                // Если это точка, где стоит игрок
-                if ($worldX === $pX && $worldY === $pY) {
-                    $mapText .= "🙎‍♂️";
-                    continue;
-                }
-
-                // Если своя база (любая из активных — story angela-second-base-bugs-01)
-                if (isset($ownBaseCells["{$worldX}_{$worldY}"])) {
-                    $mapText .= "🏕";
-                    continue;
-                }
-
-                // Собираем ключ
-                $cellKey = "{$worldX}_{$worldY}";
-
-                // ADR-101 — поселение-ландмарк приоритетнее иконки жителей-NPC.
-                if (isset($settlementCells[$cellKey])) {
-                    $mapText .= $settlementCells[$cellKey];
-                    continue;
-                }
-
-                // WB12 (ADR-137) — узел-босс приоритетнее иконки NPC (материализованный босс = npc_spawn,
-                // иначе показался бы 🥷 вместо ☠).
-                if (isset($nodeCells[$cellKey])) {
-                    $mapText .= $nodeCells[$cellKey];
-                    continue;
-                }
-
-                // S4 (ADR-139) слайс 3 — 🎯 cold-open приманка: приоритетнее NPC/чужой базы/биома и
-                // перекрывает «неизученную» ⬛️ (показываем цель даже на не открытой клетке — крючок).
-                if (isset($baitCells[$cellKey])) {
-                    $mapText .= "🎯";
-                    continue;
-                }
-
-                // Если есть живой NPC
-                if (isset($npcsInArea[$cellKey])) {
-                    // Покажем иконку ниндзя (или любую другую)
-                    $mapText .= "🥷";
-                    continue;
-                }
-
-                // Чужая база?
-                $isForeignBase = isset($otherBases[$cellKey]);
-
-                // Если в cells нет информации — значит не изучено
-                if (!isset($cells[$cellKey])) {
-                    // Неизвестная территория, рисуем чёрный квадрат
-                    $mapText .= "⬛️";
-                    continue;
-                }
-
-                // Определяем биом
-                $biomeId = $cells[$cellKey]['biome_id'];
-                $cellNum = $cells[$cellKey]['cell_number'];
-
-                // Если ячейка не изучена
-                if (!isset($exploredSet[$cellNum])) {
-                    $mapText .= "⬛️";
-                } else {
-                    // Ячейка изучена
-                    if ($isForeignBase) {
-                        $mapText .= "🚫";
-                    } else {
-                        // Ставим эмоджи по biome_id
-                        $emoji = $this->biomeEmojis[$biomeId] ?? $this->biomeEmojis[0];
-                        $mapText .= $emoji;
-                    }
-                }
+        $mapText = '';
+        foreach ($grid['cells'] as $row) {
+            foreach ($row as $cell) {
+                $mapText .= $cell['marker'];
             }
             $mapText .= "\n";
         }
 
         return $mapText;
     }
-
-    /** Биомы легенды: id в `biomes` → значок и имя. Порядок = порядок вывода. */
-    private const LEGEND_BIOMES = [
-        1 => ['🌲', 'Лес'],
-        2 => ['⛰️', 'Горы'],
-        3 => ['❄️', 'Тундра'],
-        4 => ['🌊', 'Реки'],
-        5 => ['🌴', 'Джунгли'],
-        6 => ['🌾', 'Поля'],
-        7 => ['🕳️', 'Пещеры'],
-        8 => ['🌋', 'Вулкан'],
-        9 => ['🏜️', 'Пустыни'],
-    ];
 
     /**
      * Выводит легенду без карты.
@@ -334,19 +96,14 @@ class TextMapService
             }
         }
 
-        $text = "Легенда:\n"
-            . "🙎‍♂️ — игрок\n"
-            . "🏕 — ваша база\n"
-            . "🚫 — чужая база\n"
-            . "🏚 — поселение\n"
-            . "☠ — узел (босс)\n"
-            . "⏳ — узел в кулдауне\n"
-            . "🥷 — NPC\n"
-            . "⬛️ — не изучено\n"
-            . "⬜ — за пределами мира\n\n";
+        $text = "Легенда:\n";
+        foreach (LiveMapService::MARKER_LEGEND as [$marker, $label]) {
+            $text .= $marker . ' — ' . $label . "\n";
+        }
+        $text .= "\n";
 
         $n = 0;
-        foreach (self::LEGEND_BIOMES as $biomeId => [$emoji, $name]) {
+        foreach (LiveMapService::BIOMES as $biomeId => [$emoji, $name]) {
             $n++;
             $text .= $n . ') ' . $emoji . ' — ' . $name;
             if (isset($hints[$biomeId]) && $hints[$biomeId] !== '') {
@@ -365,132 +122,20 @@ class TextMapService
 
     /**
      * Возвращает строку о расстоянии до базы, вида "От 🙎‍♂️ до 🏕 = N ходов."
-     * Если базы нет — вернётся пустая строка.
+     * Если базы нет — вернётся пустая строка. Ближайшая база — {@see LiveMapService::nearestBase()}.
      */
     public function getDistanceLine(array|\App\Entities\CharacterEntity $characterRow): string
     {
-        // 1) Проверяем наличие баз (story angela-second-base-bugs-01 — считаем до
-        // БЛИЖАЙШЕЙ из всех активных, не до случайной первой)
-        $claimedRows = $this->claimedCellModel->findAllActiveCells((int) $characterRow['id']);
-        if ($claimedRows === []) {
-            // Нет базы
-            return "";
-        }
-
-        // 2) Координаты игрока
-        $cellNumber = $characterRow['cell_number'] ?? 0;
-        if (!$cellNumber) {
-            return "";
-        }
-        $mapRowPlayer = $this->mapModel->where('cell_number', $cellNumber)->first();
-        if (!$mapRowPlayer) {
-            return "";
-        }
-        $pX = (int)$mapRowPlayer['coordinate_x'];
-        $pY = (int)$mapRowPlayer['coordinate_y'];
-
-        // 3) Координаты каждой базы → берём ближайшую по метрике Чебышёва
-        $bX = null;
-        $bY = null;
-        $distance = null;
-        foreach ($claimedRows as $claimedRow) {
-            $mapCellIdRaw = $claimedRow['map_cell_id'] ?? null;
-            if (! is_numeric($mapCellIdRaw)) {
-                continue;
-            }
-            $mapRowBase = $this->mapModel->find((int) $mapCellIdRaw);
-            if (!$mapRowBase) {
-                continue;
-            }
-            $candX = (int) $mapRowBase['coordinate_x'];
-            $candY = (int) $mapRowBase['coordinate_y'];
-            $candDistance = max(abs($pX - $candX), abs($pY - $candY));
-            if ($distance === null || $candDistance < $distance) {
-                $distance = $candDistance;
-                $bX = $candX;
-                $bY = $candY;
-            }
-        }
-        if ($bX === null || $bY === null || $distance === null) {
-            return "";
-        }
-
-        // Идея #13 (Yupirex, 23.01.2025): emoji-стрелка направления к базе.
-        $arrow = $this->compassArrow($pX, $pY, $bX, $bY);
-
-        return "От 🙎‍♂️ до 🏕 = {$distance} ходов {$arrow}\n";
+        return self::distanceText($this->liveMap()->nearestBase($characterRow));
     }
 
     /**
-     * 8-octant compass: возвращает emoji-стрелку от игрока к базе.
-     * y растёт на юг (north = меньший y).
+     * Строка «От 🙎‍♂️ до 🏕 = N ходов ↗️» из модели; базы нет — пустая строка.
+     *
+     * @param array{distance:int, arrow:string}|null $base
      */
-    private function compassArrow(int $pX, int $pY, int $bX, int $bY): string
+    public static function distanceText(?array $base): string
     {
-        if ($pX === $bX && $pY === $bY) {
-            return '🎯';
-        }
-        $dx = $bX - $pX;
-        $dy = $bY - $pY;
-        if ($dx === 0) {
-            return $dy < 0 ? '⬆️' : '⬇️';
-        }
-        if ($dy === 0) {
-            return $dx < 0 ? '⬅️' : '➡️';
-        }
-        if (abs($dx) > 2 * abs($dy)) {
-            return $dx < 0 ? '⬅️' : '➡️';
-        }
-        if (abs($dy) > 2 * abs($dx)) {
-            return $dy < 0 ? '⬆️' : '⬇️';
-        }
-        if ($dy < 0) {
-            return $dx < 0 ? '↖️' : '↗️';
-        }
-        return $dx < 0 ? '↙️' : '↘️';
+        return $base === null ? '' : "От 🙎‍♂️ до 🏕 = {$base['distance']} ходов {$base['arrow']}\n";
     }
-
-    /**
-     * Встроенная логика, ранее была в NpcLocatorService:
-     * находим активных (alive) NPC только в 8 соседних клетках
-     * вокруг координат (pX, pY).
-     */
-    protected function getNpcsInArea(int $pX, int $pY): array
-    {
-        // 1. Границы: pX-1..pX+1, pY-1..pY+1
-        $xMin = $pX - 1;
-        $xMax = $pX + 1;
-        $yMin = $pY - 1;
-        $yMax = $pY + 1;
-
-        // 2. Выбираем только живых NPC (status='alive') в этих координатах
-        $spawnRows = $this->npcSpawnModel
-            ->where('status', 'alive')
-            ->where('coordinate_x >=', $xMin)
-            ->where('coordinate_x <=', $xMax)
-            ->where('coordinate_y >=', $yMin)
-            ->where('coordinate_y <=', $yMax)
-            ->findAll();
-
-        // 3. Исключаем NPC, если вдруг он стоит на точке самого игрока (pX, pY),
-        //    чтобы мы увидели именно 8 ячеек вокруг.
-        $filtered = [];
-        foreach ($spawnRows as $npcRow) {
-            if ($npcRow['coordinate_x'] == $pX && $npcRow['coordinate_y'] == $pY) {
-                // Пропускаем NPC, оказавшихся в точке игрока
-                continue;
-            }
-            $filtered[] = $npcRow;
-        }
-
-        // 4. Превратим в ассоциативный массив "x_y" => данные о NPC
-        $result = [];
-        foreach ($filtered as $row) {
-            $key = "{$row['coordinate_x']}_{$row['coordinate_y']}";
-            $result[$key] = $row;
-        }
-
-        return $result;
-    }
-
 }
