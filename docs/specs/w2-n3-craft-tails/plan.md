@@ -34,13 +34,13 @@
 
 ## Descoped
 
-*(empty)*
+- 2026-09-27 — дыра прямого `genericCraft_` в боте (скрытый рецепт стартует callback'ом) не закрыта: ask 1 брифа ограничен веб-стартом, бот не меняется (Assumptions). Владелец: «давай фиксі» на рекомендацию «фикс хвостов 1–3», где п.1 — веб-старт. В следующий бриф.
 
 ## Plan deltas
 
 **Approved:** <owner, date>
 **Briefed:** via mini-brief, Andrei, 2026-09-27
-**Branch:** <written by /vulyk-build>
+**Branch:** vulyk/w2-n3-craft-tails
 **Checked:** <written by scripts/human-check.sh>
-**Council:** <written by scripts/cycle.sh judge/escalate>
+**Council:** GREEN round 1, 2026-09-27, at 005c3baa, pack 5b753339e458
 **Shipped:** <written by scripts/ship-check.sh --record>

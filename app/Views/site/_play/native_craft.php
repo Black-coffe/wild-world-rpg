@@ -175,7 +175,9 @@ $locks = array_values(array_filter($benches, static fn (mixed $b): bool => is_ar
                                 <div><dt>⏱ Время, 1 шт.</dt><dd><?= esc($duration($int($card['minutes_one'] ?? 0))) ?></dd></div>
                                 <div><dt>💰 Цена, 1 шт.</dt><dd><?= $gold > 0 ? esc(number_format($gold, 0, '.', ' ')) . ' зол.' : 'без золота' ?></dd></div>
                                 <div><dt>📦 Можно поставить</dt><dd><?= $maxQty ?> шт.</dd></div>
-                                <div><dt>📋 Место в очереди</dt><dd>№<?= max(1, $int($card['queue_pos'] ?? 1)) ?></dd></div>
+                                <?php if ($int($card['queue_pos'] ?? 0) > 0): ?>
+                                    <div><dt>📋 Место в очереди</dt><dd>№<?= $int($card['queue_pos']) ?></dd></div>
+                                <?php endif ?>
                             </dl>
                             <?php if ($reqs !== []): ?>
                                 <ul class="play-craft-reqs" aria-label="Сырьё на 1 шт.: есть / нужно (рюкзак и склад)">

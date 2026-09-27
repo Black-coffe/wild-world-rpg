@@ -1,8 +1,8 @@
 ---
 story: w2-n3-craft-tails-01
 spec: w2-n3-craft-tails
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 1
 worker: worker-code
 model: opus
@@ -49,5 +49,11 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- WebNativeScreenService: `craftStart` отказывает рецепту, не прошедшему `visibleRecipes()` ни в одной категории каталога (`recipeVisible`), ответ «Этот рецепт сейчас недоступен.», после claim интента.
+- WebNativeScreenService: `logCraftRejected` — копия `BaseAction::logRejected` (firehose `markRejected` + `ActionLogModel` REJECTED); `chat_id` 0 (у веба нет чата, как у других не-чатовых писателей); причины: `recipe_hidden`, `qty_over_max`, ядро — `log.reason` или `code`, если ядро `log` не дало (бот такие не пишет, веб пишет всё).
+- WebNativeScreenService: `card.queue_pos` = ожидающих + 1, только если идёт крафт того же рецепта (сверка по `recipe` активных строк очереди), иначе null; ответ на старт — `position` новой строки из `forCharacter()`, fallback — ожидающих + 1.
+- native_craft.php: строка «Место в очереди» только при `queue_pos` > 0.
+- tests/database/WebCraftStartTailsTest.php: 3 теста на настоящем ядре; при выключенном guard'е скрытого рецепта тест красный (проверено).
+- phpstan-baseline.neon не понадобился.
 
 ## Findings
