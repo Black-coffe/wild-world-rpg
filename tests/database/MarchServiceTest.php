@@ -767,7 +767,12 @@ final class MarchServiceTest extends CIUnitTestCase
     {
         $this->conn->query('INSERT INTO tasks (name, name_rus, parallel_execution_allowed) VALUES (?, ?, ?)', [$name, $nameRus, $parallel]);
         $taskId = (int) $this->conn->insertID();
-        $this->conn->query("INSERT INTO character_tasks (character_id, telegram_user_id, task_id, start_time, end_time, status) VALUES (1, 7, ?, NOW(), NOW() + INTERVAL 1 HOUR, 'in_work')", [$taskId]);
+        // Часы PHP, а не NOW(): остаток считается через time(), а в CI пояс БД (UTC) не совпадает
+        // с поясом приложения. окно −30…+3570 с: длительность 3600, остаток «59 минут» устойчив к дрожанию секунд.
+        $this->conn->query(
+            "INSERT INTO character_tasks (character_id, telegram_user_id, task_id, start_time, end_time, status) VALUES (1, 7, ?, ?, ?, 'in_work')",
+            [$taskId, date('Y-m-d H:i:s', time() - 30), date('Y-m-d H:i:s', time() + 3570)]
+        );
     }
 
     /** @param array<string, mixed> $settings */
