@@ -27,7 +27,7 @@ blocked_by: [w2-n2-live-map-02]
 - после паузы есть продление и возобновление.
 
 Публичный `/map`: инлайн-стили переводятся на токены `wildworld-ui.css` (0 радиусов, палитра,
-шрифты), координаты подсказки — 0..999, PNG получает версию по `filemtime`. Вошедший игрок видит
+шрифты), координаты подсказки — 0..999, PNG получает версию по `filemtime`. Поднять `?v=` у изменённых CSS/JS в `meta.php`. Вошедший игрок видит
 «Играть отсюда» → `/play?view=map`, а в карте `/play` есть ссылка «Весь мир» → `/map`.
 
 ## Requirements
@@ -48,6 +48,7 @@ blocked_by: [w2-n2-live-map-02]
 - app/Controllers/Map.php
 - public/assets/css/wildworld-ui.css
 - public/assets/js/wildworld-play.js
+- app/Views/site/_layout/meta.php
 - public/ui-kit.html
 - tests/database/MarchServiceTest.php
 - tests/database/PlayViewControllerTest.php
