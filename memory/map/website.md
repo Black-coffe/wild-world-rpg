@@ -32,8 +32,10 @@ last-verified: 2026-09-27
   `Config\WebPlay` (не баланс). Флаг `web.play_enabled` (GameSettings, default off).
   Нативные экраны (ADR-190): `POST /play/view` → `WebNativeScreenService` рендерит «Я»/«Инвентарь»/
   «Снаряжение» из `Services/Player` (см. `player.md`) и «Мир» (`view=map`) из `LiveMapService` +
-  `MarchService::status` (см. `world.md`); `op=cell|step|march_preview|march_start|march_extend|
-  march_resume|march_stop`. Вьюхи `site/_play/native_*`, `hud`, `dock`, `state`; JS `wildworld-play.js`.
+  `MarchService::status` (см. `world.md`); `op=cell|step|march_*`. «🔨 Крафт» (`view=craft`,
+  `bench/cat/recipe`) — `Config\CraftCatalog` + `CraftOrderService`/`CraftQueueService` (см. `craft.md`);
+  `op=craft_start|craft_cancel`. Вьюхи `site/_play/native_*`, `hud`, `dock`, `state`; JS `wildworld-play.js`
+  (таймеры `[data-ends-at]` в HUD и `#play-state` — один тик раз в секунду).
 - Публичная карта `/map` → `app/Controllers/Map.php`: цвета легенды из `BiomePalette`, PNG с
   `?v=filemtime`; вошедшему при `web.play_enabled` — «Играть отсюда» → `/play?view=map`.
 
@@ -49,9 +51,7 @@ outbound: модели постов, `Services/Web/TelegramLoginVerifier`, `Serv
 ## Gotchas
 - Приватные поля персонажа показываются **только своему** персонажу.
 - Правка CSS требует бампа `?v=` в `meta.php` и синхронного обновления `ui-kit.html`.
-- Публикация site-контента идёт прямым INSERT в `site_posts`; статус `draft` гасит публикацию.
-  Обновление живой страницы — не публикация новой.
-- Любой site-черновик обязан пройти скилл `/redkollegiya` до публикации (PostToolUse-хук напоминает).
+- Site-контент — прямой INSERT в `site_posts`; `draft` гасит публикацию; черновик — через `/redkollegiya`.
 - **Слияний аккаунтов нет (ADR-188 инв. 4).** Код из бота у вошедшего в чужой аккаунт — отказ до
   траты кода (`LinkCodeService::link`); чужая OAuth/Telegram-identity — отказ. Identity между
   аккаунтами не переезжает.
@@ -63,16 +63,18 @@ outbound: модели постов, `Services/Web/TelegramLoginVerifier`, `Serv
   оракул адресов; реальный отказ — только `error`-лог `[PasswordReset]`.
 - `/play`: флаг проверяется **до** входа — при выключенном заглушку `site/play_stub` видит и гость.
   Персонаж только из сессии; из запроса — лишь `intent_id/kind/data/message_id` (+ у `/play/view`
-  `view/op/item/x/y/dir/n`), id в HTML/JSON не выводятся. Callback принимается, только если `data` на кнопке сообщения с тем `message_id`.
+  `view/op/item/x/y/dir/n/bench/cat/recipe/qty/task`), id в HTML/JSON не выводятся. Callback принимается, только если `data` на кнопке сообщения с тем `message_id`.
 - CSRF `regenerate` включён: JSON-ответы `/play/*` несут `csrf`, JS обязан брать свежий токен.
 - Return target после входа — только ровно `/play` (`AccountSession::RETURN_PLAY`).
-- Мутации `/play/view` дедупятся в `web_play_intents` по `intentKey(intent_id, ':gear'|':step'|':<march_op>')`
-  (≤64); без JS — PRG на `/play?view=…`. Хуки шага/Похода с чатом — под `WebDelivery`-захватом, под картой.
+- Мутации `/play/view` дедупятся в `web_play_intents` по `intentKey(intent_id, ':gear'|':step'|':<march_op>'|
+  ':craft_start'|':craft_cancel')` (≤64); без JS — PRG на `/play?view=…`. Веб-старт крафта: `qty > max_qty` превью — отказ. Хуки шага/Похода с чатом — под `WebDelivery`-захватом, под картой.
 - Поход из веба стартует без `msg_id` → прогресс тика приходит в Telegram новыми сообщениями.
-- Кнопка нативного экрана без своего экрана идёт `op=bridge` через мост (карточка «Я» / у карты `/go` →
-  ступени маршрута → callback бота), а не напрямую.
+- Кнопка нативного экрана без своего экрана идёт `op=bridge` через мост (карточка «Я» / у карты `/go` /
+  у нехватки крафта `/craft` + `CraftCatalog::botRoute` → callback бота), а не напрямую.
+- HUD: срок строки `Marching` — из `MarchService::status()['eta']` (у строки `end_time = start_time`).
 - Сессия: ключи `account_id`, `character_id`, legacy `tg_user_id`; legacy-сессия апгрейдится в `current()`.
 
 ## Vault
 `mmorpg-vault/apps/website/index.md` · ADR-062, ADR-052, ADR-188, ADR-189, ADR-190 ·
-`tech-writing/controllers/{AccountControllers,Play,Map}.md`, `tech-writing/services/{Account*,Web*}.md`
+`tech-writing/controllers/{AccountControllers,Play,Map}.md`, `tech-writing/services/{Account*,Web*}.md`,
+`tech-writing/config/CraftCatalog.md`

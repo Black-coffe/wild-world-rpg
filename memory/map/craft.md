@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-23
+last-verified: 2026-09-27
 
 # Scout report: Крафт, ремонт, экономика предметов
 
@@ -10,6 +10,11 @@ last-verified: 2026-09-23
 расходников, дерево крафта и калькулятор.
 
 ## Entry points
+- `app/Services/Craft/CraftOrderService.php` — **ядро старта** для бота и веба (W2.N3, ADR-190):
+  `preview()`, `start()`, `gateError()`; коды исхода — константы. `GenericCraftActionStart` — рендерер.
+- `app/Services/Craft/CraftQueueService.php` — очередь: `rows()`/`forCharacter()` (ETA), `cancel()`,
+  `promoteNext()`. Рендереры: `ShowCraftQueueAction`, `CancelQueuedCraftAction`, `GenericCraftCompletionHandler`.
+- `app/Config/CraftCatalog.php` — дерево верстак→категория→рецепты для `/play?view=craft` (не бот).
 - `app/Services/Player/CraftService.php` — оркестрация крафта; `Player/Craft/` — подпроцессы.
 - `app/Services/Craft/CraftCardHelper.php` — единственное место, считающее доступность сырья
   (пул рюкзак+склад, ADR-171) и строящее ряды кнопок количества (`STEPS = [1,5,10,25,50,100]`,
@@ -27,7 +32,7 @@ last-verified: 2026-09-23
 Предмет — четыре источника правды сразу: имя, рецепт, описание и арт; они обязаны совпадать.
 
 ## Dependencies
-inbound: `CraftCommand`, крафт-actions, `Worker`/TaskHandlers завершения.
+inbound: `CraftCommand`, крафт-actions, `Worker`/TaskHandlers завершения, веб `WebNativeScreenService`.
 outbound: ресурсы персонажа, `GameSettings`, `Images`.
 
 ## Gotchas
@@ -35,16 +40,15 @@ outbound: ресурсы персонажа, `GameSettings`, `Images`.
 - Цена на экране обязана приходить из сервиса сделки, а не из сырого поля БД.
 - Списание — `deductCraftedItem`, не `update()` с raw-set.
 - Любое число баланса (стоимость, время, вероятность) — в `GameSettings` с rationale, не в коде.
-- **ЗАКРЫТО (2026-09, exploit-fix-02, H1).** `EA-economy-01`/`EA-economy-02` — было: ни одной
-  проверки `qty > 0` на пути `BuyCraftConfirmAction`/`SellCraftConfirmAction`, отрицательное `qty`
-  печатало золото и раздувало сток торговца, `qty=0` писал фантомную строку в `transactions`.
-  Гвард `qty > 0` теперь стоит на самом экране (не на побочном эффекте `VendorDailyLimitService`),
-  сразу после каста `(int) $quantity`, до любого чтения/записи. Отдельная честная причина отказа —
-  не переиспользует текст `VendorDailyLimitService::refusalText()` («монеты торговца кончились»).
-- **(2026-09, ADR-181) Отмена очереди крафта** (`CancelQueuedCraftAction`) — снятие строки
-  `character_tasks` теперь условный `DELETE ... WHERE status='queued'` **первым** шагом транзакции,
-  три возврата (ресурсы/крафт/золото) — только при подтверждённом снятии. Раньше строка удалялась
-  безусловным `Model::delete()` последней. См. `mmorpg-vault/tech-writing/handlers/craft/CancelQueuedCraftAction.md`.
+- **(exploit-fix-02)** `BuyCraftConfirmAction`/`SellCraftConfirmAction`: гвард `qty > 0` на самом
+  экране, сразу после каста, до любого чтения/записи; своя причина отказа.
+- **(ADR-181, с W2.N3 — в `CraftQueueService::cancel()`)** отмена очереди — условный
+  `DELETE … WHERE status='queued'` **первым** шагом транзакции, возвраты только при снятии; продвижение —
+  условный `UPDATE … WHERE status='queued'`. Возврат — туда, откуда списал старт
+  (`task_settings.consumed{resources{backpack,storage},crafted_items,gold}`); без `consumed` — в рюкзак.
+- **(W2.N3-01) Лимиты очереди — GameSettings** `craft.queue.max_per_recipe` (10) / `craft.queue.max_slots`
+  (3), не `Config\GameBalance` (поля удалены). Перепроверяются под `SELECT … FOR UPDATE` строки персонажа.
+- Ядро в `action_log` не пишет: отказ несёт `log{reason,extra}`, пишет рендерер (`CRAFT_<Key>`).
 - **(2026-09, ADR-181) Списание ресурсов** — `CharacterResourceModel::decreaseResources()` удалено
   (читало-считало-писало, при нехватке удаляло строку и рапортовало успех); заменено
   `decrementIfAtLeast()` через `ConditionalWriteService` во всех семи бывших вызывающих.
@@ -57,7 +61,7 @@ outbound: ресурсы персонажа, `GameSettings`, `Images`.
   Контракт зафиксирован: `mmorpg-vault/decisions/ADR-182-Craft-again-callback-is-the-recipe-key-contract.md`.
 - **(2026-09, craft-quantity-parity) Доступность сырья на карточке крафта — только через
   `CraftCardHelper::available()`** (пул рюкзак+склад), не через `CharacterResourceModel` напрямую
-  — иначе экран расходится с гейтом старта `GenericCraftActionStart::checkResources()`. T3-утилиты
+  — иначе экран расходится с гейтом старта `CraftOrderService::checkResources()`. T3-утилиты
   (`UtilityRecipePreviewT3Action`) получили паритет с обычными карточками — ряд кнопок количества
   вместо зашитой единственной «1 шт.».
 
@@ -67,4 +71,5 @@ outbound: ресурсы персонажа, `GameSettings`, `Images`.
   Вывод из обращения — ADR-185, ветка `vulyk/craft-shelf-coverage` не влита и правит тот же файл.
 
 ## Vault
-`mmorpg-vault/tech-writing/craft/` · `mmorpg-vault/apps/player/index.md`
+`tech-writing/services/{CraftOrderService,CraftQueueService}.md`, `tech-writing/config/CraftCatalog.md`,
+`tech-writing/handlers/craft/` · `mmorpg-vault/apps/player/index.md`
