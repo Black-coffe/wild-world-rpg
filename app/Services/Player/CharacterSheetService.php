@@ -13,6 +13,7 @@ use App\Services\PVE\TributeService;
 use App\Services\Quest\DailyTaskService;
 use App\Services\Tasks\ActiveTasksService;
 use App\Services\Telegram\BotMenuService;
+use App\Services\World\MarchService;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\ResultInterface;
 use Config\Database;
@@ -25,12 +26,15 @@ use DateTime;
  * рисует {@see CharacterService::showCharacterInfo()}, нативный экран «Я» и HUD сайта —
  * `site/_play/native_me` и `site/_play/hud`. Оба клиента читают одни и те же поля.
  *
+ * W2.N2-03: HUD сайта ({@see hud()}) несёт и идущий Поход — {@see MarchService::status()}.
+ *
  * Сырые значения статов (`level`, `experience`, `health`…) хранятся строкой ровно так, как их
  * печатала карточка бота до рефакторинга: так бот остаётся байт-в-байт прежним. Строки чужих
  * сервисов (полярная звезда, лестница уровня, раны, серия) — готовые фразы в legacy-Markdown
  * Telegram, веб переводит их в HTML тем же `TelegramMarkupRenderer`, что и мост.
  *
- * @phpstan-type Hud array{health:string, tired:string, gold:int, level:int, experience:string, level_percent:?int, next_level:?int, cell:?array{x:int, y:int}, biome:?string, task:?array{name:string, ends_at:?int}, tasks_more:int}
+ * @phpstan-import-type Status from MarchService as MarchStatus
+ * @phpstan-type Hud array{health:string, tired:string, gold:int, level:int, experience:string, level_percent:?int, next_level:?int, cell:?array{x:int, y:int}, biome:?string, task:?array{name:string, ends_at:?int}, tasks_more:int, march?:?MarchStatus}
  * @phpstan-type Action array{id:string, label:string, callback?:string, url?:string}
  * @phpstan-type Sheet array{
  *     id:int, name:string, faction:?string, cell:?array{x:int, y:int}, biome:string,
@@ -171,7 +175,10 @@ class CharacterSheetService
         }
         [$cell, $biomeName] = $this->location($row['cell_number'] ?? null);
 
-        return $this->hudFromRow($row, $cell, $biomeName);
+        $hud          = $this->hudFromRow($row, $cell, $biomeName);
+        $hud['march'] = (new MarchService())->status($characterId);
+
+        return $hud;
     }
 
     /**

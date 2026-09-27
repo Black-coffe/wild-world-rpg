@@ -4,26 +4,15 @@
  * @var array<string,mixed>            $meta
  * @var array{logged_in: bool, first_name: string} $auth
  * @var string                         $botUsername
+ * @var array<int,string>              $biomeColors цвета легенды из BiomePalette (контроллер)
+ * @var string                         $pixelMap     URL PNG с версией по filemtime
+ * @var string                         $beautifulMap URL PNG с версией по filemtime
+ * @var string|null                    $playUrl      «Играть отсюда» — только вошедшему при включённой игре
  */
 $this->extend('site/layout');
 $csrfHash = csrf_hash();
 $csrfName = csrf_token();
 
-// Цвета биомов — синхронизированы с App\Services\World\BiomePalette::COLORS
-$biomeColors = [
-    1 => '#008874', // Леса
-    2 => '#003239', // Горы
-    3 => '#ffffff', // Тундра
-    4 => '#39db97', // Реки
-    5 => '#d9d229', // Тропики
-    6 => '#dac99d', // Поля
-    7 => '#4e4211', // Пещеры
-    8 => '#cc0000', // Вулканы
-    9 => '#82642b', // Пустыни
-];
-
-$pixelMap     = base_url('uploads/telegram/character/world_map_1000x1000.png');
-$beautifulMap = base_url('uploads/telegram/character/beautiful_map.png');
 $dataEndpoint = base_url('map/data');
 
 $biomeMap = [];
@@ -36,67 +25,7 @@ foreach ($biomes as $b) {
 }
 ?>
 
-<?= $this->section('head') ?>
-<style>
-.ww-map-wrap{padding:2.2rem 0 3rem}
-.ww-map-head{margin-bottom:1.3rem}
-.ww-map-head h1{font-family:"Oswald",sans-serif;font-size:1.9rem;text-transform:uppercase;letter-spacing:.06em;margin:0 0 .4rem}
-.ww-map-head p{color:var(--ww-muted);margin:0;font-size:.95rem;max-width:780px}
-.ww-map-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:1.5rem;align-items:start}
-@media (max-width: 980px){.ww-map-layout{grid-template-columns:1fr}}
-.ww-map-stage{background:var(--ww-panel);border:1px solid var(--ww-line);border-radius:8px;padding:.6rem;position:relative;overflow:hidden}
-.ww-map-canvas-box{position:relative;width:100%;aspect-ratio:1/1;background:#0e0c0a;border-radius:4px;overflow:hidden}
-.ww-map-canvas-box canvas{display:block;width:100%;height:100%;cursor:grab;image-rendering:pixelated;image-rendering:crisp-edges;user-select:none;-webkit-user-select:none}
-.ww-map-canvas-box canvas.is-dragging{cursor:grabbing}
-.ww-map-canvas-box.zoom-1 canvas{cursor:crosshair}
-.ww-map-canvas-box .ww-map-loader{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ww-muted);font-size:.95rem;pointer-events:none;background:rgba(14,12,10,.85);text-align:center;padding:1rem}
-.ww-map-canvas-box .ww-map-loader.is-hidden{display:none}
-.ww-map-tooltip{position:absolute;pointer-events:none;background:rgba(13,17,24,.98);border:1px solid var(--ww-line);color:var(--ww-text);padding:.5rem .65rem;font-size:.8rem;font-family:"PT Sans",sans-serif;line-height:1.4;white-space:normal;max-width:230px;overflow-wrap:break-word;transform:translate(-50%,-108%);display:none;z-index:5}
-.ww-map-tooltip.is-below{transform:translate(-50%,14%)}
-.ww-map-tooltip b{display:block;margin-bottom:.15rem}
-.ww-map-tooltip.is-visible{display:block}
-.ww-map-tooltip b{color:var(--ww-accent)}
-.ww-map-panel{background:var(--ww-panel);border:1px solid var(--ww-line);border-radius:8px;padding:1.1rem 1.2rem}
-.ww-map-panel + .ww-map-panel{margin-top:1rem}
-.ww-map-panel h3{font-family:"Oswald",sans-serif;font-size:.95rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ww-muted);margin:0 0 .8rem}
-.ww-map-opt{display:block;padding:.45rem .1rem;cursor:pointer;font-size:.92rem;color:var(--ww-text)}
-.ww-map-opt input{margin-right:.55rem;vertical-align:middle}
-.ww-map-opt small{display:block;color:var(--ww-muted);font-size:.78rem;margin-left:1.4rem;margin-top:.1rem}
-.ww-map-opt.is-locked{cursor:not-allowed;opacity:.5}
-.ww-map-opt.is-locked input{cursor:not-allowed}
-.ww-map-scale-row{display:flex;gap:.35rem;flex-wrap:wrap}
-.ww-map-scale-row label{flex:1 1 calc(25% - .35rem);min-width:60px;text-align:center;padding:.4rem .25rem;border:1px solid var(--ww-line);border-radius:4px;cursor:pointer;font-family:"Oswald",sans-serif;font-size:.85rem;letter-spacing:.04em;background:rgba(0,0,0,.18);user-select:none}
-.ww-map-scale-row label.is-active{border-color:var(--ww-accent);background:rgba(245,165,36,.12);color:var(--ww-accent)}
-.ww-map-scale-row input{position:absolute;opacity:0;pointer-events:none}
-.ww-map-refresh{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .9rem;background:transparent;border:1px solid var(--ww-line);color:var(--ww-text);border-radius:4px;cursor:pointer;font-family:"Oswald",sans-serif;text-transform:uppercase;font-size:.85rem;letter-spacing:.05em}
-.ww-map-refresh:hover{border-color:var(--ww-accent);color:var(--ww-accent)}
-.ww-map-status{margin-top:.6rem;font-size:.8rem;color:var(--ww-muted)}
-.ww-map-legend ul{list-style:none;padding:0;margin:0}
-.ww-map-legend li{display:flex;align-items:center;gap:.55rem;padding:.3rem 0;font-size:.88rem}
-.ww-map-legend .ww-map-swatch{display:inline-block;width:18px;height:18px;border:1px solid rgba(255,255,255,.15);border-radius:2px;flex-shrink:0}
-.ww-map-coords{font-family:"Oswald",sans-serif;font-size:.95rem;letter-spacing:.04em;color:var(--ww-accent);margin-top:.4rem;min-height:1.2em}
-.ww-map-events ul{list-style:none;padding:0;margin:0;max-height:280px;overflow-y:auto}
-.ww-map-events li{padding:.55rem .6rem;border:1px solid var(--ww-line);border-radius:4px;margin-bottom:.45rem;font-size:.85rem;line-height:1.4;background:rgba(0,0,0,.18)}
-.ww-map-events li.is-empty{color:var(--ww-muted);text-align:center;border-style:dashed;background:transparent}
-.ww-map-events .ww-ev-name{display:block;font-weight:600;color:var(--ww-text);margin-bottom:.15rem}
-.ww-map-events .ww-ev-meta{display:block;color:var(--ww-muted);font-size:.77rem}
-.ww-map-events .ww-ev-tag{display:inline-block;padding:.05rem .4rem;border-radius:3px;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;margin-right:.3rem}
-.ww-map-events .ww-ev-tag-local{background:rgba(217,210,41,.15);color:#d9d229;border:1px solid rgba(217,210,41,.4)}
-.ww-map-events .ww-ev-tag-global{background:rgba(204,0,0,.18);color:#e85555;border:1px solid rgba(204,0,0,.5)}
-.ww-map-future{font-size:.82rem;color:var(--ww-muted);line-height:1.5;margin:.6rem 0 0}
-.ww-map-auth{display:flex;flex-direction:column;gap:.5rem}
-.ww-map-auth .ww-auth-hello{font-size:.92rem}
-.ww-map-auth .ww-auth-hello b{color:var(--ww-accent)}
-.ww-map-auth .ww-auth-hint{font-size:.78rem;color:var(--ww-muted);line-height:1.4;margin:.3rem 0 0}
-.ww-map-auth .ww-auth-logout{display:inline-flex;align-items:center;padding:.45rem .8rem;background:transparent;border:1px solid var(--ww-line);color:var(--ww-muted);border-radius:4px;font-family:"Oswald",sans-serif;text-transform:uppercase;font-size:.78rem;letter-spacing:.04em;cursor:pointer}
-.ww-map-auth .ww-auth-logout:hover{border-color:#e85555;color:#e85555}
-.ww-map-auth .ww-auth-row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
-.ww-auth-locate{display:inline-flex;align-items:center;gap:.4rem;padding:.45rem .8rem;background:#39db97;color:#0a1f15;border:none;border-radius:4px;font-family:"Oswald",sans-serif;text-transform:uppercase;font-size:.82rem;letter-spacing:.05em;cursor:pointer;font-weight:600}
-.ww-auth-locate:hover{background:#2ec384}
-.ww-auth-locate:disabled{background:#2a3a30;color:#5a6a60;cursor:not-allowed}
-.ww-auth-locate svg{width:18px;height:18px;fill:currentColor;flex-shrink:0}
-</style>
-<?= $this->endSection() ?>
+<?php /* Стили страницы — `.ww-map-*` в wildworld-ui.css (токены ADR-062). */ ?>
 
 <?= $this->section('content') ?>
 <section class="ww-map-wrap">
@@ -104,6 +33,9 @@ foreach ($biomes as $b) {
         <header class="ww-map-head">
             <h1>Карта мира</h1>
             <p>Остров Wild World 1000×1000 клеток. Переключай подложку, увеличивай масштаб и двигай мышкой/тачем. Контуры биомов поверх «художественной» подложки — для географической ясности.</p>
+            <?php if (is_string($playUrl ?? null)): ?>
+                <p class="ww-map-play"><a class="btn primary" href="<?= esc($playUrl, 'attr') ?>">▶ Играть отсюда</a><span>Откроет твою карту в игре на сайте — шаг и Поход прямо с клетки.</span></p>
+            <?php endif; ?>
         </header>
 
         <div class="ww-map-layout">
@@ -126,7 +58,7 @@ foreach ($biomes as $b) {
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
                                 Я на карте
                             </button>
-                            <form method="post" action="<?= esc(base_url('logout/telegram'), 'attr') ?>" style="margin:0">
+                            <form method="post" action="<?= esc(base_url('logout/telegram'), 'attr') ?>">
                                 <input type="hidden" name="<?= esc($csrfName, 'attr') ?>" value="<?= esc($csrfHash, 'attr') ?>">
                                 <button type="submit" class="ww-auth-logout">Выйти</button>
                             </form>
@@ -236,7 +168,7 @@ foreach ($biomes as $b) {
                             <?php
                             $bid  = (int) ($b['id'] ?? 0);
                             $name = is_string($b['name'] ?? null) ? $b['name'] : ('Биом #' . $bid);
-                            $col  = $biomeColors[$bid] ?? '#808080';
+                            $col  = $biomeColors[$bid] ?? '';
                             ?>
                             <li>
                                 <span class="ww-map-swatch" style="background:<?= esc($col, 'attr') ?>"></span>
@@ -260,6 +192,20 @@ foreach ($biomes as $b) {
         pixel:     <?= json_encode($pixelMap, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>,
         beautiful: <?= json_encode($beautifulMap, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>
     };
+    // Цвета маркеров — токены палитры wildworld-ui.css (ADR-062), не сырые значения.
+    var TOKENS = (function(){
+        var cs = getComputedStyle(document.documentElement);
+        function t(name){ return cs.getPropertyValue(name).trim(); }
+        return {
+            accent: t('--accent'), ink: t('--accent-ink'), base: t('--bg-base'),
+            text: t('--text'), me: t('--success'), meInk: t('--text-inverse')
+        };
+    })();
+    function alpha(color, a){
+        var m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color || '');
+        if (!m) return color;
+        return 'rgba(' + parseInt(m[1], 16) + ',' + parseInt(m[2], 16) + ',' + parseInt(m[3], 16) + ',' + a + ')';
+    }
     var DATA_URL    = <?= json_encode($dataEndpoint, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
     var BIOMES      = <?= json_encode($biomeMap, JSON_UNESCAPED_UNICODE) ?>;
     var CANVAS_SIZE = 2000;        // внутреннее разрешение canvas
@@ -329,7 +275,7 @@ foreach ($biomes as $b) {
             var img = new Image();
             img.onload  = function(){ resolve(img); };
             img.onerror = function(){ reject(new Error('Не удалось загрузить ' + url)); };
-            img.src = url + (url.indexOf('?') === -1 ? '?' : '&') + 'v=' + Date.now();
+            img.src = url; // версия — filemtime с сервера: тот же URL, пока PNG не перегенерирован
         });
     }
 
@@ -369,7 +315,7 @@ foreach ($biomes as $b) {
 
         ctx.save();
         // тонкие линии каждые 50 cells
-        ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+        ctx.strokeStyle = alpha(TOKENS.text, 0.10);
         ctx.lineWidth = 1;
         for (var x = startX; x <= endX; x += 50){
             if (x % 100 === 0) continue;
@@ -382,7 +328,7 @@ foreach ($biomes as $b) {
             ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(CANVAS_SIZE, py); ctx.stroke();
         }
         // жирные линии каждые 100 cells
-        ctx.strokeStyle = 'rgba(255,255,255,0.24)';
+        ctx.strokeStyle = alpha(TOKENS.text, 0.24);
         ctx.lineWidth = 2;
         var startX100 = Math.ceil(state.viewX / 100) * 100;
         var startY100 = Math.ceil(state.viewY / 100) * 100;
@@ -395,7 +341,7 @@ foreach ($biomes as $b) {
             ctx.beginPath(); ctx.moveTo(0, py2); ctx.lineTo(CANVAS_SIZE, py2); ctx.stroke();
         }
         // подписи
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillStyle = alpha(TOKENS.text, 0.6);
         ctx.font = 'bold 22px "Oswald", sans-serif';
         ctx.textBaseline = 'top';
         for (var xl = startX100; xl <= endX; xl += 100){
@@ -424,16 +370,16 @@ foreach ($biomes as $b) {
             // маркер всегда фиксированный размер вне зависимости от scale
             ctx.beginPath();
             ctx.arc(px, py, 20, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillStyle = alpha(TOKENS.base, 0.55);
             ctx.fill();
             ctx.beginPath();
             ctx.arc(px, py, 16, 0, Math.PI * 2);
-            ctx.fillStyle = '#f5a524';
+            ctx.fillStyle = TOKENS.accent;
             ctx.fill();
             ctx.lineWidth = 3;
-            ctx.strokeStyle = '#1a1408';
+            ctx.strokeStyle = TOKENS.ink;
             ctx.stroke();
-            ctx.fillStyle = '#1a1408';
+            ctx.fillStyle = TOKENS.ink;
             ctx.font = 'bold 24px "Oswald", sans-serif';
             ctx.textBaseline = 'middle';
             ctx.textAlign = 'center';
@@ -458,13 +404,13 @@ foreach ($biomes as $b) {
             if (s.y < state.viewY || s.y > state.viewY + vsCells) continue;
             var px = (s.x - state.viewX) * pxPerCell;
             var py = (s.y - state.viewY) * pxPerCell;
-            ctx.fillStyle = 'rgba(14,11,7,0.88)';
+            ctx.fillStyle = alpha(TOKENS.base, 0.88);
             ctx.fillRect(px - 19, py - 19, 38, 38);
             ctx.lineWidth = 3;
-            ctx.strokeStyle = '#E89B2E';
+            ctx.strokeStyle = TOKENS.accent;
             ctx.strokeRect(px - 19, py - 19, 38, 38);
             ctx.font = '26px "Manrope", sans-serif';
-            ctx.fillStyle = '#fff';
+            ctx.fillStyle = TOKENS.text;
             ctx.fillText(s.icon || '🏚', px, py + 2);
         }
         ctx.restore();
@@ -502,7 +448,7 @@ foreach ($biomes as $b) {
             ctx.beginPath();
             ctx.arc(cx, cy, radius, 0, Math.PI * 2);
             ctx.lineWidth = WIDTH[i];
-            ctx.strokeStyle = 'rgba(57,219,151,' + opacity + ')';
+            ctx.strokeStyle = alpha(TOKENS.me, opacity);
             ctx.stroke();
         }
         ctx.restore();
@@ -520,24 +466,24 @@ foreach ($biomes as $b) {
         // тень
         ctx.beginPath();
         ctx.arc(px, py, 22, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillStyle = alpha(TOKENS.base, 0.55);
         ctx.fill();
         // основной круг — зелёный
         ctx.beginPath();
         ctx.arc(px, py, 17, 0, Math.PI * 2);
-        ctx.fillStyle = '#39db97';
+        ctx.fillStyle = TOKENS.me;
         ctx.fill();
         ctx.lineWidth = 3;
-        ctx.strokeStyle = '#0a1f15';
+        ctx.strokeStyle = TOKENS.meInk;
         ctx.stroke();
         // точка в центре
-        ctx.fillStyle = '#0a1f15';
+        ctx.fillStyle = TOKENS.meInk;
         ctx.beginPath();
         ctx.arc(px, py, 5, 0, Math.PI * 2);
         ctx.fill();
         // пульсирующее кольцо (статичный декор без анимации — кольцо вокруг)
         ctx.lineWidth = 2;
-        ctx.strokeStyle = 'rgba(57,219,151,0.55)';
+        ctx.strokeStyle = alpha(TOKENS.me, 0.55);
         ctx.beginPath();
         ctx.arc(px, py, 28, 0, Math.PI * 2);
         ctx.stroke();
@@ -848,9 +794,9 @@ foreach ($biomes as $b) {
         var cx = (evt.clientX - rect.left) * (CANVAS_SIZE / rect.width);
         var cy = (evt.clientY - rect.top)  * (CANVAS_SIZE / rect.height);
         var pxPerCell = CANVAS_SIZE / viewSizeCells();
-        // floor сначала суммы (cell в worldCoords) → потом +1 даёт 1..1000
-        var wx = Math.min(WORLD_SIZE, Math.max(1, Math.floor(cx / pxPerCell + state.viewX) + 1));
-        var wy = Math.min(WORLD_SIZE, Math.max(1, Math.floor(cy / pxPerCell + state.viewY) + 1));
+        // Клетка — те же координаты, что в игре: 0..999 (floor суммы в worldCoords).
+        var wx = Math.min(WORLD_SIZE - 1, Math.max(0, Math.floor(cx / pxPerCell + state.viewX)));
+        var wy = Math.min(WORLD_SIZE - 1, Math.max(0, Math.floor(cy / pxPerCell + state.viewY)));
         return {cx: cx, cy: cy, wx: wx, wy: wy, clientX: evt.clientX, clientY: evt.clientY};
     }
     function nearestCaravan(cx, cy){

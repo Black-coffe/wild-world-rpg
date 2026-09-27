@@ -11,6 +11,7 @@ use App\Services\Player\EquipmentLoadoutService;
 use App\Services\Player\InventoryViewService;
 use App\Services\Telegram\BotMenuService;
 use App\Services\World\LiveMapService;
+use App\Services\World\MarchService;
 use App\Services\World\MoveService;
 use InvalidArgumentException;
 
@@ -44,6 +45,11 @@ use InvalidArgumentException;
  * «хвост» клетки) ложатся на экран моста и показываются под картой, а их кнопки жмутся через мост
  * (`/play/act` с `message_id` своего сообщения).
  *
+ * W2.N2-03: клик по клетке на одном из 8 лучей — превью Похода ({@see marchPreview()}, `n` — расстояние
+ * по Чебышёву, зажатое в потолок заказа); «Выступить», «Продлить», «Продолжить», «Остановиться» —
+ * {@see march()} тем же {@see MarchService}, что у бота, один раз на `intent_id` (`:march_*`). Поход из
+ * веба пишется без `msg_*`: тик шлёт прогресс в Telegram новым сообщением, веб видит его в HUD и на карте.
+ *
  * Ключ дедупа — `intent_id` + суффикс ступени; {@see intentKey()} держит его в VARCHAR(64)
  * `web_play_intents` при любом допустимом `intent_id`.
  *
@@ -51,6 +57,7 @@ use InvalidArgumentException;
  * @phpstan-import-type Msg from WebScreenStore
  * @phpstan-import-type Capture from WebScreenStore
  * @phpstan-import-type Sheet from CharacterSheetService
+ * @phpstan-import-type Preview from MarchService
  */
 class WebNativeScreenService
 {
@@ -84,6 +91,15 @@ class WebNativeScreenService
 
     /** Шаг на соседнюю клетку (клик по соседу или роза). */
     public const OP_STEP = 'step';
+
+    /** Поход с карты: превью (не мутация) и мутации с дедупом по `intent_id`. */
+    public const OP_MARCH_PREVIEW = 'march_preview';
+    public const OP_MARCH_START   = 'march_start';
+    public const OP_MARCH_EXTEND  = 'march_extend';
+    public const OP_MARCH_RESUME  = 'march_resume';
+    public const OP_MARCH_STOP    = 'march_stop';
+
+    public const MARCH_OPS = [self::OP_MARCH_START, self::OP_MARCH_EXTEND, self::OP_MARCH_RESUME, self::OP_MARCH_STOP];
 
     /**
      * Кнопки моста на нативных экранах (кроме «Я», чьи кнопки берутся из модели) и путь от
@@ -120,19 +136,23 @@ class WebNativeScreenService
 
     private MoveService $move;
 
+    private MarchService $march;
+
     public function __construct(
         private ?WebActService $act = null,
         ?CharacterSheetService $sheets = null,
         ?InventoryViewService $inventory = null,
         ?EquipmentLoadoutService $loadout = null,
         ?LiveMapService $liveMap = null,
-        ?MoveService $move = null
+        ?MoveService $move = null,
+        ?MarchService $march = null
     ) {
         $this->sheets    = $sheets ?? new CharacterSheetService();
         $this->inventory = $inventory ?? new InventoryViewService();
         $this->loadout   = $loadout ?? new EquipmentLoadoutService();
         $this->liveMap   = $liveMap ?? new LiveMapService();
         $this->move      = $move ?? new MoveService();
+        $this->march     = $march ?? new MarchService();
     }
 
     public static function isView(mixed $view): bool
@@ -165,10 +185,11 @@ class WebNativeScreenService
      *
      * @param array<string, mixed> $state  текущее состояние моста (из него берётся док)
      * @param list<Msg>            $events события шага под картой (сообщения экрана моста)
+     * @param Preview|null         $preview превью Похода под картой (клик по клетке на луче)
      *
      * @throws InvalidArgumentException неизвестный экран или нет персонажа
      */
-    public function render(int $characterId, string $view, array $state, ?string $alert = null, array $events = []): string
+    public function render(int $characterId, string $view, array $state, ?string $alert = null, array $events = [], ?array $preview = null): string
     {
         $dock = is_array($state['dock'] ?? null) ? $state['dock'] : [];
 
@@ -176,8 +197,10 @@ class WebNativeScreenService
             return view('site/_play/native_map', [
                 'map'    => $this->liveMap->forCharacter($characterId),
                 'dock'   => $dock,
-                'alert'  => $alert,
-                'events' => $events,
+                'alert'   => $alert,
+                'events'  => $events,
+                'march'   => $this->march->status($characterId),
+                'preview' => $preview,
             ]);
         }
         if ($view === self::VIEW_GEAR) {
@@ -331,6 +354,79 @@ class WebNativeScreenService
     }
 
     /**
+     * Превью Похода (экран маршрута бота): не мутация, дедупа нет.
+     *
+     * @return Preview отказ — `ok = false` и `message`
+     *
+     * @throws InvalidArgumentException неизвестное направление
+     */
+    public function marchPreview(int $characterId, string $dir, int $n): array
+    {
+        if (! MarchService::isDirection($dir)) {
+            throw new InvalidArgumentException('bad direction');
+        }
+
+        return $this->march->preview($characterId, $dir, $n);
+    }
+
+    /**
+     * Поход из веба: старт, продление, возобновление, остановка — тот же {@see MarchService}, что у
+     * бота, один раз на `intent_id`. Подсказки первого Похода (им нужен чат) идут под захватом и
+     * ложатся под карту, как события шага.
+     *
+     * @return array{alert: ?string, events: list<Msg>} повтор того же намерения — `alert = null`
+     *
+     * @throws InvalidArgumentException неизвестная операция, направление, намерение или нет личности
+     */
+    public function march(int $accountId, int $characterId, string $op, string $dir, int $n, string $intentId): array
+    {
+        if (! in_array($op, self::MARCH_OPS, true) || ($op === self::OP_MARCH_START && ! MarchService::isDirection($dir))) {
+            throw new InvalidArgumentException('bad march op');
+        }
+        self::assertIntent($intentId);
+        $identity = $op === self::OP_MARCH_START ? (new VirtualIdentityService())->identityForCharacter($characterId) : null;
+        if ($op === self::OP_MARCH_START && $identity === null) {
+            throw new InvalidArgumentException('character has no identity');
+        }
+        $claimed = (new ConditionalWriteService())->insertUnique('web_play_intents', [
+            'account_id' => $accountId,
+            'intent_id'  => self::intentKey($intentId, ':' . $op),
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        if ($claimed !== WriteOutcome::Applied) {
+            return ['alert' => null, 'events' => []];
+        }
+
+        if ($op === self::OP_MARCH_EXTEND) {
+            return ['alert' => $this->march->extend($characterId, $n)['message'], 'events' => []];
+        }
+        if ($op === self::OP_MARCH_RESUME) {
+            return ['alert' => $this->march->resume($characterId)['message'], 'events' => []];
+        }
+        if ($op === self::OP_MARCH_STOP) {
+            return ['alert' => $this->march->stop($characterId)['message'], 'events' => []];
+        }
+
+        $outcome = $this->march->start($characterId, $dir, $n);
+        if (! $outcome['ok']) {
+            return ['alert' => $outcome['message'], 'events' => []];
+        }
+        WebDelivery::beginCapture($identity['telegram_id'], $characterId);
+        try {
+            $this->march->afterStart($characterId, $outcome['n'], $identity['telegram_id']);
+        } catch (\Throwable $e) {
+            log_message('error', '[WebNativeScreenService] march hints failed: ' . $e::class . ': ' . $e->getMessage());
+        } finally {
+            $capture = WebDelivery::endCapture();
+        }
+        if ($capture['sent'] !== []) {
+            (new WebScreenStore())->applyCapture($characterId, $capture);
+        }
+
+        return ['alert' => $outcome['message'], 'events' => $capture['sent']];
+    }
+
+    /**
      * Кнопка нативного экрана без нативного аналога → тот же callback через мост.
      *
      * @return array{state: State, alert: ?string, unread: int}
@@ -416,7 +512,7 @@ class WebNativeScreenService
                 ));
                 $label = $parts === [] ? $cell['marker'] : $cell['marker'] . ' ' . implode(' · ', $parts);
 
-                return $label . " — X={$x}, Y={$y}. Шаг — клик по соседней клетке или роза под картой; Поход кликом по клетке — скоро.";
+                return $label . " — X={$x}, Y={$y}. Шаг — клик по соседней клетке или роза под картой; Поход — клик по клетке на одной из 8 линий от тебя.";
             }
         }
 

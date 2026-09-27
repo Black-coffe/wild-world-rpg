@@ -400,7 +400,11 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('~name="op" value="step"><input type="hidden" name="dir" value="north"><input type="hidden" name="intent_id" value="[0-9a-f]{32}"><button class="play-map-cell is-biome is-step"~su', $html);
         $this->assertMatchesRegularExpression('~name="op" value="step"><input type="hidden" name="dir" value="north"><input type="hidden" name="intent_id" value="[0-9a-f]{32}"><button class="play-kb-btn" type="submit">⬆️ Север</button>~su', $html);
         $this->assertStringNotContainsString('value="move_dir_', $html, 'шаг больше не идёт через мост');
-        $this->assertMatchesRegularExpression('~name="op" value="cell"><input type="hidden" name="x" value="4"><input type="hidden" name="y" value="4">~su', $html);
+        $this->assertMatchesRegularExpression('~name="op" value="cell"><input type="hidden" name="x" value="4"><input type="hidden" name="y" value="5">~su', $html);
+        // W2.N2-03: клетка на луче дальше соседней — превью Похода (n — расстояние по Чебышёву).
+        $this->assertMatchesRegularExpression('~name="op" value="march_preview"><input type="hidden" name="dir" value="east"><input type="hidden" name="n" value="3"><button class="play-map-cell is-biome is-ray"~su', $html);
+        $this->assertMatchesRegularExpression('~name="op" value="march_preview"><input type="hidden" name="dir" value="northwest"><input type="hidden" name="n" value="6"><button class="play-map-cell is-biome is-ray"~su', $html);
+        $this->assertStringContainsString('href="' . base_url('map') . '"', $html, 'ссылка «Весь мир»');
         $this->assertMatchesRegularExpression('~name="data" value="island"><button class="play-kb-btn" type="submit">🌍 Остров живёт</button>~su', $html);
         $this->assertStringContainsString('class="play-dock"', $html);
         $this->assertStringContainsString('id="play-hud"', $json['hud']);
@@ -510,6 +514,102 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('Вы двинулись на: восток.', $page);
         $this->assertStringContainsString('Подсказка новичку', $page);
         $this->assertStringContainsString('<b>Перелом!</b>', $page);
+    }
+
+    /**
+     * W2.N2-03: клик по клетке на луче — превью Похода тем же сервисом, что экран маршрута бота:
+     * число клеток (зажато в потолок заказа), ETA, расход, ➖/➕ и «Выступить».
+     */
+    public function testRayCellOpensMarchPreviewWithCellsEtaAndCost(): void
+    {
+        [$session] = $this->character('Ворон');
+        $this->enableMarch();
+        $this->stubSheets(null, [[], []], $this->stubMap());
+
+        $res = $this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_preview', 'dir' => 'east', 'n' => '999'], true);
+        $res->assertStatus(200);
+        $html = html_entity_decode($this->json($res)['html'], ENT_QUOTES | ENT_HTML5);
+
+        $this->assertStringContainsString('🚜 Поход: ➡️ Восток ×60', $html, 'n зажат в потолок заказа');
+        $this->assertStringContainsString('60 из 60 возможных', $html);
+        $this->assertStringContainsString('<dt>В пути</dt><dd>~0 мин</dd>', $html);
+        $this->assertStringContainsString('❤️ 1.2 · 💤 30', $html, 'расход — world.march.* по умолчанию');
+        $this->assertMatchesRegularExpression('~name="op" value="march_start"><input type="hidden" name="dir" value="east"><input type="hidden" name="n" value="60"><input type="hidden" name="intent_id" value="[0-9a-f]{32}"><button class="play-kb-btn is-primary" type="submit">🚜 Выступить</button>~su', $html);
+        $this->assertMatchesRegularExpression('~name="op" value="march_preview"><input type="hidden" name="dir" value="east"><input type="hidden" name="n" value="59">~su', $html, '➖');
+        $this->assertSame(0, $this->conn->table('character_tasks')->countAllResults(), 'превью ничего не пишет');
+
+        $bad = $this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_preview', 'dir' => 'up', 'n' => '3'], true);
+        $this->assertSame(400, $bad->response()->getStatusCode());
+    }
+
+    /**
+     * «Выступить» пишет ту же строку Похода, что бот, без `msg_*`; HUD и карта показывают прогресс,
+     * «Продлить» и «Остановиться» работают; повтор `intent_id` не создаёт второй Поход.
+     */
+    public function testMarchStartShowsProgressExtendsStopsAndDedupsTheIntent(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableMarch();
+        $this->stubSheets(null, [[], []], $this->stubMap());
+
+        $start = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_start', 'dir' => 'east', 'n' => '3', 'intent_id' => 'ms1'], true));
+        $this->assertStringStartsWith('🚜 Поход начат: ➡️ Восток ×3.', (string) $start['alert']);
+        $html = html_entity_decode($start['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('🚜 Поход идёт: ➡️ Восток · 0/3 клеток', $html);
+        $this->assertMatchesRegularExpression('~name="op" value="march_stop"><input type="hidden" name="intent_id" value="[0-9a-f]{32}"><button class="play-kb-btn" type="submit">❌ Остановиться</button>~su', $html);
+        $hud = html_entity_decode($start['hud'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('class="play-hud-march"', $hud);
+        $this->assertStringContainsString('🚜 Поход: ➡️ Восток · 0/3 клеток', $hud);
+        $this->assertStringContainsString('value="march_stop"', $hud);
+
+        $rows = $this->conn->table('character_tasks')->get()->getResultArray();
+        $this->assertCount(1, $rows);
+        $this->assertSame(['in_work', (string) $charId], [$rows[0]['status'], (string) $rows[0]['character_id']]);
+        $settings = json_decode((string) $rows[0]['task_settings'], true);
+        $this->assertSame(['heading' => 'east', 'steps_planned' => 3, 'steps_done' => 0, 'started_cell' => 0, 'acc' => [], 'log' => []], $settings, 'без msg_* — тик шлёт прогресс новым сообщением');
+
+        $again = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_start', 'dir' => 'east', 'n' => '3', 'intent_id' => 'ms1'], true));
+        $this->assertNull($again['alert']);
+        $this->assertSame(1, $this->conn->table('character_tasks')->countAllResults(), 'повтор intent_id — без второго Похода');
+
+        $busy = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_start', 'dir' => 'north', 'n' => '2', 'intent_id' => 'ms2'], true));
+        $this->assertStringContainsString('Вы уже заняты задачей «Поход»', (string) $busy['alert'], 'второй Поход поверх идущего — отказ');
+
+        $more = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_extend', 'n' => '5', 'intent_id' => 'me1'], true));
+        $this->assertSame('Поход продлён на 5 клеток. Всего: 8.', $more['alert']);
+
+        $stop = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_stop', 'intent_id' => 'mx1'], true));
+        $this->assertStringStartsWith('🚜 Поход прерван. Пройдено 0 клеток.', (string) $stop['alert']);
+        $this->assertStringNotContainsString('Поход идёт', html_entity_decode($stop['html'], ENT_QUOTES | ENT_HTML5));
+        $this->assertStringNotContainsString('play-hud-march', $stop['hud']);
+        $this->assertSame('completed', $this->conn->table('character_tasks')->get()->getRowArray()['status'] ?? null);
+
+        $resume = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_resume', 'intent_id' => 'mr1'], true));
+        $this->assertSame('Походов на паузе нет.', $resume['alert']);
+        $this->assertSame(1, $this->conn->table('web_play_intents')->where('intent_id', 'ms1:march_start')->countAllResults());
+
+        foreach ([['op' => 'march_start', 'dir' => 'up', 'n' => '3', 'intent_id' => 'b1'], ['op' => 'march_stop'], ['op' => 'march_fly', 'intent_id' => 'b2']] as $i => $bad) {
+            $res = $this->postWithCsrf($session, 'play/view', ['view' => 'map'] + $bad, true);
+            $this->assertSame(400, $res->response()->getStatusCode(), "Поход #{$i}");
+        }
+    }
+
+    public function testMarchPreviewWithoutJsIsPrgToTheMapWithThePreview(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->seedScreen($charId);
+        $this->enableMarch();
+        $this->stubSheets(null, [[], []], $this->stubMap());
+
+        $res = $this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'march_preview', 'dir' => 'south', 'n' => '4']);
+        $this->assertSame(303, $res->response()->getStatusCode());
+        $this->assertStringEndsWith('/play?view=map', $res->response()->getHeaderLine('Location'));
+        $this->assertSame(['dir' => 'south', 'n' => 4], $_SESSION['play_map_preview'] ?? null);
+
+        $flash = ['play_map_preview' => ['dir' => 'south', 'n' => 4], '__ci_vars' => ['play_map_preview' => 'new']];
+        $page  = html_entity_decode($this->body($this->withSession($session + $flash)->get('play?view=map')), ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('🚜 Поход: ⬇️ Юг ×4', $page);
+        $this->assertStringContainsString('value="march_start"', $page);
     }
 
     /** Хвост story 01 (Ask 7): без Арсенала надетую броню можно снять, замок — только на «Надеть». */
@@ -775,6 +875,15 @@ final class PlayViewControllerTest extends CIUnitTestCase
                 ]);
             }
         };
+    }
+
+    /** Задача «Поход» и legacy-колонка `task_settings` (создающей миграции нет) — для настоящего MarchService. */
+    private function enableMarch(): void
+    {
+        $this->conn->query('ALTER TABLE character_tasks ADD task_settings TEXT NULL');
+        $this->conn->query("ALTER TABLE character_tasks MODIFY COLUMN status ENUM('in_work','completed','interrupted','queued','paused') NOT NULL DEFAULT 'in_work'");
+        $this->conn->table('tasks')->insert(['name' => 'Marching', 'name_rus' => 'Поход', 'parallel_execution_allowed' => 0]);
+        $this->conn->resetDataCache();
     }
 
     /**

@@ -1,8 +1,8 @@
 ---
 story: w2-n2-live-map-03
 spec: w2-n2-live-map
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: opus
@@ -74,5 +74,15 @@ blocked_by: [w2-n2-live-map-02]
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `MarchService` (новый): `preview/start/afterStart/attachMessage/extend/resume/stop/status` + чистые `clampOrderToCap`, `vehicleHookBlock`, `routeEtaMinutes`, `ray`; логика, тексты и `world.march.*` перенесены 1:1 из `MarchAction`/`CancelMarchAction`, ключи и дефолты не тронуты.
+- `start()` пишет строку без `msg_*`; бот после `editOrSendText` зовёт `attachMessage()` (msg_id = нажатое сообщение, как раньше) — дописывает во все активные строки Похода без `msg_id`, поэтому и в ту, что тик мог успеть породить.
+- Бот-рендереры: проверки `blockReason()` (переезд/эксклюзив) остались в handler'е — это рендер отказа байт-в-байт; сервис повторяет те же гейты нейтрально для веба. `MarchAction::vehicleHookBlock/routeEtaMinutes/clampOrderToCap` — тонкие обёртки (их зовут unit-тесты); `clampOrderToCap` стал `public static` (phpstan: unused private).
+- Паритет бота: `MarchServiceTest::BOT_BEFORE` — 16 случаев (пикер, экран маршрута/потолок/край, старт с правкой и с фолбэком, нет задачи, эксклюзив, переезд, продление, возобновление, стоп идущего/паузы, пустые отказы), сняты с кода ДО правки, идут в отдельном процессе; `task_settings` сравниваются ksort'ом (порядок ключей `msg_*` другой).
+- Веб: `op=march_preview` (клетка на луче дальше соседней, `n` = Чебышёв, зажим в потолок сервисом; без JS — flash `play_map_preview` + PRG), `march_start/extend/resume/stop` с дедупом `intent_id:march_*`; подсказки первого Похода — под захватом `WebDelivery`, как хуки шага.
+- Прогресс: `CharacterSheetService::hud()` несёт `march` (`MarchService::status`, ETA по той же разбивке маршрута); HUD — строка с таймером `data-ends-at` и «Остановиться»/«Продолжить», карта — блок прогресса, «Продлить +5», «Остановиться». Опрос `/play/inbox` уже обновляет HUD — `wildworld-play.js` не менялся, его `?v=` не поднят; `wildworld-ui.css` → `?v=12`.
+- `cellHint`: «Поход — скоро» заменён подсказкой про 8 линий; ссылка «Весь мир» → `/map` под картой.
+- `/map`: `<style>` вьюхи вынесен в `wildworld-ui.css` (`.ww-map-*`, токены, 0 радиусов/теней), цвета легенды — из `BiomePalette` в контроллере, маркеры canvas читают CSS-токены (`--accent`, `--success`…), координаты подсказки 0..999, PNG — `?v=filemtime`, «Играть отсюда» → `/play?view=map` вошедшему при `web.play_enabled`. Canvas-логика не переписана.
+- `ui-kit.html`: клетка на луче, превью Похода, блок прогресса и строка HUD (+ зеркало CSS).
+- Видимые мелочи для Tier-3: маркер «Я» на `/map` теперь палитровый `--success` (был мятный), лоадер непрозрачный; `phpstan-baseline.neon` менять не пришлось.
 
 ## Findings

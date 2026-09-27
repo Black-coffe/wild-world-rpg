@@ -43,6 +43,10 @@ use InvalidArgumentException;
  * W2.N2-02: `view=map` + `op=step` + `dir` + `intent_id` — шаг тем же сервисом, что у бота (повтор
  * `intent_id` второго шага не делает). События шага — под картой (JSON `html`; без JS — flash и PRG
  * на `/play?view=map`), их кнопки — `/play/act` через мост.
+ *
+ * W2.N2-03: `view=map` + `op=march_preview` + `dir` + `n` — превью Похода под картой (без JS — flash и
+ * PRG на `/play?view=map`); `op=march_start` (`dir`, `n`), `march_extend` (`n`), `march_resume`,
+ * `march_stop` + `intent_id` — Поход тем же сервисом, что у бота (повтор `intent_id` ничего не делает).
  */
 class Play extends BaseController
 {
@@ -53,6 +57,9 @@ class Play extends BaseController
 
     /** События шага под картой — переживают PRG без JS. */
     private const FLASH_EVENTS = 'play_map_events';
+
+    /** Превью Похода (`dir`, `n`) — переживает PRG без JS. */
+    private const FLASH_PREVIEW = 'play_map_preview';
 
     private const REJECTED_ALERT = 'Эта кнопка уже недоступна — экран обновлён.';
 
@@ -80,13 +87,19 @@ class Play extends BaseController
         $flash  = session()->getFlashdata(self::FLASH_ALERT);
         $alert  = is_string($flash) ? $flash : $result['alert'];
         $events = session()->getFlashdata(self::FLASH_EVENTS);
+        $wanted = session()->getFlashdata(self::FLASH_PREVIEW);
 
         // PRG нативного экрана: `/play?view=me` рисует экран из модели поверх того же дока.
         $view   = $this->request->getGet('view');
         $native = null;
         if (is_string($view) && WebNativeScreenService::isView($view)) {
             try {
-                $native = $this->native()->render($characterId, $view, $result['state'], $alert, self::eventList($events));
+                $preview = null;
+                if ($view === WebNativeScreenService::VIEW_MAP && is_array($wanted) && is_string($wanted['dir'] ?? null) && is_int($wanted['n'] ?? null)) {
+                    $preview = $this->native()->marchPreview($characterId, $wanted['dir'], $wanted['n']);
+                    $preview = $preview['ok'] ? $preview : null;
+                }
+                $native = $this->native()->render($characterId, $view, $result['state'], $alert, self::eventList($events), $preview);
             } catch (\Throwable $e) {
                 log_message('error', '[Play.index] native view failed: ' . $e::class . ': ' . $e->getMessage());
             }
@@ -155,8 +168,9 @@ class Play extends BaseController
             return $this->bridgeResponse($characterId, $result);
         }
 
-        $alert  = null;
-        $events = [];
+        $alert   = null;
+        $events  = [];
+        $preview = null;
         if ($view === WebNativeScreenService::VIEW_GEAR && is_string($op)
             && in_array($op, [WebNativeScreenService::OP_EQUIP, WebNativeScreenService::OP_UNEQUIP], true)) {
             $kind     = $this->request->getPost('kind');
@@ -206,6 +220,38 @@ class Play extends BaseController
 
                 return $this->rejected($characterId);
             }
+        } elseif ($view === WebNativeScreenService::VIEW_MAP && $op === WebNativeScreenService::OP_MARCH_PREVIEW) {
+            $dir = $this->request->getPost('dir');
+            try {
+                $preview = $this->native()->marchPreview($characterId, is_string($dir) ? $dir : '', self::count($this->request->getPost('n')));
+            } catch (InvalidArgumentException $e) {
+                log_message('info', '[Play.view] march preview rejected: ' . $e->getMessage());
+
+                return $this->rejected($characterId);
+            }
+            if (! $preview['ok']) {
+                $alert   = $preview['message'];
+                $preview = null;
+            }
+        } elseif ($view === WebNativeScreenService::VIEW_MAP && is_string($op) && in_array($op, WebNativeScreenService::MARCH_OPS, true)) {
+            $dir      = $this->request->getPost('dir');
+            $intentId = $this->request->getPost('intent_id');
+            try {
+                $march  = $this->native()->march(
+                    $accountId,
+                    $characterId,
+                    $op,
+                    is_string($dir) ? $dir : '',
+                    self::count($this->request->getPost('n')),
+                    is_string($intentId) ? $intentId : ''
+                );
+                $alert  = $march['alert'];
+                $events = $march['events'];
+            } catch (InvalidArgumentException $e) {
+                log_message('info', '[Play.view] march rejected: ' . $e->getMessage());
+
+                return $this->rejected($characterId);
+            }
         } elseif (! is_string($view) || ! WebNativeScreenService::isView($view) || $op !== null) {
             log_message('info', '[Play.view] rejected: bad view/op');
 
@@ -219,13 +265,16 @@ class Play extends BaseController
             if ($events !== []) {
                 session()->setFlashdata(self::FLASH_EVENTS, $events);
             }
+            if ($preview !== null) {
+                session()->setFlashdata(self::FLASH_PREVIEW, ['dir' => $preview['dir'], 'n' => $preview['n']]);
+            }
 
             return redirect()->to('/play?view=' . rawurlencode($view), 303)->withCookies();
         }
 
         $current = $this->service()->current($characterId);
         try {
-            $html = $this->native()->render($characterId, $view, $current['state'], $alert, $events);
+            $html = $this->native()->render($characterId, $view, $current['state'], $alert, $events, $preview);
         } catch (InvalidArgumentException $e) {
             log_message('info', '[Play.view] render rejected: ' . $e->getMessage());
 
@@ -431,6 +480,12 @@ class Play extends BaseController
     private static function coordinate(mixed $raw): ?int
     {
         return is_string($raw) && preg_match('/^-?\d{1,4}$/', $raw) === 1 ? (int) $raw : null;
+    }
+
+    /** Число клеток из формы (0 — нет/не число: сервис зажмёт в 1..потолок). */
+    private static function count(mixed $raw): int
+    {
+        return is_string($raw) && preg_match('/^\d{1,4}$/', $raw) === 1 ? (int) $raw : 0;
     }
 
     private function wantsJson(): bool

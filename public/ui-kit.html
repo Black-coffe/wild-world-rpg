@@ -1787,6 +1787,33 @@ section.block:first-of-type { border-top: 0; }
 .play-map-legend summary { cursor: pointer; font-family: var(--font-display); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); }
 .play-map-legend summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .play-map-legend ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px 12px; }
+
+/* W2.N2-03 — Поход с карты /play: клетка на луче, превью маршрута, идущий Поход (карта и HUD). */
+.play-map-cell.is-ray { background: var(--bg-elev-2); outline: 1px dashed var(--border-strong); outline-offset: -3px; }
+.play-map-cell.is-ray:hover { background: var(--accent-lo); outline-color: var(--accent); }
+.play-march { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px 12px; background: var(--bg-elev-1); border: 1px solid var(--border); border-left: 3px solid var(--accent); }
+.play-march.is-active { border-left-color: var(--success); }
+.play-march-title { margin: 0; font-family: var(--font-display); font-size: 15px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text); overflow-wrap: anywhere; }
+.play-march-meta { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); overflow-wrap: anywhere; }
+.play-march-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; min-width: 0; }
+@media (min-width: 640px) { .play-march-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.play-march-facts div { min-width: 0; padding: 6px 8px; background: var(--bg-elev-2); border: 1px solid var(--border); }
+.play-march-facts dt { font-family: var(--font-display); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); }
+.play-march-facts dd { margin: 2px 0 0; font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.play-march-actions { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.play-march-actions form { display: flex; flex: 1 1 120px; min-width: 0; }
+.play-march-bar { display: block; width: 100%; height: 6px; border: 0; background: var(--bg-elev-3); color: var(--success); appearance: none; -webkit-appearance: none; }
+.play-march-bar::-webkit-progress-bar { background: var(--bg-elev-3); }
+.play-march-bar::-webkit-progress-value { background: var(--success); }
+.play-march-bar::-moz-progress-bar { background: var(--success); }
+.play-map-world { margin: 0; font-family: var(--font-display); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; }
+.play-hud-march { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; padding: 6px 10px; background: var(--bg-elev-2); border: 1px solid var(--border-strong); border-left: 3px solid var(--success); font-size: 14px; }
+.play-hud-march.is-paused { border-left-color: var(--warning); }
+.play-hud-march .play-hud-bar { flex: 1 1 100%; order: 5; }
+.play-hud-march form { margin: 0; }
+.play-hud-march-btn { min-height: 32px; padding: 4px 10px; background: transparent; color: var(--text); border: 1px solid var(--border-strong); font-family: var(--font-body); font-size: 13px; font-weight: 600; cursor: pointer; }
+.play-hud-march-btn:hover { border-color: var(--accent); color: var(--accent); }
+.play-hud-march-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
 </head>
 
@@ -2683,6 +2710,57 @@ section.block:first-of-type { border-top: 0; }
               <li>⬛️ — не изучено</li><li>⬜ — за пределами мира</li><li>🌲 — Лес</li><li>🌋 — Вулкан</li>
             </ul>
           </details>
+          <p class="play-map-world"><a href="#play-map-demo">🗺 Весь мир — большая карта острова</a></p>
+        </article>
+      </div>
+    </div>
+
+    <h3 class="mt-3" id="play-march-demo">Поход с карты — клетка на луче, превью, прогресс (W2.N2-03)</h3>
+    <p class="muted">Клетка на одном из 8 лучей дальше соседней — пунктирная рамка; клик открывает превью маршрута (n = расстояние по Чебышёву, зажатое в потолок заказа). Превью — число клеток, время, расход, ➖/➕ и «Выступить». Идущий Поход виден блоком на карте и строкой в HUD с таймером до прибытия и «Остановиться». Всё — формы, без JS работает PRG.</p>
+    <div class="play-shell is-native mt-2">
+      <div class="play-screen">
+        <div class="play-hud" role="region" aria-label="Состояние персонажа">
+          <div class="play-hud-march">
+            <span class="play-hud-task-name">🚜 Поход: ➡️ Восток · 2/6 клеток</span>
+            <progress class="play-hud-bar" max="6" value="2">2/6</progress>
+            <span class="play-hud-sub">до прибытия</span>
+            <time class="play-hud-timer">2:00</time>
+            <form action="#play" method="post"><button class="play-hud-march-btn" type="submit">❌ Остановиться</button></form>
+          </div>
+        </div>
+        <article class="play-native" aria-label="Поход">
+          <div class="play-map" aria-label="Фрагмент сетки: игрок, сосед, клетки на луче" style="max-width:240px;grid-template-columns:repeat(4,minmax(0,1fr))">
+            <span class="play-map-cell is-player">🙎‍♂️</span>
+            <form action="#play" method="post"><button class="play-map-cell is-step" type="submit" aria-label="Шаг: X=4 Y=500">🌲</button></form>
+            <form action="#play" method="post"><button class="play-map-cell is-ray" type="submit" aria-label="Поход ×2: X=5 Y=500">🌲</button></form>
+            <form action="#play" method="post"><button class="play-map-cell is-ray is-fog" type="submit" aria-label="Поход ×3: X=6 Y=500">⬛️</button></form>
+          </div>
+          <section class="play-march is-preview" aria-labelledby="kit-march-preview">
+            <h3 class="play-march-title" id="kit-march-preview">🚜 Поход: ➡️ Восток ×3</h3>
+            <dl class="play-march-facts">
+              <div><dt>Клеток</dt><dd>3 из 60 возможных</dd></div>
+              <div><dt>В пути</dt><dd>~1 мин</dd></div>
+              <div><dt>Расход</dt><dd>❤️ 0.06 · 💤 1.5</dd></div>
+              <div><dt>Впереди</dt><dd>Пустыни, дальше — туман</dd></div>
+            </dl>
+            <p class="play-march-meta">Разведано 2 по 3 · целина 1 по 3 — 1 мин (пешком 1)</p>
+            <p class="play-march-meta">Отряд идёт сам и остановится, если что-то потребует решения: встреча с игроком, тяжёлая рана, чужой лагерь на пути, край мира, привал по усталости.</p>
+            <p class="play-march-meta">🚚 Транспорт — в разработке, на темп похода пока не влияет.</p>
+            <div class="play-march-actions">
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit" aria-label="Меньше клеток">➖</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit" aria-label="Больше клеток">➕5</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn is-primary" type="submit">🚜 Выступить</button></form>
+            </div>
+          </section>
+          <section class="play-march is-active" aria-label="Поход">
+            <p class="play-march-title">🚜 Поход идёт: ➡️ Восток · 2/6 клеток</p>
+            <progress class="play-march-bar" max="6" value="2">2/6</progress>
+            <p class="play-march-meta">Прибытие ~14:32 (осталось 2 мин). Карта обновится, когда откроешь её снова.</p>
+            <div class="play-march-actions">
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">➕ Продлить +5</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">❌ Остановиться</button></form>
+            </div>
+          </section>
         </article>
       </div>
     </div>

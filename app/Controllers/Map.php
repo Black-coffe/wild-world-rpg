@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Models\BiomeModel;
 use App\Services\Web\AccountSession;
+use App\Services\World\BiomePalette;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Database;
 use Config\Services;
@@ -15,9 +16,17 @@ use Config\Services;
  *
  * Видимость публичных слоёв: караваны (V25), активные мировые события, биом-tint.
  * Скрыто от паблика (admin-only — нужен ADR-🟠 если откроем): игроки, базы, схроны/world_objects.
+ *
+ * W2.N2-03: цвета легенды — из {@see BiomePalette} (вьюха без сырых цветов), PNG-подложки — с версией
+ * по `filemtime` (кэшируются до перегенерации, а не грузятся заново на каждом открытии); вошедший
+ * игрок при включённой веб-игре видит «Играть отсюда» → `/play?view=map`.
  */
 class Map extends BaseController
 {
+    /** PNG-подложки карты относительно `public/`. */
+    private const PIXEL_MAP     = 'uploads/telegram/character/world_map_1000x1000.png';
+    private const BEAUTIFUL_MAP = 'uploads/telegram/character/beautiful_map.png';
+
     public function index(): string
     {
         $biomes  = (new BiomeModel())->orderBy('id')->findAll();
@@ -50,12 +59,30 @@ class Map extends BaseController
             ],
         ];
 
+        $biomeColors = [];
+        foreach ($biomes as $b) {
+            $bid               = is_numeric($b['id'] ?? null) ? (int) $b['id'] : 0;
+            $biomeColors[$bid] = vsprintf('#%02x%02x%02x', BiomePalette::for($bid));
+        }
+
         return view('site/map', [
-            'biomes'      => $biomes,
-            'meta'        => $meta,
-            'auth'        => $authState,
-            'botUsername' => $botUsername,
+            'biomes'       => $biomes,
+            'biomeColors'  => $biomeColors,
+            'pixelMap'     => self::versionedAsset(self::PIXEL_MAP),
+            'beautifulMap' => self::versionedAsset(self::BEAUTIFUL_MAP),
+            'playUrl'      => $loggedIn && Play::playEnabled() ? base_url('play?view=map') : null,
+            'meta'         => $meta,
+            'auth'         => $authState,
+            'botUsername'  => $botUsername,
         ]);
+    }
+
+    /** URL ассета с версией по времени изменения файла: один и тот же URL, пока файл не перегенерирован. */
+    private static function versionedAsset(string $path): string
+    {
+        $mtime = @filemtime(FCPATH . $path);
+
+        return base_url($path) . '?v=' . ($mtime === false ? '0' : (string) $mtime);
     }
 
     /**
