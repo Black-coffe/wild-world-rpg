@@ -270,3 +270,5 @@
 {"ts":"2026-09-27T14:03:16Z","story":"w2-n3-craft-queue-01-craft-start","declared":7,"changed":7,"out_of_scope":1}
 {"ts":"2026-09-27T14:20:26Z","story":"w2-n3-craft-queue-02-queue-core","declared":8,"changed":8,"out_of_scope":1}
 {"ts":"2026-09-27T14:45:24Z","story":"w2-n3-craft-queue-03-web-craft","declared":15,"changed":14,"out_of_scope":1}
+{"ts":"2026-09-27T15:30:44Z","story":"w2-n3-craft-tails-01-web-start-tails","declared":4,"changed":4,"out_of_scope":1}
+{"ts":"2026-09-27T15:39:52Z","story":"w2-n3-craft-tails-01-web-start-tails","declared":4,"changed":5,"out_of_scope":2}

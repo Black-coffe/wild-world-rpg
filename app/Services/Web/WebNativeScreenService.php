@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Web;
 
+use App\Models\ActionLogModel;
 use App\Models\CraftedItemsLogModel;
 use App\Services\Craft\CraftCardHelper;
 use App\Services\Craft\CraftOrderService;
@@ -11,6 +12,7 @@ use App\Services\Craft\CraftQueueService;
 use App\Services\Db\ConditionalWriteService;
 use App\Services\Db\WriteOutcome;
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Logging\PlayerActionLogger;
 use App\Services\Player\CharacterSheetService;
 use App\Services\Player\DroneService;
 use App\Services\Player\EquipmentLoadoutService;
@@ -534,11 +536,15 @@ class WebNativeScreenService
             }
         }
 
+        $queue     = $this->queue->forCharacter($characterId);
         $card      = null;
         $recipeKey = $nav['recipe'] ?? null;
         if ($recipeKey !== null && in_array($recipeKey, array_column($list, 'key'), true)) {
             $pv   = $this->orders->preview($characterId, $recipeKey, 1);
-            $card = $pv + [
+            // Номер — как в списке очереди `/play`: ожидающих + 1, если старт уйдёт в очередь (идёт крафт
+            // этого рецепта); иначе старт сразу и строки нет. `queue_pos` ядра — номер бота, здесь не он.
+            $willQueue = in_array($recipeKey, array_column($queue['active'], 'recipe'), true);
+            $card      = ['queue_pos' => $willQueue ? count($queue['queued']) + 1 : null] + $pv + [
                 'steps'    => array_values(array_filter(CraftCardHelper::STEPS, static fn (int $n): bool => $n <= $pv['max_qty'])),
                 'shortage' => $pv['code'] === CraftOrderService::MISSING_MATERIALS ? (new CraftCardHelper())->fallbackButton($recipeKey) : null,
             ];
@@ -551,13 +557,15 @@ class WebNativeScreenService
             'cat'     => $catKey,
             'recipes' => $list,
             'card'    => $card,
-            'queue'   => $this->queue->forCharacter($characterId),
+            'queue'   => $queue,
         ];
     }
 
     /**
      * Старт крафта из веба: то же ядро, что у бота, один раз на `intent_id`. Количество — от 1 до
-     * `max_qty` карточки (сырьё, золото, лимит очереди); больше — отказ без старта.
+     * `max_qty` карточки (сырьё, золото, лимит очереди); больше — отказ без старта. Рецепт, который экран
+     * сейчас скрывает ({@see visibleRecipes()}), — отказ без старта. Каждый отказ пишется в `action_log`
+     * как у бота (`CRAFT_<Key>`, причина ядра). Номер в очереди — `position` новой строки в списке `/play`.
      *
      * @return string|null ответ для игрока; null — повтор того же намерения
      *
@@ -573,19 +581,39 @@ class WebNativeScreenService
             return null;
         }
 
+        if (! $this->recipeVisible($recipeKey)) {
+            $this->logCraftRejected($characterId, $recipeKey, 'recipe_hidden', ['qty' => $qty]);
+
+            return 'Этот рецепт сейчас недоступен.';
+        }
+
         $pv = $this->orders->preview($characterId, $recipeKey, 1);
         if ($pv['ok'] && $qty > $pv['max_qty']) {
+            $this->logCraftRejected($characterId, $recipeKey, 'qty_over_max', ['qty' => $qty, 'max_qty' => $pv['max_qty']]);
+
             return "Столько не выйдет: сейчас можно поставить не больше {$pv['max_qty']} шт.";
         }
         $out = $this->orders->start($characterId, $recipeKey, $qty);
         if (! $out['ok']) {
+            $this->logCraftRejected($characterId, $recipeKey, $out['log']['reason'] ?? $out['code'], $out['log']['extra'] ?? []);
+
             return self::plain($out['message']);
         }
         $what = trim($pv['recipe']['icon'] . ' ' . $pv['recipe']['name']) . " ×{$qty}";
+        if ($out['code'] !== CraftOrderService::QUEUED) {
+            return "🛠 Крафт начат: {$what}. Готово через {$out['minutes_total']} мин.";
+        }
 
-        return $out['code'] === CraftOrderService::QUEUED
-            ? "📋 В очереди: {$what} — №{$out['queue_pos']}. Начнётся, когда закончится текущий."
-            : "🛠 Крафт начат: {$what}. Готово через {$out['minutes_total']} мин.";
+        $queued = $this->queue->forCharacter($characterId)['queued'];
+        $pos    = count($queued) + 1;
+        foreach ($queued as $row) {
+            if ($row['charTaskId'] === $out['char_task_id']) {
+                $pos = $row['position'];
+                break;
+            }
+        }
+
+        return "📋 В очереди: {$what} — №{$pos}. Начнётся, когда закончится текущий.";
     }
 
     /**
@@ -751,6 +779,45 @@ class WebNativeScreenService
         }
 
         return array_values(array_filter($keys, fn (string $k): bool => $this->recipeShown($k)));
+    }
+
+    /** Рецепт стоит хотя бы в одной категории каталога, где экран его сейчас показывает. */
+    private function recipeVisible(string $recipeKey): bool
+    {
+        foreach ((new CraftCatalog())->benches as $bench) {
+            foreach ($bench['categories'] as $cat) {
+                if (in_array($recipeKey, $cat['recipes'], true) && in_array($recipeKey, $this->visibleRecipes($cat), true)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Отказ веб-старта крафта — в `action_log` и firehose, как `BaseAction::logRejected` бота
+     * (`CRAFT_<Key>`, причина, extra). Чата у веба нет — `chat_id` 0. Никогда не валит запрос.
+     *
+     * @param array<string, mixed> $extra
+     */
+    private function logCraftRejected(int $characterId, string $recipeKey, string $reason, array $extra = []): void
+    {
+        $actionName = "CRAFT_{$recipeKey}";
+        PlayerActionLogger::current()->markRejected($actionName . ': ' . $reason);
+
+        try {
+            $description = $extra === [] ? $reason : $reason . ' | ' . json_encode($extra, JSON_UNESCAPED_UNICODE);
+            (new ActionLogModel())->save([
+                'character_id'  => $characterId,
+                'chat_id'       => 0,
+                'action_name'   => $actionName,
+                'action_status' => 'REJECTED',
+                'description'   => mb_substr($description, 0, 500),
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[WebNativeScreenService] craft reject log failed: ' . $e->getMessage());
+        }
     }
 
     private function recipeShown(string $key): bool
