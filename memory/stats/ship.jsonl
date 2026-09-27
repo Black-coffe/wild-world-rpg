@@ -13,3 +13,4 @@
 {"ts":"2026-09-27T06:22:11Z","spec":"w2-n1-hud-character","version":"v0.51.675","head":"203639e3","pack":"8a5655d90bad","note":"merged to develop, publish pending"}
 {"ts":"2026-09-27T12:27:16Z","spec":"w2-n2-live-map","version":"v0.51.676","head":"fff1b118","pack":"90440d84eb31","note":"merged to develop, publish pending"}
 {"ts":"2026-09-27T15:03:19Z","spec":"w2-n3-craft-queue","version":"v0.51.678","head":"10296ccc","pack":"acbd19c31a59","note":"merged to develop, publish pending (тег на develop после зелёного preprod-смоука)"}
+{"ts":"2026-09-27T15:57:08Z","spec":"w2-n3-craft-tails","version":"v0.51.679","head":"460eb52f","pack":"5b753339e458","note":"merged to develop, publish pending (тег после preprod-смоука)"}

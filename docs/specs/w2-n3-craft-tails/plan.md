@@ -43,4 +43,4 @@
 **Branch:** vulyk/w2-n3-craft-tails
 **Checked:** <written by scripts/human-check.sh>
 **Council:** GREEN round 1, 2026-09-27, at 005c3baa, pack 5b753339e458
-**Shipped:** <written by scripts/ship-check.sh --record>
+**Shipped:** v0.51.679, 2026-09-27, at 460eb52f - merged to develop, publish pending (тег после preprod-смоука)
