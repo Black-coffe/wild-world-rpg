@@ -8,6 +8,11 @@
    - один запрос за раз, кнопки на это время выключены;
    - опрос GET /play/inbox раз в poll_seconds (не чаще серверного минимума) — счётчик колокола;
    - колокол открывает панель входящих и шлёт POST /play/inbox/read.
+   W2.N1 (ADR-190):
+   - формы нативных экранов (POST /play/view) идут тем же путём, что и /play/act;
+   - HUD (#play-hud) подменяется из поля `hud` любого ответа (действие, экран, входящие);
+   - таймер активной задачи тикает раз в секунду от data-ends-at, без запросов к серверу
+     (поправка на часы браузера — по data-now, времени сервера в момент отрисовки HUD).
    ============================================================ */
 (() => {
   'use strict';
@@ -23,6 +28,7 @@
   const pollMin = Math.max(1, parseInt(root.dataset.pollMin || '10', 10) || 10);
   const pollSeconds = Math.max(pollMin, parseInt(root.dataset.pollSeconds || '0', 10) || pollMin);
   let busy = false;
+  let clockSkew = 0; // серверное время − время браузера, секунды
 
   const csrfValue = () => {
     const input = csrfName ? document.querySelector('input[name="' + CSS.escape(csrfName) + '"]') : null;
@@ -72,6 +78,50 @@
     screen.insertBefore(box, screen.firstChild);
   };
 
+  /* ---- HUD: подмена целиком и живой таймер задачи ---- */
+  const formatLeft = (seconds) => {
+    const s = Math.max(0, Math.floor(seconds));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    const pad = (n) => (n < 10 ? '0' : '') + n;
+    return h > 0 ? h + ':' + pad(m) + ':' + pad(sec) : m + ':' + pad(sec);
+  };
+
+  const syncClock = () => {
+    const hud = document.getElementById('play-hud');
+    const now = hud ? parseInt(hud.dataset.now || '', 10) : NaN;
+    if (!Number.isNaN(now)) clockSkew = now - Date.now() / 1000;
+  };
+
+  const tick = () => {
+    const now = Date.now() / 1000 + clockSkew;
+    document.querySelectorAll('#play-hud [data-ends-at]').forEach((el) => {
+      const endsAt = parseInt(el.dataset.endsAt || '', 10);
+      if (Number.isNaN(endsAt)) return;
+      const left = endsAt - now;
+      el.textContent = left > 0 ? formatLeft(left) : 'готово';
+      el.classList.toggle('is-done', left <= 0);
+    });
+  };
+
+  const setHud = (html) => {
+    if (typeof html !== 'string' || html === '') return;
+    const current = document.getElementById('play-hud');
+    if (!current) return;
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html.trim();
+    const next = tpl.content.firstElementChild;
+    if (!next || next.id !== 'play-hud') return;
+    current.replaceWith(next);
+    syncClock();
+    tick();
+  };
+
+  syncClock();
+  tick();
+  window.setInterval(tick, 1000);
+
   /* Ответ с JSON-телом любого статуса → {ok, json}. Отказ промиса — только сеть или нечитаемое тело. */
   const fetchJson = (url, options) => fetch(url, Object.assign({
     credentials: 'same-origin',
@@ -106,6 +156,7 @@
     const json = r.json;
     setCsrf(json.csrf);
     if (typeof json.html === 'string') stateBox.innerHTML = json.html;
+    setHud(json.hud);
     if (json.unread !== undefined) setUnread(json.unread);
     const hasAlert = typeof json.alert === 'string' && json.alert !== '';
     if (!r.ok && !hasAlert && typeof json.html !== 'string') {
@@ -121,7 +172,8 @@
   document.addEventListener('submit', (event) => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement) || !root.contains(form)) return;
-    if (form.getAttribute('action') !== root.dataset.actUrl) return;
+    const action = form.getAttribute('action');
+    if (action !== root.dataset.actUrl && action !== root.dataset.viewUrl) return;
     event.preventDefault();
     if (busy) return;
     const body = new FormData(form);
@@ -138,6 +190,7 @@
   /* ---- Входящие: опрос счётчика, панель по колоколу ---- */
   const loadInbox = () => request(root.dataset.inboxUrl).then((json) => {
     setUnread(json.unread);
+    setHud(json.hud);
     if (inboxList && typeof json.html === 'string' && panel && !panel.hidden) inboxList.innerHTML = json.html;
     return json;
   });

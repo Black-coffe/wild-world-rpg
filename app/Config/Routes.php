@@ -262,6 +262,8 @@ $routes->group('account', static function ($routes) {
 // (`accountThrottle:play` на POST, `accountThrottle:inbox` на опрос входящих).
 $routes->get('play', 'Play::index');
 $routes->post('play/act', 'Play::act', ['filter' => 'accountThrottle:play']);
+// W2.N1 (ADR-190) — нативные экраны из моделей экранов; те же гейты и лимит, что у act.
+$routes->post('play/view', 'Play::view', ['filter' => 'accountThrottle:play']);
 $routes->get('play/inbox', 'Play::inbox', ['filter' => 'accountThrottle:inbox']);
 $routes->post('play/inbox/read', 'Play::markRead', ['filter' => 'accountThrottle:play']);
 

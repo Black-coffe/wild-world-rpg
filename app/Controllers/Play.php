@@ -9,6 +9,7 @@ use App\Services\Web\AccountSession;
 use App\Services\Web\WebActService;
 use App\Services\Web\WebDelivery;
 use App\Services\Web\WebInboxService;
+use App\Services\Web\WebNativeScreenService;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\HTTP\IncomingRequest;
@@ -26,8 +27,12 @@ use InvalidArgumentException;
  * telegram/chat/character/account id не принимаются и в ответ не выводятся (инв. 6).
  * CSRF — глобальный фильтр; лимит частоты — `accountThrottle:play|inbox` (Routes).
  *
- * `POST /play/act` c `Accept: application/json` → `{html, unread, alert, csrf}`; без JS — PRG
+ * `POST /play/act` c `Accept: application/json` → `{html, hud, unread, alert, csrf}`; без JS — PRG
  * 303 на `/play` (подсказка кнопки — flash). Отвергнутое намерение — 400, без диспетча.
+ *
+ * W2.N1 (ADR-190): `POST /play/view` — нативный экран (`view`) из модели экрана, те же гейты и
+ * лимит `accountThrottle:play`; `op=bridge` + `data` — кнопка нативного экрана без своего экрана
+ * уходит в мост. Без JS — PRG на `/play?view=…`. HUD (`hud`) едет в каждом JSON-ответе.
  */
 class Play extends BaseController
 {
@@ -60,8 +65,20 @@ class Play extends BaseController
             $result = $this->storedOrEmpty($characterId);
         }
         $flash  = session()->getFlashdata(self::FLASH_ALERT);
+        $alert  = is_string($flash) ? $flash : $result['alert'];
 
-        return $this->playPage($characterId, $result, is_string($flash) ? $flash : $result['alert']);
+        // PRG нативного экрана: `/play?view=me` рисует экран из модели поверх того же дока.
+        $view   = $this->request->getGet('view');
+        $native = null;
+        if (is_string($view) && WebNativeScreenService::isView($view)) {
+            try {
+                $native = $this->native()->render($characterId, $view, $result['state'], $alert);
+            } catch (\Throwable $e) {
+                log_message('error', '[Play.index] native view failed: ' . $e::class . ': ' . $e->getMessage());
+            }
+        }
+
+        return $this->playPage($characterId, $result, $alert, $native);
     }
 
     public function act(): ResponseInterface|string
@@ -84,24 +101,85 @@ class Play extends BaseController
             $result = $this->service()->act($accountId, $characterId, $intent);
         } catch (InvalidArgumentException $e) {
             log_message('info', '[Play.act] rejected: ' . $e->getMessage());
-            $state = $this->service()->current($characterId);
-            if ($this->wantsJson()) {
-                return $this->response->setStatusCode(400)->setJSON([
-                    'error'  => self::REJECTED_ALERT,
-                    'html'   => view('site/_play/state', ['state' => $state['state'], 'alert' => self::REJECTED_ALERT]),
-                    'unread' => $state['unread'],
-                    'alert'  => self::REJECTED_ALERT,
-                    'csrf'   => csrf_hash(),
-                ]);
-            }
 
-            return $this->response->setStatusCode(400)
-                ->setBody($this->playPage($characterId, $state, self::REJECTED_ALERT));
+            return $this->rejected($characterId);
         }
 
+        return $this->bridgeResponse($characterId, $result);
+    }
+
+    /**
+     * W2.N1 — нативный экран или кнопка нативного экрана через мост. Персонаж — только из сессии.
+     */
+    public function view(): ResponseInterface|string
+    {
+        $gate = $this->gate();
+        if ($gate instanceof ResponseInterface || is_string($gate)) {
+            return $this->denied($gate);
+        }
+        [$accountId, $characterId] = $gate;
+
+        $view = $this->request->getPost('view');
+        $op   = $this->request->getPost('op');
+
+        if ($op === 'bridge') {
+            $data     = $this->request->getPost('data');
+            $intentId = $this->request->getPost('intent_id');
+            try {
+                $result = $this->native()->bridge(
+                    $accountId,
+                    $characterId,
+                    is_string($data) ? $data : '',
+                    is_string($intentId) ? $intentId : ''
+                );
+            } catch (InvalidArgumentException $e) {
+                log_message('info', '[Play.view] bridge rejected: ' . $e->getMessage());
+
+                return $this->rejected($characterId);
+            }
+
+            return $this->bridgeResponse($characterId, $result);
+        }
+
+        if (! is_string($view) || ! WebNativeScreenService::isView($view) || $op !== null) {
+            log_message('info', '[Play.view] rejected: bad view/op');
+
+            return $this->rejected($characterId);
+        }
+
+        if (! $this->wantsJson()) {
+            return redirect()->to('/play?view=' . rawurlencode($view), 303)->withCookies();
+        }
+
+        $current = $this->service()->current($characterId);
+        try {
+            $html = $this->native()->render($characterId, $view, $current['state']);
+        } catch (InvalidArgumentException $e) {
+            log_message('info', '[Play.view] render rejected: ' . $e->getMessage());
+
+            return $this->rejected($characterId);
+        }
+
+        return $this->response->setJSON([
+            'html'   => $html,
+            'hud'    => $this->native()->hudHtml($characterId),
+            'unread' => $current['unread'],
+            'alert'  => null,
+            'csrf'   => csrf_hash(),
+        ]);
+    }
+
+    /**
+     * Ответ после диспетча в мост: JSON с экраном моста и HUD, либо PRG на `/play`.
+     *
+     * @param array{state: array<string,mixed>, alert: ?string, unread: int} $result
+     */
+    private function bridgeResponse(int $characterId, array $result): ResponseInterface
+    {
         if ($this->wantsJson()) {
             return $this->response->setJSON([
                 'html'   => view('site/_play/state', ['state' => $result['state'], 'alert' => $result['alert']]),
+                'hud'    => $this->native()->hudHtml($characterId),
                 'unread' => $result['unread'],
                 'alert'  => $result['alert'],
                 'csrf'   => csrf_hash(),
@@ -115,6 +193,25 @@ class Play extends BaseController
         return redirect()->to('/play', 303)->withCookies();
     }
 
+    /** Отвергнутое намерение: 400 и текущий экран моста, без диспетча. */
+    private function rejected(int $characterId): ResponseInterface
+    {
+        $state = $this->service()->current($characterId);
+        if ($this->wantsJson()) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'error'  => self::REJECTED_ALERT,
+                'html'   => view('site/_play/state', ['state' => $state['state'], 'alert' => self::REJECTED_ALERT]),
+                'hud'    => $this->native()->hudHtml($characterId),
+                'unread' => $state['unread'],
+                'alert'  => self::REJECTED_ALERT,
+                'csrf'   => csrf_hash(),
+            ]);
+        }
+
+        return $this->response->setStatusCode(400)
+            ->setBody($this->playPage($characterId, $state, self::REJECTED_ALERT));
+    }
+
     public function inbox(): ResponseInterface|string
     {
         $gate = $this->gate();
@@ -126,6 +223,7 @@ class Play extends BaseController
         return $this->response->setJSON([
             'unread' => $inbox->unreadCount($gate[1]),
             'html'   => view('site/_play/inbox', ['items' => $inbox->latest($gate[1], self::INBOX_PAGE)]),
+            'hud'    => $this->native()->hudHtml($gate[1]),
             // p1-13: JS берёт отсюда свежий токен перед PRG-откатом.
             'csrf'   => csrf_hash(),
         ]);
@@ -198,12 +296,14 @@ class Play extends BaseController
     /**
      * @param array{state: array<string,mixed>, alert: ?string, unread: int} $result
      */
-    private function playPage(int $characterId, array $result, ?string $alert): string
+    private function playPage(int $characterId, array $result, ?string $alert, ?string $nativeHtml = null): string
     {
         $config = new WebPlay();
 
         return view('site/play', [
             'state'          => $result['state'],
+            'native_html'    => $nativeHtml,
+            'hud_html'       => $this->native()->hudHtml($characterId),
             'unread'         => $result['unread'],
             'poll_seconds'   => max($config->inboxPollMinSeconds, $config->inboxPollSeconds),
             'character_name' => $this->characterName($characterId),
@@ -232,6 +332,14 @@ class Play extends BaseController
         $service = Factories::get('libraries', WebActService::class);
 
         return $service instanceof WebActService ? $service : new WebActService();
+    }
+
+    private function native(): WebNativeScreenService
+    {
+        // Через Factories — тест подменяет сервис, как service().
+        $native = Factories::get('libraries', WebNativeScreenService::class);
+
+        return $native instanceof WebNativeScreenService ? $native : new WebNativeScreenService($this->service());
     }
 
     /**
