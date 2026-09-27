@@ -11,10 +11,8 @@ use App\Services\Craft\CraftOrderService;
 use App\Services\Craft\CraftQueueService;
 use App\Services\Db\ConditionalWriteService;
 use App\Services\Db\WriteOutcome;
-use App\Services\GameSettings\GameSettingsService;
 use App\Services\Logging\PlayerActionLogger;
 use App\Services\Player\CharacterSheetService;
-use App\Services\Player\DroneService;
 use App\Services\Player\EquipmentLoadoutService;
 use App\Services\Player\InventoryViewService;
 use App\Services\Telegram\BotMenuService;
@@ -127,11 +125,6 @@ class WebNativeScreenService
     /** Крафт: старт (кнопка шага или «своё число») и отмена ожидающего — с дедупом по `intent_id`. */
     public const OP_CRAFT_START  = 'craft_start';
     public const OP_CRAFT_CANCEL = 'craft_cancel';
-
-    /** Рыбные блюда костра показываются, только пока включён тот же флаг, что у экрана бота. */
-    private const FISH_FLAG = 'cooking.fish_dishes.enabled';
-
-    private const FISH_RECIPES = ['FishSoup', 'GrilledFish', 'FishPreserve'];
 
     /**
      * Кнопки моста на нативных экранах (кроме «Я», чьи кнопки берутся из модели) и путь от
@@ -778,7 +771,7 @@ class WebNativeScreenService
             $keys   = array_values(array_filter($keys, static fn (string $k): bool => in_array($k, $active, true)));
         }
 
-        return array_values(array_filter($keys, fn (string $k): bool => $this->recipeShown($k)));
+        return array_values(array_filter($keys, fn (string $k): bool => $this->orders->recipeEnabled($k)));
     }
 
     /** Рецепт стоит хотя бы в одной категории каталога, где экран его сейчас показывает. */
@@ -818,23 +811,6 @@ class WebNativeScreenService
         } catch (\Throwable $e) {
             log_message('error', '[WebNativeScreenService] craft reject log failed: ' . $e->getMessage());
         }
-    }
-
-    private function recipeShown(string $key): bool
-    {
-        if (in_array($key, self::FISH_RECIPES, true)) {
-            $raw = (new GameSettingsService())->get(self::FISH_FLAG, false);
-
-            return is_bool($raw) ? $raw : (is_numeric($raw) && (int) $raw === 1);
-        }
-
-        return match ($key) {
-            'DroneScout'  => (new DroneService())->isEnabled(),
-            'DroneCargo'  => (new DroneService())->cargoIsEnabled(),
-            'DroneRepair' => (new DroneService())->repairIsEnabled(),
-            'DroneCombat' => (new DroneService())->combatIsEnabled(),
-            default       => true,
-        };
     }
 
     /** Намерение ещё не исполнялось — занять его ключ; false — повтор. */

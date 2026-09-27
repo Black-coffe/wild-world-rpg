@@ -1,8 +1,8 @@
 ---
 story: w2-n3-craft-flags-01
 spec: w2-n3-craft-flags
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 1
 worker: worker-code
 model: opus
@@ -51,5 +51,11 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `CraftOrderService`: новый код `FEATURE_OFF = 'recipe_feature_disabled'`, публичный `recipeEnabled(string)` (FISH_RECIPES + флаг ухи через свой `GameSettingsService`, дроны через `DroneService($this->gameSettings)`); гейт первым в `gateError()` → действует в `start()`, `preview()` и докупке.
+- `WebNativeScreenService`: удалены `FISH_FLAG`/`FISH_RECIPES`/`recipeShown()` и ставшие лишними `use`; `visibleRecipes()` фильтрует `$this->orders->recipeEnabled()`.
+- `GenericCraftActionStart` не тронут: общий путь отказа уже шлёт `message` и пишет `logRejected` по `log`.
+- `deploy.yml`: `php-version: '8.3'` (YAML проверен `yaml.safe_load`). `phpstan-baseline.neon` не понадобился.
+- Тест `CraftFeatureGateTest` (бот-хэндлер, отдельный процесс, media off): уха и дрон-разведчик off → отказ/лог/без записи, on → старт; превью ядра. С выключенным гейтом краснеют все 3 теста (проверено).
+- Сюрприз: ENUM `action_status` исходной миграции не знает `REJECTED` (в снимках `CraftOrderServiceTest` тоже `""`) — тест сверяет `action_name` и причину, не статус.
 
 ## Findings

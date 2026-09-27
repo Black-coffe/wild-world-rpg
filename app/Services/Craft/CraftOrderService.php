@@ -18,6 +18,7 @@ use App\Services\BuildingEffects\BuildingEffectsService;
 use App\Services\Db\ConditionalWriteService;
 use App\Services\Db\WriteOutcome;
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Player\DroneService;
 use App\Services\Player\ResourcePoolService;
 use App\Services\Tasks\ActionScopeService;
 use App\Services\Tasks\ActiveTasksService;
@@ -63,6 +64,7 @@ class CraftOrderService
     public const QUEST             = 'required_quest_incomplete';
     public const FACTION           = 'required_faction_mismatch';
     public const SEASON            = 'season_inactive';
+    public const FEATURE_OFF       = 'recipe_feature_disabled';
     public const NO_GOLD           = 'insufficient_gold';
     public const NO_STAT           = 'insufficient_stat';
     public const MISSING_MATERIALS = 'missing_materials';
@@ -75,6 +77,10 @@ class CraftOrderService
     /** Дефолты — значения seed-миграции `SeedCraftQueueLimitSettings` (прежние `Config\GameBalance`). */
     private const DEFAULT_MAX_PER_RECIPE = 10;
     private const DEFAULT_MAX_SLOTS      = 3;
+
+    /** Рыбные блюда костра — за флагом фичи, как их экран в боте. */
+    private const FISH_FLAG    = 'cooking.fish_dishes.enabled';
+    private const FISH_RECIPES = ['FishSoup', 'GrilledFish', 'FishPreserve'];
 
     private const RACE_TEXT = 'Сырьё разошлось, пока ты выбирал — проверь запас и попробуй ещё раз.';
 
@@ -358,6 +364,11 @@ class CraftOrderService
      */
     public function gateError(string $recipeKey, array $recipe, array|CharacterEntity $character, array $taskRow, int $quantity): ?array
     {
+        // Рецепт, выключенный флагом фичи, не стартует и прямым callback'ом — первым после «нет рецепта».
+        if (!$this->recipeEnabled($recipeKey)) {
+            return $this->refusal(self::FEATURE_OFF, 'Этот рецепт сейчас недоступен.', 'recipe_feature_disabled');
+        }
+
         $charId = $this->characterIntField($character, 'id');
         $taskId = $this->intField($taskRow, 'id');
 
@@ -802,6 +813,27 @@ class CraftOrderService
     private function buildingEffects(): BuildingEffectsService
     {
         return new BuildingEffectsService($this->characterBuildingModel, $this->buildingModel);
+    }
+
+    /**
+     * Рецепт не выключен флагом фичи: рыбные блюда — `cooking.fish_dishes.enabled`, дроны — флаги
+     * {@see DroneService}. Единственный список; веб-каталог фильтрует им же.
+     */
+    public function recipeEnabled(string $recipeKey): bool
+    {
+        if (in_array($recipeKey, self::FISH_RECIPES, true)) {
+            $raw = $this->gameSettings->get(self::FISH_FLAG, false);
+
+            return is_bool($raw) ? $raw : (is_numeric($raw) && (int) $raw === 1);
+        }
+
+        return match ($recipeKey) {
+            'DroneScout'  => (new DroneService($this->gameSettings))->isEnabled(),
+            'DroneCargo'  => (new DroneService($this->gameSettings))->cargoIsEnabled(),
+            'DroneRepair' => (new DroneService($this->gameSettings))->repairIsEnabled(),
+            'DroneCombat' => (new DroneService($this->gameSettings))->combatIsEnabled(),
+            default       => true,
+        };
     }
 
     /**
