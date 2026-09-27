@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-03
+last-verified: 2026-09-27
 
 # Scout report: Игрок (Services/Player)
 
@@ -20,6 +20,10 @@ last-verified: 2026-09-03
 - `DroneService.php`, `RobotService.php`, `RobotRepairService.php`, `CaravanService.php`.
 - `TipService.php` (советы), `TitleService.php`, `LoginStreakService.php`, `ReferralService.php`.
 - `app/Entities/CharacterEntity.php`, `app/Repositories/CI4CharacterRepository.php`.
+- **Нейтральное ядро экранов (ADR-190, W2.N1):** `CharacterSheetService` («Я»),
+  `InventoryViewService` («Инвентарь»), `EquipmentLoadoutService` («Снаряжение»: модель +
+  `equip/unequip/toggle` + `refusal()`). Рендереры: бот-handler'ы `Telegram/Commands/Profile/Gear*`,
+  `ToggleEquip*` и веб `/play/view` (`Services/Web/WebNativeScreenService`, см. `website.md`).
 
 ## Key types / contracts
 `CharacterEntity` — CI4 Entity, **не массив**: `array $x` typehint + `strict_types` даёт TypeError,
@@ -48,6 +52,9 @@ outbound: модели `app/Models/*`, `Services/GameSettings`, `Services/Notifi
   предмета. См. `bases.md` (`BeaconInstaller`).
 - Ресурсы персонажа матчатся по (`id_characters`, `id_resources`) — см. Key types выше;
   `decreaseResources()` (F0/ADR-181, 2026-09) удалена, см. `craft.md`.
+- Смена снаряжения — **один UPDATE на слот** (`equipped = IF(id = ?,1,0)`), не «снять всех» +
+  «надеть»; слот брони эффективный `COALESCE(NULLIF(outfits.slot,''), characters_outfits.slot)`
+  (`EquipmentLoadoutService.php:280-290`). Писать equipped в обход сервиса нельзя.
 
 ## Vault
 `mmorpg-vault/apps/player/index.md` · `mmorpg-vault/tech-writing/services/`

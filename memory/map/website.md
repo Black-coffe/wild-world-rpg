@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-25
+last-verified: 2026-09-27
 
 # Scout report: Публичный сайт wildworld.fun
 
@@ -25,11 +25,14 @@ last-verified: 2026-09-25
   `app/Filters/AccountThrottleFilter.php` на каждом POST, кроме logout. Константы — `Config\Accounts`.
   Флаг `web.open_registration` (GameSettings, default false) гейтит `/account/register|character`
   и регистрацию через OAuth.
-- **Игра на сайте (ADR-189)** — `/play`, `/play/act`, `/play/inbox`, `/play/inbox/read`
-  (`Routes.php:260-266`) → `app/Controllers/Play.php`. Сервисы `Services/Web/`: `WebActService`
+- **Игра на сайте (ADR-189)** — `/play`, `/play/act`, `/play/view`, `/play/inbox`, `/play/inbox/read`
+  (`Routes.php:263-268`) → `app/Controllers/Play.php`. Сервисы `Services/Web/`: `WebActService`
   (одно действие), `WebDelivery` (seam отправки), `WebScreenStore` (экран), `WebInboxService`
   (колокольчик), `VirtualIdentityService`, `SyntheticUpdateFactory`, `BridgeClient`. Инфра-числа —
   `Config\WebPlay` (не баланс). Флаг `web.play_enabled` (GameSettings, default off).
+  Нативные экраны (ADR-190): `POST /play/view` → `WebNativeScreenService` рендерит «Я»/«Инвентарь»/
+  «Снаряжение» из сервис-моделей `Services/Player` (см. `player.md`); вьюхи `site/_play/native_*`,
+  `hud`, `dock`, `state`; JS `public/assets/js/wildworld-play.js`.
 - Statable: `app/Views/site/_layout/statable.php`, из `meta.php`; env `STATABLE_SITE_HASH`, пусто — не рендерится.
 
 ## Key types / contracts
@@ -63,8 +66,12 @@ outbound: модели постов, `Services/Web/TelegramLoginVerifier`, `Serv
 - Return target после входа — только ровно `/play` (`AccountSession::RETURN_PLAY`).
 - Тексты под F1: `/web` (`WebLinkCodeAction`) и совет (миграция `…100011`) говорят «выйди из другого
   входа и введи код»; заглушка берёт `can_register` из `AccountRegister::registrationOpen()`.
+- `/play/view` `op=equip|unequip` дедупится по `intent_id . ':gear'` в `web_play_intents`
+  (`WebNativeScreenService.php:190-192`); без JS — PRG на `/play?view=…`.
+- Кнопка нативного экрана без своего экрана идёт `op=bridge` через мост (карточка «Я» → ступени
+  маршрута → callback бота), а не напрямую.
 - Сессия: ключи `account_id`, `character_id`, legacy `tg_user_id`; legacy-сессия апгрейдится в `current()`.
 
 ## Vault
-`mmorpg-vault/apps/website/index.md` · ADR-062, ADR-052, ADR-188, ADR-189 ·
+`mmorpg-vault/apps/website/index.md` · ADR-062, ADR-052, ADR-188, ADR-189, ADR-190 ·
 `tech-writing/controllers/{AccountControllers,Play}.md`, `tech-writing/services/{Account*,Web*}.md`
