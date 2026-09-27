@@ -470,6 +470,11 @@ final class PlayControllerTest extends CIUnitTestCase
     {
         [$session] = $this->virtualCharacter();
         $this->login($session);
+        // Ведро доливается непрерывно: на медленном CI-раннере между выборкой лимита и запросом
+        // успевал долиться токен, и запрос проходил с 200. Часы троттлера заморожены на весь тест.
+        $throttler = Services::throttler(false);
+        $throttler->setTestTime(time());
+        Services::injectMock('throttler', $throttler);
         $filter = new AccountThrottleFilter();
         for ($i = 0; $i < (new WebPlay())->actsPerMinute; $i++) {
             $this->assertNull($filter->before($this->request('POST'), ['play']));
