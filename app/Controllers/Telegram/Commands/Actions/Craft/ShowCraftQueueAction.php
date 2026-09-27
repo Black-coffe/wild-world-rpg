@@ -6,7 +6,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Notifications\MediaSender;
-use App\Services\Tasks\ActiveTasksService;
+use App\Services\Craft\CraftQueueService;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -20,6 +20,8 @@ use App\Services\Telegram\Request;
  * (reuse `cancelQueued_<id>` → CancelQueuedCraftAction, refund). Закрывает техдолг
  * craft-queue (v0.51.129): раньше игрок видел только per-creation уведомление,
  * без сводного «что в очереди».
+ *
+ * W2.N3-02 (ADR-190): рендерер ядра {@see CraftQueueService::rows()} — список тот же, что видит веб.
  */
 class ShowCraftQueueAction extends BaseAction
 {
@@ -34,7 +36,7 @@ class ShowCraftQueueAction extends BaseAction
             ]);
         }
 
-        $queue  = (new ActiveTasksService())->getCraftQueue((int) $character['id']);
+        $queue  = (new CraftQueueService())->rows((int) $character['id']);
         $active = $queue['active'];
         $queued = $queue['queued'];
 

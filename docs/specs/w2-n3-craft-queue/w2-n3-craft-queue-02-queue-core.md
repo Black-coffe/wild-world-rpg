@@ -1,8 +1,8 @@
 ---
 story: w2-n3-craft-queue-02
 spec: w2-n3-craft-queue
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: opus
@@ -56,5 +56,15 @@ blocked_by: [w2-n3-craft-queue-01]
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `app/Services/Craft/CraftQueueService.php` (new): `rows()` (the list without estimates, used by the bot), `forCharacter()` (adds `minutes_total` and `starts_in_seconds` to each queued row), `cancel()`, `promoteNext()`. Constructor `(?CharacterTaskModel, ?CraftDurationService)`.
+- Refunds use relative writes (`ConditionalWriteService::increment` on the oldest row, otherwise insert): backpack/storage per `consumed`, items and gold per `consumed`. Rows without `consumed` get recipe × qty back into the backpack.
+- `promoteNext()` does a conditional `UPDATE … WHERE status='queued'`. If the candidate was taken, it moves to the next queued row of the same recipe, so a cancelled head does not stall the queue.
+- The handler and the cancel action pass their own `characterTaskModel` to the core. Without that, the snapshot seam of `CancelQueuedCraftConditionalDeleteTest` (race via `first()`) and the double in `CraftQuantityParityTest` would stop working.
+- `ShowCraftQueueAction` → `CraftQueueService::rows()`. `ActiveTasksService::getCraftQueue()` delegates to `rows()` and keeps the old response shape. `CraftQueueServiceTest` passes unchanged.
+- Web-only players: nothing had to change. `notifyUser` and `notifyQueuedActivated` check `empty(telegram_id)`, and a virtual id is negative, not empty. `testCompletionAndActivationReachWebOnlyInbox` shows both messages land in `web_inbox` (`virtual`) and nothing goes to Telegram.
+- Parity: `BOT_BEFORE` was captured from the old code (queue empty/full, cancel ok/gone, completion + activation) before the edit, in a separate process with media off. After the edit it matches exactly; the time in «Завершится в» is masked.
+- Guards: turning the `DELETE` status condition into a tautology turns `testCancelAndPromoteOfOneRowNeverBothApply` red. Doing the same to the `UPDATE` condition turns `testSecondPromoteOfTheSameRowDoesNothing` red. Each was checked separately, then restored.
+- `phpstan-baseline.neon`: removed 8 stale entries (7 for the old `CancelQueuedCraftAction`, 1 cast in the handler); phpstan is clean.
+- Surprise: `TelegramBridge::ensure()` installs its own HTTP client on first start. The test brings it up before the recorder, otherwise the handler's messages bypass the recorder.
 
 ## Findings

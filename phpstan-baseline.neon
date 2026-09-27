@@ -2545,48 +2545,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/CharacterGoActions.php
 
 		-
-			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Craft/CancelQueuedCraftAction.php
-
-		-
-			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Craft/CancelQueuedCraftAction.php
-
-		-
-			message: '#^Cannot cast mixed to int\.$#'
-			identifier: cast.int
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Craft/CancelQueuedCraftAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\CancelQueuedCraftAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/CancelQueuedCraftAction.php
-
-		-
-			message: '#^Parameter \#2 \$reqs of method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\CancelQueuedCraftAction\:\:refundCraftedItems\(\) expects array\<string, int\>, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/CancelQueuedCraftAction.php
-
-		-
-			message: '#^Parameter \#2 \$reqs of method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\CancelQueuedCraftAction\:\:refundResources\(\) expects array\<string, int\>, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/CancelQueuedCraftAction.php
-
-		-
-			message: '#^Part \$recipe\[''item_name_rus''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/CancelQueuedCraftAction.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
@@ -13989,12 +13947,6 @@ parameters:
 		-
 			message: '#^Cannot access offset ''type'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
-
-		-
-			message: '#^Cannot cast bool\|float\|int\|object\|string\|null to int\.$#'
-			identifier: cast.int
 			count: 1
 			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
 
