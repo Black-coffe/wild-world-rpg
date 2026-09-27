@@ -1814,6 +1814,49 @@ section.block:first-of-type { border-top: 0; }
 .play-hud-march-btn { min-height: 32px; padding: 4px 10px; background: transparent; color: var(--text); border: 1px solid var(--border-strong); font-family: var(--font-body); font-size: 13px; font-weight: 600; cursor: pointer; }
 .play-hud-march-btn:hover { border-color: var(--accent); color: var(--accent); }
 .play-hud-march-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* W2.N3-03 — «🔨 Крафт» /play: разделы с замком, категории, карточка рецепта, очередь с таймерами.
+   Очередь рядом с каталогом на широком экране, под ним — на узком. */
+.play-craft { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
+@media (min-width: 1200px) { .play-craft { grid-template-columns: minmax(0, 1fr) 280px; align-items: start; } }
+.play-craft-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.play-craft-crumbs { margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); overflow-wrap: anywhere; }
+.play-kb-btn.is-locked { background: transparent; color: var(--text-dim); border-style: dashed; }
+.play-craft-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; background: var(--bg-elev-2); border: 1px solid var(--border); border-left: 3px solid var(--accent); }
+.play-craft-card-title { margin: 0; font-family: var(--font-display); font-size: 16px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text); overflow-wrap: anywhere; }
+.play-craft-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; min-width: 0; }
+@media (min-width: 640px) { .play-craft-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.play-craft-facts div { min-width: 0; padding: 6px 8px; background: var(--bg-elev-1); border: 1px solid var(--border); }
+.play-craft-facts dt { font-family: var(--font-display); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); }
+.play-craft-facts dd { margin: 2px 0 0; font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.play-craft-reqs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.play-craft-req { display: flex; justify-content: space-between; gap: 12px; min-width: 0; padding: 4px 8px; border-bottom: 1px solid var(--border-faint); font-size: 14px; }
+.play-craft-req-name { min-width: 0; overflow-wrap: anywhere; }
+.play-craft-req-qty { font-family: var(--font-mono); font-weight: 700; color: var(--success); white-space: nowrap; }
+.play-craft-req.is-short .play-craft-req-qty { color: var(--danger-hi); }
+.play-craft-qty { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: end; min-width: 0; }
+.play-craft-qty-label { grid-column: 1 / -1; font-family: var(--font-display); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); }
+.play-craft-qty-input { min-width: 0; min-height: 44px; padding: 8px 10px; background: var(--bg-elev-1); color: var(--text); border: 1px solid var(--border-strong); font-family: var(--font-mono); font-size: 16px; }
+.play-craft-qty-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.play-craft-qty .play-kb-btn { flex: none; padding: 8px 16px; }
+.play-craft-queue { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; background: var(--bg-elev-2); border: 1px solid var(--border); border-left: 3px solid var(--success); }
+.play-craft-queue-title { margin: 0; font-family: var(--font-display); font-size: 14px; letter-spacing: .1em; text-transform: uppercase; color: var(--text); }
+.play-craft-jobs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.play-craft-job { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 8px; background: var(--bg-elev-1); border: 1px solid var(--border); }
+.play-craft-job.is-active { border-left: 3px solid var(--success); }
+.play-craft-job.is-queued { border-left: 3px solid var(--border-strong); }
+.play-craft-job form { display: flex; min-width: 0; }
+.play-craft-job-name { font-size: 14px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.play-craft-job-meta { font-size: 13px; color: var(--text-dim); overflow-wrap: anywhere; }
+.play-craft-timer { font-family: var(--font-mono); font-weight: 700; color: var(--accent); }
+.play-craft-timer.is-done { color: var(--success); }
+
+/* W2.N3-03 — карта «Мир» на узком экране: окно 7×7 вокруг игрока, клетка не мельче тап-зоны. */
+@media (max-width: 560px) {
+  .play-map { grid-template-columns: repeat(7, minmax(0, 1fr)); max-width: 100%; }
+  .play-map .is-far { display: none; }
+  .play-map-cell { min-height: 44px; font-size: 22px; }
+}
 </style>
 </head>
 
@@ -2761,6 +2804,71 @@ section.block:first-of-type { border-top: 0; }
               <form action="#play" method="post"><button class="play-kb-btn" type="submit">❌ Остановиться</button></form>
             </div>
           </section>
+        </article>
+      </div>
+    </div>
+    <h3 class="mt-3" id="play-craft-demo">Крафт — разделы с замком, карточка рецепта, очередь (W2.N3-03)</h3>
+    <p class="muted">Раздел под замком — пунктирная кнопка «🔒 … (нужно: …)» и блок с объяснением и путём; кнопка ведёт к карточке требования. Карточка: время, цена, сколько можно поставить, сырьё «есть / нужно» (❌ — не хватает), кнопки шагов и поле «своё число». Очередь справа на широком экране, под каталогом — на узком; таймер активного тикает.</p>
+    <div class="play-shell is-native mt-2">
+      <div class="play-screen">
+        <article class="play-native" aria-label="Крафт">
+          <header class="play-native-head">
+            <h2 class="play-native-title">🔨 Крафт</h2>
+            <p class="play-craft-crumbs">Крафт → 🔨 Общий крафт → 💊 Лекарства → Повязка</p>
+          </header>
+          <div class="play-craft">
+            <div class="play-craft-main">
+              <nav class="play-kb" aria-label="Разделы крафта">
+                <div class="play-kb-grid">
+                  <form action="#play" method="post"><button class="play-kb-btn is-primary" type="submit">🔨 Общий крафт</button></form>
+                  <form action="#play" method="post"><button class="play-kb-btn" type="submit">🔧 Стандартный крафт</button></form>
+                  <form action="#play" method="post"><button class="play-kb-btn is-locked" type="submit">🔒 Профессиональный крафт (нужно: 🛠️ Профессиональный верстак)</button></form>
+                </div>
+              </nav>
+              <div class="play-lock">
+                <span class="play-lock-title">🔒 Профессиональный крафт (нужно: 🛠️ Профессиональный верстак)</span>
+                <span class="play-lock-why">Раздел откроется, когда 🛠️ Профессиональный верстак будет собран и будет лежать у тебя. Карточка сборки покажет, чего не хватает.</span>
+                <span class="play-lock-path">Путь: 🔨 Общий крафт → 🔬 Верстаки → 🛠️ Профессиональный верстак</span>
+              </div>
+              <section class="play-craft-card" aria-labelledby="kit-craft-card">
+                <h3 class="play-craft-card-title" id="kit-craft-card">🩹 Повязка</h3>
+                <dl class="play-craft-facts">
+                  <div><dt>⏱ Время, 1 шт.</dt><dd>5 мин</dd></div>
+                  <div><dt>💰 Цена, 1 шт.</dt><dd>без золота</dd></div>
+                  <div><dt>📦 Можно поставить</dt><dd>7 шт.</dd></div>
+                  <div><dt>📋 Место в очереди</dt><dd>№1</dd></div>
+                </dl>
+                <ul class="play-craft-reqs" aria-label="Сырьё на 1 шт.">
+                  <li class="play-craft-req"><span class="play-craft-req-name">✅ Хлопок</span><span class="play-craft-req-qty">14 / 2</span></li>
+                  <li class="play-craft-req is-short"><span class="play-craft-req-name">❌ Смола деревьев</span><span class="play-craft-req-qty">0 / 1</span></li>
+                </ul>
+                <div class="play-kb-grid">
+                  <form action="#play" method="post"><button class="play-kb-btn is-primary" type="submit">🛠️ Крафт 1 шт</button></form>
+                  <form action="#play" method="post"><button class="play-kb-btn" type="submit">🛠️ Крафт 5 шт</button></form>
+                </div>
+                <form class="play-craft-qty" action="#play" method="post">
+                  <label class="play-craft-qty-label" for="kit-craft-qty">Своё число, 1–7</label>
+                  <input class="play-craft-qty-input" id="kit-craft-qty" name="qty" type="number" inputmode="numeric" min="1" max="7" step="1" value="1">
+                  <button class="play-kb-btn" type="submit">🛠️ Крафт</button>
+                </form>
+              </section>
+            </div>
+            <aside class="play-craft-queue" aria-label="Очередь крафта">
+              <h3 class="play-craft-queue-title">📋 Очередь крафта</h3>
+              <ul class="play-craft-jobs">
+                <li class="play-craft-job is-active">
+                  <span class="play-craft-job-name">⚙️ Повязка ×5</span>
+                  <span class="play-craft-job-meta">идёт · осталось <time class="play-craft-timer">12:40</time></span>
+                </li>
+                <li class="play-craft-job is-queued">
+                  <span class="play-craft-job-name">№1 · Повязка ×2</span>
+                  <span class="play-craft-job-meta">≈ старт через 13 мин · займёт ≈ 10 мин</span>
+                  <form action="#play" method="post"><button class="play-kb-btn" type="submit">❌ Отменить</button></form>
+                </li>
+              </ul>
+              <p class="play-native-hint">Готовое придёт во входящие 🔔 и ляжет в инвентарь.</p>
+            </aside>
+          </div>
         </article>
       </div>
     </div>

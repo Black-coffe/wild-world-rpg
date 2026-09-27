@@ -1,8 +1,8 @@
 ---
 story: w2-n3-craft-queue-03
 spec: w2-n3-craft-queue
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: opus
@@ -69,5 +69,15 @@ blocked_by: [w2-n3-craft-queue-02]
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `app/Config/CraftCatalog.php` — новый индекс: 3 раздела (Общий / Стандартный / Проф.), категории с callback'ами экранов бота, `locate()`, `botRoute()`; замок только у «Проф.» (цех), как у бота — стандартный раздел бот не запирает.
+- `tests/unit/CraftCatalogTest.php` — паритет: ключи есть в CraftRecipes и не дублируются; рецепты каждой категории = литералы экрана бота (токены кода, без комментариев) через `info_callback`; костёр/консервы/сезон = константы бота; разделы есть в хабе и экранах разделов.
+- `WebNativeScreenService` — `view=craft`, `craftModel()`, `craftStart()` (`:craft_start`, qty 1..`max_qty` через `preview()`), `craftCancel()` (`:craft_cancel`); док «🔨 Крафт»/«Крафт» → нативный экран; мост `genericCraft_<Key>_1` идёт от `/craft` по `botRoute()` (экран нехватки бота). Рыба и дроны — те же флаги, сезон — активный.
+- `Play.php` — `op=craft_start|craft_cancel`, навигация `bench/cat/recipe` (GET и POST, только `[A-Za-z0-9_]{1,40}`), PRG на `/play?view=craft&…`.
+- `native_craft.php` — разделы с замком и путём, категории, карточка (время, цена, можно поставить, место в очереди, есть/нужно), шаги + «своё число» (min 1, max `max_qty`), очередь с таймерами и «Отменить».
+- `CharacterSheetService::hud()` — строка `Marching` берёт срок из `MarchService::status()['eta']` (или null); `buildHud()` получил необязательный `$marchEta`.
+- `native_map.php` + CSS — клетки дальше 3 от игрока `is-far`; ≤560px сетка 7×7, клетка ≥44px, без горизонтального скролла.
+- CSS в `wildworld-ui.css` и зеркально в `ui-kit.html` (+ демо «Крафт»), `?v=13`; JS тикает и `#play-state [data-ends-at]`. `hud.php` и `phpstan-baseline.neon` не понадобились.
+- Сюрприз: `?v=` у `wildworld-play.js` стоит в `app/Views/site/play.php` (нет в `## Files`) — не поднят, см. Findings.
 
 ## Findings
+- `app/Views/site/play.php:66` держит `wildworld-play.js?v=2`; файл вне `## Files`, поэтому не бампнут. Без бампа закэшированный JS не тикает таймер очереди (без JS/до обновления кэша показывается остаток на момент отрисовки). Нужна однострочная правка `?v=3` отдельной story или репейром.

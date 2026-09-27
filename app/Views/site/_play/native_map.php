@@ -17,6 +17,9 @@
  * (`march_stop`), «Продлить +5» (`march_extend`); на паузе — «Продолжить» (`march_resume`).
  * Ссылка «Весь мир» ведёт на публичную карту `/map`.
  *
+ * W2.N3-03: клетки дальше 3 от игрока (по Чебышёву) несут `is-far` — на узком экране сетка
+ * показывает окно 7×7, чтобы клетка оставалась удобной для пальца без горизонтального скролла.
+ *
  * @var array<string, mixed>  $map
  * @var list<list<string>>    $dock
  * @var string|null           $alert
@@ -179,15 +182,16 @@ $bottom = array_merge(
                                 : null;
                             $ray    = $ray !== null && $ray['n'] >= 2 ? $ray : null;
                             $aria   = 'X=' . $x . ' Y=' . $y;
+                            $far    = $center !== null && max(abs($x - (int) $center['x']), abs($y - (int) $center['y'])) > 3 ? ' is-far' : '';
                             ?>
                             <?php if ($code === LiveMapService::CODE_OUT): ?>
-                                <span class="<?= esc($class, 'attr') ?>" aria-hidden="true"><?= esc($marker) ?></span>
+                                <span class="<?= esc($class . $far, 'attr') ?>" aria-hidden="true"><?= esc($marker) ?></span>
                             <?php elseif ($step !== null): ?>
-                                <?= $stepForm($step, $marker, $class . ' is-step', 'Шаг: ' . $aria) ?>
+                                <?= $stepForm($step, $marker, $class . ' is-step' . $far, 'Шаг: ' . $aria) ?>
                             <?php elseif ($ray !== null): ?>
-                                <?= $marchForm('march_preview', ['dir' => $ray['dir'], 'n' => $ray['n']], $marker, $class . ' is-ray', 'Поход ×' . $ray['n'] . ': ' . $aria) ?>
+                                <?= $marchForm('march_preview', ['dir' => $ray['dir'], 'n' => $ray['n']], $marker, $class . ' is-ray' . $far, 'Поход ×' . $ray['n'] . ': ' . $aria) ?>
                             <?php else: ?>
-                                <form action="<?= esc($viewUrl, 'attr') ?>" method="post"><?= csrf_field() ?><input type="hidden" name="view" value="map"><input type="hidden" name="op" value="cell"><input type="hidden" name="x" value="<?= $x ?>"><input type="hidden" name="y" value="<?= $y ?>"><button class="<?= esc($class, 'attr') ?>" type="submit" aria-label="<?= esc($aria, 'attr') ?>"><?= esc($marker) ?></button></form>
+                                <form action="<?= esc($viewUrl, 'attr') ?>" method="post"><?= csrf_field() ?><input type="hidden" name="view" value="map"><input type="hidden" name="op" value="cell"><input type="hidden" name="x" value="<?= $x ?>"><input type="hidden" name="y" value="<?= $y ?>"><button class="<?= esc($class . $far, 'attr') ?>" type="submit" aria-label="<?= esc($aria, 'attr') ?>"><?= esc($marker) ?></button></form>
                             <?php endif ?>
                         <?php endforeach ?>
                     <?php endforeach ?>

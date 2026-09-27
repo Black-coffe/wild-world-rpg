@@ -55,6 +55,9 @@ class CharacterSheetService
     /** Уровень, с которого открывается выбор фракции (N4, ADR-039). */
     private const FACTION_LEVEL = 10;
 
+    /** `tasks.name` Похода: его строка `in_work` несёт `end_time = start_time`, не срок. */
+    private const MARCH_TASK = 'Marching';
+
     /** @var BaseConnection<object, object> */
     private BaseConnection $db;
 
@@ -175,8 +178,10 @@ class CharacterSheetService
         }
         [$cell, $biomeName] = $this->location($row['cell_number'] ?? null);
 
-        $hud          = $this->hudFromRow($row, $cell, $biomeName);
-        $hud['march'] = (new MarchService())->status($characterId);
+        // W2.N3-03: строка задачи `Marching` берёт срок из статуса Похода (у строки end_time = start_time).
+        $march        = (new MarchService())->status($characterId);
+        $hud          = $this->hudFromRow($row, $cell, $biomeName, $march['eta'] ?? null);
+        $hud['march'] = $march;
 
         return $hud;
     }
@@ -187,7 +192,7 @@ class CharacterSheetService
      *
      * @return Hud
      */
-    private function hudFromRow(array|CharacterEntity $row, ?array $cell, ?string $biomeName): array
+    private function hudFromRow(array|CharacterEntity $row, ?array $cell, ?string $biomeName, ?int $marchEta = null): array
     {
         $ladder  = new LevelProgressService();
         $percent = null;
@@ -210,7 +215,8 @@ class CharacterSheetService
             $next,
             $cell,
             $biomeName,
-            $this->activeTasks(self::int($row['id'] ?? 0))
+            $this->activeTasks(self::int($row['id'] ?? 0)),
+            $marchEta
         );
     }
 
@@ -237,10 +243,12 @@ class CharacterSheetService
      * @param array{health:string, tired:string, gold:int, level:int, experience:string} $stats
      * @param array{x:int, y:int}|null $cell
      * @param array<mixed>             $activeTasks строки {@see ActiveTasksService::getActiveTasksWithDetails()}
+     * @param int|null                 $marchEta    прибытие идущего Похода (unix): у строки `Marching`
+     *                                              `end_time = start_time`, её срок — только отсюда (или нет)
      *
      * @return Hud
      */
-    public static function buildHud(array $stats, ?int $percent, ?int $nextLevel, ?array $cell, ?string $biome, array $activeTasks): array
+    public static function buildHud(array $stats, ?int $percent, ?int $nextLevel, ?array $cell, ?string $biome, array $activeTasks, ?int $marchEta = null): array
     {
         $task  = null;
         $count = 0;
@@ -251,7 +259,7 @@ class CharacterSheetService
             $count++;
             $name   = self::nonEmpty($t['name_rus'] ?? null) ?? self::nonEmpty($t['name'] ?? null) ?? 'Задача';
             $end    = is_string($t['end_time'] ?? null) && $t['end_time'] !== '' ? strtotime($t['end_time']) : false;
-            $endsAt = $end === false ? null : $end;
+            $endsAt = ($t['name'] ?? null) === self::MARCH_TASK ? $marchEta : ($end === false ? null : $end);
             // Показываем ту, что кончится раньше всех; задачи без срока — после всех со сроком.
             if ($task === null
                 || ($endsAt !== null && ($task['ends_at'] === null || $endsAt < $task['ends_at']))) {

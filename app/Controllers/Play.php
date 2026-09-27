@@ -47,6 +47,11 @@ use InvalidArgumentException;
  * W2.N2-03: `view=map` + `op=march_preview` + `dir` + `n` — превью Похода под картой (без JS — flash и
  * PRG на `/play?view=map`); `op=march_start` (`dir`, `n`), `march_extend` (`n`), `march_resume`,
  * `march_stop` + `intent_id` — Поход тем же сервисом, что у бота (повтор `intent_id` ничего не делает).
+ *
+ * W2.N3-03: `view=craft` + `bench`/`cat`/`recipe` — экран «🔨 Крафт» (верстак → категория → карточка;
+ * без JS — PRG на `/play?view=craft&bench=…&cat=…&recipe=…`); `op=craft_start` + `recipe` + `qty` +
+ * `intent_id` — старт тем же ядром, что у бота (`qty` 1..`max_qty` карточки); `op=craft_cancel` + `task` +
+ * `intent_id` — отмена ожидающего. Повтор `intent_id` ничего не делает.
  */
 class Play extends BaseController
 {
@@ -99,7 +104,7 @@ class Play extends BaseController
                     $preview = $this->native()->marchPreview($characterId, $wanted['dir'], $wanted['n']);
                     $preview = $preview['ok'] ? $preview : null;
                 }
-                $native = $this->native()->render($characterId, $view, $result['state'], $alert, self::eventList($events), $preview);
+                $native = $this->native()->render($characterId, $view, $result['state'], $alert, self::eventList($events), $preview, self::craftNav($this->request->getGet(...)));
             } catch (\Throwable $e) {
                 log_message('error', '[Play.index] native view failed: ' . $e::class . ': ' . $e->getMessage());
             }
@@ -171,7 +176,39 @@ class Play extends BaseController
         $alert   = null;
         $events  = [];
         $preview = null;
-        if ($view === WebNativeScreenService::VIEW_GEAR && is_string($op)
+        $craft   = self::craftNav($this->request->getPost(...));
+        if ($view === WebNativeScreenService::VIEW_CRAFT && $op === WebNativeScreenService::OP_CRAFT_START) {
+            $recipe   = $this->request->getPost('recipe');
+            $intentId = $this->request->getPost('intent_id');
+            try {
+                $alert = $this->native()->craftStart(
+                    $accountId,
+                    $characterId,
+                    is_string($recipe) ? $recipe : '',
+                    self::count($this->request->getPost('qty')),
+                    is_string($intentId) ? $intentId : ''
+                );
+            } catch (InvalidArgumentException $e) {
+                log_message('info', '[Play.view] craft start rejected: ' . $e->getMessage());
+
+                return $this->rejected($characterId);
+            }
+        } elseif ($view === WebNativeScreenService::VIEW_CRAFT && $op === WebNativeScreenService::OP_CRAFT_CANCEL) {
+            $task     = $this->request->getPost('task');
+            $intentId = $this->request->getPost('intent_id');
+            try {
+                $alert = $this->native()->craftCancel(
+                    $accountId,
+                    $characterId,
+                    is_string($task) && ctype_digit($task) && strlen($task) <= 12 ? (int) $task : 0,
+                    is_string($intentId) ? $intentId : ''
+                );
+            } catch (InvalidArgumentException $e) {
+                log_message('info', '[Play.view] craft cancel rejected: ' . $e->getMessage());
+
+                return $this->rejected($characterId);
+            }
+        } elseif ($view === WebNativeScreenService::VIEW_GEAR && is_string($op)
             && in_array($op, [WebNativeScreenService::OP_EQUIP, WebNativeScreenService::OP_UNEQUIP], true)) {
             $kind     = $this->request->getPost('kind');
             $item     = $this->request->getPost('item');
@@ -269,12 +306,14 @@ class Play extends BaseController
                 session()->setFlashdata(self::FLASH_PREVIEW, ['dir' => $preview['dir'], 'n' => $preview['n']]);
             }
 
-            return redirect()->to('/play?view=' . rawurlencode($view), 303)->withCookies();
+            $query = $view === WebNativeScreenService::VIEW_CRAFT && $craft !== [] ? '&' . http_build_query($craft) : '';
+
+            return redirect()->to('/play?view=' . rawurlencode($view) . $query, 303)->withCookies();
         }
 
         $current = $this->service()->current($characterId);
         try {
-            $html = $this->native()->render($characterId, $view, $current['state'], $alert, $events, $preview);
+            $html = $this->native()->render($characterId, $view, $current['state'], $alert, $events, $preview, $craft);
         } catch (InvalidArgumentException $e) {
             log_message('info', '[Play.view] render rejected: ' . $e->getMessage());
 
@@ -471,6 +510,27 @@ class Play extends BaseController
                 'photo_url'       => null,
                 'inline_keyboard' => $rows,
             ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Где стоит экран крафта (`bench`, `cat`, `recipe`) — только короткие ключи-идентификаторы; что из
+     * них допустимо для персонажа, решает сервис по каталогу.
+     *
+     * @param callable(string): mixed $read чтение поля запроса (GET или POST)
+     *
+     * @return array{bench?:string, cat?:string, recipe?:string}
+     */
+    private static function craftNav(callable $read): array
+    {
+        $out = [];
+        foreach (['bench', 'cat', 'recipe'] as $field) {
+            $value = $read($field);
+            if (is_string($value) && preg_match('/^[A-Za-z0-9_]{1,40}$/', $value) === 1) {
+                $out[$field] = $value;
+            }
         }
 
         return $out;
