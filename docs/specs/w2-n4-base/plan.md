@@ -100,5 +100,5 @@
 **Briefed:** <written by scripts/cycle.sh briefed>
 **Branch:** vulyk/w2-n4-base
 **Checked:** <written by scripts/human-check.sh>
-**Council:** <written by scripts/cycle.sh judge/escalate>
+**Council:** RED round 1, 2026-09-27, at 639618d4, pack 10bcc90aa632
 **Shipped:** <written by scripts/ship-check.sh --record>
