@@ -84,5 +84,5 @@
 **Briefed:** <written by scripts/cycle.sh briefed>
 **Branch:** vulyk/w2-n2-live-map
 **Checked:** <written by scripts/human-check.sh>
-**Council:** <written by scripts/cycle.sh judge/escalate>
+**Council:** GREEN round 1, 2026-09-27, at 40433ecc, pack a320be6f49b7
 **Shipped:** <written by scripts/ship-check.sh --record>
