@@ -24,7 +24,12 @@ use RuntimeException;
  */
 class AccountService
 {
-    public const PROVIDERS = ['email', 'google', 'yandex', 'telegram'];
+    /**
+     * Живые способы входа. web-accounts-oauth-only (2026-09-30): `email` снят — входа по почте с паролем нет.
+     * Оставшиеся от прежнего кода строки `email` не считаются способом входа: их не видно в кабинете и они не
+     * засчитываются в «≥1 способ входа» (инвариант 5), иначе игрок отвязал бы свой последний рабочий вход.
+     */
+    public const PROVIDERS = ['google', 'yandex', 'telegram'];
 
     /** @var BaseConnection<object, object> */
     private BaseConnection $db;
@@ -169,15 +174,21 @@ class AccountService
         return $ok !== false;
     }
 
-    /**
+        /** `(?, ?, ?)` по числу живых провайдеров — биндинги остаются плоским списком. */
+    private static function providerPlaceholders(): string
+    {
+        return '(' . implode(', ', array_fill(0, count(self::PROVIDERS), '?')) . ')';
+    }
+
+/**
      * @return list<array<string, mixed>>
      */
     public function identities(int $accountId): array
     {
         return $this->rows(
             'SELECT id, account_id, provider, subject, email, created_at, last_used_at
-               FROM account_identities WHERE account_id = ? ORDER BY id',
-            [$accountId]
+               FROM account_identities WHERE account_id = ? AND provider IN ' . self::providerPlaceholders() . ' ORDER BY id',
+            [$accountId, ...self::PROVIDERS]
         );
     }
 
@@ -192,8 +203,8 @@ class AccountService
         $this->rows('SELECT id FROM accounts WHERE id = ? FOR UPDATE', [$accountId]);
 
         $count = self::toInt($this->row(
-            'SELECT COUNT(*) AS n FROM account_identities WHERE account_id = ?',
-            [$accountId]
+            'SELECT COUNT(*) AS n FROM account_identities WHERE account_id = ? AND provider IN ' . self::providerPlaceholders(),
+            [$accountId, ...self::PROVIDERS]
         )['n'] ?? null) ?? 0;
 
         if ($count <= 1) {

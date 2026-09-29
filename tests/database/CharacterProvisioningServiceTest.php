@@ -232,7 +232,7 @@ final class CharacterProvisioningServiceTest extends CIUnitTestCase
         $svc      = new CharacterProvisioningService();
 
         $emailAccount = $accounts->createAccount('email');
-        $this->assertTrue($accounts->addIdentity($emailAccount, 'email', 'hero@example.test', 'hash', 'hero@example.test'));
+        $this->assertTrue($accounts->addIdentity($emailAccount, 'google', 'hero@example.test', 'hash', 'hero@example.test'));
         $webChar = $svc->create('web_hero', null, null, $emailAccount);
 
         $tgUserId = $this->makeTelegramUser(self::CHAT_ID);

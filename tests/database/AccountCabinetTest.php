@@ -312,6 +312,31 @@ final class AccountCabinetTest extends CIUnitTestCase
         $this->assertSame($mine, Services::session()->get('account_id'));
     }
 
+    /**
+     * web-accounts-oauth-only-03 (ревью раунда 1): оставшаяся от прежнего кода строка `email` — не способ входа.
+     * Её не видно в кабинете, и она не спасает последний рабочий вход от отвязки.
+     */
+    public function testLeftoverEmailRowIsNotALoginMethod(): void
+    {
+        $accountId = $this->emailAccount('yx-only@example.com'); // один рабочий вход — Яндекс
+        $this->conn->table('account_identities')->insert([
+            'account_id' => $accountId, 'provider' => 'email', 'subject' => 'leftover@example.com',
+            'secret_hash' => password_hash('x', PASSWORD_DEFAULT), 'email' => 'leftover@example.com', 'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        $accounts = new AccountService($this->conn);
+
+        $this->assertSame(['yandex'], array_column($accounts->identities($accountId), 'provider'));
+        $this->assertFalse($accounts->addIdentity($accountId, 'email', 'new@example.com'), 'provider email is not accepted');
+
+        $body = $this->body($this->withSession(['account_id' => $accountId])->get('account'));
+        $this->assertStringNotContainsString('leftover@example.com', $body);
+        $this->assertStringNotContainsString('/unlink"', $body, 'the only working login has no unlink button');
+
+        $yandexId = (int) $accounts->identities($accountId)[0]['id'];
+        $this->assertFalse($accounts->unlinkIdentity($accountId, $yandexId), 'the email row does not count as a second login');
+        $this->assertSame(['yandex'], array_column($accounts->identities($accountId), 'provider'));
+    }
+
     public function testCabinetUnlinksAnyButRefusesTheLast(): void
     {
         $accounts  = new AccountService($this->conn);

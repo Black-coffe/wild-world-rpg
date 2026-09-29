@@ -11,7 +11,8 @@ use CodeIgniter\Database\Migration;
  * говорит о входе на сайт почтой: входа по почте с паролем нет, только Google, Яндекс и Telegram.
  *
  * UPDATE строки по title_en='WebLinkCode' — второго совета нет. Идемпотентно (повтор пишет тот же текст;
- * строки нет — ничего не делает). down() возвращает текст WebPlayTipTrueInBothFlagStates дословно.
+ * строки нет — ничего не делает). down() возвращает текст WebPlayTipTrueInBothFlagStates — копией
+ * (`OLD_CONTENT`): классы миграций не автозагружаются, ссылка на соседнюю миграцию уронила бы откат.
  * Категория не меняется. Без чисел, тон Роби, markdown-safe (парные *).
  */
 class WebLinkTipWithoutEmail extends Migration
@@ -26,6 +27,15 @@ class WebLinkTipWithoutEmail extends Migration
         . 'страница сама подскажет, что делать. Код живёт недолго и срабатывает один раз, так что '
         . 'запрашивай его прямо перед входом. Бот при этом никуда не денется.';
 
+    /** Текст WebPlayTipTrueInBothFlagStates::NEW_CONTENT, дословно (сверяет тест). */
+    public const OLD_CONTENT = '🌐 *Играть можно и на сайте.* Набери /web или нажми *«🌐 Играть на сайте»* в '
+        . '*⚙️ Настройках* — я пришлю одноразовый код. Введи его на странице wildworld.fun/account/link, '
+        . 'и код впустит тебя в аккаунт твоего персонажа. Если ты уже вошёл на сайте почтой, Google или '
+        . 'Яндексом в другой аккаунт — выйди из другого входа и введи код. Дальше жми «Играть» в шапке '
+        . 'сайта: там тот же персонаж и та же игра, только в браузере. Если играть на сайте сейчас нельзя, '
+        . 'страница сама подскажет, что делать. Код живёт недолго и срабатывает один раз, так что '
+        . 'запрашивай его прямо перед входом. Бот при этом никуда не денется.';
+
     public function up(): void
     {
         $this->setContent(self::NEW_CONTENT);
@@ -33,7 +43,7 @@ class WebLinkTipWithoutEmail extends Migration
 
     public function down(): void
     {
-        $this->setContent(WebPlayTipTrueInBothFlagStates::NEW_CONTENT);
+        $this->setContent(self::OLD_CONTENT);
     }
 
     private function setContent(string $content): void

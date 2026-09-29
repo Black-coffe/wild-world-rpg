@@ -26,12 +26,6 @@ class Accounts extends BaseConfig
     /** Имя cookie remember-me (`selector:validator`). */
     public string $rememberCookie = 'ww_remember';
 
-    /** Минимальная длина пароля. */
-    public int $passwordMinLength = 8;
-
-    /** Время жизни токена сброса пароля, секунд. */
-    public int $passwordResetTtlSeconds = 3600;
-
     /** Лимит POST-запросов форм /account с одного IP в минуту. */
     public int $throttleIpPerMinute = 10;
 

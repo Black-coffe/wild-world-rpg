@@ -205,7 +205,7 @@ final class LinkCodeServiceTest extends CIUnitTestCase
         $charId   = $this->insertCharacter($this->insertTelegramUser(900005006));
         $target   = $accounts->ensureForCharacter($charId);
         $webOnly  = $accounts->createAccount('web');
-        $this->assertTrue($accounts->addIdentity($webOnly, 'email', 'lnkcode-nomerge@example.com', password_hash('x', PASSWORD_DEFAULT)));
+        $this->assertTrue($accounts->addIdentity($webOnly, 'google', 'lnkcode-nomerge@example.com', password_hash('x', PASSWORD_DEFAULT)));
         $code = $this->service()->issue($charId)['code'];
 
         $result = $this->service()->link($code, $webOnly);
@@ -213,7 +213,7 @@ final class LinkCodeServiceTest extends CIUnitTestCase
         $this->assertSame(LinkCodeService::STATUS_REFUSED, $result['status']);
         $this->assertSame(LinkCodeService::MSG_OTHER, $result['message']);
         $this->assertNull($result['account_id']);
-        $this->assertSame($webOnly, $accounts->findByIdentity('email', 'lnkcode-nomerge@example.com'), 'nothing moved');
+        $this->assertSame($webOnly, $accounts->findByIdentity('google', 'lnkcode-nomerge@example.com'), 'nothing moved');
         $this->assertSame(1, $this->conn->table('accounts')->where('id', $webOnly)->countAllResults());
 
         $loggedOut = $this->service()->link($code, null);

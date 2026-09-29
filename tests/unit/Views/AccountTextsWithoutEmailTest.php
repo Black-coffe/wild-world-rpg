@@ -56,4 +56,15 @@ final class AccountTextsWithoutEmailTest extends CIUnitTestCase
             $this->assertDoesNotMatchRegularExpression(self::EMAIL_LOGIN, $text, $label);
         }
     }
+
+    /** Откат совета возвращает прежний текст дословно — копией, без ссылки на соседнюю миграцию. */
+    public function testTipMigrationDownRestoresPreviousTextVerbatim(): void
+    {
+        require_once APPPATH . 'Database/Migrations/2026-12-11-100011_WebPlayTipTrueInBothFlagStates.php';
+        require_once APPPATH . 'Database/Migrations/2026-12-15-100000_WebLinkTipWithoutEmail.php';
+
+        $this->assertSame(\App\Database\Migrations\WebPlayTipTrueInBothFlagStates::NEW_CONTENT, WebLinkTipWithoutEmail::OLD_CONTENT);
+        $source = (string) file_get_contents(APPPATH . 'Database/Migrations/2026-12-15-100000_WebLinkTipWithoutEmail.php');
+        $this->assertDoesNotMatchRegularExpression('~setContent\(\s*\\?(App\\\\Database\\\\Migrations\\\\)?WebPlayTipTrueInBothFlagStates::~', $source, 'down() must not reference another migration class');
+    }
 }
