@@ -447,6 +447,11 @@ final class PlayControllerTest extends CIUnitTestCase
     {
         [$sessionA] = $this->virtualCharacter();
         [$sessionB] = $this->virtualCharacter();
+        // w2-n4-tails-03: как в тесте 429 (b04e3c98) — ведро доливается непрерывно, и на медленном раннере между
+        // выбором лимита и запросом сверх него успевал долиться токен (200 вместо 429). Часы заморожены до первого запроса.
+        $throttler = Services::throttler(false);
+        $throttler->setTestTime(time());
+        Services::injectMock('throttler', $throttler);
         $config     = new WebPlay();
         $filter     = new AccountThrottleFilter();
 
