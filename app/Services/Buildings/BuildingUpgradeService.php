@@ -34,8 +34,12 @@ use Config\BuildingUpgrades;
  * w2-n4-tails-02: превью несёт эффект уровня «сейчас → после» (`effect_now`/`effect_next`, {@see BuildingEffectLines});
  * `null` — у постройки нет показываемого эффекта.
  *
+ * w2-n4-tails2: превью несёт `resource_names` (name_en → имя для игрока), чтобы веб не печатал ключи.
+ * «Устарело» проверяется раньше прочих отказов: если постройка найдена и её уровень ≠ `fromLevel`,
+ * ответ `stale`, даже когда следующий уровень недоступен по золоту, уровню персонажа или ресурсам.
+ *
  * @phpstan-type Requirements array{level: int, gold: int, resources: array<string, int>}
- * @phpstan-type Result array{ok: bool, code: string, message: string, missing: list<string>, next_level: int, building_id: int, name: string|null, name_en: string|null, current_level: int, level: int, effect_now: string|null, effect_next: string|null, requirements: Requirements, char_building: array<string, mixed>, character: array{level: mixed, gold: mixed}}
+ * @phpstan-type Result array{ok: bool, code: string, message: string, missing: list<string>, next_level: int, building_id: int, name: string|null, name_en: string|null, current_level: int, level: int, effect_now: string|null, effect_next: string|null, requirements: Requirements, resource_names: array<string, string>, char_building: array<string, mixed>, character: array{level: mixed, gold: mixed}}
  */
 final class BuildingUpgradeService
 {
@@ -78,7 +82,7 @@ final class BuildingUpgradeService
             return self::relocationRefusal($buildingId);
         }
 
-        return $this->check($character, $baseId, $buildingId);
+        return $this->check($character, $this->validate($character, $baseId, $buildingId), $buildingId);
     }
 
     /**
@@ -97,12 +101,15 @@ final class BuildingUpgradeService
         if ($this->relocating($characterId)) {
             return self::relocationRefusal($buildingId);
         }
-        $check = $this->check($character, $baseId, $buildingId);
+        $raw   = $this->validate($character, $baseId, $buildingId);
+        $check = $this->check($character, $raw, $buildingId);
+        // Уровень постройки известен, как только она найдена, — «устарело» раньше условий следующего уровня.
+        $known = self::knownLevel($raw);
+        if ($known !== null && $fromLevel !== $known) {
+            return ['ok' => false, 'code' => self::STALE, 'message' => self::TEXT_STALE, 'current_level' => $known] + $check;
+        }
         if (! $check['ok']) {
             return $check;
-        }
-        if ($fromLevel === null || $fromLevel !== $check['current_level']) {
-            return ['ok' => false, 'code' => self::STALE, 'message' => self::TEXT_STALE] + $check;
         }
 
         try {
@@ -126,11 +133,33 @@ final class BuildingUpgradeService
 
     /**
      * @param array<string, mixed> $character
+     * @return array<string, mixed>
+     */
+    private function validate(array $character, ?int $baseId, int $buildingId): array
+    {
+        return $this->validator->validate($character, $buildingId, config(BuildingUpgrades::class)->requirements, $baseId);
+    }
+
+    /**
+     * Уровень найденной постройки из ответа валидатора (успех — `context`, поздний отказ — `currentLevel`);
+     * `null` — постройка не найдена (не на базе, база недоступна, нет постройки).
+     *
+     * @param array<string, mixed> $res
+     */
+    private static function knownLevel(array $res): ?int
+    {
+        $level = self::arr($res['context'] ?? null)['currentLevel'] ?? $res['currentLevel'] ?? null;
+
+        return is_numeric($level) ? (int) $level : null;
+    }
+
+    /**
+     * @param array<string, mixed> $character
+     * @param array<string, mixed> $res
      * @return Result
      */
-    private function check(array $character, ?int $baseId, int $buildingId): array
+    private function check(array $character, array $res, int $buildingId): array
     {
-        $res = $this->validator->validate($character, $buildingId, config(BuildingUpgrades::class)->requirements, $baseId);
         if (($res['ok'] ?? false) !== true) {
             $missing = [];
             foreach ((array) ($res['missingResources'] ?? []) as $line) {
@@ -177,6 +206,9 @@ final class BuildingUpgradeService
             $out['effect_next'] = $lines->effectAt($nameEn, $out['level']);
         }
         $out['requirements']  = ['level' => self::int($req['level'] ?? 0), 'gold' => self::int($req['gold'] ?? 0), 'resources' => $resources];
+        foreach (self::arr($ctx['resourceNames'] ?? null) as $key => $label) {
+            $out['resource_names'][$key] = is_string($label) ? $label : $key;
+        }
         $out['char_building'] = self::arr($ctx['charBuilding'] ?? null);
         $out['character']     = ['level' => $character['level'] ?? null, 'gold' => $character['gold'] ?? null];
 
@@ -189,7 +221,7 @@ final class BuildingUpgradeService
         return [
             'ok' => false, 'code' => $code, 'message' => '', 'missing' => [], 'next_level' => 0, 'building_id' => $buildingId,
             'name' => null, 'name_en' => null, 'current_level' => 0, 'level' => 0, 'effect_now' => null, 'effect_next' => null,
-            'requirements' => ['level' => 0, 'gold' => 0, 'resources' => []], 'char_building' => [],
+            'requirements' => ['level' => 0, 'gold' => 0, 'resources' => []], 'resource_names' => [], 'char_building' => [],
             'character' => ['level' => null, 'gold' => null],
         ];
     }

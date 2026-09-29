@@ -274,7 +274,7 @@ $home = ['b' => $baseId];
                             <?php if (is_array($req['resources'] ?? null) && $req['resources'] !== []): ?>
                                 <ul class="play-craft-reqs" aria-label="Ресурсы апгрейда">
                                     <?php foreach ($req['resources'] as $name => $qty): ?>
-                                        <li class="play-craft-req"><span class="play-craft-req-name"><?= esc((string) $name) ?></span><span class="play-craft-req-qty"><?= $int($qty) ?></span></li>
+                                        <li class="play-craft-req"><span class="play-craft-req-name"><?= esc($str($up['resource_names'][$name] ?? null, (string) $name)) ?></span><span class="play-craft-req-qty"><?= $int($qty) ?></span></li>
                                     <?php endforeach ?>
                                 </ul>
                             <?php endif ?>

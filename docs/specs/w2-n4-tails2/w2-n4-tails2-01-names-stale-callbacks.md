@@ -1,8 +1,8 @@
 ---
 story: w2-n4-tails2-01
 spec: w2-n4-tails2
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 1
 worker: worker-code
 model: sonnet
@@ -28,7 +28,6 @@ blocked_by: []
 - app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 - app/Views/site/_play/native_base.php
 - tests/database/BuildingUpgradeServiceTest.php
-- tests/unit/Camp/UpgradeConfirmBaseSuffixTest.php
 - tests/unit/Views/PlayViewsTest.php
 
 ## Non-goals
@@ -47,5 +46,9 @@ none
 `vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Implementation notes
+- Валидатор: `currentLevel` у отказов после шага 4 и в `missingResources`; `context.resourceNames` из уже загруженных строк `resources` (второго запроса нет).
+- Ядро: `apply()` берёт сырой ответ валидатора, `knownLevel()` → `stale` до прочих отказов; не найдена постройка — прежний `refused`. Result несёт `resource_names`.
+- Бот: приватный `answerCallback(?text)` на каждом отказе `prompt()`/`confirmUpgrade()`; `race` — со всплывашкой. Вьюха: `resource_names[$name]`, иначе ключ.
+- Тест бота — в `BuildingUpgradeServiceTest` отдельным процессом с записывающим HTTP-клиентом (как `CraftQueueCoreTest`), а не в `UpgradeConfirmBaseSuffixTest`: там `PHPUNIT_TESTSUITE` глушит Longman. Новые тесты падают на коде до правки (проверено).
 
 ## Findings

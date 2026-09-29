@@ -283,3 +283,4 @@
 {"ts":"2026-09-29T18:35:39Z","story":"w2-n4-tails-01-relocation-and-level-guard","declared":14,"changed":14,"out_of_scope":1}
 {"ts":"2026-09-29T18:52:32Z","story":"w2-n4-tails-02-upgrade-effect","declared":12,"changed":11,"out_of_scope":1}
 {"ts":"2026-09-29T19:00:51Z","story":"w2-n4-tails-03-throttle-test-clock","declared":1,"changed":2,"out_of_scope":1}
+{"ts":"2026-09-29T19:52:04Z","story":"w2-n4-tails2-01-names-stale-callbacks","declared":6,"changed":8,"out_of_scope":2}
