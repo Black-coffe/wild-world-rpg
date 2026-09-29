@@ -280,3 +280,4 @@
 {"ts":"2026-09-27T19:50:00Z","story":"w2-n4-base-03-web-base","declared":15,"changed":11,"out_of_scope":2}
 {"ts":"2026-09-27T20:05:12Z","story":"w2-n4-base-03-web-base","declared":15,"changed":12,"out_of_scope":3}
 {"ts":"2026-09-27T20:23:11Z","story":"w2-n4-base-04-repair-round-1","declared":34,"changed":5,"out_of_scope":2}
+{"ts":"2026-09-29T18:35:39Z","story":"w2-n4-tails-01-relocation-and-level-guard","declared":14,"changed":14,"out_of_scope":1}

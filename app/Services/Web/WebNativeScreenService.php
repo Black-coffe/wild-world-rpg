@@ -86,7 +86,7 @@ use InvalidArgumentException;
  * @phpstan-import-type Sheet from CharacterSheetService
  * @phpstan-import-type Preview from MarchService
  * @phpstan-type CraftNav array{bench?:string, cat?:string, recipe?:string}
- * @phpstan-type BaseNav array{b?:int, section?:string, key?:string, id?:int}
+ * @phpstan-type BaseNav array{b?:int, section?:string, key?:string, id?:int, from?:int}
  */
 class WebNativeScreenService
 {
@@ -538,6 +538,7 @@ class WebNativeScreenService
             'overview' => null,
             'bridge'   => [],
             'catalog'  => null,
+            'refusal'  => '',
             'card'     => null,
             'upgrade'  => null,
         ];
@@ -570,7 +571,9 @@ class WebNativeScreenService
         $model['section']  = $section;
 
         if ($section === 'catalog') {
-            $model['catalog'] = $this->builds->catalog($characterId, $baseId)['items'];
+            $catalog          = $this->builds->catalog($characterId, $baseId);
+            $model['catalog'] = $catalog['items'];
+            $model['refusal'] = self::plain($catalog['refusal']);
         } elseif ($section === 'building' && isset($nav['key'])) {
             $model['card'] = $this->builds->preview($characterId, $baseId, $nav['key']);
         } elseif ($section === 'upgrade' && isset($nav['id'])) {
@@ -616,13 +619,14 @@ class WebNativeScreenService
 
     /**
      * Апгрейд постройки из веба: то же ядро, что у бота (условная оплата, уровень только из текущего), один
-     * раз на `intent_id`.
+     * раз на `intent_id`. `$fromLevel` — уровень из превью (поле формы `from`); нет его или постройка уже на
+     * другом — отказ ядра `stale`, ничего не списано.
      *
      * @return string|null ответ для игрока; null — повтор того же намерения
      *
      * @throws InvalidArgumentException плохая постройка или намерение
      */
-    public function upgrade(int $accountId, int $characterId, ?int $baseId, int $buildingId, string $intentId): ?string
+    public function upgrade(int $accountId, int $characterId, ?int $baseId, int $buildingId, ?int $fromLevel, string $intentId): ?string
     {
         if ($buildingId <= 0) {
             throw new InvalidArgumentException('bad building id');
@@ -632,7 +636,7 @@ class WebNativeScreenService
             return null;
         }
 
-        $out = $this->upgrades->apply($characterId, $baseId, $buildingId);
+        $out = $this->upgrades->apply($characterId, $baseId, $buildingId, $fromLevel);
         if ($out['ok']) {
             return '⬆️ «' . ($out['name'] ?? 'Постройка') . "»: уровень {$out['current_level']} → {$out['level']}.";
         }

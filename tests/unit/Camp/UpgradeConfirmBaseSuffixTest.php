@@ -27,6 +27,9 @@ use Longman\TelegramBot\Telegram;
  * `BuildingCardBaseChoiceTest` (multibase-picker-03) — реальные модели/action через
  * `BaseConnection::setPrefix()` без единой правки app/.
  *
+ * w2-n4-tails-01: подтверждение несёт ещё и уровень — `confirm_upgrade_building_<id>_l<N>[_b<base>]`;
+ * `tasks`/`character_tasks` нужны проверке переезда в ядре.
+ *
  * @internal
  */
 final class UpgradeConfirmBaseSuffixTest extends CIUnitTestCase
@@ -40,7 +43,7 @@ final class UpgradeConfirmBaseSuffixTest extends CIUnitTestCase
     /** @var list<string> */
     private const TABLES = [
         'telegram_users', 'characters', 'buildings', 'character_buildings',
-        'claimed_cells', 'map', 'game_settings',
+        'claimed_cells', 'map', 'game_settings', 'tasks', 'character_tasks',
     ];
 
     private string $origPrefix = '';
@@ -81,6 +84,9 @@ final class UpgradeConfirmBaseSuffixTest extends CIUnitTestCase
             'game_settings' => 'id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(128) NOT NULL, '
                 . 'value_type VARCHAR(16) NOT NULL, value_int INT NULL, value_float DOUBLE NULL, '
                 . 'value_bool TINYINT NULL, value_string VARCHAR(255) NULL, created_at DATETIME NULL, updated_at DATETIME NULL',
+            'tasks' => 'id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64) NULL, name_rus VARCHAR(255) NULL',
+            'character_tasks' => 'id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NULL, task_id INT NULL, '
+                . 'status VARCHAR(16) NULL, start_time DATETIME NULL, end_time DATETIME NULL, task_settings TEXT NULL',
         ];
         foreach ($ddl as $table => $cols) {
             $this->db()->query('DROP TABLE IF EXISTS ' . self::PREFIX . $table);
@@ -226,9 +232,13 @@ final class UpgradeConfirmBaseSuffixTest extends CIUnitTestCase
         $keyboard = json_decode((string) $payload['reply_markup'], true);
         $confirmCallback = (string) $keyboard['inline_keyboard'][0][0]['callback_data'];
 
-        $this->assertSame('confirm_upgrade_building_4' . BaseCallbackSuffix::append('', 345), $confirmCallback);
-        $this->assertSame('confirm_upgrade_building_4_b345', $confirmCallback);
+        $this->assertSame('confirm_upgrade_building_4_l1' . BaseCallbackSuffix::append('', 345), $confirmCallback);
+        $this->assertSame('confirm_upgrade_building_4_l1_b345', $confirmCallback);
         $this->assertLessThanOrEqual(64, strlen($confirmCallback));
+
+        // Худший случай: длинные id постройки и базы, уровень в четыре знака.
+        $worst = BaseCallbackSuffix::append(BuildingUpgradeMessageFormatter::confirmCallback(999_999, 9999), 999_999_999_999);
+        $this->assertLessThanOrEqual(64, strlen($worst), $worst);
     }
 
     // ---- AC 1: без базы — байт в байт как раньше (без суффикса) ----
@@ -245,7 +255,7 @@ final class UpgradeConfirmBaseSuffixTest extends CIUnitTestCase
 
         $keyboard = json_decode((string) $withBaseNull['reply_markup'], true);
         $this->assertSame(
-            'confirm_upgrade_building_4',
+            'confirm_upgrade_building_4_l1',
             $keyboard['inline_keyboard'][0][0]['callback_data']
         );
     }
@@ -268,7 +278,7 @@ final class UpgradeConfirmBaseSuffixTest extends CIUnitTestCase
         $row1  = $this->seedCharacterBuilding($charId, $handPumpId, 0, 1);
         $row2  = $this->seedCharacterBuilding($charId, $handPumpId, 1000, 1);
 
-        $confirmData = 'confirm_upgrade_building_' . $handPumpId . BaseCallbackSuffix::append('', $base2);
+        $confirmData = 'confirm_upgrade_building_' . $handPumpId . '_l1' . BaseCallbackSuffix::append('', $base2);
         $response = (new UpgradeBuildingAction($this->cbq($tgId, $confirmData)))->confirmUpgrade();
 
         $this->assertSame(2, $this->rowLevel($row2), 'уровень поднялся у строки базы, пришедшей в суффиксе');
@@ -290,7 +300,7 @@ final class UpgradeConfirmBaseSuffixTest extends CIUnitTestCase
         // Чужая база — принадлежит другому персонажу.
         $foreign = $this->seedBase($charId + 999, 2000);
 
-        $confirmData = 'confirm_upgrade_building_' . $handPumpId . BaseCallbackSuffix::append('', $foreign);
+        $confirmData = 'confirm_upgrade_building_' . $handPumpId . '_l1' . BaseCallbackSuffix::append('', $foreign);
         $response = (new UpgradeBuildingAction($this->cbq($tgId, $confirmData)))->confirmUpgrade();
 
         $this->assertSame(1, $this->rowLevel($row), 'уровень не изменился при недоступной базе из суффикса');
@@ -298,7 +308,7 @@ final class UpgradeConfirmBaseSuffixTest extends CIUnitTestCase
 
         // Неактивная (abandoned) своя база.
         $abandoned = $this->seedBase($charId, 500, 'abandoned');
-        $confirmDataAbandoned = 'confirm_upgrade_building_' . $handPumpId . BaseCallbackSuffix::append('', $abandoned);
+        $confirmDataAbandoned = 'confirm_upgrade_building_' . $handPumpId . '_l1' . BaseCallbackSuffix::append('', $abandoned);
         $responseAbandoned = (new UpgradeBuildingAction($this->cbq($tgId, $confirmDataAbandoned)))->confirmUpgrade();
 
         $this->assertSame(1, $this->rowLevel($row), 'уровень не изменился при неактивной базе из суффикса');

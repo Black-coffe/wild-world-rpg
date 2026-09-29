@@ -22,6 +22,7 @@ use App\Services\Db\WriteOutcome;
 use App\Services\Onboarding\BuildLockService;
 use App\Services\Onboarding\FirstShelterService;
 use App\Services\Tasks\ActionScopeService;
+use App\Services\Tasks\ActiveTasksService;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use Config\Buildings;
 use Config\Database;
@@ -44,6 +45,9 @@ use DateTime;
  * `already_building`) перепроверяются под `SELECT … FOR UPDATE` строки персонажа в той же транзакции. Любой отказ посреди — откат целиком: ни задачи, ни частичного списания.
  *
  * Материалы стройки — рюкзак (`character_resources`), как было у бота; склад базы стройка не берёт.
+ *
+ * Во время переезда базы (w2-n4-tails-01) каталог, карточка и старт отказывают текстом бота
+ * {@see ActiveTasksService::TEXT_RELOCATION} (код `relocating`) — проверка здесь, поэтому её наследует каждый клиент.
  *
  * @phpstan-type Log array{action: string, reason: string, extra: array<string, mixed>}
  * @phpstan-type Material array{key: string, name: string, id: int, need: int, have: int, in_db: bool}
@@ -71,6 +75,7 @@ final class BuildOrderService
     public const MISSING_MATERIALS = 'missing_materials';
     public const RACE              = 'race';
     public const TX_FAILED         = 'tx_failed';
+    public const RELOCATING        = 'relocating';
 
     public const TEXT_NOT_ON_BASE = 'Ты не на своей базе. Постройки возводятся только когда стоишь на базе — телепортируйся или дойди до неё.';
     public const TEXT_RACE        = 'Материалы разошлись, пока ты нажимал — проверь запас и попробуй ещё раз.';
@@ -111,12 +116,16 @@ final class BuildOrderService
 
     /**
      * Каталог «🏗 Строить»: Навес новичку первым (S5, ADR-142), уровневые постройки — замком (S4, ADR-139).
-     * `built_count` — сколько построек этого типа уже стоит на базе `$baseId` (0 без базы).
+     * `built_count` — сколько построек этого типа уже стоит на базе `$baseId` (0 без базы). Во время переезда
+     * базы — пустой список и `refusal` (текст бота); иначе `refusal` = ''.
      *
-     * @return array{items: list<CatalogItem>}
+     * @return array{items: list<CatalogItem>, refusal: string}
      */
     public function catalog(int $characterId, ?int $baseId = null): array
     {
+        if ($this->relocating($characterId)) {
+            return ['items' => [], 'refusal' => ActiveTasksService::TEXT_RELOCATION];
+        }
         $character = $this->character($characterId);
         $level     = self::int($character['level'] ?? 0);
         $entries   = self::CATALOG;
@@ -147,13 +156,13 @@ final class BuildOrderService
             ];
         }
 
-        return ['items' => $items];
+        return ['items' => $items, 'refusal' => ''];
     }
 
     /**
      * Карточка постройки: что нужно, что есть, время, описание, чего не хватает. Код `preview` —
      * карточка показывается (хватает или нет — `can_start`); иначе — отказ экрана (`leanto_gated`,
-     * `no_camp`, `not_on_base`, `low_level`, `unknown_building`, `no_character`).
+     * `no_camp`, `not_on_base`, `low_level`, `unknown_building`, `no_character`, `relocating` — текст в `reason`).
      *
      * @return Preview
      */
@@ -174,6 +183,9 @@ final class BuildOrderService
         }
         $empty['recipe'] = self::recipeHead($recipe);
         $level           = self::int($character['level'] ?? 0);
+        if ($this->relocating($characterId)) {
+            return ['code' => self::RELOCATING, 'reason' => ActiveTasksService::TEXT_RELOCATION] + $empty;
+        }
 
         $gateWhy = (new FirstShelterService())->leanToGateReason($key, $characterId, $level);
         if ($gateWhy !== null) {
@@ -242,6 +254,9 @@ final class BuildOrderService
         }
         $action = "BUILD_{$key}";
         $level  = self::int($character['level'] ?? 0);
+        if ($this->relocating($characterId)) {
+            return self::fail(self::RELOCATING, ActiveTasksService::TEXT_RELOCATION);
+        }
 
         $gateWhy = (new FirstShelterService())->leanToGateReason($key, $characterId, $level);
         if ($gateWhy !== null) {
@@ -586,6 +601,11 @@ final class BuildOrderService
         $row = (new TaskModel())->where('name', $taskName)->first();
 
         return $row === null ? null : self::arr($row);
+    }
+
+    private function relocating(int $characterId): bool
+    {
+        return (new ActiveTasksService())->hasActiveRelocation($characterId);
     }
 
     /** @return array<string, mixed> */

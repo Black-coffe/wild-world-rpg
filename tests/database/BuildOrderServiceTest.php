@@ -15,7 +15,8 @@ use Config\Database;
 
 /**
  * w2-n4-base-02 — ядро стройки {@see BuildOrderService}: атомарный старт (ADR-181), база из явного id,
- * `task_settings.base_cell` (ADR-102), каталог и карточка как модель.
+ * `task_settings.base_cell` (ADR-102), каталог и карточка как модель. w2-n4-tails-01: во время переезда базы
+ * каталог, карточка и старт отказывают текстом бота без записи.
  *
  * Гонка «второй клиент успел между проверкой и записью» воспроизводится детерминированно: слушатель
  * `DBQuery` ловит блокировку строки персонажа (`FOR UPDATE`) и в этот момент второе соединение делает
@@ -246,6 +247,30 @@ final class BuildOrderServiceTest extends CIUnitTestCase
         $this->assertStringNotContainsString('chat_id', $json);
         $this->assertStringNotContainsString('callback_data', $json);
         $this->assertStringNotContainsString('reply_markup', $json);
+    }
+
+    // ── переезд базы ─────────────────────────────────────────────────────────
+
+    public function testRelocationRefusesCatalogPreviewAndStartWithBotTextAndNoWrites(): void
+    {
+        $this->conn->query("INSERT INTO tasks (id, name, name_rus) VALUES (99, 'BaseRelocation', 'Переезд базы')");
+        $this->conn->query("INSERT INTO character_tasks (character_id, telegram_user_id, task_id, status, start_time, end_time) VALUES (1, 7, 99, 'in_work', NOW(), NOW() + INTERVAL 1 HOUR)");
+        $text    = \App\Services\Tasks\ActiveTasksService::TEXT_RELOCATION;
+        $service = new BuildOrderService();
+
+        $this->assertSame(['items' => [], 'refusal' => $text], $service->catalog(1, 1));
+
+        $p = $service->preview(1, 1, 'Workshop');
+        $this->assertSame([BuildOrderService::RELOCATING, $text, false], [$p['code'], $p['reason'], $p['can_start']]);
+
+        $s = $service->start(1, 1, 'Workshop');
+        $this->assertFalse($s['ok']);
+        $this->assertSame([BuildOrderService::RELOCATING, $text], [$s['code'], $s['message']]);
+        $this->assertSame(1, $this->taskCount(), 'только задача переезда — стройка не поставлена');
+        $this->assertSame([1500, 900, 400], $this->resources(), 'ничего не списано');
+
+        $this->conn->query("UPDATE character_tasks SET status = 'completed'");
+        $this->assertSame('', $service->catalog(1, 1)['refusal'], 'переезд закончился — каталог снова открыт');
     }
 
     // ── помощники ────────────────────────────────────────────────────────────

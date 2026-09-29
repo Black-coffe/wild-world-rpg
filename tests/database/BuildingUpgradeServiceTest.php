@@ -21,6 +21,9 @@ use Config\Database;
  * справочника зданий (последний шаг проверки перед оплатой) и второе соединение в этот момент меняет
  * золото или уровень так, как это сделал бы параллельный клиент.
  *
+ * w2-n4-tails-01: подтверждение несёт уровень «с N» — с другого уровня или без него `stale`, ничего не списано;
+ * во время переезда базы превью и применение отказывают (`relocating`).
+ *
  * @internal
  */
 final class BuildingUpgradeServiceTest extends CIUnitTestCase
@@ -35,6 +38,9 @@ final class BuildingUpgradeServiceTest extends CIUnitTestCase
         '2024-03-20-153728_CreateTelegramUsersTable',
         '2024-03-20-154155_CreateCharactersTable',
         '2026-05-08-220000_AddDisableMediaFlag',
+        '2024-03-22-111828_CreateTasksTable',
+        '2024-03-22-132411_CreateCharacterTasksTable',
+        '2026-05-10-190000_AddPausedStatusToCharacterTasks',
         '2024-05-23-061031_CreateClaimedCellsTable',
         '2024-05-23-090819_CreateBuildingsTable',
         '2024-05-27-105534_CreateCharacterBuildingsTable',
@@ -44,7 +50,7 @@ final class BuildingUpgradeServiceTest extends CIUnitTestCase
     ];
 
     private const TABLES = [
-        'biomes', 'map', 'telegram_users', 'characters', 'resources', 'character_resources', 'claimed_cells', 'buildings',
+        'biomes', 'map', 'telegram_users', 'characters', 'tasks', 'character_tasks', 'resources', 'character_resources', 'claimed_cells', 'buildings',
         'character_buildings', 'base_storage', 'game_settings', 'faction_endgame_scores',
     ];
 
@@ -111,7 +117,7 @@ final class BuildingUpgradeServiceTest extends CIUnitTestCase
 
     public function testApplyRaisesLevelOnceAndPaysOnce(): void
     {
-        $r = (new BuildingUpgradeService())->apply(1, null, 2);
+        $r = (new BuildingUpgradeService())->apply(1, null, 2, 1);
 
         $this->assertTrue($r['ok'], (string) $r['message']);
         $this->assertSame([BuildingUpgradeService::APPLIED, 1, 2], [$r['code'], $r['current_level'], $r['level']]);
@@ -123,7 +129,7 @@ final class BuildingUpgradeServiceTest extends CIUnitTestCase
     {
         $this->conn->query('UPDATE characters SET gold = 100 WHERE id = 1');
 
-        $r = (new BuildingUpgradeService())->apply(1, null, 2);
+        $r = (new BuildingUpgradeService())->apply(1, null, 2, 1);
 
         $this->assertFalse($r['ok']);
         $this->assertSame(BuildingUpgradeService::REFUSED, $r['code']);
@@ -138,7 +144,7 @@ final class BuildingUpgradeServiceTest extends CIUnitTestCase
             $this->other()->query('UPDATE characters SET gold = 10 WHERE id = 1');
         });
 
-        $r = (new BuildingUpgradeService())->apply(1, null, 2);
+        $r = (new BuildingUpgradeService())->apply(1, null, 2, 1);
 
         $this->assertFalse($r['ok']);
         $this->assertSame(BuildingUpgradeService::RACE, $r['code']);
@@ -155,7 +161,7 @@ final class BuildingUpgradeServiceTest extends CIUnitTestCase
             $other->query('UPDATE characters SET gold = gold - ? WHERE id = 1', [self::COST]);
         });
 
-        $r = (new BuildingUpgradeService())->apply(1, null, 2);
+        $r = (new BuildingUpgradeService())->apply(1, null, 2, 1);
 
         $this->assertFalse($r['ok']);
         $this->assertSame(BuildingUpgradeService::RACE, $r['code']);
@@ -168,12 +174,56 @@ final class BuildingUpgradeServiceTest extends CIUnitTestCase
         $service = new BuildingUpgradeService();
         foreach ([2, 3, 999] as $baseId) { // своя, но не под ногами; чужая; несуществующая
             $this->assertSame(BuildingUpgradeService::REFUSED, $service->preview(1, $baseId, 2)['code'], "база {$baseId}");
-            $this->assertSame(BuildingUpgradeService::REFUSED, $service->apply(1, $baseId, 2)['code'], "база {$baseId}");
+            $this->assertSame(BuildingUpgradeService::REFUSED, $service->apply(1, $baseId, 2, 1)['code'], "база {$baseId}");
         }
         $this->assertSame([1, 1], $this->levels());
         $this->assertSame(200000, $this->gold());
 
-        $this->assertTrue($service->apply(1, 1, 2)['ok'], 'своя база под ногами — апгрейд идёт');
+        $this->assertTrue($service->apply(1, 1, 2, 1)['ok'], 'своя база под ногами — апгрейд идёт');
+    }
+
+    public function testRepeatedConfirmFromTheSameLevelIsStaleAndPaysOnce(): void
+    {
+        // Раньше повторный тап после коммита первого перепроверялся заново и оплачивал уровень 3.
+        $service = new BuildingUpgradeService();
+
+        $first  = $service->apply(1, null, 2, 1);
+        $second = $service->apply(1, null, 2, 1);
+
+        $this->assertTrue($first['ok'], (string) $first['message']);
+        $this->assertFalse($second['ok']);
+        $this->assertSame(BuildingUpgradeService::STALE, $second['code']);
+        $this->assertSame(BuildingUpgradeService::TEXT_STALE, $second['message']);
+        $this->assertSame([2, 1], $this->levels(), 'один уровень за два тапа');
+        $this->assertSame(200000 - self::COST, $this->gold(), 'одно списание');
+    }
+
+    public function testConfirmWithoutLevelIsStaleAndTouchesNothing(): void
+    {
+        $r = (new BuildingUpgradeService())->apply(1, null, 2, null);
+
+        $this->assertSame(BuildingUpgradeService::STALE, $r['code']);
+        $this->assertSame([1, 1], $this->levels());
+        $this->assertSame(200000, $this->gold());
+    }
+
+    public function testRelocationRefusesPreviewAndApplyWithBotText(): void
+    {
+        $this->conn->query("INSERT INTO tasks (id, name, name_rus) VALUES (99, 'BaseRelocation', 'Переезд базы')");
+        $this->conn->query("INSERT INTO character_tasks (character_id, telegram_user_id, task_id, status, start_time, end_time) VALUES (1, 7, 99, 'in_work', NOW(), NOW() + INTERVAL 1 HOUR)");
+        $service = new BuildingUpgradeService();
+
+        foreach (['preview' => $service->preview(1, null, 2), 'apply' => $service->apply(1, null, 2, 1)] as $path => $r) {
+            $this->assertFalse($r['ok'], $path);
+            $this->assertSame(BuildingUpgradeService::RELOCATING, $r['code'], $path);
+            $this->assertSame(\App\Services\Tasks\ActiveTasksService::TEXT_RELOCATION, $r['message'], $path);
+        }
+        $this->assertSame([1, 1], $this->levels());
+        $this->assertSame(200000, $this->gold());
+
+        // Переезд закончился — апгрейд снова идёт.
+        $this->conn->query("UPDATE character_tasks SET status = 'completed'");
+        $this->assertTrue($service->apply(1, null, 2, 1)['ok']);
     }
 
     // ── помощники ────────────────────────────────────────────────────────────

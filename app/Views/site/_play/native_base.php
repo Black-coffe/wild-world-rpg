@@ -176,6 +176,9 @@ $home = ['b' => $baseId];
                     <?php $items = is_array($m['catalog'] ?? null) ? $m['catalog'] : []; $locked = array_values(array_filter($items, static fn (mixed $i): bool => is_array($i) && ($i['locked'] ?? false) === true)); ?>
                     <section class="play-native-section" aria-label="Что можно построить">
                         <h3 class="play-native-subtitle is-plain">Что можно построить · налог в сутки</h3>
+                        <?php if ($str($m['refusal'] ?? null) !== ''): ?>
+                            <div class="play-native-note" data-build-gate><?= esc($str($m['refusal'])) ?></div>
+                        <?php endif ?>
                         <div class="play-kb-grid">
                             <?php foreach ($items as $item): ?>
                                 <?php if (! is_array($item) || ($item['locked'] ?? false) === true) { continue; } $built = $int($item['built_count'] ?? 0); ?>
@@ -207,6 +210,7 @@ $home = ['b' => $baseId];
                         'no_camp'         => 'У тебя нет лагеря. Разбей лагерь, чтобы строить.',
                         'leanto_gated'    => $plain(\App\Services\Buildings\BuildingCopyNotice::leanToGateExplanation($str($card['reason'] ?? null))),
                         'unknown_building' => 'Такой постройки нет.',
+                        'relocating'      => $plain($str($card['reason'] ?? null)),
                         default           => '',
                     };
                     ?>
@@ -271,7 +275,7 @@ $home = ['b' => $baseId];
                                     <?php endforeach ?>
                                 </ul>
                             <?php endif ?>
-                            <div class="play-kb-grid"><?= $act('upgrade', $home + ['id' => $int($up['building_id'] ?? 0)], '✅ Улучшить', 'play-kb-btn is-primary') ?></div>
+                            <div class="play-kb-grid"><?= $act('upgrade', $home + ['id' => $int($up['building_id'] ?? 0), 'from' => $int($up['current_level'] ?? 0)], '✅ Улучшить', 'play-kb-btn is-primary') ?></div>
                         <?php elseif ($code === 'missing_resources'): ?>
                             <div class="play-native-note" data-upgrade-gate>Не хватает ресурсов для уровня <?= $int($up['next_level'] ?? 0) ?>:</div>
                             <ul class="play-craft-reqs">

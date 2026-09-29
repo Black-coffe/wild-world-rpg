@@ -252,45 +252,44 @@ class ActiveTasksService
         return $raw === 'true';
     }
 
+    /** Текст отказа во время переезда базы — один для бота и ядра стройки/апгрейда (Markdown бота). */
+    public const TEXT_RELOCATION = "Сейчас идёт *Планируемый переезд базы*.
+Пока эта задача активна, это действие недоступно!";
+
     /**
-     * Быстрый метод, который проверяет, нет ли у игрока задачи "BaseRelocation".
-     * Если есть, отправляет сообщение "Переезд активен" и возвращает true (блокируем).
-     * Если нет ― возвращает false (можно продолжать).
+     * w2-n4-tails-01 (ADR-190): идёт ли у персонажа переезд базы (`BaseRelocation` в работе). Без Telegram —
+     * её зовут ядра стройки и апгрейда, поэтому отказ получают оба клиента.
+     */
+    public function hasActiveRelocation(int $characterId): bool
+    {
+        return $this->characterTaskModel->builder()
+            ->join('tasks', 'tasks.id = character_tasks.task_id')
+            ->where('character_tasks.character_id', $characterId)
+            ->where('character_tasks.status', 'in_work')
+            ->where('tasks.name', 'BaseRelocation')
+            ->countAllResults() > 0;
+    }
+
+    /**
+     * Если идёт переезд базы ({@see hasActiveRelocation()}), отвечает на колбэк, шлёт текст отказа и
+     * возвращает true (действие заблокировано); иначе false — логика может продолжиться.
      *
-     * @param int    $characterId
      * @param string $callbackQueryId  ID колбэка для answerCallbackQuery (чтобы убрать "часики")
      * @param int    $chatId           Куда отправить сообщение
-     * @return bool  true если переезд найден (и мы уже отправили блокирующее сообщение),
-     *              false если переезда нет ― логика может продолжиться
      */
     public function checkRelocationAndBlock(int $characterId, string $callbackQueryId, int $chatId): bool
     {
-        // Получаем все задачи 'in_work'
-        $activeTasks = $this->getActiveTasksWithDetails($characterId);
-
-        // Ищем BaseRelocation
-        $hasRelocation = false;
-        foreach ($activeTasks as $task) {
-            if ($task['name'] === 'BaseRelocation') {
-                $hasRelocation = true;
-                break;
-            }
+        if (! $this->hasActiveRelocation($characterId)) {
+            return false;
         }
 
-        if ($hasRelocation) {
-            // Ответим callbackQuery
-            Request::answerCallbackQuery(['callback_query_id' => $callbackQueryId]);
+        Request::answerCallbackQuery(['callback_query_id' => $callbackQueryId]);
+        Request::sendMessage([
+            'chat_id'    => $chatId,
+            'text'       => self::TEXT_RELOCATION,
+            'parse_mode' => 'Markdown',
+        ]);
 
-            // Отправим сообщение о блокировке
-            Request::sendMessage([
-                'chat_id'    => $chatId,
-                'text'       => "Сейчас идёт *Планируемый переезд базы*.\nПока эта задача активна, это действие недоступно!",
-                'parse_mode' => 'Markdown',
-            ]);
-
-            return true; // Действие заблокировано
-        }
-
-        return false; // Переезда нет, можно продолжать
+        return true;
     }
 }

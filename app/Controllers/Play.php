@@ -196,7 +196,7 @@ class Play extends BaseController
         } elseif ($view === WebNativeScreenService::VIEW_BASE && $op === WebNativeScreenService::OP_UPGRADE) {
             $intentId = $this->request->getPost('intent_id');
             try {
-                $alert = $this->native()->upgrade($accountId, $characterId, $base['b'] ?? null, $base['id'] ?? 0, is_string($intentId) ? $intentId : '');
+                $alert = $this->native()->upgrade($accountId, $characterId, $base['b'] ?? null, $base['id'] ?? 0, $base['from'] ?? null, is_string($intentId) ? $intentId : '');
             } catch (InvalidArgumentException $e) {
                 log_message('info', '[Play.view] upgrade rejected: ' . $e->getMessage());
 
@@ -568,15 +568,19 @@ class Play extends BaseController
 
     /**
      * Где стоит экран «🏠 База»: база (`b`, id — только подсказка, ядро перепроверяет), раздел, ключ постройки
-     * каталога, тип постройки для апгрейда. Всё прочее отбрасывается.
+     * каталога, тип постройки для апгрейда и уровень, с которого он подтверждён (`from`). Всё прочее отбрасывается.
      *
      * @param callable(string): mixed $read чтение поля запроса (GET или POST)
      *
-     * @return array{b?:int, section?:string, key?:string, id?:int}
+     * @return array{b?:int, section?:string, key?:string, id?:int, from?:int}
      */
     private static function baseNav(callable $read): array
     {
-        $out = [];
+        $out  = [];
+        $from = $read('from');
+        if (is_string($from) && preg_match('/^\d{1,4}$/', $from) === 1) {
+            $out['from'] = (int) $from;
+        }
         foreach (['b', 'id'] as $field) {
             $value = $read($field);
             if (is_string($value) && preg_match('/^[1-9]\d{0,11}$/', $value) === 1) {
