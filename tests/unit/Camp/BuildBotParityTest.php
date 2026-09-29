@@ -96,9 +96,12 @@ final class BuildBotParityTest extends CIUnitTestCase
         'up_ask_missing'     => ['owned_l3', UpgradeBuildingAction::class, 'upgrade_building_2', 'askForUpgrade'],
         'up_ask_away'        => ['owned_away', UpgradeBuildingAction::class, 'upgrade_building_2', 'askForUpgrade'],
         'up_ask_suffix'      => ['owned', UpgradeBuildingAction::class, 'upgrade_building_2_b1', 'askForUpgrade'],
-        'up_confirm_ok'      => ['owned', UpgradeBuildingAction::class, 'confirm_upgrade_building_2', 'confirmUpgrade'],
-        'up_confirm_no_gold' => ['owned_poor', UpgradeBuildingAction::class, 'confirm_upgrade_building_2', 'confirmUpgrade'],
-        'up_confirm_suffix'  => ['owned', UpgradeBuildingAction::class, 'confirm_upgrade_building_2_b1', 'confirmUpgrade'],
+        'up_confirm_ok'      => ['owned', UpgradeBuildingAction::class, 'confirm_upgrade_building_2_l1', 'confirmUpgrade'],
+        'up_confirm_no_gold' => ['owned_poor', UpgradeBuildingAction::class, 'confirm_upgrade_building_2_l1', 'confirmUpgrade'],
+        'up_confirm_suffix'  => ['owned', UpgradeBuildingAction::class, 'confirm_upgrade_building_2_l1_b1', 'confirmUpgrade'],
+        // w2-n4-tails-01: кнопка старых сообщений (без `_l`) ничего не списывает — заново показывает запрос.
+        'up_confirm_legacy'        => ['owned', UpgradeBuildingAction::class, 'confirm_upgrade_building_2', 'confirmUpgrade'],
+        'up_confirm_legacy_suffix' => ['owned', UpgradeBuildingAction::class, 'confirm_upgrade_building_2_b1', 'confirmUpgrade'],
     ];
 
     /**
@@ -109,6 +112,9 @@ final class BuildBotParityTest extends CIUnitTestCase
     private const SUFFIX_TWIN = [
         'card_suffix'  => 'card_enough',
         'start_suffix' => 'start_ok',
+        // w2-n4-tails-01: старая кнопка подтверждения = свежий запрос апгрейда.
+        'up_confirm_legacy'        => 'up_ask_ok',
+        'up_confirm_legacy_suffix' => 'up_ask_suffix',
     ];
 
     private const SNAPSHOT_BEFORE = <<<'JSON'
@@ -1550,6 +1556,27 @@ final class BuildBotParityTest extends CIUnitTestCase
     }
 
     /**
+     * w2-n4-tails-01: подтверждение с чужого уровня (повторный тап после апгрейда) и подтверждение во время
+     * переезда базы ничего не пишут — след в БД тот же, что у простого запроса; игрок видит причину.
+     */
+    public function testStaleOrRelocatingConfirmWritesNothing(): void
+    {
+        $untouched = $this->runCase('owned', UpgradeBuildingAction::class, 'upgrade_building_2', 'askForUpgrade');
+        unset($untouched['sent'], $untouched['alert']);
+
+        $stale = $this->runCase('owned', UpgradeBuildingAction::class, 'confirm_upgrade_building_2_l0', 'confirmUpgrade');
+        $this->assertSame(\App\Services\Buildings\BuildingUpgradeService::TEXT_STALE, $stale['sent'][0]['text'] ?? null);
+        unset($stale['sent'], $stale['alert']);
+        $this->assertSame($untouched, $stale, 'устаревшее подтверждение не списывает и не поднимает уровень');
+
+        $moving = $this->runCase('owned_relocating', UpgradeBuildingAction::class, 'confirm_upgrade_building_2_l1', 'confirmUpgrade');
+        $this->assertSame(\App\Services\Tasks\ActiveTasksService::TEXT_RELOCATION, $moving['sent'][0]['text'] ?? null);
+        $this->assertSame('Markdown', $moving['sent'][0]['parse_mode'] ?? null);
+        $this->assertSame($untouched['gold'], $moving['gold']);
+        $this->assertSame($untouched['levels'], $moving['levels']);
+    }
+
+    /**
      * Ask 5: нажатие с суффиксом базы (`…_b<id>`) несёт его в кнопки, ведущие к стройке этой базы:
      * карточки списка (`genericBuildInfo_<Key>`), «Строить» карточки (`genericStartBuild_<Key>`), «❌ Отмена» апгрейда (`Base`).
      *
@@ -1561,6 +1588,20 @@ final class BuildBotParityTest extends CIUnitTestCase
         // Числа в отказе `missing_materials` ядро пишет числами, а не строками из БД (`"have":"700"` → `700`).
         foreach ((array) ($case['log'] ?? []) as $i => $row) {
             $case['log'][$i]['description'] = preg_replace('/"have":"(\d+)"/', '"have":$1', (string) $row['description']);
+        }
+        // w2-n4-tails-01: «✅ Подтвердить» несёт уровень, с которого сделан запрос (`_l<N>` до суффикса базы).
+        // w2-n4-tails-02 (ask 3): под вопросом — эффект уровня; множители Мастерской в этой схеме не заданы, поэтому
+        // «базовый эффект» на обоих уровнях. Остальной текст запроса — байт-в-байт.
+        foreach ((array) ($case['sent'] ?? []) as $i => $msg) {
+            if (preg_match('/с уровня (\d+) на уровень/', (string) ($msg['text'] ?? ''), $lvl) !== 1) {
+                continue;
+            }
+            $case['sent'][$i]['text'] = preg_replace('/(на уровень \d+\?)/u', "$1\n\n✨ Эффект: базовый эффект — от уровня не меняется", (string) $msg['text'], 1);
+            foreach ((array) ($msg['buttons'] ?? []) as $r => $row) {
+                foreach ((array) $row as $b => $button) {
+                    $case['sent'][$i]['buttons'][$r][$b][1] = preg_replace('/^(confirm_upgrade_building_\d+)(_b\d+)?$/', '$1_l' . $lvl[1] . '$2', (string) $button[1]);
+                }
+            }
         }
         if (preg_match('/_b(\d+)$/', $data, $m) !== 1 || ! is_array($case['sent'] ?? null)) {
             return $case;
@@ -1669,8 +1710,12 @@ final class BuildBotParityTest extends CIUnitTestCase
             $this->building(3, 1, 5); // лимит базы в 1 постройку — через кэш GameSettings ниже
             $this->conn->query("INSERT INTO game_settings (setting_key, value_type, value_int, category) VALUES ('buildings.cells.max_buildings_per_cell', 'int', 1, 'buildings')");
         }
-        if (in_array($prep, ['owned', 'owned_poor', 'owned_away'], true)) {
+        if (in_array($prep, ['owned', 'owned_poor', 'owned_away', 'owned_relocating'], true)) {
             $this->building(2, 1, 5);
+        }
+        if ($prep === 'owned_relocating') {
+            $this->conn->query("INSERT INTO tasks (id, name, name_rus, min_duration, max_duration, type, parallel_execution_allowed, handler_key) VALUES (99, 'BaseRelocation', 'Переезд базы', 60, 60, 'base', 0, 'base_relocation')");
+            $this->conn->query("INSERT INTO character_tasks (character_id, telegram_user_id, task_id, status, start_time, end_time) VALUES (1, 7, 99, 'in_work', NOW(), NOW() + INTERVAL 1 HOUR)");
         }
         if ($prep === 'owned_l3') {
             $this->building(2, 3, 5);

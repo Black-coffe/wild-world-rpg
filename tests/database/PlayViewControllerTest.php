@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Database;
 
+use App\Services\Buildings\BuildingUpgradeService;
 use App\Services\Craft\CraftOrderService;
 use App\Services\Craft\CraftQueueService;
 use App\Services\Logging\TelegramDeliveryProbe;
@@ -986,7 +987,10 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->assertSame(400, $this->postWithCsrf($session, 'play/view', $nav + ['op' => 'build_start', 'key' => 'Work shop', 'intent_id' => 'bs2'], true)->response()->getStatusCode());
     }
 
-    /** Апгрейд: превью с ценой, подтверждение один раз на intent_id — +1 уровень и одна оплата. */
+    /**
+     * Апгрейд: превью с ценой, подтверждение один раз на intent_id — +1 уровень и одна оплата. w2-n4-tails-01:
+     * форма несёт уровень `from`; новое намерение с того же уровня (повторный тап) или без `from` — `stale`, без списания.
+     */
     public function testUpgradePreviewAndApplyDedups(): void
     {
         [$session, $charId] = $this->character('Ворон');
@@ -1001,16 +1005,61 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $preview = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', $nav + ['section' => 'upgrade', 'id' => '2'], true))['html'], ENT_QUOTES | ENT_HTML5);
         $this->assertStringContainsString('<dd>1 → 2</dd>', $preview);
         $this->assertStringContainsString('50 000 (есть 60 000)', $preview);
+        $this->assertMatchesRegularExpression('~name="op" value="upgrade">.*?<input type="hidden" name="id" value="2"><input type="hidden" name="from" value="1">~su', $preview);
 
-        $done = $this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'upgrade', 'id' => '2', 'intent_id' => 'up1'], true));
+        $noFrom = $this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'upgrade', 'id' => '2', 'intent_id' => 'up0'], true));
+        $this->assertSame(BuildingUpgradeService::TEXT_STALE, $noFrom['alert'], 'без уровня — отказ, ничего не списано');
+        $this->assertSame(60000, (int) $this->conn->table('characters')->where('id', $charId)->get()->getRowArray()['gold']);
+
+        $done = $this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'upgrade', 'id' => '2', 'from' => '1', 'intent_id' => 'up1'], true));
         $this->assertSame('⬆️ «Мастерская»: уровень 1 → 2.', $done['alert']);
-        $this->assertNull($this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'upgrade', 'id' => '2', 'intent_id' => 'up1'], true))['alert']);
+        $this->assertNull($this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'upgrade', 'id' => '2', 'from' => '1', 'intent_id' => 'up1'], true))['alert']);
+        $again = $this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'upgrade', 'id' => '2', 'from' => '1', 'intent_id' => 'up1b'], true));
+        // Гейты следующего уровня (здесь — уровень персонажа) проверяются раньше «устарело»: тоже отказ, без списания.
+        $this->assertStringNotContainsString('⬆️', (string) $again['alert'], 'повторный тап с уровня 1 не применяется');
         $this->assertSame(2, (int) $this->conn->table('character_buildings')->where('character_id', $charId)->get()->getRowArray()['level']);
         $this->assertSame(10000, (int) $this->conn->table('characters')->where('id', $charId)->get()->getRowArray()['gold'], 'одна оплата');
 
-        $poor = $this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'upgrade', 'id' => '2', 'intent_id' => 'up2'], true));
+        $poor = $this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'upgrade', 'id' => '2', 'from' => '2', 'intent_id' => 'up2'], true));
         $this->assertStringContainsString('Нужно иметь уровень >= 12', (string) $poor['alert'], 'следующий уровень — отказ ядра текстом');
         $this->assertSame(2, (int) $this->conn->table('character_buildings')->where('character_id', $charId)->get()->getRowArray()['level']);
+    }
+
+    /** w2-n4-tails-01: во время переезда базы веб не строит и не улучшает — каталог, карточка, старт и апгрейд отказывают текстом бота. */
+    public function testRelocationBlocksBuildAndUpgradeInWeb(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableBase();
+        $this->place($charId, 100);
+        $b = $this->addBase($charId, 100, null, null);
+        $this->stockWorkshop($charId);
+        $this->building($charId, 2, 100, 1, 500, 1);
+        $this->conn->table('characters')->where('id', $charId)->update(['gold' => 60000]);
+        $this->conn->table('tasks')->insert(['id' => 9, 'name' => 'BaseRelocation', 'name_rus' => 'Переезд базы', 'description' => '']);
+        $this->conn->table('character_tasks')->insert([
+            'character_id' => $charId, 'telegram_user_id' => 1, 'task_id' => 9,
+            'start_time' => date('Y-m-d H:i:s'), 'end_time' => date('Y-m-d H:i:s', time() + 3600), 'status' => 'in_work',
+        ]);
+        $this->stubSheets();
+        $nav  = ['view' => 'base', 'b' => (string) $b];
+        $text = 'Сейчас идёт Планируемый переезд базы.';
+
+        foreach ([['section' => 'catalog'], ['section' => 'building', 'key' => 'Workshop'], ['section' => 'upgrade', 'id' => '2']] as $screen) {
+            $html = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', $nav + $screen, true))['html'], ENT_QUOTES | ENT_HTML5);
+            $this->assertStringContainsString($text, $html, $screen['section']);
+            $this->assertStringNotContainsString('value="build_start"', $html, $screen['section']);
+            $this->assertStringNotContainsString('value="upgrade"', $html, $screen['section']);
+            $this->assertStringNotContainsString('🔧 Мастерская · 500', $html, $screen['section']);
+        }
+
+        $start = $this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'build_start', 'key' => 'Workshop', 'intent_id' => 'rb1'], true));
+        $this->assertStringStartsWith($text, (string) $start['alert']);
+        $up = $this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'upgrade', 'id' => '2', 'from' => '1', 'intent_id' => 'ru1'], true));
+        $this->assertStringStartsWith($text, (string) $up['alert']);
+
+        $this->assertSame(1, $this->conn->table('character_tasks')->where('character_id', $charId)->countAllResults(), 'стройка не поставлена');
+        $this->assertSame(1, (int) $this->conn->table('character_buildings')->where('character_id', $charId)->get()->getRowArray()['level']);
+        $this->assertSame(60000, (int) $this->conn->table('characters')->where('id', $charId)->get()->getRowArray()['gold']);
     }
 
     /** Хвосты W2.N3: один рыбный список; замок раздела — во всю строку, перенос по словам (375). */

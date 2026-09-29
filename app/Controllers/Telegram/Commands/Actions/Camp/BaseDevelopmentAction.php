@@ -8,11 +8,9 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\StartRobotGatheringAction;
 use App\Services\Bases\BaseCallbackSuffix;
 use App\Services\Bases\BaseScopeResolver;
-use App\Services\BuildingEffects\BuildingEffectsService;
+use App\Services\BuildingEffects\BuildingEffectLines;
 use App\Services\Notifications\MediaSender;
-use App\Services\PVE\DefenseStructureService;
 use Config\Database;
-use Config\GameBalance;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -31,36 +29,17 @@ use App\Services\Telegram\Request;
  * по всем базам персонажа сразу. Суффикс `_b<id>` (см. {@see BaseCallbackSuffix}) в
  * `callback_data` → {@see BaseScopeResolver::resolveForBase()}, `unavailable` — честный
  * отказ вместо чужих уровней. Без суффикса — прежнее правило {@see BaseScopeResolver::resolve()}.
+ *
+ * w2-n4-tails-02: строки эффекта — {@see BuildingEffectLines} (общие с запросом апгрейда), текст экрана прежний.
  */
 final class BaseDevelopmentAction extends BaseAction
 {
-    /** Здания с уровневым множителем эффекта: name_en → [param, kind(reduce|increase), label, icon]. */
-    private const EFFECTS = [
-        'Workshop'            => ['craft_time_multiplier',  'reduce',   'время крафта',        '🔧'],
-        'BlastFurnace'        => ['craft_yield_multiplier', 'increase', 'выход плавки',        '🔥'],
-        'Laboratory'          => ['craft_time_multiplier',  'reduce',   'время медицины',      '🥼'],
-        'RoboticsWorkshop'    => ['craft_time_multiplier',  'reduce',   'время роботов',       '🤖'],
-        'Greenhouse'          => ['harvest_yield_multiplier','increase','урожай',              '🌱'],
-        'SolarStation'        => ['craft_time_multiplier',  'reduce',   'время электроники',   '☀️'],
-        'TeleportationCenter' => ['teleport_cost_multiplier','reduce',  'цена телепорта',      '🌀'],
-    ];
-
-    /** Иконки прочих зданий (эффект-строки E18 Ф2 — не-множительные, см. nonMultiplierLine). */
-    private const ICONS = [
-        'HandPump' => '🚰', 'Gym' => '🥊', 'Warehouse' => '🏚️', 'Arsenal' => '⚔️',
-        'CommunicationTower' => '📢', 'WoodenWall' => '🪵', 'BarbedFence' => '🌵', 'WatchTower' => '🗼',
-    ];
-
-    private BuildingEffectsService $effects;
-    private DefenseStructureService $defense;
-    private GameBalance $gb;
+    private BuildingEffectLines $lines;
 
     public function __construct(CallbackQuery $callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->effects = new BuildingEffectsService();
-        $this->defense = new DefenseStructureService();
-        $this->gb      = config(GameBalance::class);
+        $this->lines = new BuildingEffectLines();
     }
 
     public function handle(): ServerResponse
@@ -161,116 +140,18 @@ final class BaseDevelopmentAction extends BaseAction
             $nameEn = is_string($b['name_en'] ?? null) ? $b['name_en'] : '';
             $nameRu = is_string($b['name_ru'] ?? null) ? $b['name_ru'] : $nameEn;
             $lvl    = is_numeric($b['lvl'] ?? null) ? (int) $b['lvl'] : 1;
-            $icon   = self::EFFECTS[$nameEn][3] ?? (self::ICONS[$nameEn] ?? '🏗');
+            $icon   = BuildingEffectLines::icon($nameEn);
 
             $text .= "{$icon} *{$nameRu}* — ур. *{$lvl}/10*\n";
 
-            if (isset(self::EFFECTS[$nameEn])) {
-                [$param, $kind, $label] = self::EFFECTS[$nameEn];
-                $key  = strtolower($nameEn);
-                $cur  = $this->fmtEffect($this->effects->effectAtLevel($key, $lvl, $param), $kind, $label);
-                $text .= "    {$cur}";
-                if ($lvl < 10) {
-                    $next = $this->fmtEffect($this->effects->effectAtLevel($key, $lvl + 1, $param), $kind, $label);
-                    $text .= "  →  ур.{$lvl}+1: {$next}";
-                }
-                $text .= "\n";
-            } else {
-                // E18 Ф2 — эффект-строки не-множительных зданий (production / оборона / радиус /
-                // флэт-роль). Честно: только активные эффекты (ёмкость Склада dormant → не показываем).
-                $nm = $this->nonMultiplierLine($nameEn, $lvl);
-                if ($nm !== null) {
-                    $text .= "    {$nm}\n";
-                }
+            // w2-n4-tails-02: строка эффекта — общий расчёт с запросом апгрейда (бот и веб).
+            $line = $this->lines->developmentLine($nameEn, $lvl);
+            if ($line !== null) {
+                $text .= "    {$line}\n";
             }
         }
 
         $text .= "\n_💡 Каждый уровень постройки усиливает её эффект (плавно до ур.10). Прокачка — на экране базы → постройка → «Улучшить»._";
         return $text;
-    }
-
-    /** Множитель → читаемый эффект: reduce (m<1) «−N% label», increase (m>1) «+N% label». */
-    private function fmtEffect(float $mult, string $kind, string $label): string
-    {
-        if ($kind === 'reduce') {
-            $pct = (int) round((1.0 - $mult) * 100);
-            return $pct > 0 ? "−{$pct}% {$label}" : "базовый эффект";
-        }
-        $pct = (int) round(($mult - 1.0) * 100);
-        return $pct > 0 ? "+{$pct}% {$label}" : "базовый эффект";
-    }
-
-    /**
-     * E18 Ф2 — честная эффект-строка не-множительного здания на уровне (+ след. уровень, если
-     * эффект растёт). Источники авторитетные: GameBalance (HandPump/Gym), DefenseStructureService
-     * (оборона, реюз scaledInt/cap — без дублирования формулы), level×100 (радиус роботов).
-     * Только АКТИВНЫЕ эффекты (ёмкость Склада за dormant weight-cap НЕ показываем).
-     */
-    private function nonMultiplierLine(string $nameEn, int $level): ?string
-    {
-        $lvl  = max(1, min(10, $level));
-        $next = $lvl < 10 ? $lvl + 1 : null;
-
-        switch ($nameEn) {
-            case 'HandPump':
-                $cur = $this->gb->handPumpLevels[$lvl] ?? 1;
-                $s   = "≈{$cur} воды/мин (зависит от биома)";
-                if ($next !== null) {
-                    $s .= "  →  ур.{$lvl}+1: ≈" . ($this->gb->handPumpLevels[$next] ?? $cur);
-                }
-                return $s;
-
-            case 'Gym':
-                $cur = $this->gb->gymStrengthByLevel[$lvl] ?? 0.01;
-                $s   = "+{$cur} силы / 30 мин";
-                if ($next !== null) {
-                    $s .= "  →  ур.{$lvl}+1: +" . ($this->gb->gymStrengthByLevel[$next] ?? $cur);
-                }
-                return $s;
-
-            case 'CommunicationTower':
-                $s = "радиус роботов: " . ($lvl * 100) . " клеток";
-                if ($next !== null) {
-                    $s .= "  →  ур.{$lvl}+1: " . ($next * 100) . " клеток";
-                }
-                return $s;
-
-            case 'WoodenWall':
-                $cap = $this->defense->totalReductionCapPercent();
-                $cur = min($this->defense->scaledInt('defense.wall.damage_reduction_percent', 15, $lvl), $cap);
-                $s   = "−{$cur}% урона по базе при рейде (макс {$cap}%)";
-                if ($next !== null) {
-                    $nx = min($this->defense->scaledInt('defense.wall.damage_reduction_percent', 15, $next), $cap);
-                    $s .= "  →  ур.{$lvl}+1: −{$nx}%";
-                }
-                return $s;
-
-            case 'BarbedFence':
-                $cur = $this->defense->scaledInt('defense.fence.attacker_damage_per_round', 3, $lvl);
-                $s   = "+{$cur} контрурона атакующему/раунд";
-                if ($next !== null) {
-                    $nx = $this->defense->scaledInt('defense.fence.attacker_damage_per_round', 3, $next);
-                    $s .= "  →  ур.{$lvl}+1: +{$nx}";
-                }
-                return $s;
-
-            case 'WatchTower':
-                $cur = $this->defense->scaledInt('defense.tower.defender_initiative_bonus_percent', 8, $lvl);
-                $s   = "+{$cur}% инициативы в обороне + алерт о подходе врага";
-                if ($next !== null) {
-                    $nx = $this->defense->scaledInt('defense.tower.defender_initiative_bonus_percent', 8, $next);
-                    $s .= "  →  ур.{$lvl}+1: +{$nx}%";
-                }
-                return $s;
-
-            case 'Warehouse':
-                return "закрытый рынок (покупка крафта) + бонус к продаже (флэт)";
-
-            case 'Arsenal':
-                return "хранение и экипировка оружия и брони (флэт)";
-
-            default:
-                return null;
-        }
     }
 }

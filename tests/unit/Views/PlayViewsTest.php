@@ -505,6 +505,30 @@ final class PlayViewsTest extends CIUnitTestCase
         $this->assertStringNotContainsString('Выйти, чтобы ввести код', $html);
     }
 
+    /** w2-n4-tails-02 (ask 3): карточка апгрейда — «✨ Эффект: сейчас → после» текстом, форма несёт уровень `from`. */
+    public function testUpgradeCardShowsEffectNowToNextAsText(): void
+    {
+        $render = static fn (?string $now, ?string $next): string => html_entity_decode(view('site/_play/native_base', [
+            'base' => [
+                'state' => 'base', 'base_id' => 7, 'section' => 'upgrade',
+                'overview' => ['base' => ['x' => 1, 'y' => 2, 'biome' => 'Лес', 'count' => 1, 'tax_total' => 500], 'coverage' => null, 'buildings' => []],
+                'upgrade' => [
+                    'code' => 'preview', 'building_id' => 2, 'name' => 'Мастерская', 'current_level' => 2, 'level' => 3,
+                    'effect_now' => $now, 'effect_next' => $next,
+                    'requirements' => ['level' => 5, 'gold' => 1000, 'resources' => []], 'character' => ['level' => 10, 'gold' => 5000],
+                ],
+            ],
+            'dock' => [],
+        ]), ENT_QUOTES | ENT_HTML5);
+
+        $grows = $render('−12% время крафта', '−20% время крафта');
+        $this->assertStringContainsString('✨ Эффект: −12% время крафта → −20% время крафта', $grows);
+        $this->assertMatchesRegularExpression('~name="id" value="2"><input type="hidden" name="from" value="2">~', $grows);
+
+        $this->assertStringContainsString('✨ Эффект: закрытый рынок — от уровня не меняется', $render('закрытый рынок', 'закрытый рынок'));
+        $this->assertStringNotContainsString('✨ Эффект', $render(null, null), 'нет эффекта — нет строки');
+    }
+
     public function testViewsCarryNoInlineStyles(): void
     {
         foreach (['site/play', 'site/play_stub', 'site/_play/state', 'site/_play/inbox'] as $view) {

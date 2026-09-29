@@ -1,8 +1,8 @@
 ---
 story: w2-n4-tails-01
 spec: w2-n4-tails
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: opus
@@ -57,5 +57,12 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `ActiveTasksService::hasActiveRelocation()` — один `COUNT` по `character_tasks ⨝ tasks` (`BaseRelocation`, `in_work`), без Telegram; `checkRelocationAndBlock()` через него, текст вынесен в `TEXT_RELOCATION` (тот же, что был).
+- `BuildOrderService`: `catalog()` отдаёт `refusal` (пустой список во время переезда), `preview()` — код `relocating` + текст в `reason`, `start()` — `fail(relocating)` без записи и без `action_log` (у бота этот отказ тоже не логировался).
+- `BuildingUpgradeService::apply(..., ?int $fromLevel)`: переезд → `relocating`; `fromLevel` null или ≠ `current_level` → `stale` (`TEXT_STALE`), проверка после гейтов валидатора. Компромисс: повторный тап, у которого следующий уровень закрыт гейтом (уровень персонажа/золото), получает текст гейта, а не «устарело» — тоже без списания. Порядок поменять можно только в `BuildingUpgradeValidator`, он вне `## Files`.
+- Бот: кнопка через `BuildingUpgradeMessageFormatter::confirmCallback()` = `confirm_upgrade_building_<id>_l<N>`, суффикс базы после. Худший случай (id 6 знаков, уровень 4, база 12) ≤ 64 байт — тест. Кнопка без `_l` → общий `prompt()` (тот же экран, что `askForUpgrade`), `apply` не зовётся. Отказ `relocating` уходит с `parse_mode: Markdown` (`markdownError()`), как у `checkRelocationAndBlock`.
+- Веб: форма «✅ Улучшить» несёт `from` = `current_level` превью; `Play::baseNav()` принимает `from` (`\d{1,4}`), каталог показывает `refusal` заметкой, карточка — код `relocating`.
+- Тесты: паритет бота (`_l1` в подтверждениях, старая кнопка = близнец запроса, stale и переезд без следа в БД), ядро (два подтверждения с одного уровня → одно списание, без уровня → stale, переезд в превью/применении/каталоге/карточке/старте), веб (`from` в форме, без `from` → stale, переезд на трёх экранах и двух POST).
+- `phpstan-baseline.neon` не менялся.
 
 ## Findings

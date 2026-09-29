@@ -1,8 +1,8 @@
 ---
 story: w2-n4-tails-03
 spec: w2-n4-tails
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-test
 model: opus
@@ -35,5 +35,7 @@ none
 `vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Implementation notes
+- `testThrottleBucketsArePerAccount`: `Services::throttler(false)` + `setTestTime(time())` внедряется через `Services::injectMock()` до первого `before()` — тот же приём, что в тесте 429 (`b04e3c98`). Фильтр и конфиг не тронуты.
+- Проверка: тест прогнан 20 раз подряд локально — зелёный; полный набор — в close-story.
 
 ## Findings
