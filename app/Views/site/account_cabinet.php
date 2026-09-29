@@ -142,6 +142,12 @@ $canUnlink   = count($identities) > 1;
                         <label class="label" for="cabinet-email">Почта</label>
                         <input id="cabinet-email" class="input" type="email" name="email" autocomplete="email" required value="<?= esc($emailValue, 'attr') ?>">
                     </div>
+                    <?php if ($hasEmail): ?>
+                        <div class="field">
+                            <label class="label" for="cabinet-current-password">Текущий пароль</label>
+                            <input id="cabinet-current-password" class="input" type="password" name="current_password" autocomplete="current-password" required>
+                        </div>
+                    <?php endif ?>
                     <div class="field">
                         <label class="label" for="cabinet-password"><?= $hasEmail ? 'Новый пароль' : 'Пароль' ?></label>
                         <input id="cabinet-password" class="input" type="password" name="password" autocomplete="new-password" required>

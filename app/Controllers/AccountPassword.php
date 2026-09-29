@@ -72,7 +72,12 @@ class AccountPassword extends BaseController
      */
     private function render(array $data): string
     {
+        // web-accounts-hardening-01 (ревью web-accounts-p0 #6): токен сброса стоит в пути страницы —
+        // он не должен уходить третьим сторонам ни через Referer (шрифты), ни через скрипт аналитики.
+        $this->response->setHeader('Referrer-Policy', 'no-referrer');
+
         return view('site/account_reset', $data + [
+            'noThirdPartyAnalytics' => true,
             'mode'      => 'request',
             'token'     => '',
             'error'     => null,

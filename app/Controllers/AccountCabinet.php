@@ -51,6 +51,7 @@ class AccountCabinet extends BaseController
         AccountAuthService::ERR_WEAK_PASSWORD  => 'Пароль слишком короткий.',
         AccountAuthService::ERR_EMAIL_TAKEN    => 'Эта почта уже привязана к другому аккаунту.',
         AccountAuthService::ERR_HAS_OTHER_MAIL => 'К аккаунту уже привязана другая почта. Чтобы сменить её, сначала отвяжи старую.',
+        AccountAuthService::ERR_CURRENT_PASSWORD => 'Неверный текущий пароль. Забыл его — сбрось пароль по почте.',
     ];
 
     public function index(): ResponseInterface|string
@@ -80,10 +81,11 @@ class AccountCabinet extends BaseController
 
         $email    = $this->request->getPost('email');
         $password = $this->request->getPost('password');
-        $email    = is_string($email) ? $email : '';
-        $password = is_string($password) ? $password : '';
+        $currentPw = $this->request->getPost('current_password');
+        $email     = is_string($email) ? $email : '';
+        $password  = is_string($password) ? $password : '';
 
-        $result = (new AccountAuthService())->setEmailPassword($current['account_id'], $email, $password);
+        $result = (new AccountAuthService())->setEmailPassword($current['account_id'], $email, $password, is_string($currentPw) ? $currentPw : null);
         if ($result === true) {
             return redirect()->to('/account?auth=email_added')->withCookies();
         }

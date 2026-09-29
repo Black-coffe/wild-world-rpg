@@ -325,6 +325,26 @@ final class AccountCabinetTest extends CIUnitTestCase
         $this->assertSame($accountId, (new AccountAuthService(null, $this->conn))->verifyPassword('added@example.com', 'longenough'));
     }
 
+    /** web-accounts-hardening-01 (ревью #14): смена пароля своей почты — только по верному текущему. */
+    public function testChangingOwnPasswordRequiresTheCurrentOne(): void
+    {
+        $accountId = $this->emailAccount('owner@example.com');
+        $auth      = new AccountAuthService(null, $this->conn);
+
+        foreach (['без текущего' => [], 'с неверным' => ['current_password' => 'wrong-password']] as $label => $extra) {
+            $result = $this->postWithCsrf(['account_id' => $accountId], 'account/identity/email', ['email' => 'owner@example.com', 'password' => 'hijacked-pass'] + $extra);
+
+            $result->assertStatus(422);
+            $this->assertStringContainsString('Неверный текущий пароль', $this->body($result), $label);
+            $this->assertSame($accountId, $auth->verifyPassword('owner@example.com', 'longenough'), "{$label}: прежний пароль работает");
+            $this->assertNull($auth->verifyPassword('owner@example.com', 'hijacked-pass'), $label);
+        }
+
+        $ok = $this->postWithCsrf(['account_id' => $accountId], 'account/identity/email', ['email' => 'owner@example.com', 'password' => 'new-password', 'current_password' => 'longenough']);
+        $ok->assertRedirectTo('/account?auth=email_added');
+        $this->assertSame($accountId, $auth->verifyPassword('owner@example.com', 'new-password'));
+    }
+
     public function testCabinetUnlinksAnyButRefusesTheLast(): void
     {
         $accounts  = new AccountService($this->conn);

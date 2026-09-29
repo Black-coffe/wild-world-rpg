@@ -138,7 +138,9 @@ final class AccountAuthTest extends CIUnitTestCase
         $this->assertSame(AccountAuthService::ERR_EMAIL_TAKEN, $auth->setEmailPassword($other, 'a@example.com', 'longenough'));
         $this->assertTrue($auth->setEmailPassword($other, 'b@example.com', 'longenough'));
         $this->assertSame(AccountAuthService::ERR_HAS_OTHER_MAIL, $auth->setEmailPassword($other, 'c@example.com', 'longenough'));
-        $this->assertTrue($auth->setEmailPassword($other, 'b@example.com', 'new password'));
+        // web-accounts-hardening-01: смена пароля своей почты — только по верному текущему.
+        $this->assertSame(AccountAuthService::ERR_CURRENT_PASSWORD, $auth->setEmailPassword($other, 'b@example.com', 'new password'));
+        $this->assertTrue($auth->setEmailPassword($other, 'b@example.com', 'new password', 'longenough'));
         $this->assertSame($other, $auth->verifyPassword('b@example.com', 'new password'));
     }
 

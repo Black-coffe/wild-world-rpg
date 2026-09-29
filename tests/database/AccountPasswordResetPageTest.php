@@ -144,6 +144,27 @@ final class AccountPasswordResetPageTest extends CIUnitTestCase
         }
     }
 
+    /** web-accounts-hardening-01 (ревью #6): токен в пути не уходит третьим сторонам. */
+    public function testResetPagesSendNoReferrerAndNoThirdPartyAnalytics(): void
+    {
+        $backup = getenv('STATABLE_SITE_HASH');
+        putenv('STATABLE_SITE_HASH=testhash123');
+        $_ENV['STATABLE_SITE_HASH'] = 'testhash123';
+        try {
+            foreach (['account/reset', 'account/reset/abcdef0123456789'] as $path) {
+                $response = $this->get($path)->response();
+                $this->assertSame('no-referrer', $response->getHeaderLine('Referrer-Policy'), $path);
+                $this->assertStringNotContainsString('statable.com', (string) $response->getBody(), $path);
+            }
+            // Остальной сайт счётчик сохраняет — флаг только у страниц с секретом.
+            Services::resetSingle('renderer'); // данные вьюх живут в общем рендерере; в проде у каждого запроса свой
+            $this->assertStringContainsString('statable.com', view('site/_layout/statable', [], ['saveData' => false]));
+        } finally {
+            putenv($backup === false ? 'STATABLE_SITE_HASH' : "STATABLE_SITE_HASH={$backup}");
+            unset($_ENV['STATABLE_SITE_HASH']);
+        }
+    }
+
     public function testMailFailureWritesOneErrorLineWithoutTheEmail(): void
     {
         foreach (['false' => $this->mailer(false), 'throws' => $this->throwingMailer()] as $label => $mailer) {
