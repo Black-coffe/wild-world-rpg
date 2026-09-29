@@ -33,3 +33,4 @@
 
 ## Plan deltas
 **Briefed:** via mini-brief, Andrei, 2026-09-29
+**Branch:** vulyk/web-accounts-hardening
