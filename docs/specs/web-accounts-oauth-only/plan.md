@@ -45,3 +45,4 @@ Telegram. Уходит вся поверхность почты с пароле�
 **Branch:** vulyk/web-accounts-oauth-only
 **Council:** RED round 1, 2026-09-29, at ab2ce77c, pack ebba5ba4a3c2
 **Council:** GREEN round 2, 2026-09-29, at 06acda1b, pack 6da6d2997fc9
+**Shipped:** v0.51.685, 2026-09-29, at 03db8f73 - merged to develop, tag v0.51.685 on develop after green preprod smoke
