@@ -268,6 +268,9 @@ $home = ['b' => $baseId];
                                 <div><dt>💰 Золото</dt><dd><?= esc(number_format($int($req['gold'] ?? 0), 0, '.', ' ')) ?> (есть <?= esc(number_format($int($up['character']['gold'] ?? 0), 0, '.', ' ')) ?>)</dd></div>
                                 <div><dt>🧑 Уровень персонажа</dt><dd>от <?= $int($req['level'] ?? 0) ?></dd></div>
                             </dl>
+                            <?php if (is_string($up['effect_now'] ?? null) && is_string($up['effect_next'] ?? null)): ?>
+                                <p class="play-base-effect" data-upgrade-effect>✨ Эффект: <?= esc($up['effect_now']) ?><?= $up['effect_now'] === $up['effect_next'] ? ' — от уровня не меняется' : ' → ' . esc($up['effect_next']) ?></p>
+                            <?php endif ?>
                             <?php if (is_array($req['resources'] ?? null) && $req['resources'] !== []): ?>
                                 <ul class="play-craft-reqs" aria-label="Ресурсы апгрейда">
                                     <?php foreach ($req['resources'] as $name => $qty): ?>

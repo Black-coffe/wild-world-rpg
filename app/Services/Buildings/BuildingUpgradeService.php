@@ -7,6 +7,7 @@ namespace App\Services\Buildings;
 use App\Models\CharacterModel;
 use App\Models\QuestModel;
 use App\Models\QuestStepsModel;
+use App\Services\BuildingEffects\BuildingEffectLines;
 use App\Services\Endgame\EndgameProgressionService;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeApplier;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeValidator;
@@ -30,8 +31,11 @@ use Config\BuildingUpgrades;
  * (`fromLevel`): если постройка уже не на нём или уровня нет — `stale` без записи, поэтому повторный тап
  * не оплачивает следующий уровень. `WHERE level = n-1` в применителе остаётся защитой от одновременных.
  *
+ * w2-n4-tails-02: превью несёт эффект уровня «сейчас → после» (`effect_now`/`effect_next`, {@see BuildingEffectLines});
+ * `null` — у постройки нет показываемого эффекта.
+ *
  * @phpstan-type Requirements array{level: int, gold: int, resources: array<string, int>}
- * @phpstan-type Result array{ok: bool, code: string, message: string, missing: list<string>, next_level: int, building_id: int, name: string|null, name_en: string|null, current_level: int, level: int, requirements: Requirements, char_building: array<string, mixed>, character: array{level: mixed, gold: mixed}}
+ * @phpstan-type Result array{ok: bool, code: string, message: string, missing: list<string>, next_level: int, building_id: int, name: string|null, name_en: string|null, current_level: int, level: int, effect_now: string|null, effect_next: string|null, requirements: Requirements, char_building: array<string, mixed>, character: array{level: mixed, gold: mixed}}
  */
 final class BuildingUpgradeService
 {
@@ -49,11 +53,13 @@ final class BuildingUpgradeService
 
     private BuildingUpgradeValidator $validator;
     private BuildingUpgradeApplier $applier;
+    private ?BuildingEffectLines $lines;
 
-    public function __construct(?BuildingUpgradeValidator $validator = null, ?BuildingUpgradeApplier $applier = null)
+    public function __construct(?BuildingUpgradeValidator $validator = null, ?BuildingUpgradeApplier $applier = null, ?BuildingEffectLines $lines = null)
     {
         $this->validator = $validator ?? new BuildingUpgradeValidator();
         $this->applier   = $applier ?? new BuildingUpgradeApplier();
+        $this->lines     = $lines;
     }
 
     /**
@@ -165,6 +171,11 @@ final class BuildingUpgradeService
         $out['name_en']       = $nameEn;
         $out['current_level'] = self::int($ctx['currentLevel'] ?? 0);
         $out['level']         = self::int($ctx['nextLevel'] ?? 0);
+        if ($nameEn !== null) {
+            $lines              = $this->lines ??= new BuildingEffectLines();
+            $out['effect_now']  = $lines->effectAt($nameEn, $out['current_level']);
+            $out['effect_next'] = $lines->effectAt($nameEn, $out['level']);
+        }
         $out['requirements']  = ['level' => self::int($req['level'] ?? 0), 'gold' => self::int($req['gold'] ?? 0), 'resources' => $resources];
         $out['char_building'] = self::arr($ctx['charBuilding'] ?? null);
         $out['character']     = ['level' => $character['level'] ?? null, 'gold' => $character['gold'] ?? null];
@@ -177,7 +188,7 @@ final class BuildingUpgradeService
     {
         return [
             'ok' => false, 'code' => $code, 'message' => '', 'missing' => [], 'next_level' => 0, 'building_id' => $buildingId,
-            'name' => null, 'name_en' => null, 'current_level' => 0, 'level' => 0,
+            'name' => null, 'name_en' => null, 'current_level' => 0, 'level' => 0, 'effect_now' => null, 'effect_next' => null,
             'requirements' => ['level' => 0, 'gold' => 0, 'resources' => []], 'char_building' => [],
             'character' => ['level' => null, 'gold' => null],
         ];

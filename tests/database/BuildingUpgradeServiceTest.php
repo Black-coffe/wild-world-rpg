@@ -226,6 +226,24 @@ final class BuildingUpgradeServiceTest extends CIUnitTestCase
         $this->assertTrue($service->apply(1, null, 2, 1)['ok']);
     }
 
+    public function testPreviewCarriesEffectNowAndNextFromGameSettings(): void
+    {
+        foreach (['building.workshop.l2.craft_time_multiplier' => 0.88, 'building.workshop.l3.craft_time_multiplier' => 0.8] as $key => $value) {
+            $this->conn->query("INSERT INTO game_settings (setting_key, value_type, value_float, category) VALUES (?, 'float', ?, 'buildings')", [$key, $value]);
+        }
+        $this->conn->query('UPDATE character_buildings SET level = 2 WHERE id = 10');
+        service('cache')->clean();
+
+        $p = (new BuildingUpgradeService())->preview(1, null, 2);
+
+        $this->assertSame(BuildingUpgradeService::PREVIEW, $p['code']);
+        $this->assertSame(['−12% время крафта', '−20% время крафта'], [$p['effect_now'], $p['effect_next']]);
+        $this->assertSame(
+            "\n\n✨ Эффект: −12% время крафта → −20% время крафта",
+            \App\Services\Player\BuildingUpgrade\BuildingUpgradeMessageFormatter::effectLine($p['effect_now'], $p['effect_next'])
+        );
+    }
+
     // ── помощники ────────────────────────────────────────────────────────────
 
     private function onBuildingsLookup(callable $action): void

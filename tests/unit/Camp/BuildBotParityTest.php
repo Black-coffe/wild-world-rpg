@@ -1590,10 +1590,13 @@ final class BuildBotParityTest extends CIUnitTestCase
             $case['log'][$i]['description'] = preg_replace('/"have":"(\d+)"/', '"have":$1', (string) $row['description']);
         }
         // w2-n4-tails-01: «✅ Подтвердить» несёт уровень, с которого сделан запрос (`_l<N>` до суффикса базы).
+        // w2-n4-tails-02 (ask 3): под вопросом — эффект уровня; множители Мастерской в этой схеме не заданы, поэтому
+        // «базовый эффект» на обоих уровнях. Остальной текст запроса — байт-в-байт.
         foreach ((array) ($case['sent'] ?? []) as $i => $msg) {
             if (preg_match('/с уровня (\d+) на уровень/', (string) ($msg['text'] ?? ''), $lvl) !== 1) {
                 continue;
             }
+            $case['sent'][$i]['text'] = preg_replace('/(на уровень \d+\?)/u', "$1\n\n✨ Эффект: базовый эффект — от уровня не меняется", (string) $msg['text'], 1);
             foreach ((array) ($msg['buttons'] ?? []) as $r => $row) {
                 foreach ((array) $row as $b => $button) {
                     $case['sent'][$i]['buttons'][$r][$b][1] = preg_replace('/^(confirm_upgrade_building_\d+)(_b\d+)?$/', '$1_l' . $lvl[1] . '$2', (string) $button[1]);

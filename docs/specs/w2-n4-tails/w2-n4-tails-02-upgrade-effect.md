@@ -1,8 +1,8 @@
 ---
 story: w2-n4-tails-02
 spec: w2-n4-tails
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: opus
@@ -52,5 +52,12 @@ blocked_by: [w2-n4-tails-01]
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `App\Services\BuildingEffects\BuildingEffectLines`: `EFFECTS`/`ICONS`/`fmtEffect`/`nonMultiplierLine` перенесены дословно; `effectAt(nameEn, level)` — фраза уровня, `developmentLine(nameEn, level)` — строка «Развития базы» с «  →  ур.N+1: …», `icon()`. Числа по-прежнему из `BuildingEffectsService::effectAtLevel`, `GameBalance`, `DefenseStructureService` — новых нет.
+- `BaseDevelopmentAction` берёт иконку и строку из сервиса; эталон `buildText()` снят с кода ДО переезда (уровни 0/1/2/5/9/10/11 × 16 зданий + пустая база) и лежит в `BuildingEffectLinesTest` — совпадение байт-в-байт.
+- `BuildingUpgradeService::preview()`/`apply()` несут `effect_now`/`effect_next` (`?string`); сервис строк создаётся лениво (третий необязательный аргумент конструктора).
+- Бот: `askPrompt(..., $baseId, $effectNow, $effectNext)` вставляет `BuildingUpgradeMessageFormatter::effectLine()` под вопросом. Веб: `<p class="play-base-effect" data-upgrade-effect>` под фактами карточки (класс уже есть, новых компонентов CSS нет).
+- Решение сверх AC: если эффект уровня не меняется (флэт — Склад, Арсенал; множитель следующего уровня не задан) — «✨ Эффект: X — от уровня не меняется» вместо «X → X». Отвергнуто: скрывать строку (игрок не узнал бы, что уровень эффекта не даёт).
+- Тесты: паритет бота (строка эффекта под вопросом, остальное байт-в-байт), ядро (эффект из настоящих `game_settings`), вьюха (стрелка / «не меняется» / без строки), `BuildingEffectLinesTest` (эталон, проценты через подставной читатель, markdown-safe).
+- `phpstan-baseline.neon` не менялся.
 
 ## Findings
