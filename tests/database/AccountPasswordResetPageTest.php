@@ -148,6 +148,7 @@ final class AccountPasswordResetPageTest extends CIUnitTestCase
     public function testResetPagesSendNoReferrerAndNoThirdPartyAnalytics(): void
     {
         $backup = getenv('STATABLE_SITE_HASH');
+        $envBackup = $_ENV['STATABLE_SITE_HASH'] ?? null;
         putenv('STATABLE_SITE_HASH=testhash123');
         $_ENV['STATABLE_SITE_HASH'] = 'testhash123';
         try {
@@ -161,7 +162,11 @@ final class AccountPasswordResetPageTest extends CIUnitTestCase
             $this->assertStringContainsString('statable.com', view('site/_layout/statable', [], ['saveData' => false]));
         } finally {
             putenv($backup === false ? 'STATABLE_SITE_HASH' : "STATABLE_SITE_HASH={$backup}");
-            unset($_ENV['STATABLE_SITE_HASH']);
+            if ($envBackup === null) {
+                unset($_ENV['STATABLE_SITE_HASH']);
+            } else {
+                $_ENV['STATABLE_SITE_HASH'] = $envBackup;
+            }
         }
     }
 
