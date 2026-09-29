@@ -20,12 +20,14 @@ use App\Services\Player\ResourcePoolService;
  *     ok: bool,
  *     error?: string,                  // single early-fail reason
  *     missingResources?: array<string>, // multi-line list (resources error only)
+ *     currentLevel?: int,              // w2-n4-tails2: у отказов после шага 4 (постройка найдена)
  *     context?: array{                  // populated only if ok
  *       charBuilding: array,
  *       buildingInfo: array,
  *       currentLevel: int,
  *       nextLevel: int,
- *       requirements: array
+ *       requirements: array,
+ *       resourceNames: array<string,string> // w2-n4-tails2: name_en → имя для игрока
  *     }
  *   }
  *
@@ -119,13 +121,13 @@ class BuildingUpgradeValidator
         // 4) Building below MAX_LEVEL
         $currentLevel = (int) $charBuilding['level'];
         if ($currentLevel >= self::MAX_LEVEL) {
-            return ['ok' => false, 'error' => "Здание уже достигло максимального уровня (" . self::MAX_LEVEL . ")."];
+            return ['ok' => false, 'error' => "Здание уже достигло максимального уровня (" . self::MAX_LEVEL . ").", 'currentLevel' => $currentLevel];
         }
 
         // 5) Requirements available для nextLevel
         $nextLevel = $currentLevel + 1;
         if (!isset($upgradeRequirements[$nextLevel])) {
-            return ['ok' => false, 'error' => "Нет данных для апгрейда до уровня {$nextLevel}."];
+            return ['ok' => false, 'error' => "Нет данных для апгрейда до уровня {$nextLevel}.", 'currentLevel' => $currentLevel];
         }
         $req = $upgradeRequirements[$nextLevel];
 
@@ -145,13 +147,13 @@ class BuildingUpgradeValidator
         // 6) Character level >= required
         $requiredCharLvl = (int) $req['level'];
         if ((int) $character['level'] < $requiredCharLvl) {
-            return ['ok' => false, 'error' => "Нужно иметь уровень >= {$requiredCharLvl}, у вас: {$character['level']}."];
+            return ['ok' => false, 'error' => "Нужно иметь уровень >= {$requiredCharLvl}, у вас: {$character['level']}.", 'currentLevel' => $currentLevel];
         }
 
         // 7) Gold >= required
         $requiredGold = (int) $req['gold'];
         if ((int) $character['gold'] < $requiredGold) {
-            return ['ok' => false, 'error' => "Нужно золото: {$requiredGold}, у вас: {$character['gold']}."];
+            return ['ok' => false, 'error' => "Нужно золото: {$requiredGold}, у вас: {$character['gold']}.", 'currentLevel' => $currentLevel];
         }
 
         // 8) Resources — accumulate ALL missing (multi-line error для UX)
@@ -209,10 +211,17 @@ class BuildingUpgradeValidator
                 'ok'               => false,
                 'missingResources' => $missingResources,
                 'nextLevel'        => $nextLevel, // for header text
+                'currentLevel'     => $currentLevel,
             ];
         }
 
         // ALL VALID
+        // w2-n4-tails2: имена ресурсов для игрока (name_en → name) из уже загруженных строк — веб не показывает ключи.
+        $names = [];
+        foreach ($resourceRows as $nameEnKey => $r) {
+            $names[$nameEnKey] = is_string($r['name'] ?? null) && $r['name'] !== '' ? $r['name'] : $nameEnKey;
+        }
+
         return [
             'ok'      => true,
             'context' => [
@@ -221,6 +230,7 @@ class BuildingUpgradeValidator
                 'currentLevel'  => $currentLevel,
                 'nextLevel'     => $nextLevel,
                 'requirements'  => $req,
+                'resourceNames' => $names,
             ],
         ];
     }

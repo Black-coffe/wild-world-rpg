@@ -21,6 +21,9 @@ use App\Services\Bases\BaseCallbackSuffix;
  * w2-n4-tails-01: «✅ Подтвердить» = `confirm_upgrade_building_<id>_l<уровень>[_b<база>]`. Ядро применяет
  * апгрейд только с этого уровня (`stale` — ничего не списано). Кнопка старых сообщений без `_l` ничего не
  * списывает: заново показывает «Подтвердите апгрейд?» с актуальными ценой и уровнем.
+ *
+ * w2-n4-tails2: каждый отказ ядра (запрос и подтверждение) снимает «часики» кнопки — один
+ * `answerCallbackQuery` на апдейт, текст отказа уходит сообщением как раньше.
  */
 class UpgradeBuildingAction extends BaseAction
 {
@@ -43,6 +46,19 @@ class UpgradeBuildingAction extends BaseAction
     private function send(int|string $chatId, array $payload): ServerResponse
     {
         return Request::sendMessage(array_merge(['chat_id' => $chatId], $payload));
+    }
+
+    /**
+     * Снять «часики» кнопки (один раз на апдейт); `$text` — короткая всплывашка, без неё — пусто.
+     */
+    private function answerCallback(?string $text = null): void
+    {
+        $payload = ['callback_query_id' => $this->callbackQuery->getId()];
+        if ($text !== null) {
+            $payload['text']       = $text;
+            $payload['show_alert'] = false;
+        }
+        Request::answerCallbackQuery($payload);
     }
 
     /**
@@ -93,6 +109,7 @@ class UpgradeBuildingAction extends BaseAction
         // story multibase-picker-03: суффикс `_b<baseId>` — заново проверенный выбор базы (в ядре).
         $res = $this->upgrades->preview($characterId, $baseId, $buildingId);
         if (!$res['ok']) {
+            $this->answerCallback();
             if ($res['code'] === BuildingUpgradeService::MISSING) {
                 return $this->send($chatId, $this->formatter->missingResourcesAsk($res['next_level'], $res['missing']));
             }
@@ -155,20 +172,12 @@ class UpgradeBuildingAction extends BaseAction
         // Ядро перепроверяет всё (запас мог измениться после шага 1) и применяет атомарно — только с уровня N.
         $res = $this->upgrades->apply((int) $character['id'], $baseId, (int) $buildingId, (int) $m[1]);
         if (!$res['ok']) {
+            $this->answerCallback($res['code'] === BuildingUpgradeService::RACE ? BuildingUpgradeService::TEXT_RACE : null);
             if ($res['code'] === BuildingUpgradeService::MISSING) {
                 return $this->send($chatId, $this->formatter->missingResourcesConfirm($res['missing'][0]));
             }
             if ($res['code'] === BuildingUpgradeService::RELOCATING) {
-                Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-
                 return $this->send($chatId, $this->formatter->markdownError($res['message']));
-            }
-            if ($res['code'] === BuildingUpgradeService::RACE) {
-                Request::answerCallbackQuery([
-                    'callback_query_id' => $this->callbackQuery->getId(),
-                    'text'              => BuildingUpgradeService::TEXT_RACE,
-                    'show_alert'        => false,
-                ]);
             }
             return $this->send($chatId, $this->formatter->simpleError($res['message']));
         }

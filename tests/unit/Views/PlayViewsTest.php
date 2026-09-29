@@ -529,6 +529,32 @@ final class PlayViewsTest extends CIUnitTestCase
         $this->assertStringNotContainsString('✨ Эффект', $render(null, null), 'нет эффекта — нет строки');
     }
 
+    /** w2-n4-tails2 (ask 1): ресурсы апгрейда подписаны именем игрока из ядра, ключ `Water` на экран не попадает. */
+    public function testUpgradeCardNamesResourcesInRussian(): void
+    {
+        $render = static fn (array $names): string => html_entity_decode(view('site/_play/native_base', [
+            'base' => [
+                'state' => 'base', 'base_id' => 7, 'section' => 'upgrade',
+                'overview' => ['base' => ['x' => 1, 'y' => 2, 'biome' => 'Лес', 'count' => 1, 'tax_total' => 500], 'coverage' => null, 'buildings' => []],
+                'upgrade' => [
+                    'code' => 'preview', 'building_id' => 2, 'name' => 'Мастерская', 'current_level' => 3, 'level' => 4,
+                    'effect_now' => null, 'effect_next' => null,
+                    'requirements' => ['level' => 14, 'gold' => 100000, 'resources' => ['Water' => 15000, 'Wood' => 10000]],
+                    'resource_names' => $names, 'character' => ['level' => 20, 'gold' => 200000],
+                ],
+            ],
+            'dock' => [],
+        ]), ENT_QUOTES | ENT_HTML5);
+
+        $html = $render(['Water' => 'Вода', 'Wood' => 'Древесина']);
+        $this->assertStringContainsString('<span class="play-craft-req-name">Вода</span><span class="play-craft-req-qty">15000</span>', $html);
+        $this->assertStringContainsString('<span class="play-craft-req-name">Древесина</span>', $html);
+        $this->assertStringNotContainsString('>Water<', $html);
+
+        // Ресурса нет в справочнике — подписан ключом, как в боте.
+        $this->assertStringContainsString('<span class="play-craft-req-name">Water</span>', $render([]));
+    }
+
     public function testViewsCarryNoInlineStyles(): void
     {
         foreach (['site/play', 'site/play_stub', 'site/_play/state', 'site/_play/inbox'] as $view) {

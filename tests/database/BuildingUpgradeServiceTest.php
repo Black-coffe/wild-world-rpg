@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Database;
 
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\UpgradeBuildingAction;
 use App\Services\Buildings\BuildingUpgradeService;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Forge;
@@ -12,6 +13,16 @@ use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use GuzzleHttp\Client;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\Response;
+use Longman\TelegramBot\Entities\CallbackQuery;
+use Longman\TelegramBot\Request as LongmanRequest;
+use Longman\TelegramBot\Telegram;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use Psr\Http\Message\RequestInterface;
 
 /**
  * w2-n4-base-02 — ядро апгрейда {@see BuildingUpgradeService}: апгрейд не проходит без золота, двойное
@@ -23,6 +34,9 @@ use Config\Database;
  *
  * w2-n4-tails-01: подтверждение несёт уровень «с N» — с другого уровня или без него `stale`, ничего не списано;
  * во время переезда базы превью и применение отказывают (`relocating`).
+ *
+ * w2-n4-tails2: «устарело» раньше условий следующего уровня; превью несёт русские имена ресурсов;
+ * бот снимает «часики» на каждом отказе (один `answerCallbackQuery`).
  *
  * @internal
  */
@@ -244,6 +258,77 @@ final class BuildingUpgradeServiceTest extends CIUnitTestCase
         );
     }
 
+    public function testStaleComesBeforeNextLevelConditionsAndTouchesNothing(): void
+    {
+        // Раньше повтор с другого уровня отвечал условием следующего уровня (золото, уровень персонажа).
+        $service = new BuildingUpgradeService();
+
+        $this->conn->query('UPDATE characters SET gold = 100 WHERE id = 1');
+        $noGold = $service->apply(1, null, 2, 5);
+        $this->assertSame([BuildingUpgradeService::STALE, BuildingUpgradeService::TEXT_STALE, 1], [$noGold['code'], $noGold['message'], $noGold['current_level']]);
+
+        // Соседняя форма: не хватает уровня персонажа (уровень 3 постройки требует 12-й).
+        $this->conn->query('UPDATE characters SET gold = 200000, level = 5 WHERE id = 1');
+        $this->conn->query('UPDATE character_buildings SET level = 2 WHERE id = 10');
+        $lowLevel = $service->apply(1, null, 2, 1);
+        $this->assertSame(BuildingUpgradeService::STALE, $lowLevel['code']);
+
+        // С верного уровня отказ остаётся настоящей причиной, а не «устарело».
+        $real = $service->apply(1, null, 2, 2);
+        $this->assertSame(BuildingUpgradeService::REFUSED, $real['code']);
+        $this->assertStringContainsString('Нужно иметь уровень', $real['message']);
+
+        $this->assertSame([2, 1], $this->levels());
+        $this->assertSame(200000, $this->gold());
+    }
+
+    public function testNoBuildingStaysARefusalNotStale(): void
+    {
+        $r = (new BuildingUpgradeService())->apply(1, null, 99, 1);
+
+        $this->assertSame(BuildingUpgradeService::REFUSED, $r['code'], 'уровень неизвестен — «устарело» сказать нельзя');
+    }
+
+    public function testPreviewCarriesPlayerNamesOfResources(): void
+    {
+        $this->conn->query("INSERT INTO resources (id, name, name_en, type, rarity) VALUES (1, 'Вода', 'Water', 'liquid', 1), (2, 'Древесина', 'Wood', 'plant', 1)");
+        $this->conn->query('INSERT INTO character_resources (id_characters, id_resources, quantity) VALUES (1, 1, 15000), (1, 2, 10000)');
+        $this->conn->query('UPDATE character_buildings SET level = 3 WHERE id = 10'); // уровень 4: Water 15000, Wood 10000
+
+        $p = (new BuildingUpgradeService())->preview(1, null, 2);
+
+        $this->assertSame(BuildingUpgradeService::PREVIEW, $p['code'], $p['message']);
+        $this->assertSame(['Water' => 15000, 'Wood' => 10000], $p['requirements']['resources'], 'ключи для применителя прежние');
+        $this->assertSame(['Water' => 'Вода', 'Wood' => 'Древесина'], $p['resource_names']);
+    }
+
+    /**
+     * Бот: каждый отказ запроса и подтверждения снимает «часики» ровно одним `answerCallbackQuery`.
+     * Отдельный процесс: соседние тесты определяют `PHPUNIT_TESTSUITE`, и Longman под ним отвечает фейком.
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testBotRefusalsAnswerTheCallbackOnce(): void
+    {
+        $this->conn->query('UPDATE characters SET gold = 100 WHERE id = 1');
+        $cases = [
+            'confirm_stale'   => ['confirm_upgrade_building_2_l5', 'confirmUpgrade', 'устарело'],
+            'confirm_refused' => ['confirm_upgrade_building_2_l1', 'confirmUpgrade', 'Нужно золото'],
+            'ask_refused'     => ['upgrade_building_2', 'askForUpgrade', 'Нужно золото'],
+        ];
+        foreach ($cases as $case => [$data, $method, $text]) {
+            $sent = $this->pressBot($data, $method);
+
+            $answers = array_values(array_filter($sent, static fn (array $c): bool => $c['method'] === 'answerCallbackQuery'));
+            $this->assertCount(1, $answers, "{$case}: часики сняты один раз");
+            $messages = array_values(array_filter($sent, static fn (array $c): bool => $c['method'] === 'sendMessage'));
+            $this->assertCount(1, $messages, $case);
+            $this->assertStringContainsString($text, (string) ($messages[0]['text'] ?? ''), $case);
+        }
+        $this->assertSame([1, 1], $this->levels());
+        $this->assertSame(100, $this->gold());
+    }
+
     // ── помощники ────────────────────────────────────────────────────────────
 
     private function onBuildingsLookup(callable $action): void
@@ -256,6 +341,30 @@ final class BuildingUpgradeServiceTest extends CIUnitTestCase
             }
         };
         Events::on('DBQuery', $this->listener);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function pressBot(string $data, string $method): array
+    {
+        $sent = [];
+        new Telegram('123456:TEST_TOKEN', 'wildworldtest_bot');
+        LongmanRequest::setClient(new Client(['handler' => static function (RequestInterface $request) use (&$sent): PromiseInterface {
+            parse_str((string) $request->getBody(), $params);
+            $path   = explode('/', $request->getUri()->getPath());
+            $sent[] = ['method' => (string) end($path)] + $params;
+
+            return Create::promiseFor(new Response(200, [], '{"ok":true,"result":true}'));
+        }]));
+
+        $cbq = new CallbackQuery([
+            'id'      => 'cbq-1',
+            'from'    => ['id' => 771000005, 'is_bot' => false, 'first_name' => 'Тест'],
+            'message' => ['message_id' => 1, 'date' => time(), 'chat' => ['id' => 771000005, 'type' => 'private'], 'text' => 'x'],
+            'chat_instance' => 'ci', 'data' => $data,
+        ]);
+        (new UpgradeBuildingAction($cbq))->{$method}();
+
+        return $sent;
     }
 
     private function other(): BaseConnection
