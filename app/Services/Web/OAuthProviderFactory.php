@@ -80,7 +80,7 @@ class OAuthProviderFactory
         }
 
         return 'Вход через ' . self::label($provider) . ' ещё не подключён на сервере. '
-            . 'Пока входи почтой с паролем или через Telegram.';
+            . 'Пока входи через Telegram или кодом из бота.';
     }
 
     public function redirectUri(string $provider): string

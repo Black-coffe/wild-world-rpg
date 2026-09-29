@@ -140,7 +140,7 @@ final class AccountSessionTest extends CIUnitTestCase
         $tgUser   = $this->insertTelegramUser(900002010);
         $charId   = $this->insertCharacter($tgUser);
         $account  = $accounts->ensureForTelegram($tgUser);
-        $this->assertTrue($accounts->addIdentity($account, 'email', 'legacy-unlinked@example.com', password_hash('x', PASSWORD_DEFAULT)));
+        $this->assertTrue($accounts->addIdentity($account, 'google', 'legacy-unlinked@example.com', password_hash('x', PASSWORD_DEFAULT)));
         $this->assertTrue($accounts->unlinkIdentity($account, (int) $accounts->identities($account)[0]['id']));
         $accountsBefore = $this->conn->table('accounts')->countAllResults();
         $identities     = $accounts->identities($account);

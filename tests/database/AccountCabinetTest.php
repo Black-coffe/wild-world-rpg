@@ -11,7 +11,6 @@ use App\Database\Migrations\CreateCharactersTable;
 use App\Database\Migrations\CreateSiteCategoriesTable;
 use App\Database\Migrations\CreateTelegramUsersTable;
 use App\Database\Migrations\LinkCharactersToAccounts;
-use App\Services\Web\AccountAuthService;
 use App\Services\Web\AccountService;
 use App\Services\Web\OAuthProviderFactory;
 use CodeIgniter\Config\Factories;
@@ -120,11 +119,11 @@ final class AccountCabinetTest extends CIUnitTestCase
 
     // --- Ask 10: кнопки без env -------------------------------------------------------------
 
-    public function testButtonsWithoutEnvAreUnavailableNotLinksAndEmailStays(): void
+    public function testButtonsWithoutEnvAreUnavailableNotLinksAndBotCodeStays(): void
     {
         $body = $this->body($this->get('account/login'));
 
-        $this->assertStringContainsString('name="email"', $body, 'email+password is always available');
+        $this->assertStringContainsString('Ввести код из бота', $body, 'the bot code is always available');
         $this->assertSame(0, preg_match('#href="[^"]*account/oauth/(google|yandex)"#', $body), 'no OAuth link without env');
         $this->assertSame(2, substr_count($body, 'aria-disabled="true"><span class="provider-mark" aria-hidden="true">'
             . 'G</span>') + substr_count($body, 'aria-disabled="true"><span class="provider-mark" aria-hidden="true">Я</span>'));
@@ -313,36 +312,29 @@ final class AccountCabinetTest extends CIUnitTestCase
         $this->assertSame($mine, Services::session()->get('account_id'));
     }
 
-    public function testCabinetAddsEmailPassword(): void
+    /**
+     * web-accounts-oauth-only-03 (ревью раунда 1): оставшаяся от прежнего кода строка `email` — не способ входа.
+     * Её не видно в кабинете, и она не спасает последний рабочий вход от отвязки.
+     */
+    public function testLeftoverEmailRowIsNotALoginMethod(): void
     {
-        $accounts  = new AccountService($this->conn);
-        $accountId = $accounts->createAccount('web');
-        $this->assertTrue($accounts->addIdentity($accountId, 'google', 'g-only'));
+        $accountId = $this->emailAccount('yx-only@example.com'); // один рабочий вход — Яндекс
+        $this->conn->table('account_identities')->insert([
+            'account_id' => $accountId, 'provider' => 'email', 'subject' => 'leftover@example.com',
+            'secret_hash' => password_hash('x', PASSWORD_DEFAULT), 'email' => 'leftover@example.com', 'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        $accounts = new AccountService($this->conn);
 
-        $result = $this->postWithCsrf(['account_id' => $accountId], 'account/identity/email', ['email' => 'Added@Example.com', 'password' => 'longenough']);
+        $this->assertSame(['yandex'], array_column($accounts->identities($accountId), 'provider'));
+        $this->assertFalse($accounts->addIdentity($accountId, 'email', 'new@example.com'), 'provider email is not accepted');
 
-        $result->assertRedirectTo('/account?auth=email_added');
-        $this->assertSame($accountId, (new AccountAuthService(null, $this->conn))->verifyPassword('added@example.com', 'longenough'));
-    }
+        $body = $this->body($this->withSession(['account_id' => $accountId])->get('account'));
+        $this->assertStringNotContainsString('leftover@example.com', $body);
+        $this->assertStringNotContainsString('/unlink"', $body, 'the only working login has no unlink button');
 
-    /** web-accounts-hardening-01 (ревью #14): смена пароля своей почты — только по верному текущему. */
-    public function testChangingOwnPasswordRequiresTheCurrentOne(): void
-    {
-        $accountId = $this->emailAccount('owner@example.com');
-        $auth      = new AccountAuthService(null, $this->conn);
-
-        foreach (['без текущего' => [], 'с неверным' => ['current_password' => 'wrong-password']] as $label => $extra) {
-            $result = $this->postWithCsrf(['account_id' => $accountId], 'account/identity/email', ['email' => 'owner@example.com', 'password' => 'hijacked-pass'] + $extra);
-
-            $result->assertStatus(422);
-            $this->assertStringContainsString('Неверный текущий пароль', $this->body($result), $label);
-            $this->assertSame($accountId, $auth->verifyPassword('owner@example.com', 'longenough'), "{$label}: прежний пароль работает");
-            $this->assertNull($auth->verifyPassword('owner@example.com', 'hijacked-pass'), $label);
-        }
-
-        $ok = $this->postWithCsrf(['account_id' => $accountId], 'account/identity/email', ['email' => 'owner@example.com', 'password' => 'new-password', 'current_password' => 'longenough']);
-        $ok->assertRedirectTo('/account?auth=email_added');
-        $this->assertSame($accountId, $auth->verifyPassword('owner@example.com', 'new-password'));
+        $yandexId = (int) $accounts->identities($accountId)[0]['id'];
+        $this->assertFalse($accounts->unlinkIdentity($accountId, $yandexId), 'the email row does not count as a second login');
+        $this->assertSame(['yandex'], array_column($accounts->identities($accountId), 'provider'));
     }
 
     public function testCabinetUnlinksAnyButRefusesTheLast(): void
@@ -380,9 +372,10 @@ final class AccountCabinetTest extends CIUnitTestCase
         $this->assertStringContainsString('view@example.com', $body);
         $this->assertStringContainsString('view@gmail.com', $body);
         $this->assertSame(2, substr_count($body, '/unlink"'));
-        $this->assertStringContainsString('action="' . base_url('account/identity/email') . '"', $body);
+        $this->assertStringNotContainsString('account/identity/email', $body, 'формы почты с паролем нет');
+        $this->assertStringNotContainsString('name="password"', $body);
         $this->assertDoesNotMatchRegularExpression('#href="[^"]*account/oauth/google"#', $body, 'google already linked');
-        $this->assertMatchesRegularExpression('#href="[^"]*account/oauth/yandex"#', $body);
+        $this->assertDoesNotMatchRegularExpression('#href="[^"]*account/oauth/yandex"#', $body, 'yandex already linked (фикстура)');
         $this->assertStringContainsString('telegram-widget.js', $body);
         $this->assertStringContainsString(base_url('account/link'), $body);
         $this->assertStringContainsString(base_url('account/logout'), $body);
@@ -442,8 +435,10 @@ final class AccountCabinetTest extends CIUnitTestCase
 
     private function emailAccount(string $email): int
     {
-        $id = (new AccountAuthService(null, $this->conn))->registerWithEmail($email, 'longenough');
-        $this->assertIsInt($id);
+        $accounts = new AccountService($this->conn);
+        $id       = $accounts->createAccount('web');
+        // web-accounts-oauth-only: фикстура — аккаунт с входом через Яндекс (почты с паролем больше нет).
+        $this->assertTrue($accounts->addIdentity($id, 'yandex', 'y-' . md5($email), null, $email));
 
         return $id;
     }

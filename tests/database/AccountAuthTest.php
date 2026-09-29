@@ -12,7 +12,6 @@ use App\Database\Migrations\CreateSiteCategoriesTable;
 use App\Database\Migrations\CreateTelegramUsersTable;
 use App\Database\Migrations\LinkCharactersToAccounts;
 use App\Filters\AccountThrottleFilter;
-use App\Services\Web\AccountAuthService;
 use App\Services\Web\AccountService;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Forge;
@@ -107,43 +106,6 @@ final class AccountAuthTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    public function testVerifyPasswordAcceptsRightPairAndRejectsWrongEmailOrPasswordAlike(): void
-    {
-        $auth      = new AccountAuthService(null, $this->conn);
-        $accountId = $auth->registerWithEmail('  Auth.Test@Example.com ', 'correct horse');
-        $this->assertIsInt($accountId);
-
-        $this->assertSame($accountId, $auth->verifyPassword('auth.test@example.COM', 'correct horse'));
-        $this->assertNull($auth->verifyPassword('auth.test@example.com', 'wrong password'));
-        $this->assertNull($auth->verifyPassword('nobody@example.com', 'correct horse'));
-
-        $row = $this->conn->table('account_identities')->where('account_id', $accountId)->get()->getRowArray();
-        $this->assertIsArray($row);
-        $this->assertSame('email', $row['provider']);
-        $this->assertSame('auth.test@example.com', $row['subject']);
-        $this->assertTrue(password_verify('correct horse', (string) $row['secret_hash']), 'stored via password_hash');
-        $this->assertNotNull($row['last_used_at']);
-    }
-
-    public function testRegisterAndSetEmailPasswordValidate(): void
-    {
-        $auth = new AccountAuthService(null, $this->conn);
-        $this->assertSame(AccountAuthService::ERR_INVALID_EMAIL, $auth->registerWithEmail('not-an-email', 'longenough'));
-        $this->assertSame(AccountAuthService::ERR_WEAK_PASSWORD, $auth->registerWithEmail('a@example.com', 'short'));
-        $first = $auth->registerWithEmail('a@example.com', 'longenough');
-        $this->assertIsInt($first);
-        $this->assertSame(AccountAuthService::ERR_EMAIL_TAKEN, $auth->registerWithEmail('A@example.com', 'longenough'));
-
-        $other = (new AccountService($this->conn))->createAccount('telegram');
-        $this->assertSame(AccountAuthService::ERR_EMAIL_TAKEN, $auth->setEmailPassword($other, 'a@example.com', 'longenough'));
-        $this->assertTrue($auth->setEmailPassword($other, 'b@example.com', 'longenough'));
-        $this->assertSame(AccountAuthService::ERR_HAS_OTHER_MAIL, $auth->setEmailPassword($other, 'c@example.com', 'longenough'));
-        // web-accounts-hardening-01: смена пароля своей почты — только по верному текущему.
-        $this->assertSame(AccountAuthService::ERR_CURRENT_PASSWORD, $auth->setEmailPassword($other, 'b@example.com', 'new password'));
-        $this->assertTrue($auth->setEmailPassword($other, 'b@example.com', 'new password', 'longenough'));
-        $this->assertSame($other, $auth->verifyPassword('b@example.com', 'new password'));
-    }
-
     public function testThrottleReturns429PerIpAfterLimit(): void
     {
         $limit  = (new Accounts())->throttleIpPerMinute;
@@ -156,7 +118,7 @@ final class AccountAuthTest extends CIUnitTestCase
         $this->assertInstanceOf(ResponseInterface::class, $response);
         $this->assertSame(429, $response->getStatusCode());
         $this->assertStringContainsString('Слишком много попыток', (string) $response->getBody());
-        $this->assertStringContainsString('name="email"', (string) $response->getBody(), '429 page still carries the login form');
+        $this->assertStringContainsString('Ввести код из бота', (string) $response->getBody(), '429 page still offers the bot-code login');
 
         $this->assertNull($filter->before($this->postRequest('10.0.0.2', ['email' => 'other@example.com'])), 'other IP is not affected');
     }
@@ -176,7 +138,7 @@ final class AccountAuthTest extends CIUnitTestCase
 
     public function testAccountFormsRejectPostWithoutCsrfToken(): void
     {
-        foreach (['account/login', 'account/logout'] as $path) {
+        foreach (['account/link', 'account/logout'] as $path) {
             try {
                 $result = $this->post($path, ['email' => 'x@example.com', 'password' => 'whatever1']);
                 $this->assertContains($result->response()->getStatusCode(), [403, 419], "{$path} accepted a POST without CSRF");
@@ -187,21 +149,31 @@ final class AccountAuthTest extends CIUnitTestCase
         $this->assertSame(0, $this->conn->table('account_tokens')->countAllResults());
     }
 
-    public function testLoginPageAlwaysRendersEmailForm(): void
+    /** web-accounts-oauth-only: на странице входа нет почты с паролем; код из бота — путь, доступный всегда. */
+    public function testLoginPageHasNoPasswordFormAndOffersBotCode(): void
     {
         foreach (['', 'wildworldrpg_bot'] as $bot) {
             $_SERVER['telegram.BOT_USERNAME'] = $_ENV['telegram.BOT_USERNAME'] = $bot;
             $result = $this->get('account/login');
             $result->assertStatus(200);
             $body = (string) $result->response()->getBody();
-            $this->assertStringContainsString('name="email"', $body, "bot='{$bot}'");
-            $this->assertStringContainsString('name="password"', $body);
-            $this->assertStringContainsString('name="remember"', $body);
-            $this->assertMatchesRegularExpression('/<form class="auth-form" action="[^"]*login" method="post">/', $body);
-            $this->assertStringContainsString(csrf_token(), $body, 'form carries the CSRF field');
+            $this->assertStringNotContainsString('name="email"', $body, "bot='{$bot}'");
+            $this->assertStringNotContainsString('name="password"', $body);
+            $this->assertStringNotContainsString('account/reset', $body);
+            $this->assertStringContainsString(esc(base_url('account/link'), 'attr'), $body);
             $this->assertSame($bot !== '', str_contains($body, 'telegram-widget.js'));
         }
-        $this->assertSame(AccountAuth::BAD_CREDENTIALS, 'Неверная почта или пароль.');
+    }
+
+    /** web-accounts-oauth-only: маршрутов входа, регистрации и сброса по почте нет; старые ссылки сброса ведут на вход. */
+    public function testEmailAuthRoutesAreGone(): void
+    {
+        foreach (['account/reset', 'account/reset/abc-def'] as $path) {
+            $this->get($path)->assertRedirectTo(base_url('account/login'));
+        }
+        $this->assertNull(service('routes')->getRoutes('post')['account/login'] ?? null);
+        $this->assertNull(service('routes')->getRoutes('post')['account/register'] ?? null);
+        $this->assertNull(service('routes')->getRoutes('post')['account/identity/email'] ?? null);
     }
 
     public function testWidgetLoginLandsOnCharacterAccount(): void
@@ -224,9 +196,7 @@ final class AccountAuthTest extends CIUnitTestCase
      */
     public function testWidgetCallbackWhileLoggedInWithoutCharacterIsRefusedAndMovesNothing(): void
     {
-        $auth       = new AccountAuthService(null, $this->conn);
-        $webAccount = $auth->registerWithEmail('nomerge@example.com', 'longenough');
-        $this->assertIsInt($webAccount);
+        $webAccount = $this->oauthAccount('nomerge@example.com');
         $tgUser      = $this->insertTelegramUser(900003002);
         $charId      = $this->insertCharacter($tgUser);
         $charAccount = (new AccountService($this->conn))->ensureForTelegram($tgUser);
@@ -238,7 +208,7 @@ final class AccountAuthTest extends CIUnitTestCase
         $this->assertSame($webAccount, Services::session()->get('account_id'), 'session stays');
         $this->assertNull(Services::session()->get('character_id'));
         $this->assertSame($before, $this->identitySnapshot(), 'no identity moved or added');
-        $this->assertSame($webAccount, $auth->verifyPassword('nomerge@example.com', 'longenough'));
+        $this->assertNotNull((new AccountService($this->conn))->findByIdentity('yandex', 'y-' . md5('nomerge@example.com')), 'web account keeps its own login');
         $this->assertSame($charAccount, $this->accountOfCharacter($charId));
     }
 
@@ -275,9 +245,7 @@ final class AccountAuthTest extends CIUnitTestCase
     public function testCabinetNonceLinksUnownedTelegramOnceAndRefusesOwnedByAnother(): void
     {
         $_SERVER['telegram.BOT_USERNAME'] = $_ENV['telegram.BOT_USERNAME'] = 'wildworldrpg_bot';
-        $auth    = new AccountAuthService(null, $this->conn);
-        $current = $auth->registerWithEmail('nonce@example.com', 'longenough');
-        $this->assertIsInt($current);
+        $current = $this->oauthAccount('nonce@example.com');
         $this->insertTelegramUser(900003020);
 
         $page  = $this->withSession(['account_id' => $current])->get('account');
@@ -302,7 +270,7 @@ final class AccountAuthTest extends CIUnitTestCase
         $this->assertSame($linked, $accounts->identities($current));
 
         // Owned by another account: refused, both accounts unchanged.
-        $other = $auth->registerWithEmail('nonce-other@example.com', 'longenough');
+        $other = $this->oauthAccount('nonce-other@example.com');
         $this->assertIsInt($other);
         $beforeOther = $accounts->identities($other);
         $refused     = $this->withSession(['account_id' => $other, 'tg_link_nonce' => 'n-other'])
@@ -347,7 +315,7 @@ final class AccountAuthTest extends CIUnitTestCase
         $tgUser   = $this->insertTelegramUser(900003030);
         $charId   = $this->insertCharacter($tgUser);
         $account  = $accounts->ensureForTelegram($tgUser);
-        $this->assertTrue($accounts->addIdentity($account, 'email', 'unlinked@example.com', password_hash('x', PASSWORD_DEFAULT)));
+        $this->assertTrue($accounts->addIdentity($account, 'google', 'unlinked@example.com', password_hash('x', PASSWORD_DEFAULT)));
         $tgIdentity = (int) $accounts->identities($account)[0]['id'];
         $this->assertTrue($accounts->unlinkIdentity($account, $tgIdentity));
         $accountsBefore = $this->conn->table('accounts')->countAllResults();
@@ -480,5 +448,15 @@ final class AccountAuthTest extends CIUnitTestCase
                 require_once APPPATH . 'Database/Migrations/' . $file;
             }
         }
+    }
+
+    /** web-accounts-oauth-only: веб-аккаунт с входом через Яндекс (почты с паролем больше нет). */
+    private function oauthAccount(string $email): int
+    {
+        $accounts = new AccountService($this->conn);
+        $id       = $accounts->createAccount('web');
+        $this->assertTrue($accounts->addIdentity($id, 'yandex', 'y-' . md5($email), null, $email));
+
+        return $id;
     }
 }

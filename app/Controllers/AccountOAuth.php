@@ -37,9 +37,9 @@ class AccountOAuth extends BaseController
 
     /** Сообщения страницы входа (посетитель без аккаунта в сессии). */
     public const MSG_STATE       = 'Вход не подтверждён: ссылка устарела или открыта не из этого браузера. Попробуй ещё раз.';
-    public const MSG_FAILED      = 'Не удалось получить ответ от провайдера. Попробуй ещё раз или войди почтой с паролем.';
+    public const MSG_FAILED      = 'Не удалось получить ответ от провайдера. Попробуй ещё раз или войди кодом из бота.';
     public const MSG_DENIED      = 'Вход отменён.';
-    public const MSG_UNAVAILABLE = 'Этот способ входа сейчас недоступен. Войди почтой с паролем или через Telegram.';
+    public const MSG_UNAVAILABLE = 'Этот способ входа сейчас недоступен. Войди через Telegram или кодом из бота.';
 
     public function start(string $provider): ResponseInterface|string
     {

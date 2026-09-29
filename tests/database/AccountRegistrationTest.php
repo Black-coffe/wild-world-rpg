@@ -13,7 +13,7 @@ use App\Database\Migrations\CreateSiteCategoriesTable;
 use App\Database\Migrations\CreateTelegramUsersTable;
 use App\Database\Migrations\LinkCharactersToAccounts;
 use App\Services\Player\NameService;
-use App\Services\Web\AccountAuthService;
+use App\Services\Web\AccountService;
 use App\Services\Web\VirtualChat;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\BaseConnection;
@@ -122,8 +122,6 @@ final class AccountRegistrationTest extends CIUnitTestCase
             $this->assertStringNotContainsString('name="name"', $body, $path);
         }
 
-        $body = $this->bodyOf($this->post('account/register', ['email' => 'closed@example.com', 'password' => 'longenough']));
-        $this->assertStringContainsString('Закрытая бета', $body);
         $this->assertSame(0, $this->conn->table('accounts')->countAllResults());
 
         $accountId = $this->registered('closed2@example.com');
@@ -132,29 +130,17 @@ final class AccountRegistrationTest extends CIUnitTestCase
         $this->assertSame(0, $this->conn->table('characters')->where('account_id', $accountId)->countAllResults());
     }
 
-    public function testFlagOnRegistersEmailAccountThenCreatesWebCharacter(): void
+    public function testFlagOnRegisterPageOffersOAuthAndAccountCreatesWebCharacter(): void
     {
         $this->openRegistration();
 
+        // web-accounts-oauth-only: регистрация — первый вход через Google/Яндекс; формы почты нет.
         $body = $this->bodyOf($this->get('account/register'));
-        $this->assertStringContainsString('name="password"', $body);
+        $this->assertStringNotContainsString('name="password"', $body);
+        $this->assertStringContainsString('Google', $body);
+        $this->assertStringContainsString('Яндекс', $body);
 
-        $result = $this->post('account/register', ['email' => ' Web.Player@Example.com', 'password' => 'correct horse']);
-        $result->assertRedirectTo('/account/character');
-
-        $account = $this->conn->table('accounts')->get()->getRowArray();
-        $this->assertIsArray($account);
-        $accountId = (int) $account['id'];
-        $this->assertSame('web', $account['acquisition_source']);
-        $this->assertSame($accountId, Services::session()->get('account_id'));
-
-        $identity = $this->conn->table('account_identities')->where('account_id', $accountId)->get()->getRowArray();
-        $this->assertIsArray($identity);
-        $this->assertSame('email', $identity['provider']);
-        $this->assertSame('web.player@example.com', $identity['subject']);
-        $this->assertNotSame('correct horse', $identity['secret_hash']);
-        $this->assertSame(PASSWORD_DEFAULT, password_get_info((string) $identity['secret_hash'])['algo'], 'stored as password_hash() output');
-        $this->assertTrue(password_verify('correct horse', (string) $identity['secret_hash']));
+        $accountId = $this->registered('web.player@example.com');
 
         $body = $this->bodyOf($this->withSession(['account_id' => $accountId])->get('account/character'));
         $this->assertStringContainsString('name="name"', $body);
@@ -199,62 +185,23 @@ final class AccountRegistrationTest extends CIUnitTestCase
         $this->assertSame(['First_One'], $names);
     }
 
-    public function testShortPasswordIsRefused(): void
-    {
-        $this->openRegistration();
-        $min  = (new Accounts())->passwordMinLength;
-        $body = $this->bodyOf($this->post('account/register', ['email' => 'short@example.com', 'password' => str_repeat('x', $min - 1)]));
-
-        $this->assertStringContainsString("не меньше {$min} символов", $body);
-        $this->assertSame(0, $this->conn->table('accounts')->countAllResults());
-    }
-
-    public function testRegisterAndResetPostsGoThroughAccountThrottle(): void
+    public function testCodeLoginPostGoesThroughAccountThrottle(): void
     {
         $limit = (new Accounts())->throttleIpPerMinute;
-        foreach (['account/register', 'account/reset'] as $path) {
+        foreach (['account/link'] as $path) {
             Services::resetSingle('throttler');
             $this->mockCache();
             for ($i = 0; $i < $limit; $i++) {
-                $status = $this->post($path, ['email' => "t{$i}@example.com"])->response()->getStatusCode();
+                $status = $this->post($path, ['code' => "T{$i}"])->response()->getStatusCode();
                 $this->assertNotSame(429, $status, "{$path} attempt {$i} blocked too early");
             }
-            $this->assertSame(429, $this->post($path, ['email' => 'late@example.com'])->response()->getStatusCode(), $path);
+            $this->assertSame(429, $this->post($path, ['code' => 'LATE'])->response()->getStatusCode(), $path);
         }
-    }
-
-    public function testResetPageShowsHonestMailFailureWithBotCodeAlternative(): void
-    {
-        // Story 10: отказ почты не отличается от «неизвестной почты» — страница одна, и в ней
-        // всегда есть честная оговорка и вход кодом из бота.
-        $this->registered('reset.fail@example.com');
-        $email            = config(Email::class);
-        $email->fromEmail = ''; // транспорт не настроен → штатный мейлер отвечает «не отправлено»
-
-        $failed = $this->bodyOf($this->post('account/reset', ['email' => 'reset.fail@example.com']));
-        $this->assertStringContainsString('Наша почта иногда не доходит', $failed);
-        $this->assertStringContainsString(esc(base_url('account/link'), 'attr'), $failed);
-        $this->assertStringContainsString('/web', $failed);
-        $this->assertStringNotContainsString('reset.fail@example.com', $failed);
-        $this->assertSame(0, $this->conn->table('account_tokens')->where('purpose', 'password_reset')->countAllResults());
-
-        $unknown = $this->bodyOf($this->post('account/reset', ['email' => 'nobody@example.com']));
-        // Без CSRF-токена и счётчиков DEBUG-VIEW (они есть только вне прода).
-        $same = static fn (string $b): string => (string) preg_replace(
-            ['~<input[^>]*csrf[^>]*>~i', '~<!-- DEBUG-VIEW (START|ENDED) \d+ ~'],
-            ['', '<!-- DEBUG-VIEW $1 '],
-            $b
-        );
-        $this->assertSame(
-            $same($failed),
-            $same($unknown),
-            'unknown email gets the very same page as a known one whose mail failed'
-        );
     }
 
     public function testHeaderShowsLoginOrCharacterName(): void
     {
-        $body = $this->bodyOf($this->get('account/reset'));
+        $body = $this->bodyOf($this->get('account/link'));
         $this->assertStringContainsString('href="' . esc(base_url('account/login'), 'attr') . '" class="is-active" data-auth-state="out">Войти</a>', $body);
 
         $this->openRegistration();
@@ -262,7 +209,7 @@ final class AccountRegistrationTest extends CIUnitTestCase
         $this->withSession(['account_id' => $accountId])->post('account/character', ['name' => 'Header_Hero']);
 
         service('superglobals')->setCookie('ci_session', 'test-session'); // браузер с cookie сессии
-        $body = $this->bodyOf($this->withSession(['account_id' => $accountId])->get('account/reset'));
+        $body = $this->bodyOf($this->withSession(['account_id' => $accountId])->get('account/link'));
         $this->assertStringContainsString('href="' . esc(base_url('account'), 'attr') . '" class="is-active" data-auth-state="in">Header_Hero</a>', $body);
     }
 
@@ -276,8 +223,10 @@ final class AccountRegistrationTest extends CIUnitTestCase
 
     private function registered(string $email): int
     {
-        $id = (new AccountAuthService(null, $this->conn))->registerWithEmail($email, 'longenough');
-        $this->assertIsInt($id);
+        $accounts = new AccountService($this->conn);
+        $id       = $accounts->createAccount('web');
+        // web-accounts-oauth-only: фикстура — аккаунт с входом через Яндекс (почты с паролем больше нет).
+        $this->assertTrue($accounts->addIdentity($id, 'yandex', 'y-' . md5($email), null, $email));
 
         return $id;
     }

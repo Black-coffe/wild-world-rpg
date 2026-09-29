@@ -1,8 +1,8 @@
 ---
 story: web-accounts-oauth-only-02
 spec: web-accounts-oauth-only
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -23,7 +23,9 @@ blocked_by: [web-accounts-oauth-only-01]
 - app/Views/site/account_link.php
 - app/Views/site/play_stub.php
 - app/Services/Onboarding/GuideCatalog.php
-- app/Database/Migrations/2026-09-30-100000_FixTipsWithoutEmailLogin.php
+- app/Database/Migrations/2026-12-15-100000_WebLinkTipWithoutEmail.php
+- app/Controllers/AccountOAuth.php
+- app/Services/Web/OAuthProviderFactory.php
 - tests/unit/Views/AccountTextsWithoutEmailTest.php
 
 ## Non-goals
@@ -42,5 +44,8 @@ memory/map/website.md — аккаунты
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- Тексты: `AccountOAuth::MSG_FAILED`/`MSG_UNAVAILABLE`, `OAuthProviderFactory::unavailableReason()`, `account_link`, сообщение кода `/web`, раздел `/guide` «🌐 Игра на сайте» — вместо почты «Google/Яндекс/Telegram/код из бота». В `Files` при сборке добавлены `AccountOAuth.php` и `OAuthProviderFactory.php`.
+- Совет `WebLinkCode` — миграция `2026-12-15-100000_WebLinkTipWithoutEmail` (UPDATE по `title_en`, идемпотентно, down() — прежний текст). Новых таблиц нет.
+- Скан-тест `AccountTextsWithoutEmailTest`: регулярка «почт… рядом с вход/пароль/сброс»; фикстуры — исходная и соседняя формы ловятся, «почти» нет. Комментарии разработчика во вьюхах вырезаются до скана.
 
 ## Findings

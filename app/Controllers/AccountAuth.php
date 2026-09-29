@@ -4,20 +4,16 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Services\Web\AccountAuthService;
 use App\Services\Web\AccountSession;
 use CodeIgniter\HTTP\ResponseInterface;
 
 /**
- * web-accounts-p0-05 (ADR-188) — вход на сайт: email+пароль (всегда) и Telegram Login Widget.
- *
- * POST-формы защищены глобальным CSRF (Config\Filters) и `accountThrottle` (Routes).
- * Неверный email и неверный пароль дают одно и то же сообщение.
+ * web-accounts-p0-05 (ADR-188) — страница входа на сайт: Telegram Login Widget, код `/web` из бота,
+ * Google и Яндекс. web-accounts-oauth-only (2026-09-30): входа по почте с паролем нет — сайт не хранит
+ * паролей; восстановление доступа — у Google/Яндекса/Telegram.
  */
 class AccountAuth extends BaseController
 {
-    public const BAD_CREDENTIALS = 'Неверная почта или пароль.';
-
     /** Сообщения для `?auth=` — их ставит TelegramLogin::callback при возврате на эту страницу. */
     private const AUTH_NOTICES = [
         'fail'         => ['error', 'Telegram не подтвердил вход. Попробуй ещё раз.'],
@@ -42,23 +38,6 @@ class AccountAuth extends BaseController
         ]);
     }
 
-    public function attempt(): ResponseInterface|string
-    {
-        $email    = $this->request->getPost('email');
-        $password = $this->request->getPost('password');
-        $email    = is_string($email) ? $email : '';
-        $password = is_string($password) ? $password : '';
-
-        $accountId = (new AccountAuthService())->verifyPassword($email, $password);
-        if ($accountId === null) {
-            return $this->render(['error' => self::BAD_CREDENTIALS, 'email' => $email]);
-        }
-
-        (new AccountSession())->login($accountId, $this->request->getPost('remember') !== null);
-
-        return redirect()->to('/account')->withCookies();
-    }
-
     public function logout(): ResponseInterface
     {
         (new AccountSession())->logout();
@@ -76,7 +55,6 @@ class AccountAuth extends BaseController
         return view('site/account_login', $data + [
             'error'       => null,
             'notice'      => null,
-            'email'       => '',
             'botUsername' => is_string($rawBot) ? ltrim($rawBot, '@') : '',
             'meta'        => self::meta(),
         ]);

@@ -1,7 +1,7 @@
 <?php
 /**
  * web-accounts-p0-07 (ADR-188) — кабинет аккаунта: персонаж, способы входа, добавление
- * (почта+пароль, Google, Яндекс, Telegram), отвязка (кроме последнего), привязка кодом, выход.
+ * (Google, Яндекс, Telegram; почты с паролем нет — web-accounts-oauth-only), отвязка (кроме последнего), привязка кодом, выход.
  * Компоненты — story 03 (`wildworld-ui.css`: .identity-*, .provider-*, .notice, .auth-form).
  * Без JS работает всё, кроме Telegram-виджета (он сам — сторонний JS).
  *
@@ -14,8 +14,6 @@
  * @var bool                              $playEnabled  флаг `web.play_enabled` (web-bridge-p1-03)
  * @var bool                              $canRegister  регистрация на сайте открыта (как `can_register` у /play; web-bridge-p1-15)
  * @var array{0:string,1:string}|null     $notice       [ok|error, текст]
- * @var string|null                       $emailError
- * @var string                            $emailValue
  */
 $characterName = is_string($characterName ?? null) ? $characterName : null;
 $hasCharacter  = ($hasCharacter ?? false) === true;
@@ -26,12 +24,9 @@ $linkNonce     = is_string($linkNonce ?? null) ? $linkNonce : '';
 $playEnabled   = ($playEnabled ?? false) === true;
 $canRegister   = ($canRegister ?? false) === true;
 $notice        = is_array($notice ?? null) ? $notice : null;
-$emailError    = is_string($emailError ?? null) ? $emailError : null;
-$emailValue    = is_string($emailValue ?? null) ? $emailValue : '';
 
 $marks  = ['email' => '@', 'google' => 'G', 'yandex' => 'Я', 'telegram' => 'TG'];
 $names  = ['email' => 'Почта', 'google' => 'Google', 'yandex' => 'Яндекс', 'telegram' => 'Telegram'];
-$hasEmail    = in_array('email', $linked, true);
 $hasTelegram = in_array('telegram', $linked, true);
 $canUnlink   = count($identities) > 1;
 ?>
@@ -132,31 +127,6 @@ $canUnlink   = count($identities) > 1;
             </div>
 
             <div class="card stack">
-                <div class="label"><?= $hasEmail ? 'Сменить пароль' : 'Добавить почту и пароль' ?></div>
-                <form class="auth-form" action="<?= esc(base_url('account/identity/email'), 'attr') ?>" method="post">
-                    <?= csrf_field() ?>
-                    <?php if ($emailError !== null): ?>
-                        <div class="notice error" role="alert"><span class="notice-title">Ошибка</span><?= esc($emailError) ?></div>
-                    <?php endif ?>
-                    <div class="field<?= $emailError !== null ? ' has-error' : '' ?>">
-                        <label class="label" for="cabinet-email">Почта</label>
-                        <input id="cabinet-email" class="input" type="email" name="email" autocomplete="email" required value="<?= esc($emailValue, 'attr') ?>">
-                    </div>
-                    <?php if ($hasEmail): ?>
-                        <div class="field">
-                            <label class="label" for="cabinet-current-password">Текущий пароль</label>
-                            <input id="cabinet-current-password" class="input" type="password" name="current_password" autocomplete="current-password" required>
-                        </div>
-                    <?php endif ?>
-                    <div class="field">
-                        <label class="label" for="cabinet-password"><?= $hasEmail ? 'Новый пароль' : 'Пароль' ?></label>
-                        <input id="cabinet-password" class="input" type="password" name="password" autocomplete="new-password" required>
-                    </div>
-                    <div class="auth-actions">
-                        <button class="btn primary" type="submit">Сохранить</button>
-                    </div>
-                </form>
-
                 <div class="label">Привязать Google или Яндекс</div>
                 <?= view('site/account_oauth_buttons', ['oauthMode' => 'link', 'oauthLinked' => $linked]) ?>
 

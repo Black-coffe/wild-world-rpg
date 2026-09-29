@@ -158,10 +158,10 @@ final class AccountsSchemaTest extends CIUnitTestCase
 
         $withChar = $svc->ensureForTelegram($tg);
         $webOnly  = $svc->createAccount('web');
-        $this->assertTrue($svc->addIdentity($webOnly, 'email', 'a@example.test', password_hash('x', PASSWORD_DEFAULT), 'a@example.test'));
+        $this->assertTrue($svc->addIdentity($webOnly, 'google', 'a@example.test', password_hash('x', PASSWORD_DEFAULT), 'a@example.test'));
 
         // Taken (provider, subject) — refused, for another account and for the same one.
-        $this->assertFalse($svc->addIdentity($withChar, 'email', 'a@example.test'));
+        $this->assertFalse($svc->addIdentity($withChar, 'google', 'a@example.test'));
         $this->assertFalse($svc->addIdentity($webOnly, 'telegram', '900000030'));
 
         // Last identity — refused.
@@ -170,7 +170,7 @@ final class AccountsSchemaTest extends CIUnitTestCase
         $this->assertCount(1, $svc->identities($webOnly));
 
         // No merges (story 09, F1): a second identity is added directly to the character's account.
-        $this->assertTrue($svc->addIdentity($withChar, 'email', 'b@example.test', password_hash('x', PASSWORD_DEFAULT), 'b@example.test'));
+        $this->assertTrue($svc->addIdentity($withChar, 'google', 'b@example.test', password_hash('x', PASSWORD_DEFAULT), 'b@example.test'));
         $this->assertCount(2, $svc->identities($withChar));
         $this->assertSame(1, $this->conn->table('accounts')->where('id', $webOnly)->countAllResults());
         $emailId = (int) $svc->identities($withChar)[1]['id'];
@@ -192,7 +192,7 @@ final class AccountsSchemaTest extends CIUnitTestCase
         $account = $svc->ensureForTelegram($tg);
         $this->assertSame($account, $svc->accountForTelegramLogin($tg), 'identity present: its account');
 
-        $this->assertTrue($svc->addIdentity($account, 'email', 'c@example.test', password_hash('x', PASSWORD_DEFAULT), 'c@example.test'));
+        $this->assertTrue($svc->addIdentity($account, 'google', 'c@example.test', password_hash('x', PASSWORD_DEFAULT), 'c@example.test'));
         $tgIdentity = (int) $svc->identities($account)[0]['id'];
         $this->assertTrue($svc->unlinkIdentity($account, $tgIdentity));
         $accountsBefore = $this->conn->table('accounts')->countAllResults();
@@ -200,7 +200,7 @@ final class AccountsSchemaTest extends CIUnitTestCase
         $this->assertNull($svc->accountForTelegramLogin($tg));
         $this->assertSame($accountsBefore, $this->conn->table('accounts')->countAllResults(), 'no shadow account');
         $this->assertSame($account, $this->accountOf($char));
-        $this->assertNotNull($svc->findByIdentity('email', 'c@example.test'));
+        $this->assertNotNull($svc->findByIdentity('google', 'c@example.test'));
 
         // A Telegram user with neither identity nor character behaves as before (ensureForTelegram).
         $fresh = $this->insertTelegramUser(900000032);

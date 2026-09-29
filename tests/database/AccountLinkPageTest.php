@@ -9,7 +9,7 @@ use App\Database\Migrations\CreateCharactersTable;
 use App\Database\Migrations\CreateSiteCategoriesTable;
 use App\Database\Migrations\CreateTelegramUsersTable;
 use App\Database\Migrations\LinkCharactersToAccounts;
-use App\Services\Web\AccountAuthService;
+use App\Services\Web\AccountService;
 use App\Services\Web\AccountSession;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Forge;
@@ -137,8 +137,10 @@ final class AccountLinkPageTest extends CIUnitTestCase
 
     private function emailAccount(string $email): int
     {
-        $id = (new AccountAuthService(null, $this->conn))->registerWithEmail($email, 'longenough');
-        $this->assertIsInt($id);
+        $accounts = new AccountService($this->conn);
+        $id       = $accounts->createAccount('web');
+        // web-accounts-oauth-only: фикстура — аккаунт с входом через Яндекс (почты с паролем больше нет).
+        $this->assertTrue($accounts->addIdentity($id, 'yandex', 'y-' . md5($email), null, $email));
 
         return $id;
     }
