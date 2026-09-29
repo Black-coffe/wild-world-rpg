@@ -286,3 +286,4 @@
 {"ts":"2026-09-29T19:52:04Z","story":"w2-n4-tails2-01-names-stale-callbacks","declared":6,"changed":8,"out_of_scope":2}
 {"ts":"2026-09-29T20:33:39Z","story":"web-accounts-hardening-01-current-password-and-reset-privacy","declared":7,"changed":8,"out_of_scope":1}
 {"ts":"2026-09-29T20:48:13Z","story":"web-accounts-hardening-01-current-password-and-reset-privacy","declared":8,"changed":10,"out_of_scope":2}
+{"ts":"2026-09-29T21:33:22Z","story":"web-accounts-oauth-only-01-remove-email-auth","declared":17,"changed":18,"out_of_scope":1}

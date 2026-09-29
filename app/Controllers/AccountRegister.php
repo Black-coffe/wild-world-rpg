@@ -7,16 +7,16 @@ namespace App\Controllers;
 use App\Services\GameSettings\GameSettingsService;
 use App\Services\Player\CharacterProvisioningService;
 use App\Services\Player\NameService;
-use App\Services\Web\AccountAuthService;
 use App\Services\Web\AccountService;
 use App\Services\Web\AccountSession;
 use CodeIgniter\HTTP\ResponseInterface;
-use Config\Accounts;
 use Config\Database;
 use Config\Social;
 
 /**
- * web-accounts-p0-08 (ADR-188) — регистрация по email и создание персонажа без Telegram.
+ * web-accounts-p0-08 (ADR-188) — регистрация и создание персонажа без Telegram.
+ * web-accounts-oauth-only (2026-09-30): регистрации по почте нет — аккаунт создаёт первый вход через
+ * Google или Яндекс (AccountOAuth, за тем же флагом); `/account/register` — страница «как попасть».
  *
  * Обе страницы за флагом GameSettings `web.open_registration` (default false = закрытая бета):
  * при выключенном флаге GET и POST только объясняют закрытую бету и ведут в бота (`/web`),
@@ -29,11 +29,6 @@ class AccountRegister extends BaseController
 {
     public const FLAG = 'web.open_registration';
 
-    private const REGISTER_ERRORS = [
-        AccountAuthService::ERR_INVALID_EMAIL => 'Похоже, это не адрес почты. Проверь и попробуй ещё раз.',
-        AccountAuthService::ERR_EMAIL_TAKEN   => 'Эта почта уже привязана к аккаунту. Войди с ней или сбрось пароль.',
-    ];
-
     public function index(): ResponseInterface|string
     {
         if (! self::registrationOpen()) {
@@ -44,35 +39,6 @@ class AccountRegister extends BaseController
         }
 
         return $this->registerView([]);
-    }
-
-    public function store(): ResponseInterface|string
-    {
-        if (! self::registrationOpen()) {
-            return $this->registerView(['closed' => true]);
-        }
-        $session = new AccountSession();
-        if ($session->current() !== null) {
-            return redirect()->to('/account/character')->withCookies();
-        }
-
-        $email    = $this->request->getPost('email');
-        $password = $this->request->getPost('password');
-        $email    = is_string($email) ? $email : '';
-        $password = is_string($password) ? $password : '';
-
-        $result = (new AccountAuthService())->registerWithEmail($email, $password);
-        if (is_string($result)) {
-            $message = $result === AccountAuthService::ERR_WEAK_PASSWORD
-                ? 'Пароль слишком короткий: нужно не меньше ' . (new Accounts())->passwordMinLength . ' символов.'
-                : (self::REGISTER_ERRORS[$result] ?? 'Не удалось зарегистрироваться. Попробуй ещё раз.');
-
-            return $this->registerView(['error' => $message, 'errorField' => $result, 'email' => $email]);
-        }
-
-        $session->login($result);
-
-        return redirect()->to('/account/character')->withCookies();
     }
 
     public function character(): ResponseInterface|string
@@ -144,7 +110,6 @@ class AccountRegister extends BaseController
             'error'       => null,
             'errorField'  => null,
             'email'       => '',
-            'minLength'   => (new Accounts())->passwordMinLength,
             'botLink'     => config(Social::class)->botStart('src_site_register'),
             'meta'        => self::meta('Регистрация — Wild World', 'account/register'),
         ]);

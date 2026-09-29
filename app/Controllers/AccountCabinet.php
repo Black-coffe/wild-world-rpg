@@ -5,14 +5,13 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Services\GameSettings\GameSettingsReaderTrait;
-use App\Services\Web\AccountAuthService;
 use App\Services\Web\AccountService;
 use App\Services\Web\AccountSession;
 use CodeIgniter\HTTP\ResponseInterface;
 
 /**
- * web-accounts-p0-07 (ADR-188) — кабинет аккаунта: персонаж, способы входа (почта+пароль,
- * Google, Яндекс, Telegram), добавление и отвязка (никогда не последнего), ссылка на привязку
+ * web-accounts-p0-07 (ADR-188) — кабинет аккаунта: персонаж, способы входа (Google, Яндекс,
+ * Telegram; почты с паролем нет с web-accounts-oauth-only), добавление и отвязка (никогда не последнего), ссылка на привязку
  * кодом из бота, выход. web-bridge-p1-03: блок «Играть на сайте» — ссылка на /play при включённом
  * `web.play_enabled`, иначе lock-строка с причиной (флаг читается здесь, на сервере).
  *
@@ -32,7 +31,6 @@ class AccountCabinet extends BaseController
         'link_refused'      => ['error', 'Этот Telegram уже привязан к другому аккаунту игры. Способ входа не переносится между аккаунтами: сначала отвяжи его там.'],
         'link_already'      => ['ok', 'Этот Telegram уже привязан к твоему аккаунту.'],
         'link_unconfirmed'  => ['error', 'Привязка Telegram не подтверждена: начни её кнопкой Telegram на этой странице. Если хочешь войти другим аккаунтом, сначала выйди.'],
-        'email_added'       => ['ok', 'Почта и пароль сохранены — теперь можно входить ими.'],
         'unlinked'          => ['ok', 'Способ входа отвязан.'],
         'unlink_last'       => ['error', self::MSG_LAST_IDENTITY],
         'unlink_failed'     => ['error', 'Такого способа входа у аккаунта нет.'],
@@ -43,15 +41,6 @@ class AccountCabinet extends BaseController
         'oauth_denied'      => ['error', 'Привязка отменена.'],
         'oauth_failed'      => ['error', 'Не удалось получить ответ от провайдера. Попробуй ещё раз позже.'],
         'oauth_unavailable' => ['error', 'Этот способ входа сейчас недоступен.'],
-    ];
-
-    /** Сообщения ошибок `AccountAuthService::setEmailPassword`. */
-    private const EMAIL_ERRORS = [
-        AccountAuthService::ERR_INVALID_EMAIL  => 'Это не похоже на адрес почты.',
-        AccountAuthService::ERR_WEAK_PASSWORD  => 'Пароль слишком короткий.',
-        AccountAuthService::ERR_EMAIL_TAKEN    => 'Эта почта уже привязана к другому аккаунту.',
-        AccountAuthService::ERR_HAS_OTHER_MAIL => 'К аккаунту уже привязана другая почта. Чтобы сменить её, сначала отвяжи старую.',
-        AccountAuthService::ERR_CURRENT_PASSWORD => 'Неверный текущий пароль. Забыл его — сбрось пароль по почте.',
     ];
 
     public function index(): ResponseInterface|string
@@ -70,32 +59,6 @@ class AccountCabinet extends BaseController
         $notice = is_string($auth) ? (self::AUTH_NOTICES[$auth] ?? null) : null;
 
         return $this->render($current['account_id'], ['notice' => $notice]);
-    }
-
-    public function addEmail(): ResponseInterface|string
-    {
-        $current = (new AccountSession())->current();
-        if ($current === null) {
-            return redirect()->to('/account/login')->withCookies();
-        }
-
-        $email    = $this->request->getPost('email');
-        $password = $this->request->getPost('password');
-        $currentPw = $this->request->getPost('current_password');
-        $email     = is_string($email) ? $email : '';
-        $password  = is_string($password) ? $password : '';
-
-        $result = (new AccountAuthService())->setEmailPassword($current['account_id'], $email, $password, is_string($currentPw) ? $currentPw : null);
-        if ($result === true) {
-            return redirect()->to('/account?auth=email_added')->withCookies();
-        }
-
-        $this->response->setStatusCode(422);
-
-        return $this->render($current['account_id'], [
-            'emailError' => self::EMAIL_ERRORS[$result] ?? 'Не удалось сохранить почту.',
-            'emailValue' => $email,
-        ]);
     }
 
     public function unlink(string $identityId): ResponseInterface
@@ -155,8 +118,6 @@ class AccountCabinet extends BaseController
                 ? (new AccountSession())->mintTelegramLinkNonce()
                 : '',
             'notice'        => null,
-            'emailError'    => null,
-            'emailValue'    => '',
             'meta'          => [
                 'title'     => 'Аккаунт — Wild World',
                 'canonical' => rtrim(base_url('account'), '/'),

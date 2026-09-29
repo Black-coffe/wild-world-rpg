@@ -1,24 +1,16 @@
 <?php
 /**
- * web-accounts-p0-08 (ADR-188) — регистрация по почте и паролю.
+ * web-accounts-p0-08 (ADR-188) — регистрация. web-accounts-oauth-only (2026-09-30): почты с паролем нет —
+ * аккаунт создаёт первый вход через Google или Яндекс (кнопки `account_oauth_buttons`).
  *
  * За флагом `web.open_registration`: выключен — только объяснение закрытой беты и путь через бота
  * (`/web` → код → `/account/link`), формы нет. Компоненты — story 03 (`wildworld-ui.css`). Без JS.
  *
  * @var bool        $closed
- * @var string|null $error
- * @var string|null $errorField  код ошибки AccountAuthService (подсветка поля)
- * @var string      $email
- * @var int         $minLength
  * @var string      $botLink
  */
 $closed     = ($closed ?? false) === true;
-$error      = is_string($error ?? null) ? $error : null;
-$errorField = is_string($errorField ?? null) ? $errorField : null;
-$email      = is_string($email ?? null) ? $email : '';
-$minLength  = is_int($minLength ?? null) ? $minLength : 8;
 $botLink    = is_string($botLink ?? null) ? $botLink : '';
-$pwdError   = $errorField === 'weak_password';
 ?>
 <?= $this->extend('site/layout') ?>
 <?= $this->section('content') ?>
@@ -27,7 +19,7 @@ $pwdError   = $errorField === 'weak_password';
     <div class="container">
         <div class="section-head">
             <div><h1 class="mt-1 mb-0">Регистрация</h1></div>
-            <div class="desc">Аккаунт на сайте: почта и пароль, Telegram не нужен.</div>
+            <div class="desc">Аккаунт на сайте — через Google или Яндекс. Паролей у сайта нет.</div>
         </div>
 
         <div class="grid grid-2">
@@ -45,26 +37,12 @@ $pwdError   = $errorField === 'weak_password';
                         <a class="btn ghost" href="<?= esc(base_url('account/login'), 'attr') ?>">Войти</a>
                     </div>
                 <?php else: ?>
-                    <?php if ($error !== null): ?>
-                        <div class="notice error" role="alert"><span class="notice-title">Ошибка</span><?= esc($error) ?></div>
-                    <?php endif ?>
-
-                    <form class="auth-form" action="<?= esc(base_url('account/register'), 'attr') ?>" method="post">
-                        <?= csrf_field() ?>
-                        <div class="field<?= $error !== null && ! $pwdError ? ' has-error' : '' ?>">
-                            <label class="label" for="reg-email">Почта</label>
-                            <input id="reg-email" class="input" type="email" name="email" autocomplete="email" required value="<?= esc($email, 'attr') ?>">
-                        </div>
-                        <div class="field<?= $pwdError ? ' has-error' : '' ?>">
-                            <label class="label" for="reg-password">Пароль</label>
-                            <input id="reg-password" class="input" type="password" name="password" autocomplete="new-password" required minlength="<?= $minLength ?>">
-                            <span class="help">Не меньше <?= $minLength ?> символов.</span>
-                        </div>
-                        <div class="auth-actions">
-                            <button class="btn primary" type="submit">Создать аккаунт</button>
-                            <a class="btn ghost" href="<?= esc(base_url('account/login'), 'attr') ?>">Уже есть аккаунт</a>
-                        </div>
-                    </form>
+                    <div class="label">Зарегистрироваться через Google или Яндекс</div>
+                    <p class="mb-0">Первый вход через Google или Яндекс создаёт аккаунт. Доступ к нему восстанавливает сам Google или Яндекс.</p>
+                    <?= view('site/account_oauth_buttons', ['oauthMode' => 'login', 'oauthLinked' => []]) ?>
+                    <div class="auth-actions">
+                        <a class="btn ghost" href="<?= esc(base_url('account/login'), 'attr') ?>">Уже есть аккаунт</a>
+                    </div>
                 <?php endif ?>
             </div>
 

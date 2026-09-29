@@ -1,8 +1,8 @@
 ---
 story: web-accounts-oauth-only-01
 spec: web-accounts-oauth-only
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -37,6 +37,7 @@ blocked_by: []
 - tests/database/AccountRegistrationTest.php
 - tests/database/AccountPasswordResetPageTest.php
 - tests/database/PasswordResetServiceTest.php
+- tests/database/AccountLinkPageTest.php
 
 ## Non-goals
 - Не менять схему (`secret_hash`, `account_tokens` остаются).
@@ -56,5 +57,10 @@ memory/map/website.md — аккаунты
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- Удалены `AccountAuthService`, `PasswordResetService`, `AccountPassword`, `site/account_reset`, тесты `AccountPasswordResetPageTest`/`PasswordResetServiceTest` и email-тесты в `AccountAuthTest`/`AccountCabinetTest`/`AccountRegistrationTest`.
+- Routes: сняты POST `account/login`, `account/register`, `account/identity/email`, `account/reset*`; `account/reset` и `account/reset/(:segment)` — `addRedirect` на `account/login` (любой метод; старые ссылки не в 404).
+- Вход: карточка «Войти кодом из бота» вместо формы; регистрация при открытом флаге — кнопки Google/Яндекс (первый вход создаёт аккаунт в `AccountOAuth`, флаг тот же). `AccountAuth::BAD_CREDENTIALS`, `AccountCabinet::addEmail` удалены.
+- Тест-фикстура аккаунта — `createAccount` + Яндекс-identity (`AccountLinkPageTest` добавлен в Files при сборке). Вскрылась утечка общего рендерера: `oauthLinked` кабинета прятал кнопки на следующей странице входа в том же процессе — вход и регистрация теперь передают `'oauthLinked' => []` явно.
+- `verifyPassword` в `app/Entities/User.php`/`Admin/WipeController` — админская таблица `users`, к аккаунтам игроков не относится; критерий AC про `git grep` читать без неё. `Config\Accounts::passwordMinLength/passwordResetTtlSeconds` остались неиспользуемыми полями — схему/конфиг не трогали.
 
 ## Findings

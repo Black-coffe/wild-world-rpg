@@ -232,30 +232,28 @@ $routes->get('login/telegram/callback', 'TelegramLogin::callback');
 $routes->post('logout/telegram', 'TelegramLogin::logout');
 
 // ADR-188 / web-accounts-p0 — аккаунт игрока на сайте. Группа объявлена целиком (story 05);
-// контроллеры AccountLink/AccountOAuth/AccountRegister/AccountPassword приходят в stories 06-08,
+// контроллеры AccountLink/AccountOAuth/AccountRegister приходят в stories 06-08,
 // до того их маршруты отдают 404. accountThrottle — на каждом POST, кроме logout.
 $routes->group('account', static function ($routes) {
     $throttle = ['filter' => 'accountThrottle'];
 
     $routes->get('/', 'AccountCabinet::index');
     $routes->get('login', 'AccountAuth::login');
-    $routes->post('login', 'AccountAuth::attempt', $throttle);
     $routes->post('logout', 'AccountAuth::logout');
     $routes->get('link', 'AccountLink::index');
     $routes->post('link', 'AccountLink::redeem', $throttle);
-    $routes->post('identity/email', 'AccountCabinet::addEmail', $throttle);
     $routes->post('identity/(:num)/unlink', 'AccountCabinet::unlink/$1', $throttle);
     $routes->get('oauth/(google|yandex)', 'AccountOAuth::start/$1');
     $routes->get('oauth/(google|yandex)/callback', 'AccountOAuth::callback/$1');
     $routes->get('register', 'AccountRegister::index');
-    $routes->post('register', 'AccountRegister::store', $throttle);
     $routes->get('character', 'AccountRegister::character');
     $routes->post('character', 'AccountRegister::createCharacter', $throttle);
-    $routes->get('reset', 'AccountPassword::request');
-    $routes->post('reset', 'AccountPassword::send', $throttle);
-    $routes->get('reset/(:segment)', 'AccountPassword::form/$1');
-    $routes->post('reset/(:segment)', 'AccountPassword::complete/$1', $throttle);
 });
+
+// web-accounts-oauth-only (ADR-188, поправка 2026-09-30): входа по почте с паролем нет — сброса тоже.
+// Старые ссылки на сброс (письма, закладки) ведут на страницу входа, а не в 404.
+$routes->addRedirect('account/reset', 'account/login');
+$routes->addRedirect('account/reset/(:segment)', 'account/login');
 
 // ADR-189 / web-bridge-p1-07 — игра на сайте через маршруты бота. Флаг `web.play_enabled`,
 // вход и персонаж сессии проверяет сам контроллер; CSRF — глобальный; лимит — на аккаунт
