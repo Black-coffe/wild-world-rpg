@@ -44,3 +44,4 @@ Telegram. Уходит вся поверхность почты с пароле�
 **Briefed:** via grill, Andrei, 2026-09-29
 **Branch:** vulyk/web-accounts-oauth-only
 **Council:** RED round 1, 2026-09-29, at ab2ce77c, pack ebba5ba4a3c2
+**Council:** GREEN round 2, 2026-09-29, at 06acda1b, pack 6da6d2997fc9
