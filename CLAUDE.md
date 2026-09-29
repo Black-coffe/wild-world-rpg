@@ -5,7 +5,7 @@ PvE, базы, PvP в персистентном мире через чат. Т�
 `wildworld.fun`, админка.
 
 **Модель верхней касты: `TOP_MODEL = opus`.** Строка стоит здесь, а не в `CLAUDE.vulyk.md`:
-`scripts/top-model.sh` читает первое вхождение пина только в этом файле. Opus 5 держим сознательно
+`scripts/top-model.sh` читает первое вхождение пина только в этом файле. Opus держим сознательно
 (вне 30-дневного retention Fable, вдвое дешевле). Проверка: `bash scripts/top-model.sh --explain`
 → `decided by: constitution`.
 

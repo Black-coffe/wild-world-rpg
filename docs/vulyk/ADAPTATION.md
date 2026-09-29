@@ -483,10 +483,13 @@ replace` сжал бы 37.9 KB до 11.4 KB, но унёс бы `## Project bind
 `.claude/rules/example-api.md` удалены. `lib.sh` и `cycle.sh` не патчим — upstream знает леджеры и
 `CLAUDE.vulyk.md`.
 
-**Конституция НЕ заменена** (решение владельца). `--constitution replace` сжал бы 37.9 KB до 12.3 KB
-и унёс бы `## Project bindings` в бэкап. Ручной остаток §16 в силе, к нему добавилось:
-
-- The model ladder: `council-haiku` теперь на `opus` (строка Junior врёт), `drone-scout`/`drone-docs`
-  на `sonnet` (строка Mid снова верна для них, но `council-sonnet` в ней упразднён ещё в 0.18).
-- `## Evolution`: «Run `/vulyk-evolve` weekly» — с 0.21 gc/evolve/map предлагает сам бриф, Queen
-  выполняет их после задачи владельца; неслитая ветка `vulyk/evolve-*` ждёт ревью владельца.
+**Конституция сведена руками** (29.09.2026, по слову владельца; `--constitution replace` не запускали — он унёс
+бы `## Project bindings` в бэкап). Каркас 0.21.1 — Laws 1–6, Routing, Models and effort, Secrets, Profile/Commands
+preamble, Compact, Where things live — взят почти дословно, чтобы следующий апгрейд сводился диффом; поверх него
+короткие проектные вставки (гейт = `opus`, Fable только второй ревьюер Tier 4; `haiku` без браузера; ссылки на
+документы рамки ведут в `~/.vulyk/src/docs/`). `## Project bindings` переписан под 0.18–0.21: Queen строит Tier 0–2
+сама, `council-sonnet` ушёл из всех таблиц (Tier 1–2 судит `lead-review`, Tier 3–4 — `council-opus` + `council-haiku`
++ `lead-review`), новые разделы «Поправка владельца» (Закон 6 `docs/defects/` против `claude-memory/`) и
+«Обслуживание улья». Выброшены: Five Laws/frontier-model/token-economy/memory-protocol/evolution в старой редакции,
+история 0.12.0. В блок Commands добавлена строка `Defect library gate`. 37.9 KB → 25.5 KB. Ручной остаток §16
+закрыт.
