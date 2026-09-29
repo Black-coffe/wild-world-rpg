@@ -43,3 +43,4 @@ Telegram. Уходит вся поверхность почты с пароле�
 ## Plan deltas
 **Briefed:** via grill, Andrei, 2026-09-29
 **Branch:** vulyk/web-accounts-oauth-only
+**Council:** RED round 1, 2026-09-29, at ab2ce77c, pack ebba5ba4a3c2
