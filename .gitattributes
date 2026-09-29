@@ -5,3 +5,7 @@
 *.yaml  text eol=lf
 .claude/workflows/*.js  text eol=lf
 *.php   text eol=lf
+
+# --- VULYK: hooks, the Workflow driver and the manifest must check out with LF (added by install.sh) ---
+.claude/hooks/*.py text eol=lf
+.claude/vulyk-manifest text eol=lf

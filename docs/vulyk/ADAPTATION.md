@@ -465,3 +465,28 @@ replace` сжал бы 37.9 KB до 11.4 KB, но унёс бы `## Project bind
 
 До слияния руками: на Tier 1–2 предметные asks проверяет `lead-review`; живой Tier-3 смоук по-прежнему
 делает Queen.
+
+## 17. Апгрейд 0.18.1 → 0.21.1 (29.09.2026, по слову владельца)
+
+0.19 — библиотека дефектов `docs/defects/` (ADR-014 рамки): повторная поправка владельца становится
+карточкой с падающим `check:`, `scripts/defects-check.sh` — гейт; хуки `defect-intake.sh`
+(UserPromptSubmit) и `defects-inject.sh` (PreToolUse + SessionStart `reset`) подключены в нашей форме
+`bash "$CLAUDE_PROJECT_DIR/…"`, прогон вручную — exit 0. 0.20 — лестница по роду работы: воркеры и
+дроны на `sonnet`, `council-haiku` на `opus`, `model_floor` в `lib.sh`, `top-model.sh --floor` (у нас
+`ok`; пин `TOP_MODEL = opus` по-прежнему `decided by: constitution`). 0.21 — обслуживание само:
+бриф на старте пишет `maintenance due: gc / evolve / map`, леджер `memory/stats/evolve.jsonl`
+(`scripts/evolve-ledger.py`), ship-гейт пропускает дерево, грязное только в `skills.json`/`anomalies.jsonl`.
+
+**Откатилось и возвращено:** блоки «Project path binding» в `lead-architect`/`drone-docs` и
+`vulyk-handoff.md` — `checkout` из `HEAD`; в `drone-docs` при этом сохранена upstream-правка
+`model: sonnet` (единственное настоящее изменение в трёх файлах). `handoff.py/sh` и
+`.claude/rules/example-api.md` удалены. `lib.sh` и `cycle.sh` не патчим — upstream знает леджеры и
+`CLAUDE.vulyk.md`.
+
+**Конституция НЕ заменена** (решение владельца). `--constitution replace` сжал бы 37.9 KB до 12.3 KB
+и унёс бы `## Project bindings` в бэкап. Ручной остаток §16 в силе, к нему добавилось:
+
+- The model ladder: `council-haiku` теперь на `opus` (строка Junior врёт), `drone-scout`/`drone-docs`
+  на `sonnet` (строка Mid снова верна для них, но `council-sonnet` в ней упразднён ещё в 0.18).
+- `## Evolution`: «Run `/vulyk-evolve` weekly» — с 0.21 gc/evolve/map предлагает сам бриф, Queen
+  выполняет их после задачи владельца; неслитая ветка `vulyk/evolve-*` ждёт ревью владельца.
