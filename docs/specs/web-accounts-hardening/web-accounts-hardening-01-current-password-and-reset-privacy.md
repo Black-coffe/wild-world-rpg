@@ -1,8 +1,8 @@
 ---
 story: web-accounts-hardening-01
 spec: web-accounts-hardening
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 1
 worker: worker-code
 model: sonnet
@@ -27,6 +27,7 @@ blocked_by: []
 - app/Views/site/_layout/statable.php
 - tests/database/AccountCabinetTest.php
 - tests/database/AccountPasswordResetPageTest.php
+- tests/database/AccountAuthTest.php
 
 ## Non-goals
 - Не делать подтверждение email (#7) — отдельная спека.
@@ -44,5 +45,9 @@ memory/map/website.md — аккаунты
 `vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Implementation notes
+- `setEmailPassword(..., ?string $currentPassword)`: при своей почте с хэшем — `password_verify` текущего, иначе `ERR_CURRENT_PASSWORD` («Неверный текущий пароль. Забыл его — сбрось пароль по почте.»). Поле «Текущий пароль» в форме кабинета — только когда почта уже есть.
+- `AccountPassword::render()` ставит `Referrer-Policy: no-referrer` и `noThirdPartyAnalytics`; `statable.php` при флаге ничего не рендерит.
+- `AccountAuthTest` менял пароль своей почты без текущего — теперь это отказ; тест проверяет оба случая (файл добавлен в `## Files` при сборке).
+- Тест Statable сбрасывает общий рендерер: сохранённые данные вьюх иначе переживают рендер в том же процессе. Оба новых теста падают на коде до правки.
 
 ## Findings

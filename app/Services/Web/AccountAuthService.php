@@ -23,6 +23,7 @@ class AccountAuthService
     public const ERR_WEAK_PASSWORD  = 'weak_password';
     public const ERR_EMAIL_TAKEN    = 'email_taken';
     public const ERR_HAS_OTHER_MAIL = 'account_has_email';
+    public const ERR_CURRENT_PASSWORD = 'current_password';
 
     private AccountService $accounts;
 
@@ -98,8 +99,12 @@ class AccountAuthService
     /**
      * Добавить email+пароль к аккаунту или сменить пароль у его же email. Ошибка — код ERR_*:
      * email занят другим аккаунтом, либо у аккаунта уже другой email.
+     *
+     * web-accounts-hardening-01 (ревью web-accounts-p0 #14): смена пароля у своей почты требует
+     * верный `$currentPassword` — иначе `ERR_CURRENT_PASSWORD`, хэш не меняется. Захваченная сессия
+     * кабинета больше не забирает вход по почте насовсем. Первое добавление почты его не требует.
      */
-    public function setEmailPassword(int $accountId, string $email, string $password): true|string
+    public function setEmailPassword(int $accountId, string $email, string $password, ?string $currentPassword = null): true|string
     {
         $subject = self::normalizeEmail($email);
         $error   = $this->validate($subject, $password);
@@ -113,6 +118,13 @@ class AccountAuthService
             return self::ERR_EMAIL_TAKEN;
         }
         if ($owner === $accountId) {
+            $row     = $this->db->table('account_identities')->select('secret_hash')
+                ->where('provider', 'email')->where('subject', $subject)->get();
+            $row     = $row === false ? null : $row->getRowArray();
+            $oldHash = is_array($row) && is_string($row['secret_hash'] ?? null) ? $row['secret_hash'] : '';
+            if ($oldHash !== '' && ($currentPassword === null || ! password_verify($currentPassword, $oldHash))) {
+                return self::ERR_CURRENT_PASSWORD;
+            }
             $this->db->table('account_identities')
                 ->where('provider', 'email')
                 ->where('subject', $subject)
