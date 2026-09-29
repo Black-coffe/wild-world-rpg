@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-27
+last-verified: 2026-09-29
 
 # Scout report: Публичный сайт wildworld.fun
 
@@ -69,7 +69,8 @@ outbound: модели постов, `Services/Web/TelegramLoginVerifier`, `Serv
 - Return target после входа — только ровно `/play` (`AccountSession::RETURN_PLAY`).
 - Мутации `/play/view` дедупятся в `web_play_intents` по `intentKey(intent_id, ':gear'|':step'|':<march_op>'|
   ':craft_start'|':craft_cancel'|':build_start'|':upgrade')` (≤64); без JS — PRG. Веб-крафт: `qty > max_qty` — отказ.
-- Веб-стройка/апгрейд не зовут `ActiveTasksService::checkRelocationAndBlock()` (бот зовёт) — переезд не блокирует.
+- Переезд блокирует стройку/апгрейд в ядре (`BuildOrderService`/`BuildingUpgradeService`, код `relocating`) — веб
+  показывает тот же текст. Апгрейд-форма несёт `from` (уровень); устаревший — `stale`, без списания (см. `bases.md`).
 - Поход из веба стартует без `msg_id` → прогресс тика приходит в Telegram новыми сообщениями.
 - Кнопка нативного экрана без своего экрана идёт `op=bridge` через мост (карточка «Я» / у карты `/go` /
   у нехватки крафта `/craft` + `botRoute` / у базы «🏠 База» → `Base_b<id>` → `construction_b<id>`|`Build_b<id>`).

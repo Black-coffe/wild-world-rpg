@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-25
+last-verified: 2026-09-29
 
 # Scout report: Фоновая обработка (cron → Worker → TaskHandlers)
 
@@ -69,6 +69,8 @@ outbound: почти все доменные сервисы + `Services/Notifica
   есть только на сайте) в Telegram не уходит и привязанному: правка патчит копию на экране `/play` и
   (флаг on) обновляет одну строку входящих. Пример — Поход, начатый на `/play`.
 - Worker/cron/spark не ставят `BridgeClient`; всё в них — «фон» для моста.
+- `ActiveTasksService::hasActiveRelocation()` + `TEXT_RELOCATION` — гейт переезда для ядра построек
+  (`BuildOrderService`, `BuildingUpgradeService`); см. `bases.md`.
 
 ## Vault
 `mmorpg-vault/apps/tasks/index.md` · `mmorpg-vault/tech-writing/tasks/` ·

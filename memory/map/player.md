@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-27
+last-verified: 2026-09-29
 
 # Scout report: Игрок (Services/Player)
 
@@ -54,7 +54,8 @@ outbound: модели `app/Models/*`, `Services/GameSettings`, `Services/Notifi
   `decreaseResources()` (F0/ADR-181, 2026-09) удалена, см. `craft.md`.
 - `Player/BuildingUpgrade/BuildingUpgradeApplier` (w2-n4-base-02): золото апгрейда — `decrementIfAtLeast`, не
   `CharacterStatsService::adjust()`; уровень — `WHERE level = nextLevel - 1`. Зовётся только из
-  `Buildings/BuildingUpgradeService` (см. `bases.md`).
+  `Buildings/BuildingUpgradeService` (см. `bases.md`), которое до записи отсекает `relocating`/`stale`.
+  `BuildingUpgradeMessageFormatter::askPrompt()` рисует кнопку с `_l<N>` и строку эффекта.
 - Смена снаряжения — **один UPDATE на слот** (`equipped = IF(id = ?,1,0)`), не «снять всех» +
   «надеть»; слот брони эффективный `COALESCE(NULLIF(outfits.slot,''), characters_outfits.slot)`
   (`EquipmentLoadoutService.php:280-290`). Писать equipped в обход сервиса нельзя.

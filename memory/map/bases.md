@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-27
+last-verified: 2026-09-29
 
 # Scout report: Базы, лагерь, постройки
 
@@ -33,7 +33,7 @@ last-verified: 2026-09-27
   засчитывается только своей базе; `checkCoverage()` — дешёвый гейт.
 - `HangarAction` (`hangar`[`_b<id>`]), робот `StartRobotGatheringAction` / `CompleteRobotGatheringHandler`
   (`task_settings.base_cell`).
-- `app/Services/BuildingEffects/`, `app/Services/Housing/`; TaskHandlers `app/TaskHandlers/Built/`,
+- `app/Services/BuildingEffects/` (`BuildingEffectLines` — строка эффекта), `app/Services/Housing/`; TaskHandlers `app/TaskHandlers/Built/`,
   `BaseLifecycleHandler.php`, `TaxCollectionHandler.php`; таблица `character_buildings`.
 
 ## Key types / contracts
@@ -48,12 +48,17 @@ outbound: ресурсы, `GameSettings`, `Services/Coverage`, `Services/Onboard
 ## Gotchas
 - Защита базы не собирается из И-НЕ флагов: база обязана укрывать всегда, когда игрок на ней.
 - Смерть: −3% с базой, −50% без базы. Открытый хвост: штраф при сносе одной базы из нескольких.
-- **Переезд не проверяется ядром.** `ActiveTasksService::checkRelocationAndBlock()` зовут только бот-экраны
-  `BuildListAction`, `GenericBuildingInfoAction`, `UpgradeBuildingAction::askForUpgrade()`; его нет в
-  `GenericBuildingAction`, `confirmUpgrade()` и во всех веб-путях (`buildStart`, `upgrade`).
-- **`confirm_upgrade_building_<id>` не несёт уровень**: `<id>` — `buildings.id`, цель = текущий + 1 на момент
-  подтверждения. Двойное подтверждение гасит `BuildingUpgradeApplier` (`WHERE level = nextLevel - 1`,
-  золото — `decrementIfAtLeast`): +1 уровень и одна оплата.
+- **Переезд блокирует ядро (w2-n4-tails-01).** `BuildOrderService` (`catalog`/`preview`/`start`) и
+  `BuildingUpgradeService` (`preview`/`apply`) отдают код `relocating` с `ActiveTasksService::TEXT_RELOCATION`
+  через `hasActiveRelocation()`; бот и веб получают один текст. Бот-экраны дополнительно зовут
+  `checkRelocationAndBlock()` (`UpgradeBuildingAction::askForUpgrade()`), но опираться на него не нужно.
+- **Подтверждение апгрейда несёт уровень**: бот `confirm_upgrade_building_<id>_l<N>[_b<id>]`, веб — поле `from`.
+  `apply(..., $fromLevel)`: `!= current_level` или `null` → код `stale`, ничего не списано. Кнопка без `_l`
+  (старые сообщения) заново показывает запрос через `prompt()`. `WHERE level = nextLevel - 1` в
+  `BuildingUpgradeApplier` остаётся защитой от одновременных подтверждений.
+- **Эффект уровня**: `BuildingEffectLines` (`effectAt()`, `developmentLine()`, `icon()`) — единый источник строки;
+  `preview()` кладёт `effect_now`/`effect_next` («✨ Эффект: сейчас → после» в боте и вебе), `BaseDevelopmentAction`
+  берёт `developmentLine()`. Складская ёмкость не показывается.
 - **Старт стройки (ADR-181)**: лимит базы и `already_building` (та же задача `in_work|queued` с
   `task_settings.base_cell` этой клетки) перепроверяются под `SELECT … FOR UPDATE` строки персонажа;
   списание условное; лог отказа `BUILD_<Key>` пишет рендерер (ядро отдаёт `log`). `cellLoad()` считает
