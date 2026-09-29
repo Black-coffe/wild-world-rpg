@@ -39,3 +39,4 @@
 ## Plan deltas
 **Briefed:** via mini-brief, Andrei, 2026-09-29
 **Branch:** vulyk/w2-n4-tails2
+**Council:** GREEN round 1, 2026-09-29, at 620d4e97, pack 24701c66188e
