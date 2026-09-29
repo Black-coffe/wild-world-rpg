@@ -25,8 +25,8 @@ $playEnabled   = ($playEnabled ?? false) === true;
 $canRegister   = ($canRegister ?? false) === true;
 $notice        = is_array($notice ?? null) ? $notice : null;
 
-$marks  = ['email' => '@', 'google' => 'G', 'yandex' => 'Я', 'telegram' => 'TG'];
-$names  = ['email' => 'Почта', 'google' => 'Google', 'yandex' => 'Яндекс', 'telegram' => 'Telegram'];
+$marks  = ['google' => 'G', 'yandex' => 'Я', 'telegram' => 'TG'];
+$names  = ['google' => 'Google', 'yandex' => 'Яндекс', 'telegram' => 'Telegram'];
 $hasTelegram = in_array('telegram', $linked, true);
 $canUnlink   = count($identities) > 1;
 ?>
@@ -89,7 +89,6 @@ $canUnlink   = count($identities) > 1;
                         $subject  = is_scalar($identity['subject'] ?? null) ? (string) $identity['subject'] : '';
                         $mail     = is_string($identity['email'] ?? null) && $identity['email'] !== '' ? $identity['email'] : null;
                         $caption  = match ($provider) {
-                            'email'    => $mail ?? $subject,
                             'telegram' => 'id ' . $subject,
                             default    => $mail ?? 'подключён',
                         };

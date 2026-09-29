@@ -174,13 +174,13 @@ class AccountService
         return $ok !== false;
     }
 
-        /** `(?, ?, ?)` по числу живых провайдеров — биндинги остаются плоским списком. */
+    /** `(?, ?, ?)` по числу живых провайдеров — биндинги остаются плоским списком. */
     private static function providerPlaceholders(): string
     {
         return '(' . implode(', ', array_fill(0, count(self::PROVIDERS), '?')) . ')';
     }
 
-/**
+    /**
      * @return list<array<string, mixed>>
      */
     public function identities(int $accountId): array
