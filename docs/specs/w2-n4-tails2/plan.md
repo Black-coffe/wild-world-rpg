@@ -38,3 +38,4 @@
 
 ## Plan deltas
 **Briefed:** via mini-brief, Andrei, 2026-09-29
+**Branch:** vulyk/w2-n4-tails2
