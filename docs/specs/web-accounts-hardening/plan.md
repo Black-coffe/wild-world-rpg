@@ -34,3 +34,4 @@
 ## Plan deltas
 **Briefed:** via mini-brief, Andrei, 2026-09-29
 **Branch:** vulyk/web-accounts-hardening
+**Council:** GREEN round 1, 2026-09-29, at 75bee96d, pack 8b8f957648e6
