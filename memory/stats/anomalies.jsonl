@@ -155,3 +155,7 @@
 {"v":1,"ts":"2026-09-27T20:46:08Z","code":"scope_breach","value":1,"threshold":0,"vulyk":"0.18.1","tier":0,"model":"","agent":"","spec":"","story":"w2-n4-base-02-build-upgrade-core","ref":"scope:w2-n4-base-02-build-upgrade-core"}
 {"v":1,"ts":"2026-09-27T20:46:09Z","code":"scope_breach","value":1,"threshold":0,"vulyk":"0.18.1","tier":0,"model":"","agent":"","spec":"","story":"w2-n4-base-03-web-base","ref":"scope:w2-n4-base-03-web-base"}
 {"v":1,"ts":"2026-09-27T20:46:10Z","code":"scope_breach","value":2,"threshold":0,"vulyk":"0.18.1","tier":0,"model":"","agent":"","spec":"","story":"w2-n4-base-04-repair-round-1","ref":"scope:w2-n4-base-04-repair-round-1"}
+{"v":1,"ts":"2026-09-29T19:19:29Z","code":"stage_long","value":44,"threshold":24,"vulyk":"0.21.1","tier":0,"model":"","agent":"","spec":"w2-n4-tails","story":"","ref":"stage:w2-n4-tails:2"}
+{"v":1,"ts":"2026-09-29T19:19:32Z","code":"scope_breach","value":1,"threshold":0,"vulyk":"0.21.1","tier":0,"model":"","agent":"","spec":"","story":"w2-n4-tails-01-relocation-and-level-guard","ref":"scope:w2-n4-tails-01-relocation-and-level-guard"}
+{"v":1,"ts":"2026-09-29T19:19:32Z","code":"scope_breach","value":1,"threshold":0,"vulyk":"0.21.1","tier":0,"model":"","agent":"","spec":"","story":"w2-n4-tails-02-upgrade-effect","ref":"scope:w2-n4-tails-02-upgrade-effect"}
+{"v":1,"ts":"2026-09-29T19:19:33Z","code":"scope_breach","value":1,"threshold":0,"vulyk":"0.21.1","tier":0,"model":"","agent":"","spec":"","story":"w2-n4-tails-03-throttle-test-clock","ref":"scope:w2-n4-tails-03-throttle-test-clock"}
