@@ -56,6 +56,9 @@ outbound: ресурсы, `GameSettings`, `Services/Coverage`, `Services/Onboard
   `apply(..., $fromLevel)`: `!= current_level` или `null` → код `stale`, ничего не списано. Кнопка без `_l`
   (старые сообщения) заново показывает запрос через `prompt()`. `WHERE level = nextLevel - 1` в
   `BuildingUpgradeApplier` остаётся защитой от одновременных подтверждений.
+  `stale` проверяется **до** условий следующего уровня (золото, уровень персонажа, ресурсы), как только постройка
+  найдена: валидатор кладёт `currentLevel` и в поздние отказы. Каждый отказ в боте снимает «часики» (один
+  `answerCallbackQuery`). Имена ресурсов для игрока — `preview()['resource_names']` (веб не печатает `Water`).
 - **Эффект уровня**: `BuildingEffectLines` (`effectAt()`, `developmentLine()`, `icon()`) — единый источник строки;
   `preview()` кладёт `effect_now`/`effect_next` («✨ Эффект: сейчас → после» в боте и вебе), `BaseDevelopmentAction`
   берёт `developmentLine()`. Складская ёмкость не показывается.
