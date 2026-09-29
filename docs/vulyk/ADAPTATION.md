@@ -165,7 +165,7 @@ git check-ignore -v .claude/admin-credentials.local.md .claude/settings.local.js
 | `.claude/agents/drone-docs.md` | блок «Project path binding» — ноты пишутся в `mmorpg-vault/tech-writing/` | `grep -L "Project path binding" .claude/agents/drone-docs.md` |
 | `scripts/lib.sh` (до 0.12.0 — `ship-check.sh` + `human-check.sh`) | `is_paperwork_path()` знает про леджеры улья (§10) | `grep -c "memory/learnings" scripts/lib.sh` |
 | `scripts/cycle.sh` | `command_cell_exists()` читает и `CLAUDE.vulyk.md` (раздел в конце файла) | `grep -c 'CLAUDE.vulyk.md' scripts/cycle.sh` |
-| `scripts/lib.sh` | `is_paperwork_path()` знает `docs/specs/*/smoke-*.md` — доказательство preprod-смоука после GREEN не делает вердикт STALE (evolve 2026-09-29) | `grep -c 'smoke-\*.md' scripts/lib.sh` |
+| `scripts/lib.sh` | `is_paperwork_path()` знает `docs/specs/*/smoke-*.md` — доказательство preprod-смоука после GREEN не делает вердикт STALE (evolve 2026-09-29) | `grep -c 'smoke-\*.md|' scripts/lib.sh` |
 | `scripts/scope-check.sh` | все `memory/stats/*.jsonl` (не только `anomalies.jsonl`) не считаются выходом за объём; `skills.json` — считается, как в upstream (evolve 2026-09-29) | `grep -c 'LEDGERS=' scripts/scope-check.sh` |
 | `scripts/wave-check.sh` | `verify-gap` не считает путём первое слово команды (`vendor/bin/phpunit`) (evolve 2026-09-29) | `grep -c 'first word of each command' scripts/wave-check.sh` |
 
@@ -177,7 +177,7 @@ grep -L "context_guard"       .claude/commands/vulyk-handoff.md
 ls .claude/hooks/handoff.*        # должно быть пусто
 grep -c "handoff.sh" .claude/settings.json   # должно быть 0
 grep -c "memory/learnings" scripts/lib.sh                                 # должно быть 1 (§10)
-grep -c 'smoke-\*.md' scripts/lib.sh; grep -c 'LEDGERS=' scripts/scope-check.sh; grep -c 'first word of each command' scripts/wave-check.sh   # по 1 (evolve 2026-09-29)
+grep -c 'smoke-\*.md|' scripts/lib.sh; grep -c 'LEDGERS=' scripts/scope-check.sh; grep -c 'first word of each command' scripts/wave-check.sh   # по 1 (evolve 2026-09-29)
 ls .claude/agents/drone-acceptance.md    # должно отсутствовать: упразднён в 0.12.0, но --upgrade не удаляет
 ```
 
