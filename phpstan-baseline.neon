@@ -5550,65 +5550,15 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchStandard/Weapons/WeaponWiredBat2Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\EventAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/EventAction.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\EventAction\:\:getKeyboard\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/EventAction.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\EventAction\:\:translateEffectType\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/EventAction.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\EventAction\:\:translateEffectType\(\) has parameter \$type with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/EventAction.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\EventAction\:\:translateEventType\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/EventAction.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\EventAction\:\:translateEventType\(\) has parameter \$type with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/EventAction.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\EventAction\:\:\$activeEvents has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/EventAction.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\EventAction\:\:\$biomeModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/EventAction.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\EventAction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/EventAction.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\EventAction\:\:\$events has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/EventAction.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\EventPrefAction\:\:handle\(\) has no return type specified\.$#'
@@ -6414,89 +6364,19 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Poll/PollVoteAction.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\ActiveQuests\:\:getActiveQuestsData\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/ActiveQuests.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\ActiveQuests\:\:getActiveQuestsData\(\) has parameter \$activeQuestIds with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/ActiveQuests.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\ActiveQuests\:\:translateRewardType\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/ActiveQuests.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\ActiveQuests\:\:translateRewardType\(\) has parameter \$type with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/ActiveQuests.php
 
-		-
-			message: '#^Cannot access offset ''level'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/AvailableQuests.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\AvailableQuests\:\:generateQuestKeyboard\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/AvailableQuests.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\AvailableQuests\:\:generateQuestKeyboard\(\) has parameter \$quests with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/AvailableQuests.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\AvailableQuests\:\:translateRewardType\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/AvailableQuests.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\AvailableQuests\:\:translateRewardType\(\) has parameter \$type with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/AvailableQuests.php
 
-		-
-			message: '#^Cannot access offset ''reward'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/CompletedQuests.php
 
-		-
-			message: '#^Cannot access offset ''reward_type'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/CompletedQuests.php
 
-		-
-			message: '#^Cannot access offset ''title_ru'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/CompletedQuests.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\CompletedQuests\:\:translateRewardType\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/CompletedQuests.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\CompletedQuests\:\:translateRewardType\(\) has parameter \$type with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/CompletedQuests.php
 
 		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
