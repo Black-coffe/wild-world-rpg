@@ -22,7 +22,7 @@
 - `memory/map/quests-events-npc.md` — квесты, ежедневки, мировые события, диалоги NPC
 - `memory/map/onboarding.md` — холодный старт, подсказки, `/guide`, «Совет дня»
 - `memory/map/admin.md` — админка, `GameSettings`, `WipeManifest`, вайп
-- `memory/map/website.md` — публичный сайт wildworld.fun, SEO, CMS в БД
+- `memory/map/website.md` — публичный сайт wildworld.fun, SEO, CMS в БД, аккаунты (только OAuth), `/play`
 - `memory/map/data-layer.md` — 80 моделей, 524 миграции, Entity, репозиторий
 
 ## Unmapped territory
