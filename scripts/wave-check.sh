@@ -188,7 +188,11 @@ PATHS_EOF
       # `feat/branch`, a URL - and treating those as paths reported every story in a
       # pnpm/npm monorepo as a verify-gap (found by the S2.6.5a battle test, 2026-08-18).
       cmd_paths=""
-      for tok in $(printf '%s\n' "$verify" | grep -v '^repeat:' | tr ' \t' '\n\n' | grep '/' | grep -v '^-' | tr -d "\"'" | grep -v '^$'); do
+      # The first word of each command segment is the program (`vendor/bin/phpunit`, `bash`),
+      # never a scope path - it exists in the tree, so it used to turn every full-suite line
+      # into a verify-gap (mmorpg evolve 2026-09-29: w2-n4-base, w2-n4-tails, w2-n4-tails2).
+      args="$(printf '%s\n' "$verify" | grep -v '^repeat:' | sed 's/ && /\n/g' | sed -E 's/^[[:space:]]*[^[:space:]]+//')"
+      for tok in $(printf '%s\n' "$args" | tr ' \t' '\n\n' | grep '/' | grep -v '^-' | tr -d "\"'" | grep -v '^$'); do
         case "$tok" in
           *[*?[]*) cmd_paths="${cmd_paths}${tok}
 " ;;

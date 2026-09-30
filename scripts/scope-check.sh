@@ -91,14 +91,21 @@ fi
 STORY_REL="${STORY#./}"
 CHANGED="$(printf '%s\n' "$CHANGED" | grep -v '^$' | grep -Fxv "$STORY_REL" | sort -u)"
 
-# memory/stats/anomalies.jsonl rides every committing cycle.sh verb on its own schedule,
-# never a story's own edit - drop it from the diff too, unless the story itself names it
-# under '## Files' (same reasoning as the story-file exclusion above). skills.json is NOT
-# cycle-owned (owner decision, story 12) - it counts like any other path.
-HOOKFILE=memory/stats/anomalies.jsonl
-if ! printf '%s\n' "$DECLARED" | grep -Fxq "$HOOKFILE"; then
-  CHANGED="$(printf '%s\n' "$CHANGED" | grep -Fxv "$HOOKFILE")"
-fi
+# The hive's jsonl ledgers (memory/stats/*.jsonl: anomalies, ship, council, scope, ...) ride the
+# cycle's own verbs on their own schedule - a `--record` or a hook can leave one dirty in the tree
+# before a story starts - never a story's own edit. Drop them from the diff too, unless the story
+# itself names one under '## Files' (same reasoning as the story-file exclusion above). skills.json
+# is NOT cycle-owned (owner decision, story 12) - it counts like any other path.
+# (mmorpg evolve 2026-09-29: was anomalies.jsonl only; a leftover ship.jsonl scored every story of
+# w2-n4-tails2 and w2-n4-tails-03 as out of scope.)
+LEDGERS="$(printf '%s\n' "$CHANGED" | grep -E '^memory/stats/[^/]+\.jsonl$')"
+while IFS= read -r ledger; do
+  [ -z "$ledger" ] && continue
+  printf '%s\n' "$DECLARED" | grep -Fxq "$ledger" && continue
+  CHANGED="$(printf '%s\n' "$CHANGED" | grep -Fxv "$ledger")"
+done <<EOF
+$LEDGERS
+EOF
 
 # Siblings (working tree only): every other story file of this spec that is not `done`.
 if [ -z "$RANGE" ]; then
