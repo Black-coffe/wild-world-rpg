@@ -31,10 +31,13 @@
 ## Stories
 
 **Wave 1**
-- `w2-n5-deeds-01` — ядро «Дела»: модели хаба, списков квестов и событий; `QuestStartService`; блокировка в старте, выборе ветки и выдаче ежедневок; бот-экраны — рендереры с прежним текстом.
+- `w2-n5-deeds-01` — пути записи: `QuestStartService::start()` (тело `GenericQuestStartAction` + четыре легаси-старта), блокировка строки персонажа в старте, выборе ветки и выдаче ежедневок.
 
 **Wave 2**
-- `w2-n5-deeds-02` — веб `view=tasks`: хаб, списки, карточка, события, старт квеста и выбор ветки с `intent_id`, замки флагов, док.
+- `w2-n5-deeds-02` — модели «Дела»: хаб (`TasksSurfaceService`), списки квестов (`QuestListService`), события (`EventsModelService`); бот-экраны — рендереры с прежним текстом (паритет тестом).
+
+**Wave 3**
+- `w2-n5-deeds-03` — веб `view=tasks`: хаб, списки, карточка, события, старт квеста и выбор ветки с `intent_id`, замки флагов, док.
 
 ## Contracts
 - `QuestStartService::start(int $characterId, string $titleEn): array{ok: bool, code: string, message: string, title_ru: ?string}`;
