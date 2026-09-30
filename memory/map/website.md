@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-30
+last-verified: 2026-10-01
 
 # Scout report: Публичный сайт wildworld.fun
 
@@ -37,6 +37,9 @@ last-verified: 2026-09-30
   `op=cell|step|march_*`. «Крафт» `view=craft` (`Config\CraftCatalog`, `CraftOrderService`/
   `CraftQueueService`, `craft.md`); `op=craft_start|craft_cancel`. «База» `view=base`
   (`BaseScreenService`, `BuildOrderService`/`BuildingUpgradeService`, `bases.md`); `op=build_start|upgrade`.
+  «📋 Дела» `view=tasks` (w2-n5-deeds; `TASK_SECTIONS` hub|active|available|completed|events|quest,
+  `tasksModel()`; `op=quest_start|quest_branch` — ядро бота под блокировкой персонажа; вьюха
+  `native_tasks`; `quests-events-npc.md`, `services/WebNativeScreenService.md`).
   Вьюхи `site/_play/native_*`, `hud`, `dock`, `state`; JS `wildworld-play.js` (`[data-ends-at]`, тик 1 с).
 - Публичная карта `/map` → `app/Controllers/Map.php`: цвета из `BiomePalette`, PNG `?v=filemtime`;
   вошедшему при `web.play_enabled` — «Играть отсюда» → `/play?view=map`.

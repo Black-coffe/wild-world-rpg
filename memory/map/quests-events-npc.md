@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-23
+last-verified: 2026-10-01
 
 # Scout report: Квесты, события, NPC
 
@@ -38,6 +38,13 @@ outbound: ресурсы, статы, `Services/Notifications`, `GameSettings`.
 - Карточка квеста (`Actions/Quest/QuestsInfo`) — одна для всех, из строки `quests`. Кнопка
   `questInfo_id<id>`; легаси `questInfo_<title_en>` принимается (хвост после первого префикса
   целиком). Неизвестный квест → честный отказ. Нота: `tech-writing/handlers/quest/QuestsInfo.md`.
+
+- Старт квеста — единое ядро `Services/Quest/QuestStartService::start()` (исходы `STARTED|ALREADY|LOCKED|
+  DISABLED|UNKNOWN`; `LEGACY_STARTS` — четыре старые `QuestStart*`-экшена), общее для бота
+  (`GenericQuestStartAction`, `QuestBranchChooseAction`) и веба (`WebNativeScreenService` `:quest_start`/
+  `:quest_branch`, под блокировкой персонажа). Списки квестов — `QuestListService` (active/available/
+  completed/branches), события для экрана — `EventsModelService::model()`, хаб — `TasksSurfaceService::model()`.
+  Заметки: `tech-writing/services/{QuestStartService,QuestListService,EventsModelService,TasksSurfaceService}.md`.
 
 ## Vault
 `mmorpg-vault/apps/quests/index.md` · `mmorpg-vault/apps/events/index.md` · `mmorpg-vault/apps/npc/index.md`
