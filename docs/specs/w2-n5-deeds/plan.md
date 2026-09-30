@@ -62,3 +62,4 @@
 **Branch:** vulyk/w2-n5-deeds
 **Council:** RED round 1, 2026-09-30, at 28d25e40, pack 7e6f6c2df069
 **Council:** GREEN round 2, 2026-09-30, at f75506f9, pack 2ca5abd4b506
+**Shipped:** v0.51.687, 2026-09-30, at 50ece5a3 - merged to develop, publish pending

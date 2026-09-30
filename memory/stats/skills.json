@@ -1,7 +1,7 @@
 {
   "vulyk-plan": {
-    "count": 9,
-    "last_used": "2026-09-28"
+    "count": 10,
+    "last_used": "2026-09-30"
   },
   "google-mcp-browser": {
     "count": 9,
@@ -12,20 +12,20 @@
     "last_used": "2026-09-16"
   },
   "handoff": {
-    "count": 7,
-    "last_used": "2026-09-27"
+    "count": 9,
+    "last_used": "2026-09-30"
   },
   "vulyk-build": {
-    "count": 16,
-    "last_used": "2026-09-27"
+    "count": 17,
+    "last_used": "2026-09-30"
   },
   "vulyk-review": {
     "count": 1,
     "last_used": "2026-09-02"
   },
   "vulyk-ship": {
-    "count": 11,
-    "last_used": "2026-09-27"
+    "count": 12,
+    "last_used": "2026-10-01"
   },
   "vulyk-resume": {
     "count": 1,
@@ -54,5 +54,17 @@
   "supergrill": {
     "count": 1,
     "last_used": "2026-09-26"
+  },
+  "vulyk-gc": {
+    "count": 1,
+    "last_used": "2026-09-29"
+  },
+  "vulyk-evolve": {
+    "count": 1,
+    "last_used": "2026-09-29"
+  },
+  "vulyk-map": {
+    "count": 1,
+    "last_used": "2026-09-30"
   }
 }

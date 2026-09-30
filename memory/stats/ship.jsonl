@@ -20,3 +20,4 @@
 {"ts":"2026-09-29T20:14:56Z","spec":"w2-n4-tails2","version":"v0.51.683","head":"5d9a3aed","pack":"24701c66188e","note":"merged to develop, tag v0.51.683 on develop after green preprod smoke"}
 {"ts":"2026-09-29T21:13:26Z","spec":"web-accounts-hardening","version":"v0.51.684","head":"6c58d013","pack":"8b8f957648e6","note":"merged to develop, tag v0.51.684 on develop after green preprod smoke"}
 {"ts":"2026-09-29T22:23:30Z","spec":"web-accounts-oauth-only","version":"v0.51.685","head":"03db8f73","pack":"6da6d2997fc9","note":"merged to develop, tag v0.51.685 on develop after green preprod smoke"}
+{"ts":"2026-09-30T21:36:03Z","spec":"w2-n5-deeds","version":"v0.51.687","head":"50ece5a3","pack":"2ca5abd4b506","note":"merged to develop, publish pending"}
