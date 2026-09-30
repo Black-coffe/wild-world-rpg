@@ -2921,6 +2921,66 @@ section.block:first-of-type { border-top: 0; }
         </article>
       </div>
     </div>
+    <h3 class="mt-3" id="play-tasks-demo">Дела — сводка с таймером, квесты, задания дня, развилка (W2.N5-03)</h3>
+    <p class="muted">Собрано из готовых блоков: вкладки разделов — сетка кнопок, идущая задача — строка очереди с таймером и «⛔️ Прервать», сводка квестов — плитки фактов, задания дня — строки «прогресс / цель» (не выполнено — красным), развилка — секция-предупреждение. Выключенный раздел — тот же замок «🔒 … (нужно: …)», что у крафта и базы.</p>
+    <div class="play-shell is-native mt-2">
+      <div class="play-screen">
+        <article class="play-native" aria-label="Дела">
+          <header class="play-native-head">
+            <h2 class="play-native-title">📋 Дела</h2>
+            <p class="play-craft-crumbs">Дела → 📋 Сводка</p>
+          </header>
+          <nav class="play-kb" aria-label="Разделы «Дел»">
+            <div class="play-kb-grid">
+              <form action="#play" method="post"><button class="play-kb-btn is-primary" type="submit">📋 Сводка</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🚀 Активные</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">📜 Доступные</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">✅ Завершённые</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🎉 События</button></form>
+            </div>
+          </nav>
+          <div class="play-native-note">🧭 Цель: построй первую базу — «🏠 База» в нижнем меню.</div>
+          <section class="play-native-section" aria-label="Идёт сейчас">
+            <h3 class="play-native-subtitle is-plain">⏳ Идёт сейчас (1)</h3>
+            <ul class="play-craft-jobs">
+              <li class="play-craft-job is-active">
+                <span class="play-craft-job-name">1) Сбор древесины</span>
+                <span class="play-craft-job-meta">осталось <time class="play-craft-timer">12:40</time></span>
+                <form action="#play" method="post"><button class="play-kb-btn" type="submit">⛔️ Прервать</button></form>
+              </li>
+            </ul>
+          </section>
+          <section class="play-native-section" aria-label="Квесты">
+            <h3 class="play-native-subtitle is-plain">📜 Квесты</h3>
+            <dl class="play-craft-facts">
+              <div><dt>🚀 Активных</dt><dd>1</dd></div>
+              <div><dt>📜 Доступно</dt><dd>3</dd></div>
+              <div><dt>🔒 По цепочке</dt><dd>2</dd></div>
+              <div><dt>✅ Завершено</dt><dd>4</dd></div>
+            </dl>
+          </section>
+          <section class="play-native-section" aria-label="Задания дня">
+            <h3 class="play-native-subtitle is-plain">🗓 Задания дня</h3>
+            <ul class="play-craft-reqs" aria-label="Задания дня">
+              <li class="play-craft-req"><span class="play-craft-req-name">✅ Добыть дерево · +120 зол.</span><span class="play-craft-req-qty">10 / 10</span></li>
+              <li class="play-craft-req is-short"><span class="play-craft-req-name">▫️ Пройти клетки · +150 зол.</span><span class="play-craft-req-qty">3 / 15</span></li>
+            </ul>
+          </section>
+          <section class="play-native-section is-warning" aria-label="Развилка">
+            <h3 class="play-native-subtitle">🔀 Развилка после «Запас дров»</h3>
+            <div class="play-kb-grid">
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🔀 Путь торговца</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🔀 Путь разведчика</button></form>
+            </div>
+          </section>
+          <div class="play-lock">
+            <span class="play-lock-title">🔒 Задания дня (нужно: раздел включат на сервере)</span>
+            <span class="play-lock-why">Задания дня сейчас выключены — и в боте, и здесь. Когда их включат, набор на сегодня появится здесь сам.</span>
+            <span class="play-lock-path">Путь: 📋 Дела → 📋 Сводка → 🗓 Задания дня</span>
+          </div>
+        </article>
+      </div>
+    </div>
   </div>
 </section>
 

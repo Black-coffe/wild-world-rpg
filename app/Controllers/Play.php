@@ -56,6 +56,11 @@ use InvalidArgumentException;
  * W2.N4-03: `view=base` + `b`/`section`/`key`/`id` — экран «🏠 База» (выбор базы, обзор, «что можно построить»,
  * карточка постройки, превью апгрейда; без JS — PRG на `/play?view=base&…`); `op=build_start` + `key` и
  * `op=upgrade` + `id` (+ `b`, `intent_id`) — то же ядро, что у бота. Повтор `intent_id` ничего не делает.
+ *
+ * w2-n5-deeds-03: `view=tasks` + `section`/`id` — экран «📋 Дела» (хаб, списки квестов, карточка квеста, события;
+ * без JS — PRG на `/play?view=tasks&…`); `op=quest_start` и `op=quest_branch` + `id` + `intent_id` — старт квеста и
+ * выбор ветки тем же ядром, что у бота (проверка и вставка под блокировкой строки персонажа). Повтор `intent_id`
+ * ничего не делает.
  */
 class Play extends BaseController
 {
@@ -108,7 +113,7 @@ class Play extends BaseController
                     $preview = $this->native()->marchPreview($characterId, $wanted['dir'], $wanted['n']);
                     $preview = $preview['ok'] ? $preview : null;
                 }
-                $native = $this->native()->render($characterId, $view, $result['state'], $alert, self::eventList($events), $preview, self::craftNav($this->request->getGet(...)), self::baseNav($this->request->getGet(...)));
+                $native = $this->native()->render($characterId, $view, $result['state'], $alert, self::eventList($events), $preview, self::craftNav($this->request->getGet(...)), self::baseNav($this->request->getGet(...)), self::tasksNav($this->request->getGet(...)));
             } catch (\Throwable $e) {
                 log_message('error', '[Play.index] native view failed: ' . $e::class . ': ' . $e->getMessage());
             }
@@ -182,7 +187,23 @@ class Play extends BaseController
         $preview = null;
         $craft   = self::craftNav($this->request->getPost(...));
         $base    = self::baseNav($this->request->getPost(...));
-        if ($view === WebNativeScreenService::VIEW_BASE && $op === WebNativeScreenService::OP_BUILD_START) {
+        $tasks   = self::tasksNav($this->request->getPost(...));
+        if ($view === WebNativeScreenService::VIEW_TASKS && is_string($op)
+            && in_array($op, [WebNativeScreenService::OP_QUEST_START, WebNativeScreenService::OP_QUEST_BRANCH], true)) {
+            $intentId = $this->request->getPost('intent_id');
+            $intentId = is_string($intentId) ? $intentId : '';
+            try {
+                $alert = $op === WebNativeScreenService::OP_QUEST_START
+                    ? $this->native()->questStart($accountId, $characterId, $tasks['id'] ?? 0, $intentId)
+                    : $this->native()->questBranch($accountId, $characterId, $tasks['id'] ?? 0, $intentId);
+            } catch (InvalidArgumentException $e) {
+                log_message('info', '[Play.view] quest ' . $op . ' rejected: ' . $e->getMessage());
+
+                return $this->rejected($characterId);
+            }
+            // Старт — карточка квеста (теперь «идёт»), ветка — список активных.
+            $tasks = $op === WebNativeScreenService::OP_QUEST_START ? ['section' => 'quest'] + $tasks : ['section' => 'active'];
+        } elseif ($view === WebNativeScreenService::VIEW_BASE && $op === WebNativeScreenService::OP_BUILD_START) {
             $intentId = $this->request->getPost('intent_id');
             try {
                 $alert = $this->native()->buildStart($accountId, $characterId, $base['b'] ?? null, $base['key'] ?? '', is_string($intentId) ? $intentId : '');
@@ -335,6 +356,7 @@ class Play extends BaseController
             $query = match (true) {
                 $view === WebNativeScreenService::VIEW_CRAFT && $craft !== [] => '&' . http_build_query($craft),
                 $view === WebNativeScreenService::VIEW_BASE && $base !== []   => '&' . http_build_query($base),
+                $view === WebNativeScreenService::VIEW_TASKS && $tasks !== [] => '&' . http_build_query($tasks),
                 default                                                     => '',
             };
 
@@ -343,7 +365,7 @@ class Play extends BaseController
 
         $current = $this->service()->current($characterId);
         try {
-            $html = $this->native()->render($characterId, $view, $current['state'], $alert, $events, $preview, $craft, $base);
+            $html = $this->native()->render($characterId, $view, $current['state'], $alert, $events, $preview, $craft, $base, $tasks);
         } catch (InvalidArgumentException $e) {
             log_message('info', '[Play.view] render rejected: ' . $e->getMessage());
 
@@ -594,6 +616,29 @@ class Play extends BaseController
         $key = $read('key');
         if (is_string($key) && preg_match('/^[A-Za-z]{1,40}$/', $key) === 1) {
             $out['key'] = $key;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Где стоит экран «📋 Дела»: раздел и id квеста (карточка, старт, ветка; только подсказка — ядро
+     * перепроверяет). Всё прочее отбрасывается.
+     *
+     * @param callable(string): mixed $read чтение поля запроса (GET или POST)
+     *
+     * @return array{section?:string, id?:int}
+     */
+    private static function tasksNav(callable $read): array
+    {
+        $out     = [];
+        $section = $read('section');
+        if (is_string($section) && in_array($section, WebNativeScreenService::TASK_SECTIONS, true)) {
+            $out['section'] = $section;
+        }
+        $id = $read('id');
+        if (is_string($id) && preg_match('/^[1-9]\d{0,11}$/', $id) === 1) {
+            $out['id'] = (int) $id;
         }
 
         return $out;

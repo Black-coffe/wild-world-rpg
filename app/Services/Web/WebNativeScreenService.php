@@ -19,6 +19,13 @@ use App\Services\Logging\PlayerActionLogger;
 use App\Services\Player\CharacterSheetService;
 use App\Services\Player\EquipmentLoadoutService;
 use App\Services\Player\InventoryViewService;
+use App\Models\QuestModel;
+use App\Services\Events\EventsModelService;
+use App\Services\Quest\DailyTaskService;
+use App\Services\Quest\QuestChainService;
+use App\Services\Quest\QuestListService;
+use App\Services\Quest\QuestStartService;
+use App\Services\Tasks\TasksSurfaceService;
 use App\Services\Telegram\BotMenuService;
 use App\Services\World\LiveMapService;
 use App\Services\World\MarchService;
@@ -77,6 +84,13 @@ use InvalidArgumentException;
  * одноразовые подсказки веб-игроку уходят в его чат (виртуальный — во входящие). Действия зданий и базы без
  * нативного экрана — мост от «🏠 База» бота ({@see baseRoute()}).
  *
+ * w2-n5-deeds-03: «📋 Дела» (`view=tasks`) — хаб ({@see TasksSurfaceService::model()}: задачи с таймером, сводка
+ * квестов, задания дня), три списка квестов и развилки ({@see QuestListService}), карточка квеста из строки
+ * `quests`, «События» ({@see EventsModelService}). Старт квеста ({@see questStart()}, `:quest_start`) и выбор
+ * ветки ({@see questBranch()}, `:quest_branch`) — ядро бота под блокировкой строки персонажа, один раз на
+ * `intent_id`. Выключенный хаб или задания дня — строка-замок. «⛔️ Прервать» и «🌐 Квестомания» — мост от
+ * `/tasks` бота ({@see tasksRoute()}).
+ *
  * Ключ дедупа — `intent_id` + суффикс ступени; {@see intentKey()} держит его в VARCHAR(64)
  * `web_play_intents` при любом допустимом `intent_id`.
  *
@@ -87,6 +101,7 @@ use InvalidArgumentException;
  * @phpstan-import-type Preview from MarchService
  * @phpstan-type CraftNav array{bench?:string, cat?:string, recipe?:string}
  * @phpstan-type BaseNav array{b?:int, section?:string, key?:string, id?:int, from?:int}
+ * @phpstan-type TasksNav array{section?:string, id?:int}
  */
 class WebNativeScreenService
 {
@@ -96,15 +111,25 @@ class WebNativeScreenService
     public const VIEW_MAP       = 'map';
     public const VIEW_CRAFT     = 'craft';
     public const VIEW_BASE      = 'base';
+    public const VIEW_TASKS     = 'tasks';
 
     /** Экраны, у которых уже есть нативная вьюха. */
-    public const VIEWS = [self::VIEW_ME, self::VIEW_INVENTORY, self::VIEW_GEAR, self::VIEW_MAP, self::VIEW_CRAFT, self::VIEW_BASE];
+    public const VIEWS = [self::VIEW_ME, self::VIEW_INVENTORY, self::VIEW_GEAR, self::VIEW_MAP, self::VIEW_CRAFT, self::VIEW_BASE, self::VIEW_TASKS];
 
     /** Подписи нижнего меню → нативный экран. */
     private const DOCK_VIEWS = [
         '🧑 Я' => self::VIEW_ME, 'Перс' => self::VIEW_ME, '🌍 Мир' => self::VIEW_MAP, 'Карта' => self::VIEW_MAP,
         '🔨 Крафт' => self::VIEW_CRAFT, 'Крафт' => self::VIEW_CRAFT, '🏠 База' => self::VIEW_BASE, 'База' => self::VIEW_BASE,
+        '📋 Дела' => self::VIEW_TASKS,
     ];
+
+    /** «📋 Дела»: разделы экрана и мутации с дедупом по `intent_id`. */
+    public const TASK_SECTIONS   = ['hub', 'active', 'available', 'completed', 'events', 'quest'];
+    public const OP_QUEST_START  = 'quest_start';
+    public const OP_QUEST_BRANCH = 'quest_branch';
+
+    /** Вход в мост к кнопкам «Дел» без нативного аналога — slash-команда экрана «📋 Дела» бота. */
+    private const TASKS_ENTRY = '/tasks';
 
     /** «🏠 База»: разделы экрана и мутации с дедупом по `intent_id`. */
     public const BASE_SECTIONS    = ['overview', 'catalog', 'building', 'upgrade'];
@@ -198,6 +223,18 @@ class WebNativeScreenService
 
     private BuildingUpgradeService $upgrades;
 
+    private TasksSurfaceService $tasks;
+
+    private QuestListService $questLists;
+
+    private EventsModelService $eventsModel;
+
+    private QuestStartService $questStart;
+
+    private QuestChainService $chain;
+
+    private DailyTaskService $daily;
+
     public function __construct(
         private ?WebActService $act = null,
         ?CharacterSheetService $sheets = null,
@@ -210,7 +247,13 @@ class WebNativeScreenService
         ?CraftQueueService $queue = null,
         ?BaseScreenService $bases = null,
         ?BuildOrderService $builds = null,
-        ?BuildingUpgradeService $upgrades = null
+        ?BuildingUpgradeService $upgrades = null,
+        ?TasksSurfaceService $tasks = null,
+        ?QuestListService $questLists = null,
+        ?EventsModelService $eventsModel = null,
+        ?QuestStartService $questStart = null,
+        ?QuestChainService $chain = null,
+        ?DailyTaskService $daily = null
     ) {
         $this->sheets    = $sheets ?? new CharacterSheetService();
         $this->inventory = $inventory ?? new InventoryViewService();
@@ -223,6 +266,12 @@ class WebNativeScreenService
         $this->bases     = $bases ?? new BaseScreenService();
         $this->builds    = $builds ?? new BuildOrderService();
         $this->upgrades  = $upgrades ?? new BuildingUpgradeService();
+        $this->tasks       = $tasks ?? new TasksSurfaceService();
+        $this->questLists  = $questLists ?? new QuestListService();
+        $this->eventsModel = $eventsModel ?? new EventsModelService();
+        $this->chain       = $chain ?? new QuestChainService();
+        $this->questStart  = $questStart ?? new QuestStartService($this->chain);
+        $this->daily       = $daily ?? new DailyTaskService();
     }
 
     public static function isView(mixed $view): bool
@@ -258,12 +307,21 @@ class WebNativeScreenService
      * @param Preview|null         $preview превью Похода под картой (клик по клетке на луче)
      * @param CraftNav             $craft   где стоит экран крафта: верстак, категория, рецепт
      * @param BaseNav              $base    где стоит экран базы: база, раздел, постройка
+     * @param TasksNav             $tasks   где стоит экран «Дела»: раздел, квест карточки
      *
      * @throws InvalidArgumentException неизвестный экран или нет персонажа
      */
-    public function render(int $characterId, string $view, array $state, ?string $alert = null, array $events = [], ?array $preview = null, array $craft = [], array $base = []): string
+    public function render(int $characterId, string $view, array $state, ?string $alert = null, array $events = [], ?array $preview = null, array $craft = [], array $base = [], array $tasks = []): string
     {
         $dock = is_array($state['dock'] ?? null) ? $state['dock'] : [];
+
+        if ($view === self::VIEW_TASKS) {
+            return view('site/_play/native_tasks', [
+                'tasks' => $this->tasksModel($characterId, $tasks),
+                'dock'  => $dock,
+                'alert' => $alert,
+            ]);
+        }
 
         if ($view === self::VIEW_BASE) {
             return view('site/_play/native_base', [
@@ -918,6 +976,163 @@ class WebNativeScreenService
     }
 
     /**
+     * Модель экрана «📋 Дела»: `hub` — задачи с таймером, сводка квестов, задания дня (замок, если хаб или
+     * задания дня выключены — те же флаги, что у бота); `active` / `available` (с замками цепочки и
+     * развилками) / `completed` — списки квестов; `quest` — карточка квеста `id` из строки `quests` со статусом
+     * у персонажа; `events` — активные и прошедшие события. Неизвестный раздел — хаб, чужой квест — «Доступные».
+     *
+     * @param TasksNav $nav
+     *
+     * @return array<string, mixed>
+     */
+    public function tasksModel(int $characterId, array $nav): array
+    {
+        $section = in_array($nav['section'] ?? null, self::TASK_SECTIONS, true) ? $nav['section'] : 'hub';
+        $hubOn   = $this->tasks->enabled();
+        $dailyOn = $this->daily->enabled();
+        $model   = [
+            'section'       => $section,
+            'hub_enabled'   => $hubOn,
+            'daily_enabled' => $dailyOn,
+            'hub'           => null,
+            'active'        => [],
+            'available'     => [],
+            'completed'     => [],
+            'branches'      => [],
+            'card'          => null,
+            'events'        => null,
+        ];
+
+        if ($section === 'hub') {
+            if ($hubOn) {
+                if ($dailyOn) {
+                    // Набор на сегодня — как при заходе в бот (под блокировкой строки персонажа, без дублей дня).
+                    try {
+                        $this->daily->ensureAssigned(['id' => $characterId, 'level' => $this->characterLevel($characterId)]);
+                    } catch (\Throwable $e) {
+                        log_message('error', '[WebNativeScreenService] daily assign failed: ' . $e::class . ': ' . $e->getMessage());
+                    }
+                }
+                $model['hub'] = $this->tasks->model($characterId);
+            }
+
+            return $model;
+        }
+        if ($section === 'events') {
+            $model['events'] = $this->eventsModel->model($characterId);
+        } elseif ($section === 'active') {
+            $model['active'] = $this->questLists->active($characterId);
+        } elseif ($section === 'completed') {
+            $model['completed'] = $this->questLists->completed($characterId);
+        } elseif ($section === 'quest') {
+            $model['card'] = $this->questCard($characterId, $nav['id'] ?? 0);
+        }
+        if ($section === 'available' || ($section === 'quest' && $model['card'] === null)) {
+            $model['section']   = 'available';
+            $model['available'] = $this->questLists->available($characterId);
+            $model['branches']  = $this->questLists->branches($characterId);
+        }
+
+        return $model;
+    }
+
+    /**
+     * Старт квеста из веба: то же ядро, что у бота ({@see QuestStartService::start()} — проверка «уже начат» и
+     * вставка под блокировкой строки персонажа), один раз на `intent_id`. Отказ пишется в `action_log`.
+     *
+     * @return string|null ответ для игрока; null — повтор того же намерения
+     *
+     * @throws InvalidArgumentException плохой квест или намерение
+     */
+    public function questStart(int $accountId, int $characterId, int $questId, string $intentId): ?string
+    {
+        if ($questId <= 0) {
+            throw new InvalidArgumentException('bad quest id');
+        }
+        self::assertIntent($intentId);
+        if (! $this->claim($accountId, $intentId, ':' . self::OP_QUEST_START)) {
+            return null;
+        }
+
+        $quest   = (new QuestModel())->find($questId);
+        $titleEn = is_array($quest) && is_string($quest['title_en'] ?? null) ? $quest['title_en'] : '';
+        $out     = $this->questStart->start($characterId, $titleEn);
+        if (! $out['ok']) {
+            $this->logRejected($characterId, 'QUEST_START_' . ($titleEn !== '' ? $titleEn : (string) $questId), $out['code']);
+
+            return self::plain($out['message']);
+        }
+        $reward = $out['reward'] > 0 ? " Награда за завершение: {$out['reward']}." : '';
+
+        return '📜 Квест начат: ' . ($out['title_ru'] ?? $titleEn) . ".{$reward} Прогресс — в «🚀 Активные».";
+    }
+
+    /**
+     * Выбор ветки развилки из веба: то же ядро, что у бота ({@see QuestChainService::chooseBranch()} — под
+     * блокировкой строки персонажа), один раз на `intent_id`. Выбор необратим.
+     *
+     * @return string|null ответ для игрока; null — повтор того же намерения
+     *
+     * @throws InvalidArgumentException плохой квест или намерение
+     */
+    public function questBranch(int $accountId, int $characterId, int $questId, string $intentId): ?string
+    {
+        if ($questId <= 0) {
+            throw new InvalidArgumentException('bad branch id');
+        }
+        self::assertIntent($intentId);
+        if (! $this->claim($accountId, $intentId, ':' . self::OP_QUEST_BRANCH)) {
+            return null;
+        }
+        $out = $this->chain->chooseBranch($characterId, $questId);
+        if (! $out['ok']) {
+            $this->logRejected($characterId, 'QUEST_BRANCH_' . $questId, $out['reason']);
+
+            return QuestChainService::branchRefusalText($out['reason']);
+        }
+        $title = $out['title_ru'] !== '' ? $out['title_ru'] : 'выбранный путь';
+
+        return "🔀 Путь выбран: {$title}." . ($out['reward'] > 0 ? " Награда за завершение: {$out['reward']} золота." : '')
+            . ' Остальные ветки этой развилки закрыты.';
+    }
+
+    /**
+     * Карточка квеста `id` со статусом у персонажа: идёт, завершён, можно начать или заперт звеном цепочки;
+     * null — квеста нет ни в одном списке персонажа (чужое и выключенное флагом не показываем).
+     *
+     * @return array<string, mixed>|null
+     */
+    private function questCard(int $characterId, int $questId): ?array
+    {
+        if ($questId <= 0) {
+            return null;
+        }
+        foreach (['active' => $this->questLists->active($characterId), 'completed' => $this->questLists->completed($characterId)] as $status => $list) {
+            foreach ($list as $q) {
+                if ($q['id'] === $questId) {
+                    return $q + ['status' => $status, 'lock_reason' => ''];
+                }
+            }
+        }
+        foreach ($this->questLists->available($characterId) as $q) {
+            if ($q['id'] === $questId) {
+                return $q + ['status' => $q['locked'] ? 'locked' : 'available'];
+            }
+        }
+
+        return null;
+    }
+
+    /** Уровень персонажа для выдачи заданий дня (1 — персонажа нет). */
+    private function characterLevel(int $characterId): int
+    {
+        $res = \Config\Database::connect()->table('characters')->select('level')->where('id', $characterId)->get();
+        $row = $res === false ? null : $res->getRowArray();
+
+        return is_array($row) && is_numeric($row['level'] ?? null) ? (int) $row['level'] : 1;
+    }
+
+    /**
      * Кнопка нативного экрана без нативного аналога → тот же callback через мост.
      *
      * @return array{state: State, alert: ?string, unread: int}
@@ -932,7 +1147,8 @@ class WebNativeScreenService
             return $this->baseBridge($this->act ?? new WebActService(), $accountId, $characterId, $callback, $intentId, $baseSteps);
         }
         $craft = self::craftRoute($callback);
-        $route = $craft ?? $this->routeTo($characterId, $callback);
+        $tasks = $craft === null ? self::tasksRoute($callback) : null;
+        $route = $craft ?? $tasks ?? $this->routeTo($characterId, $callback);
         $onMap = $route === null;
         if ($onMap && ! $this->isMapCallback($characterId, $callback)) {
             throw new InvalidArgumentException('callback is not on a native screen');
@@ -942,11 +1158,11 @@ class WebNativeScreenService
         $result = $act->current($characterId);
         if (self::messageWith($result['state'], $callback) === null) {
             // Путь игрока в Telegram: карточка «Я» (для кнопок карты — экран «🌍 Мир», для нехватки
-            // крафта — хаб «🔨 Крафт»), затем кнопки маршрута.
-            $result = $act->act($accountId, $characterId, ($onMap || $craft !== null) ? [
+            // крафта — хаб «🔨 Крафт», для «Дел» — `/tasks`), затем кнопки маршрута.
+            $result = $act->act($accountId, $characterId, ($onMap || $craft !== null || $tasks !== null) ? [
                 'intent_id' => self::intentKey($intentId, ':card'),
                 'kind'      => WebActService::KIND_COMMAND,
-                'data'      => $craft !== null ? CraftCatalog::BOT_ENTRY : self::MAP_ENTRY,
+                'data'      => $craft !== null ? CraftCatalog::BOT_ENTRY : ($tasks !== null ? self::TASKS_ENTRY : self::MAP_ENTRY),
             ] : [
                 'intent_id' => self::intentKey($intentId, ':card'),
                 'kind'      => WebActService::KIND_TEXT,
@@ -1042,6 +1258,21 @@ class WebNativeScreenService
         $info   = is_array($recipe) && is_string($recipe['info_callback'] ?? null) ? $recipe['info_callback'] : '';
 
         return (new CraftCatalog())->botRoute($m[1], $info);
+    }
+
+    /**
+     * Путь бота от `/tasks` к кнопке «Дел» без нативного экрана: «⛔️ Прервать» стоит на самом экране
+     * «📋 Дела», «🌐 Квестомания» — в «📜 Квестах»; null — это не такая кнопка.
+     *
+     * @return list<string>|null
+     */
+    private static function tasksRoute(string $callback): ?array
+    {
+        return match (true) {
+            preg_match('/^finishAllTasks_\d{1,12}$/', $callback) === 1 => [],
+            $callback === 'questInfo'                                 => ['questAndTask'],
+            default                                                   => null,
+        };
     }
 
     /**
