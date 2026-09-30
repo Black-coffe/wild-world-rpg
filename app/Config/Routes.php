@@ -231,9 +231,9 @@ $routes->get('kalkulyator-krafta/data', 'CraftCalculator::data');
 $routes->get('login/telegram/callback', 'TelegramLogin::callback');
 $routes->post('logout/telegram', 'TelegramLogin::logout');
 
-// ADR-188 / web-accounts-p0 — аккаунт игрока на сайте. Группа объявлена целиком (story 05);
-// контроллеры AccountLink/AccountOAuth/AccountRegister приходят в stories 06-08,
-// до того их маршруты отдают 404. accountThrottle — на каждом POST, кроме logout.
+// ADR-188 / web-accounts-p0 — аккаунт игрока на сайте. Вход только OAuth (Google, Яндекс),
+// Telegram-виджет и код из бота (web-accounts-oauth-only, 2026-09-30): почты и паролей нет.
+// accountThrottle — на каждом POST, кроме logout.
 $routes->group('account', static function ($routes) {
     $throttle = ['filter' => 'accountThrottle'];
 

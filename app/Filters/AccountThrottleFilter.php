@@ -18,8 +18,9 @@ use Config\WebPlay;
  * web-accounts-p0-05 (ADR-188) — лимит попыток на формах `/account/*` (POST).
  *
  * Два ведра CI4 Throttler: по IP (`Config\Accounts::$throttleIpPerMinute` в минуту) и по
- * идентификатору — email или код из формы (`$throttleIdentifierPerHour` в час). Идентификатор
- * защищает конкретный аккаунт от перебора с многих IP. Превышение → 429 со страницей входа
+ * идентификатору — код из бота в форме (`$throttleIdentifierPerHour` в час). Идентификатор
+ * защищает код от перебора с многих IP. Почты на сайте нет с web-accounts-oauth-only
+ * (2026-09-30), поэтому поле `email` не считается. Превышение → 429 со страницей входа
  * и читаемым уведомлением.
  *
  * web-bridge-p1-07 (ADR-189 §6, plan A9) — аргументы `accountThrottle:play` и
@@ -104,14 +105,9 @@ class AccountThrottleFilter implements FilterInterface
 
     private function identifier(IncomingRequest $request): ?string
     {
-        foreach (['email', 'code'] as $field) {
-            $value = $request->getPost($field);
-            if (is_string($value) && trim($value) !== '') {
-                return $field . ':' . mb_strtolower(trim($value));
-            }
-        }
+        $value = $request->getPost('code');
 
-        return null;
+        return is_string($value) && trim($value) !== '' ? 'code:' . mb_strtolower(trim($value)) : null;
     }
 
     private function tooMany(int $waitSeconds): ResponseInterface
@@ -123,7 +119,6 @@ class AccountThrottleFilter implements FilterInterface
             ->setHeader('Retry-After', (string) max(1, $waitSeconds))
             ->setBody(view('site/account_login', [
                 'error'       => "Слишком много попыток. Подожди {$minutes} мин. и попробуй снова.",
-                'email'       => '',
                 'botUsername' => '',
                 'meta'        => AccountAuth::meta(),
             ]));

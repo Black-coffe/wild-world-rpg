@@ -111,16 +111,16 @@ final class AccountAuthTest extends CIUnitTestCase
         $limit  = (new Accounts())->throttleIpPerMinute;
         $filter = new AccountThrottleFilter();
         for ($i = 0; $i < $limit; $i++) {
-            $this->assertNull($filter->before($this->postRequest('10.0.0.1', ['email' => "u{$i}@example.com"])), "attempt {$i} blocked too early");
+            $this->assertNull($filter->before($this->postRequest('10.0.0.1', ['code' => "CODE{$i}"])), "attempt {$i} blocked too early");
         }
 
-        $response = $filter->before($this->postRequest('10.0.0.1', ['email' => 'late@example.com']));
+        $response = $filter->before($this->postRequest('10.0.0.1', ['code' => 'LATE01']));
         $this->assertInstanceOf(ResponseInterface::class, $response);
         $this->assertSame(429, $response->getStatusCode());
         $this->assertStringContainsString('Слишком много попыток', (string) $response->getBody());
         $this->assertStringContainsString('Ввести код из бота', (string) $response->getBody(), '429 page still offers the bot-code login');
 
-        $this->assertNull($filter->before($this->postRequest('10.0.0.2', ['email' => 'other@example.com'])), 'other IP is not affected');
+        $this->assertNull($filter->before($this->postRequest('10.0.0.2', ['code' => 'OTHER1'])), 'other IP is not affected');
     }
 
     public function testThrottleReturns429PerIdentifierAcrossIps(): void
@@ -128,10 +128,10 @@ final class AccountAuthTest extends CIUnitTestCase
         $limit  = (new Accounts())->throttleIdentifierPerHour;
         $filter = new AccountThrottleFilter();
         for ($i = 0; $i < $limit; $i++) {
-            $this->assertNull($filter->before($this->postRequest("10.1.0.{$i}", ['email' => 'Target@Example.com'])));
+            $this->assertNull($filter->before($this->postRequest("10.1.0.{$i}", ['code' => 'Target7'])));
         }
 
-        $response = $filter->before($this->postRequest('10.1.1.1', ['email' => 'target@example.com ']));
+        $response = $filter->before($this->postRequest('10.1.1.1', ['code' => 'target7 ']));
         $this->assertInstanceOf(ResponseInterface::class, $response);
         $this->assertSame(429, $response->getStatusCode());
     }
