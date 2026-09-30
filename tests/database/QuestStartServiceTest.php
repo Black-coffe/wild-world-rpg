@@ -161,6 +161,27 @@ final class QuestStartServiceTest extends CIUnitTestCase
         $this->assertSame(0, (int) $this->other()->query('SELECT COUNT(*) AS n FROM quest_steps')->getRowArray()['n']);
     }
 
+    /** Bespoke-квест со своей кнопкой в боте (Explore30Cells) стартует и через ядро — как его видят «📜 Доступные». Прочие bespoke — нет. */
+    public function testLegacyBespokeQuestStartsThroughTheCoreOthersStayManualOnly(): void
+    {
+        $this->conn->query(
+            'INSERT INTO quests (id, title_ru, title_en, description, status, min_level, reward, reward_type, objective_type, prerequisite_quest) VALUES'
+            . " (5, 'Старый квест', 'OldBespoke', 'Без обработчика.', 'active', 1, 10, 'gold', NULL, NULL)"
+        );
+        $this->setFlag('quests.extended_enabled', false);
+        $service = new QuestStartService();
+
+        $ok = $service->start(1, 'Explore30Cells');
+        $this->assertTrue($ok['ok'], 'своя кнопка в боте — старт и без ADR-088');
+        $this->assertSame('Изучить 30 ячеек', $ok['title_ru']);
+        $this->assertSame(QuestStartService::ALREADY, $service->start(1, 'Explore30Cells')['code']);
+        $this->assertSame(1, $this->steps(1, 4));
+
+        $this->assertSame(QuestStartService::LOCKED, $service->start(2, 'Explore30Cells')['code'], 'уровень проверяется и у bespoke');
+        $this->assertSame(QuestStartService::DISABLED, $service->start(1, 'OldBespoke')['code']);
+        $this->assertSame(0, $this->steps(1, 5));
+    }
+
     public function testKillswitchOffMakesTheStartDisabled(): void
     {
         $this->setFlag('quests.extended_enabled', false);

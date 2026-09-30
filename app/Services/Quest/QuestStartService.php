@@ -13,7 +13,8 @@ use Config\Database;
  * (`GenericQuestStartAction` и четыре легаси-кнопки) и веб (`/play?view=tasks`) зовут одно и то же.
  *
  * `start()` — тело бывшего `GenericQuestStartAction`: квест активен, это startable-корень ADR-088
- * (killswitch `quests.extended_enabled`), фракция, уровень, не начат. `claimFirstStep()` — общий для
+ * (killswitch `quests.extended_enabled`) или bespoke-квест со своей кнопкой старта в боте ({@see LEGACY_STARTS},
+ * предусловие цепочки выполнено), фракция, уровень, не начат. `claimFirstStep()` — общий для
  * всех стартов шаг записи: проверка «уже есть строка `quest_steps`» и вставка идут в одной транзакции
  * под `SELECT … FOR UPDATE` строки персонажа. Двойной тап, повтор формы или бот+веб одновременно —
  * второй ждёт первого и видит его строку. `UNIQUE` на `quest_steps` не вводится (повторяемость квестов
@@ -28,6 +29,13 @@ final class QuestStartService
     public const UNKNOWN  = 'unknown';
 
     public const TEXT_ALREADY = 'Ты уже начал этот квест — смотри «🚀 Активные квесты».';
+
+    /**
+     * Bespoke-квесты (без `objective_type`), у которых в боте своя кнопка старта (exact-роуты
+     * `questStart<TitleEn>` в `CallbackRoutes`): их прогресс ведут собственные обработчики, поэтому стартовать
+     * их вручную можно и без ADR-088. Остальные bespoke — как в боте, «нельзя начать вручную».
+     */
+    public const LEGACY_STARTS = ['Explore30Cells', 'Explore300Cells', 'ExploreAllBiomes', 'FirstAidkitBasic'];
 
     private QuestChainService $chain;
 
@@ -61,7 +69,7 @@ final class QuestStartService
 
         // ADR-088: стартовать вручную можно только расширенные startable-«корни»
         // (killswitch + objective задан + не discover_object + без prerequisite).
-        if (! $this->chain->isExtendedStartableRoot($quest)) {
+        if (! $this->chain->isExtendedStartableRoot($quest) && ! $this->isLegacyStart($quest, $characterId)) {
             return $fail(self::DISABLED, 'Этот квест нельзя начать вручную.');
         }
 
@@ -92,6 +100,24 @@ final class QuestStartService
             'description' => is_string($quest['description'] ?? null) ? $quest['description'] : '',
             'reward'      => is_numeric($quest['reward'] ?? null) ? (int) $quest['reward'] : 0,
         ];
+    }
+
+    /**
+     * Bespoke-квест из {@see LEGACY_STARTS} с выполненным предусловием цепочки — тот, что «📜 Доступные»
+     * показывают и бот стартует своей кнопкой.
+     *
+     * @param array<int|string, mixed> $quest
+     */
+    private function isLegacyStart(array $quest, int $characterId): bool
+    {
+        if (! empty($quest['objective_type']) || ! in_array($quest['title_en'] ?? null, self::LEGACY_STARTS, true)) {
+            return false;
+        }
+
+        return $this->chain->prerequisiteMet(
+            $this->chain->prerequisiteOf($quest),
+            (new QuestModel())->getCompletedQuestTitles($characterId)
+        );
     }
 
     /**

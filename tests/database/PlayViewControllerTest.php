@@ -1202,6 +1202,12 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->assertSame('Ты уже начал этот квест — смотри «🚀 Активные квесты».', $second['alert']);
         $this->assertSame(1, $this->conn->table('quest_steps')->where('character_id', $charId)->where('quest_id', 1)->countAllResults());
 
+        // Bespoke-квест со своей кнопкой в боте — «Доступные» его предлагают, веб его стартует.
+        $this->assertStringContainsString('📜 Изучить 30 ячеек', html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'tasks', 'section' => 'available'], true))['html'], ENT_QUOTES | ENT_HTML5));
+        $legacy = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'tasks', 'op' => 'quest_start', 'id' => '2', 'intent_id' => 'q6'], true));
+        $this->assertSame('📜 Квест начат: Изучить 30 ячеек. Награда за завершение: 500. Прогресс — в «🚀 Активные».', $legacy['alert']);
+        $this->assertSame(1, $this->conn->table('quest_steps')->where('character_id', $charId)->where('quest_id', 2)->countAllResults());
+
         $locked = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'tasks', 'op' => 'quest_start', 'id' => '3', 'intent_id' => 'q3'], true));
         $this->assertSame('Этот квест нельзя начать вручную.', $locked['alert'], 'звено цепочки — отказ ядра');
         $this->assertSame(0, $this->conn->table('quest_steps')->where('quest_id', 3)->countAllResults());
@@ -1252,6 +1258,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
             . " (1, 'Запас дров', 'CollectWood', 'Принеси дерево на базу.', 'active', 1, 300, 'gold', 'collect_resource', 'wood', 10, NULL, NULL, NULL),"
             . " (3, 'Второй этап', 'ChainStage', 'Этап цепочки.', 'active', 1, 100, 'gold', NULL, NULL, NULL, 'CollectWood', NULL, NULL),"
             . " (4, 'Разминка', 'Warmup', 'Первые шаги.', 'active', 1, 50, 'gold', 'collect_resource', 'wood', 1, NULL, NULL, NULL),"
+            . " (2, 'Изучить 30 ячеек', 'Explore30Cells', 'Разведка.', 'active', 1, 500, 'gold', NULL, NULL, NULL, NULL, NULL, NULL),"
             . " (5, 'Путь торговца', 'TraderPath', 'Ветка.', 'active', 1, 200, 'gold', 'collect_resource', 'wood', 5, 'Warmup', 'g1', 'Торговец'),"
             . " (6, 'Путь разведчика', 'ScoutPath', 'Ветка.', 'active', 1, 200, 'gold', 'collect_resource', 'wood', 5, 'Warmup', 'g1', 'Разведчик')"
         );
