@@ -1,8 +1,8 @@
 ---
 story: w2-n5-deeds-03
 spec: w2-n5-deeds
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -47,5 +47,10 @@ memory/map/quests-events-npc.md · memory/map/website.md (нативные эк�
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `WebNativeScreenService`: `VIEW_TASKS`, док «📋 Дела» → `view=tasks`; `tasksModel()` (разделы hub / active / available / completed / quest / events; неизвестный квест → «Доступные»); `questStart()` (`:quest_start`, ядро `QuestStartService`) и `questBranch()` (`:quest_branch`, `QuestChainService::chooseBranch`) — один раз на `intent_id`, отказ — `action_log` REJECTED. Хаб при `quests.daily.enabled` зовёт `ensureAssigned` (блокировка ядра story 01).
+- Мост: «⛔️ Прервать» (`finishAllTasks_<id>`) и «🌐 Квестомания» (`questInfo` через `questAndTask`) идут от `/tasks` бота; кнопку, которой нет на экране бота, мост не жмёт.
+- Выключенный `navigation.tasks_hub.enabled` — замок вместо сводки, списки и события остаются кнопками; выключенные задания дня — замок в сводке. Док «📋 Дела» в вебе есть ровно тогда, когда он есть в reply-меню бота (паритет, без добавления кнопки).
+- Вьюха собрана только из существующих классов `wildworld-ui.css` (CSS не трогали, бамп `?v=` не нужен); образец в `ui-kit.html#play-tasks-demo`. Tier-2 на образце: 1904 / 768 / 375 — без горизонтального скролла, 0 радиусов и теней, консоль чистая.
+- Тесты: хаб, замки, мост — на двойниках; списки, замок цепочки, карточка, события, старт (одна строка `quest_steps`, второй intent — «уже начат», PRG) и ветка — на настоящих таблицах из миграций (`events` вручную, как в `EventsModelServiceTest`: миграция не проходит строгий MySQL). Фикстуры дока «📋 Дела → мост» сменены на «⚙️ Ещё».
 
 ## Findings

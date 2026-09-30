@@ -1,8 +1,8 @@
 ---
 story: w2-n5-deeds-02
 spec: w2-n5-deeds
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -31,6 +31,7 @@ blocked_by: [w2-n5-deeds-01]
 - tests/database/DeedsBotParityTest.php
 - tests/database/QuestListServiceTest.php
 - tests/database/EventsModelServiceTest.php
+- phpstan-baseline.neon
 
 ## Non-goals
 - Не менять тексты, кнопки и фото экранов бота.
@@ -50,5 +51,21 @@ memory/map/quests-events-npc.md · memory/map/website.md (нативные эк�
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- Паритет снят честно: `DeedsBotParityTest` сначала прогнан на старых handler'ах (изменения в `git stash`) —
+  хаб, три списка и «События» совпали со снимком; затем на новом коде — зелёный. На старом коде красный только
+  тест виртуального отправителя: старые списки искали персонажа по `chat_id` и не видели своего (это и чинится).
+- Снимок показал, что `MediaSender` склеивает одиночные ряды кнопок (хаб: «⛔️ 1» + «📜 Квесты»; доступные:
+  ветки + квест) — ожидания записаны по фактическому выводу, а не по исходным массивам.
+- `TasksSurfaceService::model()` и `buildScreen()` собираются из одних швов (`activeTasks` / `questSummary`),
+  поэтому бот-экран не менялся; модель добавляет `ends_at`, звезду без Markdown и `daily` (`DailyTaskService::today`).
+  `TasksHubAction` не тронут: персонажа он уже берёт через `BaseAction::executeWithCharacter`.
+- `QuestListService::available()` сверх контракта `plan.md` отдаёт `prereq_title_ru`; развилки — `branches()`
+  (обёртка над `QuestChainService::pendingBranchesForCharacter`), чтобы веб не звал два сервиса.
+- Модели отдают сырой текст (`Запас *дров*` как есть): экранирует рендерер — бот как прежде (без эскейпа, 1:1),
+  веб — `esc()`.
+- `events` в тестах создаётся вручную: миграция CreateEventsTable не проходит на MySQL 8 (`img_path TEXT` с default).
+- `phpstan-baseline.neon` в `## Files`: 24 записи четырёх переписанных handler'ов больше не совпадают — удалены;
+  `EventAction::getKeyboard()` получил тип возврата вместо записи baseline.
+- Вердикты (ask 6): /guide — нет, совет — нет; экраны бота не меняются.
 
 ## Findings

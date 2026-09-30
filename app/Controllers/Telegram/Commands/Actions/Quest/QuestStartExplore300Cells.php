@@ -8,7 +8,7 @@ use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 use App\Models\QuestModel;
 use App\Models\QuestStepsModel;
-use App\Models\CharacterModel;
+use App\Services\Quest\QuestStartService;
 
 class QuestStartExplore300Cells extends BaseAction
 {
@@ -18,10 +18,10 @@ class QuestStartExplore300Cells extends BaseAction
 
         $questModel = new QuestModel();
         $questStepModel = new QuestStepsModel();
-        $characterModel = new CharacterModel();
 
-        $characterId = $characterModel->getCharacterIdByTelegramId($chatId);
-        $character = $characterModel->find($characterId);
+        // w2-n5-deeds-01: персонаж — по отправителю (BaseAction), не по chat_id: у веб-моста чат виртуальный.
+        [, $character] = $this->getUserAndCharacter();
+        $characterId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
 
         if (!$character) {
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
@@ -43,6 +43,8 @@ class QuestStartExplore300Cells extends BaseAction
             ]);
         }
 
+        $alreadyText = "Квест *Изучить 300 ячеек* уже был запущен.\nСмотрите его в разделе:\n*'🚀 Активные квесты'*\nили в разделе\n*'📅 Доступные квесты'*.\n";
+
         $quests = $questModel->getAvailableQuests($character['level']); // Получаем доступные квесты
         $activeQuestSteps = $questStepModel->getActiveQuestStepsForCharacter($characterId, $quests);
 
@@ -51,20 +53,22 @@ class QuestStartExplore300Cells extends BaseAction
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text' => "Квест *Изучить 300 ячеек* уже был запущен.\nСмотрите его в разделе:\n*'🚀 Активные квесты'*\nили в разделе\n*'📅 Доступные квесты'*.\n",
+                'text' => $alreadyText,
                 'parse_mode' => 'Markdown',
             ]);
         }
 
         try {
-            // Создание записи в quest_steps
-            $questStepModel->insert([
-                'quest_id' => $quest['id'],
-                'character_id' => $characterId,
-                'step_order' => 1,
-                'description' => 'Начало квеста на изучение 300 ячеек',
-                'is_completed' => false
-            ]);
+            // w2-n5-deeds-01: проверка «уже начат» и запись — в ядре под блокировкой строки персонажа:
+            // двойной тап или бот+веб одновременно не создают второй строки quest_steps.
+            if (! (new QuestStartService())->claimFirstStep($characterId, (int) $quest['id'], 'Начало квеста на изучение 300 ячеек')) {
+                Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+                return Request::sendMessage([
+                    'chat_id' => $chatId,
+                    'text' => $alreadyText,
+                    'parse_mode' => 'Markdown',
+                ]);
+            }
         } catch (\Exception $e) {
             log_message('error', "Error creating quest step: " . $e->getMessage());
         }

@@ -1,8 +1,8 @@
 ---
 story: w2-n5-deeds-01
 spec: w2-n5-deeds
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: opus  # конкурентность трёх путей записи без смены обычного пути
@@ -32,6 +32,7 @@ blocked_by: []
 - tests/database/QuestStartServiceTest.php
 - tests/database/QuestChainServiceTest.php
 - tests/database/DailyTaskServiceTest.php
+- phpstan-baseline.neon
 
 ## Non-goals
 - Не вводить `UNIQUE` на `quest_steps` и не трогать схему.
@@ -52,5 +53,23 @@ memory/map/quests-events-npc.md · memory/map/website.md (нативные эк�
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `QuestStartService::start()` — тело бывшего `GenericQuestStartAction` (тексты отказов прежние), плюс поля
+  `description`/`reward` сверх контракта `plan.md` — их рисует бот и нарисует веб. `claimFirstStep()` —
+  единственный писатель первой строки `quest_steps` для generic и четырёх легаси-стартов: проверка и вставка
+  в транзакции под `SELECT id FROM characters WHERE id = ? FOR UPDATE`.
+- Легаси-старты сохранили свои быстрые проверки и тексты; «уже был запущен» теперь приходит и из ядра. Побочный
+  эффект: Explore-кнопки раньше пропускали проверку для квеста выше уровня персонажа (он не попадал в
+  «доступные») и вставляли вторую строку — теперь ядро отказывает прежним текстом. Персонаж в легаси-стартах —
+  через `BaseAction::getUserAndCharacter()`, не `getCharacterIdByTelegramId($chatId)`.
+- `chooseBranch`: проверка «сиблинг выбран» перенесена под блокировку (прежняя проверка до неё убрана, чтобы
+  не читать дважды); тексты отказов — `QuestChainService::branchRefusalText()`, бот берёт их оттуда.
+- `ensureAssigned`: быстрый путь без блокировки (зовётся из вебхука на каждый апдейт), затем блокировка и
+  повторная проверка. `hasSetFor()` помечен `@phpstan-impure` — читает БД.
+- Тест гонки пробует блокировку в момент **проверки**, не вставки: у `quest_steps` внешний ключ на
+  `characters`, вставка сама берёт S-блокировку родителя, и проба на вставке зеленела без нашего кода
+  (мутант выжил). Проба на проверке: мутант без `FOR UPDATE` краснеет — проверено для старта и ежедневок.
+- `phpstan-baseline.neon` добавлен в `## Files`: четыре записи `offset 'level'` легаси-стартов стали
+  несовпадающими (персонаж теперь из `getUserAndCharacter`) и удалены.
+- Вердикты (Tier 0 бумаги нет, ask 6 брифа): /guide — нет, совет — нет; видимое поведение бота не меняется.
 
 ## Findings

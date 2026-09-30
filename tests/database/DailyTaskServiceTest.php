@@ -6,6 +6,7 @@ namespace Tests\Database;
 
 use App\Services\Quest\DailyTaskService;
 use App\TaskHandlers\Quests\DailyTaskProgressHandler;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -13,6 +14,8 @@ use Config\Database;
 /**
  * ADR-109 (E8) — DailyTaskService (counter/ensureAssigned/today) + DailyTaskProgressHandler.
  * Дата фиксирована через сабкласс (currentDate) → тесты time-stable.
+ *
+ * w2-n5-deeds-01: выдача набора дня — под блокировкой строки персонажа (бот и веб заходят одновременно).
  *
  * @internal
  */
@@ -23,6 +26,9 @@ final class DailyTaskServiceTest extends CIUnitTestCase
     protected $migrate = false;
 
     public const DATE = '2026-06-11';
+
+    /** @var (callable(mixed): void)|null */
+    private $listener = null;
     private const TABLES = [
         'character_daily_tasks', 'explored_cells', 'crafted_items_log', 'action_log',
         'battle_logs', 'characters', 'telegram_users', 'game_settings',
@@ -62,6 +68,9 @@ final class DailyTaskServiceTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        if ($this->listener !== null) {
+            Events::removeListener('DBQuery', $this->listener);
+        }
         $db = Database::connect('tests');
         foreach (self::TABLES as $t) {
             $db->query("DROP TABLE IF EXISTS {$t}");
@@ -143,6 +152,59 @@ final class DailyTaskServiceTest extends CIUnitTestCase
         $n = Database::connect('tests')->table('character_daily_tasks')
             ->where('character_id', 1)->where('task_date', self::DATE)->countAllResults();
         $this->assertSame(3, $n);
+    }
+
+    /**
+     * «Параллельный заход» — детерминированно: после блокировки строки персонажа слушатель `DBQuery`
+     * ловит повторную проверку «набор есть?», и второе соединение пытается взять ту же блокировку, как
+     * это сделал бы одновременный заход из бота или веба. Блокировка держится — второй ждёт, а его
+     * выдача после фиксации первого видит набор: строк ровно `quests.daily.count`.
+     */
+    public function testParallelAssignWaitsForTheCharacterLockAndMakesNoDuplicates(): void
+    {
+        $blocked        = null;
+        $locked         = false;
+        $fired          = false;
+        $this->listener = function ($query) use (&$blocked, &$locked, &$fired): void {
+            $sql = (string) $query->getQuery();
+            if (! $locked && str_contains($sql, 'FOR UPDATE')) {
+                $locked = true;
+
+                return;
+            }
+            if ($locked && ! $fired && str_contains($sql, 'character_daily_tasks')) {
+                $fired   = true;
+                $blocked = $this->characterLockIsHeld(1);
+            }
+        };
+        Events::on('DBQuery', $this->listener);
+
+        $char = ['id' => 1, 'level' => 5];
+        $this->assertTrue($this->svc()->ensureAssigned($char));
+        $this->assertTrue($this->svc()->ensureAssigned($char));
+
+        $this->assertTrue($blocked, 'во время проверки строка персонажа заблокирована — второй заход ждёт');
+        $n = Database::connect('tests')->table('character_daily_tasks')
+            ->where('character_id', 1)->where('task_date', self::DATE)->countAllResults();
+        $this->assertSame(3, $n);
+    }
+
+    /** Второе соединение пытается взять блокировку строки персонажа, как параллельный заход. */
+    private function characterLockIsHeld(int $characterId): bool
+    {
+        $other = Database::connect('tests', false);
+        $other->query('SET SESSION innodb_lock_wait_timeout = 1');
+        $other->transBegin();
+        try {
+            $res  = $other->query('SELECT id FROM characters WHERE id = ? FOR UPDATE', [$characterId]);
+            $held = $res === false && (int) ($other->error()['code'] ?? 0) === 1205;
+        } catch (\Throwable $e) {
+            $held = str_contains($e->getMessage(), 'Lock wait timeout');
+        } finally {
+            $other->transRollback();
+        }
+
+        return $held;
     }
 
     public function testKillswitchOffNoAssign(): void

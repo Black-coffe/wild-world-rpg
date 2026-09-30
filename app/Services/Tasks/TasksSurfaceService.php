@@ -10,8 +10,10 @@ use App\Models\CharacterTaskModel;
 use App\Models\TaskModel;
 use App\Services\GameSettings\GameSettingsService;
 use App\Services\Onboarding\PolarStarService;
+use App\Services\Quest\DailyTaskService;
 use App\Services\Quest\QuestOverviewService;
 use CodeIgniter\I18n\Time;
+use Config\Database;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -35,6 +37,10 @@ use App\Services\Telegram\Request;
  * {@see \App\Controllers\Telegram\Commands\Actions\FinishTaskAction} ставит `interrupted`,
  * отнимает характеристики и ТЕРЯЕТ награду. На верхнем уровне навигации такая формулировка
  * висеть не может — здесь она заменена честной.
+ *
+ * w2-n5-deeds-02 (ADR-190): {@see model()} — данные хаба без `chat_id` и Markdown для веба; бот-экран
+ * {@see buildScreen()} собирается из тех же швов (`activeTasks` / `questSummary`), поэтому оба клиента
+ * видят одни и те же задачи и счётчики.
  *
  * Killswitch `navigation.tasks_hub.enabled` (default OFF → dormant, всё byte-identical).
  * Модели/сервисы — конструктор-сеймы (тесты подменяют, БД на CI не нужна).
@@ -115,9 +121,47 @@ class TasksSurfaceService
     }
 
     /**
-     * Активные задачи персонажа с человекочитаемым остатком времени.
+     * Данные хаба «📋 Дела» для любого клиента (w2-n5-deeds-02): активные задачи с `ends_at` (живой
+     * таймер в вебе), сводка квестов (флаги extended / faction / branching / daily — те же, что у бота),
+     * строка полярной звезды без Markdown и сегодняшние задания дня.
      *
-     * @return list<array{id:int, name:string, left:string}>
+     * @return array{
+     *   tasks: list<array{id:int, name:string, left:string, ends_at:?string}>,
+     *   summary: array{active:int, available:int, locked:int, completed:int, daily:array{enabled:bool, assigned:bool, done:int, total:int, bonus:int}, branches:int, npc_hint:bool},
+     *   polar_star: ?string,
+     *   daily: list<array{id:int, slot:int, task_key:string, title:string, verb:string, objective_qty:int, progress:int, is_completed:bool, reward_gold:int}>
+     * }
+     */
+    public function model(int $characterId, ?int $level = null): array
+    {
+        $level ??= $this->characterLevel($characterId);
+        $summary = $this->questSummary($level, $characterId);
+        $star    = $this->polarStarLine($characterId);
+
+        return [
+            'tasks'      => $this->activeTasks($characterId),
+            'summary'    => $summary,
+            'polar_star' => $star === null ? null : trim(str_replace(['*', '_', '`'], '', $star)),
+            'daily'      => $summary['daily']['enabled'] && $characterId > 0 ? (new DailyTaskService())->today($characterId) : [],
+        ];
+    }
+
+    /** Уровень персонажа для сводки квестов (1 — персонажа нет). */
+    protected function characterLevel(int $charId): int
+    {
+        if ($charId <= 0) {
+            return 1;
+        }
+        $res = Database::connect()->table('characters')->select('level')->where('id', $charId)->get();
+        $row = $res === false ? null : $res->getRowArray();
+
+        return is_array($row) && is_numeric($row['level'] ?? null) ? (int) $row['level'] : 1;
+    }
+
+    /**
+     * Активные задачи персонажа с человекочитаемым остатком времени и моментом окончания.
+     *
+     * @return list<array{id:int, name:string, left:string, ends_at:?string}>
      */
     protected function activeTasks(int $charId): array
     {
@@ -150,6 +194,7 @@ class TasksSurfaceService
                 'id'   => is_numeric($row['id'] ?? null) ? (int) $row['id'] : 0,
                 'name' => $this->markdownSafe($nameRaw),
                 'left' => $this->timeLeft($endRaw),
+                'ends_at' => $endRaw,
             ];
         }
 

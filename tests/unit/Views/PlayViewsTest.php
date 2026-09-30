@@ -101,7 +101,7 @@ final class PlayViewsTest extends CIUnitTestCase
                 [self::msg(1_000_000_008, ['text' => 'Рюкзак-средний'])],
                 [self::msg(1_000_000_007, ['text' => 'Персонаж-старее'])],
             ],
-            'dock'        => [['🗺 Карта', '🎒 Рюкзак'], ['📋 Дела']],
+            'dock'        => [['🗺 Карта', '🎒 Рюкзак'], ['⚙️ Ещё']],
             'input'       => ['placeholder' => 'Введи имя базы', 'reply_to' => 1_000_000_011],
             'telegram_id' => self::TELEGRAM_ID,
         ];
@@ -289,7 +289,7 @@ final class PlayViewsTest extends CIUnitTestCase
         $forms = self::forms($this->renderState(self::state()), '//nav[@class="play-dock"]//');
 
         $this->assertCount(3, $forms);
-        foreach (['🗺 Карта', '🎒 Рюкзак', '📋 Дела'] as $i => $label) {
+        foreach (['🗺 Карта', '🎒 Рюкзак', '⚙️ Ещё'] as $i => $label) {
             $this->assertSame('text', $forms[$i]['kind']);
             $this->assertSame($label, $forms[$i]['data']);
             $this->assertSame($label, $forms[$i]['@button']);
@@ -555,9 +555,52 @@ final class PlayViewsTest extends CIUnitTestCase
         $this->assertStringContainsString('<span class="play-craft-req-name">Water</span>', $render([]));
     }
 
+    /** w2-n5-deeds-03: «📋 Дела» в доке — нативный экран, не текст в мост. */
+    public function testDockTasksLabelOpensNativeTasksView(): void
+    {
+        $forms = self::forms(view('site/_play/dock', ['dock' => [['🧑 Я', '📋 Дела']]]));
+
+        $this->assertCount(2, $forms);
+        $this->assertSame('tasks', $forms[1]['view']);
+        $this->assertSame('📋 Дела', $forms[1]['@button']);
+        $this->assertStringEndsWith('play/view', $forms[1]['@action']);
+        $this->assertArrayNotHasKey('kind', $forms[1]);
+    }
+
+    /** «Дела» читаются текстом: ни картинки, ни inline-стиля; каждая мутация несёт CSRF и свой intent_id. */
+    public function testTasksViewIsTextOnlyAndMutationsCarryCsrfAndIntent(): void
+    {
+        $html = view('site/_play/native_tasks', [
+            'tasks' => [
+                'section' => 'available', 'hub_enabled' => true, 'daily_enabled' => true, 'hub' => null, 'card' => null, 'events' => null,
+                'active' => [], 'completed' => [],
+                'available' => [
+                    ['id' => 1, 'title_en' => 'CollectWood', 'title_ru' => 'Запас дров', 'description' => '', 'reward' => 300, 'reward_type_ru' => 'золото', 'locked' => false, 'lock_reason' => '', 'prereq_title_ru' => ''],
+                    ['id' => 3, 'title_en' => 'ChainStage', 'title_ru' => 'Второй этап', 'description' => '', 'reward' => 100, 'reward_type_ru' => 'золото', 'locked' => true, 'lock_reason' => 'после квеста «Запас дров»', 'prereq_title_ru' => 'Запас дров'],
+                ],
+                'branches' => [['branch_point_ru' => 'Разминка', 'options' => [
+                    ['quest_id' => 5, 'title_en' => 'A', 'title_ru' => 'Путь торговца', 'label' => 'Торговец'],
+                    ['quest_id' => 6, 'title_en' => 'B', 'title_ru' => 'Путь разведчика', 'label' => 'Разведчик'],
+                ]]],
+            ],
+            'dock' => [],
+        ]);
+
+        $this->assertStringNotContainsString('<img', $html);
+        $this->assertStringNotContainsString('style=', $html);
+        $this->assertStringContainsString('🔒 Второй этап (нужно: после квеста «Запас дров»)', html_entity_decode($html, ENT_QUOTES | ENT_HTML5));
+        $branches = array_values(array_filter(self::forms($html), static fn (array $f): bool => ($f['op'] ?? '') === 'quest_branch'));
+        $this->assertCount(2, $branches);
+        foreach ($branches as $form) {
+            $this->assertArrayHasKey(csrf_token(), $form);
+            $this->assertMatchesRegularExpression('~^[0-9a-f]{32}$~', $form['intent_id'] ?? '');
+        }
+        $this->assertNotSame($branches[0]['intent_id'], $branches[1]['intent_id']);
+    }
+
     public function testViewsCarryNoInlineStyles(): void
     {
-        foreach (['site/play', 'site/play_stub', 'site/_play/state', 'site/_play/inbox'] as $view) {
+        foreach (['site/play', 'site/play_stub', 'site/_play/state', 'site/_play/inbox', 'site/_play/native_tasks'] as $view) {
             $source = (string) file_get_contents(APPPATH . 'Views/' . $view . '.php');
             $this->assertStringNotContainsString('style=', $source, $view);
             $this->assertStringNotContainsString('<style', $source, $view);

@@ -8,7 +8,7 @@ use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 use App\Models\QuestModel;
 use App\Models\QuestStepsModel;
-use App\Models\CharacterModel;
+use App\Services\Quest\QuestStartService;
 
 class QuestStartFirstAidkitBasic extends BaseAction
 {
@@ -18,10 +18,10 @@ class QuestStartFirstAidkitBasic extends BaseAction
 
         $questModel = new QuestModel();
         $questStepModel = new QuestStepsModel();
-        $characterModel = new CharacterModel();
 
-        $characterId = $characterModel->getCharacterIdByTelegramId($chatId);
-        $character = $characterModel->find($characterId);
+        // w2-n5-deeds-01: персонаж — по отправителю (BaseAction), не по chat_id: у веб-моста чат виртуальный.
+        [, $character] = $this->getUserAndCharacter();
+        $characterId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
 
         if (!$character) {
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
@@ -52,22 +52,27 @@ class QuestStartFirstAidkitBasic extends BaseAction
             ]);
         }
 
+        $alreadyText = "Вы уже начали квест *Крафт: Аптечки базовой*. Отслеживайте его статус в разделе *🚀 Активные квесты*.";
+
         if ($questStepModel->where(['quest_id' => $quest['id'], 'character_id' => $characterId])->first()) {
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text' => "Вы уже начали квест *Крафт: Аптечки базовой*. Отслеживайте его статус в разделе *🚀 Активные квесты*.",
+                'text' => $alreadyText,
                 'parse_mode' => 'Markdown',
             ]);
         }
 
-        $questStepModel->insert([
-            'quest_id' => $quest['id'],
-            'character_id' => $characterId,
-            'step_order' => 1,
-            'description' => 'Начало квеста на крафт базовой аптечки',
-            'is_completed' => false
-        ]);
+        // w2-n5-deeds-01: проверка выше — быстрый путь; окончательная — в ядре под блокировкой строки
+        // персонажа: двойной тап или бот+веб одновременно не создают второй строки quest_steps.
+        if (! (new QuestStartService())->claimFirstStep($characterId, (int) $quest['id'], 'Начало квеста на крафт базовой аптечки')) {
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text' => $alreadyText,
+                'parse_mode' => 'Markdown',
+            ]);
+        }
 
         $text = "🔍 *Крафт: Аптечки базовой*\n\n";
         $text .= "📜 *Описание* 📜\n_Создай крафтовый, медицинский предмет_ *Аптечка базовая* _и как вознаграждение получи 1 500 золотых монет.\nКроме награды, ты окунешься в мир крафта и поймешь механику взаимосвязанных крафтовых предметов._\n*Важно!* _Не просто создай аптечку, но чтобы она побыла в инвентаре пару минут, тогда применится награда и закроется квест_\n\n";

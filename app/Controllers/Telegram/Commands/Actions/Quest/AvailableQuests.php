@@ -4,11 +4,9 @@ namespace App\Controllers\Telegram\Commands\Actions\Quest;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Notifications\MediaSender;
+use App\Services\Quest\QuestListService;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
-use App\Models\QuestModel;
-use App\Models\CharacterModel;
-use App\Models\CharacterFactionModel;
 
 class AvailableQuests extends BaseAction
 {
@@ -16,13 +14,12 @@ class AvailableQuests extends BaseAction
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
-        $questModel = new QuestModel();
-        $characterModel = new CharacterModel();
+        // w2-n5-deeds-02: персонаж — по отправителю (BaseAction), не по chat_id (у веб-моста чат
+        // виртуальный).
+        [, $character] = $this->getUserAndCharacter();
+        $characterId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
 
-        $characterId = $characterModel->getCharacterIdByTelegramId($chatId);
-        $character = $characterModel->find($characterId);
-
-        if (!$character) {
+        if ($characterId <= 0) {
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
@@ -31,22 +28,13 @@ class AvailableQuests extends BaseAction
             ]);
         }
 
-        // E27 (ADR-126): классификация доступно/заблокировано вынесена в QuestOverviewService —
-        // единый источник для этого экрана и дашборда «📜 Задания» (без дрейфа двух копий
-        // фильтрации + без per-quest builder-state-quirk: шаги префетчатся одним запросом).
-        $chain         = new \App\Services\Quest\QuestChainService();
-        // ADR-088 Фаза 3: фракция персонажа для гейтинга фракционных квестов (0/5 = нет).
-        $charFactionId = (new CharacterFactionModel())->getFactionId((int) $characterId);
-
-        $levelRaw        = $character['level'] ?? null;
-        $level           = is_numeric($levelRaw) ? (int) $levelRaw : 1;
-        $classified      = (new \App\Services\Quest\QuestOverviewService())
-            ->classifyQuests($level, (int) $characterId, $charFactionId);
-        $availableQuests = $classified['available'];
-        $lockedQuests    = $classified['locked'];
-
-        // W11 (ADR-067): pending-развилки (branching включён) — выбор пути приоритетно сверху.
-        $pendingBranches = $chain->pendingBranchesForCharacter((int) $characterId);
+        // E27 (ADR-126) / ADR-088 / W11 (ADR-067): классификация доступно/заблокировано, фракционный
+        // гейт и развилки — в QuestListService (ядро, общее с вебом, w2-n5-deeds-02); здесь только рендер.
+        $lists           = new QuestListService();
+        $rows            = $lists->available($characterId);
+        $availableQuests = array_values(array_filter($rows, static fn (array $q): bool => ! $q['locked']));
+        $lockedQuests    = array_values(array_filter($rows, static fn (array $q): bool => $q['locked']));
+        $pendingBranches = $lists->branches($characterId);
 
         if (empty($availableQuests) && empty($lockedQuests) && empty($pendingBranches)) {
             $text = "На данный момент нет доступных квестов. Проверьте позже!";
@@ -70,18 +58,13 @@ class AvailableQuests extends BaseAction
                 $text .= "_Сейчас открытых квестов нет._\n";
             }
             foreach ($availableQuests as $quest) {
-                $rewardType = $this->translateRewardType($quest['reward_type']);
-                $titleRu    = is_string($quest['title_ru'] ?? null) ? $quest['title_ru'] : '';
-                $reward     = is_numeric($quest['reward'] ?? null) ? (string) $quest['reward'] : '0';
-                $text .= "🔹 *{$titleRu}* || Награда: *{$reward}* (_{$rewardType}_)\n";
+                $text .= "🔹 *{$quest['title_ru']}* || Награда: *{$quest['reward']}* (_{$quest['reward_type_ru']}_)\n";
             }
             // V11: заблокированные звенья цепочки — видно цель, но без кнопки.
             if (! empty($lockedQuests)) {
                 $text .= "\n*🔒 Откроются позже (цепочка):*\n";
                 foreach ($lockedQuests as $lq) {
-                    $prereqTitle = $this->prerequisiteTitleRu($questModel, $lq['prereq']);
-                    $lqTitle     = is_string($lq['quest']['title_ru'] ?? null) ? $lq['quest']['title_ru'] : '';
-                    $text .= "🔒 *{$lqTitle}* — после квеста «{$prereqTitle}»\n";
+                    $text .= "🔒 *{$lq['title_ru']}* — {$lq['lock_reason']}\n";
                 }
             }
             if (! empty($availableQuests)) {
@@ -90,7 +73,6 @@ class AvailableQuests extends BaseAction
         }
 
         $keyboard = $this->generateQuestKeyboard($availableQuests, $pendingBranches);
-        //log_message('debug', "keyboard: " . print_r($keyboard, true));
         // Ответ на callback запрос, чтобы убрать часики на кнопке
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
@@ -103,35 +85,12 @@ class AvailableQuests extends BaseAction
         ]);
     }
 
-    private function translateRewardType($type)
-    {
-        $translations = [
-            'gold' => 'золото',
-            'experience' => 'опыт',
-            'items' => 'предметы',  // Пример добавления другого типа награды
-        ];
-
-        return $translations[$type] ?? $type;  // Возвращаем перевод или оригинальное значение, если перевод отсутствует
-    }
-
     /**
-     * V11 — русское название квеста-предусловия (по title_en) для тизера цепочки.
-     */
-    private function prerequisiteTitleRu(QuestModel $questModel, ?string $prereqTitleEn): string
-    {
-        if ($prereqTitleEn === null || $prereqTitleEn === '') {
-            return '???';
-        }
-        $row = $questModel->where('title_en', $prereqTitleEn)->first();
-        return is_array($row) && isset($row['title_ru']) && is_string($row['title_ru']) && $row['title_ru'] !== ''
-            ? $row['title_ru']
-            : $prereqTitleEn;
-    }
-
-    /**
+     * @param list<array{title_en: string, title_ru: string}> $quests
      * @param list<array{branch_point_ru:string,options:list<array{quest_id:int,title_en:string,title_ru:string,label:string}>}> $pendingBranches
+     * @return array{inline_keyboard: list<list<array{text: string, callback_data: string}>>}
      */
-    private function generateQuestKeyboard($quests, array $pendingBranches = [])
+    private function generateQuestKeyboard(array $quests, array $pendingBranches = []): array
     {
         $keyboard = ['inline_keyboard' => []];
 

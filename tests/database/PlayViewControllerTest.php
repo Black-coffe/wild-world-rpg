@@ -11,6 +11,8 @@ use App\Services\Logging\TelegramDeliveryProbe;
 use App\Services\Player\CharacterSheetService;
 use App\Services\Player\EquipmentLoadoutService;
 use App\Services\Player\InventoryViewService;
+use App\Services\Quest\DailyTaskService;
+use App\Services\Tasks\TasksSurfaceService;
 use App\Services\Telegram\BotMenuService;
 use App\Services\Web\AccountService;
 use App\Services\Web\DeliveryContext;
@@ -90,6 +92,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
         'characters', 'action_log', 'tasks', 'character_tasks', 'explored_cells', 'crafted_items', 'crafted_items_log', 'game_settings', 'player_action_log',
         'telegram_updates_seen', 'web_play_state', 'web_inbox', 'web_play_intents',
         'claimed_cells', 'buildings', 'character_buildings', 'base_storage', 'faction_endgame_scores', 'resources', 'character_resources',
+        'quests', 'quest_steps', 'factions', 'character_factions', 'events', 'active_events',
     ];
 
     private const ENV = ['telegram.API_KEY' => '123456:TEST_TOKEN', 'telegram.BOT_USERNAME' => 'wildworldtest_bot'];
@@ -263,12 +266,12 @@ final class PlayViewControllerTest extends CIUnitTestCase
     public function testDockMeButtonOpensNativeViewOthersStayOnTheBridge(): void
     {
         [$session, $charId] = $this->character('Ворон');
-        $this->seedScreen($charId, [['🧑 Я', '📋 Дела']]);
+        $this->seedScreen($charId, [['🧑 Я', '⚙️ Ещё']]);
 
         $page = html_entity_decode($this->body($this->withSession($session)->get('play')), ENT_QUOTES | ENT_HTML5);
 
         $this->assertMatchesRegularExpression('~action="[^"]*/play/view" method="post">.*?name="view" value="me">.*?🧑 Я</button>~su', $page);
-        $this->assertMatchesRegularExpression('~action="[^"]*/play/act" method="post">.*?name="data" value="📋 Дела">~su', $page);
+        $this->assertMatchesRegularExpression('~action="[^"]*/play/act" method="post">.*?name="data" value="⚙️ Ещё">~su', $page);
         $this->assertStringContainsString('id="play-hud"', $page);
     }
 
@@ -1076,6 +1079,292 @@ final class PlayViewControllerTest extends CIUnitTestCase
      *
      * @param array{0: list<array<string, mixed>>, 1: list<array<string, mixed>>} $inventoryRows
      */
+    // ── w2-n5-deeds-03: «📋 Дела» ────────────────────────────────────────
+
+    public function testDockTasksButtonOpensNativeTasks(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->seedScreen($charId, [['🧑 Я', '📋 Дела']]);
+
+        $page = html_entity_decode($this->body($this->withSession($session)->get('play')), ENT_QUOTES | ENT_HTML5);
+        $this->assertMatchesRegularExpression('~action="[^"]*/play/view" method="post">.*?name="view" value="tasks">.*?📋 Дела</button>~su', $page);
+    }
+
+    /** Хаб: задача с живым таймером и «⛔️ Прервать» мостом от `/tasks`, сводка квестов, задания дня; набор дня выдаётся при входе. */
+    public function testTasksHubShowsTimerSummaryDailyAndBridgesFromTheTasksCommand(): void
+    {
+        [$session] = $this->character('Ворон');
+        $act   = $this->tasksAct();
+        $daily = $this->stubDaily(true);
+        $this->installTasks($this->stubTasksSurface(true), $daily, $act);
+
+        $html = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'tasks'], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-native="tasks"', $html);
+        $this->assertCount(1, $daily->assigned, 'набор дня выдаётся при входе в хаб');
+        $this->assertStringContainsString('🧭 Цель: построй базу', $html);
+        $this->assertStringContainsString('⏳ Идёт сейчас (1)', $html);
+        $this->assertStringContainsString('1) Сбор древесины', $html);
+        $this->assertMatchesRegularExpression('~data-ends-at="\d+"[^>]*>12 мин</time>~', $html, 'таймер тикает от ends_at');
+        $this->assertMatchesRegularExpression('~name="op" value="bridge">.*?name="data" value="finishAllTasks_42"><button class="play-kb-btn" type="submit">⛔️ Прервать</button>~su', $html);
+        $this->assertStringContainsString('награда за неё пропадает', $html, 'честное имя прерывания');
+        $this->assertStringContainsString('🔀 Развилка цепочки ждёт выбор', $html);
+        $this->assertStringContainsString('<dt>📜 Доступно</dt><dd>2</dd>', $html);
+        $this->assertStringContainsString('<dt>🔒 По цепочке</dt><dd>1</dd>', $html);
+        $this->assertStringContainsString('✅ Добыть дерево · +120 зол.</span><span class="play-craft-req-qty">10 / 10</span>', $html);
+        $this->assertStringContainsString('▫️ Пройти клетки · +150 зол.</span><span class="play-craft-req-qty">3 / 15</span>', $html);
+        $this->assertStringContainsString('Выполнено 1 из 2 · за все — бонус +500 золота', $html);
+        $this->assertStringContainsString('name="data" value="questInfo"><button class="play-kb-btn" type="submit">🌐 Квестомания</button>', $html);
+        $this->assertStringNotContainsString('data-tasks-lock', $html);
+
+        $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'finishAllTasks_42', 'intent_id' => 't1'], true)->assertStatus(200);
+        $this->assertSame(['intent_id' => 't1:card', 'kind' => 'command', 'data' => '/tasks'], $act->calls[0]);
+        $this->assertSame(['intent_id' => 't1:cb', 'kind' => 'callback', 'data' => 'finishAllTasks_42', 'message_id' => '45'], $act->calls[1]);
+
+        $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'questInfo', 'intent_id' => 't2'], true)->assertStatus(200);
+        $this->assertSame('/tasks', $act->calls[2]['data']);
+        $this->assertSame(['intent_id' => 't2:s0', 'kind' => 'callback', 'data' => 'questAndTask', 'message_id' => '45'], $act->calls[3]);
+        $this->assertSame('questInfo', $act->calls[4]['data']);
+
+        // Чужая задача: кнопки нет на экране `/tasks` бота — мост её не жмёт.
+        $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'finishAllTasks_99', 'intent_id' => 't3'], true)->assertStatus(200);
+        $this->assertSame('/tasks', $act->calls[5]['data']);
+        $this->assertNotContains('finishAllTasks_99', array_column($act->calls, 'data'));
+    }
+
+    /** Выключенный хаб или задания дня — замок с объяснением, как раздел закрыт и в боте. */
+    public function testTasksHubAndDailyFlagsOffAreLocks(): void
+    {
+        [$session] = $this->character('Ворон');
+
+        $this->installTasks($this->stubTasksSurface(false), $this->stubDaily(true));
+        $off = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'tasks'], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-tasks-lock="hub"', $off);
+        $this->assertStringContainsString('🔒 Сводка «Дела» (нужно: раздел включат на сервере)', $off);
+        $this->assertStringContainsString('и в боте, и здесь', $off);
+        $this->assertStringNotContainsString('Сбор древесины', $off);
+        $this->assertStringContainsString('📜 Доступные</button>', $off, 'квесты и события остаются кнопками');
+
+        $daily = $this->stubDaily(false);
+        $this->installTasks($this->stubTasksSurface(true), $daily);
+        $noDaily = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'tasks'], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-tasks-lock="daily"', $noDaily);
+        $this->assertStringContainsString('🔒 Задания дня (нужно: раздел включат на сервере)', $noDaily);
+        $this->assertStringNotContainsString('Добыть дерево', $noDaily);
+        $this->assertSame([], $daily->assigned, 'выключено — набор не выдаётся');
+    }
+
+    /** Списки, замок цепочки, карточка из строки `quests`, чужой квест, «События» — из ядра на настоящих таблицах. */
+    public function testQuestListsCardAndEventsComeFromTheCore(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableDeeds($charId);
+        $post = fn (array $nav): string => html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'tasks'] + $nav, true))['html'], ENT_QUOTES | ENT_HTML5);
+
+        $avail = $post(['section' => 'available']);
+        $this->assertMatchesRegularExpression('~name="section" value="quest"><input type="hidden" name="id" value="1"><button class="play-kb-btn" type="submit">📜 Запас дров · 🏆 300 · золото</button>~su', $avail);
+        $this->assertStringContainsString('🔒 Второй этап (нужно: после квеста «Запас дров»)', $avail);
+        $this->assertStringContainsString('🔀 Развилка после «Разминка»', $avail);
+        $this->assertMatchesRegularExpression('~name="op" value="quest_branch"><input type="hidden" name="id" value="5">.*?🔀 Торговец</button>~su', $avail);
+
+        $card = $post(['section' => 'quest', 'id' => '1']);
+        $this->assertStringContainsString('📜 Запас дров</h3>', $card);
+        $this->assertStringContainsString('Принеси дерево на базу.', $card);
+        $this->assertStringContainsString('<dd>можно начать</dd>', $card);
+        $this->assertMatchesRegularExpression('~name="op" value="quest_start"><input type="hidden" name="id" value="1"><input type="hidden" name="intent_id" value="[0-9a-f]{32}"><button class="play-kb-btn is-primary" type="submit">▶️ Начать квест</button>~su', $card);
+
+        $done = $post(['section' => 'completed']);
+        $this->assertStringContainsString('✅ Разминка', $done);
+
+        $foreign = $post(['section' => 'quest', 'id' => '999']);
+        $this->assertStringNotContainsString('▶️ Начать квест', $foreign);
+        $this->assertStringContainsString('📜 Запас дров', $foreign, 'чужой квест — список доступных');
+
+        $events = $post(['section' => 'events']);
+        $this->assertStringContainsString('Кислотный дождь', $events);
+        $this->assertStringContainsString('📍 Выборочно в указанных биомах: Лес · ✨ Урон', $events);
+        $this->assertStringContainsString('⚡ задело тебя', $events);
+        $this->assertStringContainsString('Туман', $events);
+        $this->assertStringContainsString('тебя не задело', $events);
+    }
+
+    /** Старт из веба: повтор формы с тем же `intent_id` — одна строка `quest_steps`; второй `intent_id` — «уже начат». */
+    public function testQuestStartWritesOneRowAndSecondIntentIsAlreadyStarted(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableDeeds($charId);
+        $start = ['view' => 'tasks', 'op' => 'quest_start', 'id' => '1'];
+
+        $first = $this->json($this->postWithCsrf($session, 'play/view', $start + ['intent_id' => 'q1'], true));
+        $this->assertSame('📜 Квест начат: Запас дров. Награда за завершение: 300. Прогресс — в «🚀 Активные».', $first['alert']);
+        $this->assertStringContainsString('<dd>идёт</dd>', html_entity_decode($first['html'], ENT_QUOTES | ENT_HTML5), 'после старта — карточка «идёт»');
+        $this->assertNull($this->json($this->postWithCsrf($session, 'play/view', $start + ['intent_id' => 'q1'], true))['alert']);
+        $second = $this->json($this->postWithCsrf($session, 'play/view', $start + ['intent_id' => 'q2'], true));
+        $this->assertSame('Ты уже начал этот квест — смотри «🚀 Активные квесты».', $second['alert']);
+        $this->assertSame(1, $this->conn->table('quest_steps')->where('character_id', $charId)->where('quest_id', 1)->countAllResults());
+
+        // Bespoke-квест со своей кнопкой в боте — «Доступные» его предлагают, веб его стартует.
+        $this->assertStringContainsString('📜 Изучить 30 ячеек', html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'tasks', 'section' => 'available'], true))['html'], ENT_QUOTES | ENT_HTML5));
+        $legacy = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'tasks', 'op' => 'quest_start', 'id' => '2', 'intent_id' => 'q6'], true));
+        $this->assertSame('📜 Квест начат: Изучить 30 ячеек. Награда за завершение: 500. Прогресс — в «🚀 Активные».', $legacy['alert']);
+        $this->assertSame(1, $this->conn->table('quest_steps')->where('character_id', $charId)->where('quest_id', 2)->countAllResults());
+
+        $locked = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'tasks', 'op' => 'quest_start', 'id' => '3', 'intent_id' => 'q3'], true));
+        $this->assertSame('Этот квест нельзя начать вручную.', $locked['alert'], 'звено цепочки — отказ ядра');
+        $this->assertSame(0, $this->conn->table('quest_steps')->where('quest_id', 3)->countAllResults());
+        $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['view' => 'tasks', 'op' => 'quest_start', 'id' => 'x', 'intent_id' => 'q4'], true)->response()->getStatusCode());
+
+        $res = $this->postWithCsrf($session, 'play/view', $start + ['intent_id' => 'q5']);
+        $this->assertSame(303, $res->response()->getStatusCode());
+        $this->assertStringEndsWith('/play?view=tasks&section=quest&id=1', $res->response()->getHeaderLine('Location'));
+    }
+
+    /** Ветка развилки: один раз на `intent_id`, вторая ветка той же развилки — отказ ядра, строка одна. */
+    public function testBranchChoiceDedupsAndClosesTheSiblings(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableDeeds($charId);
+        $branch = ['view' => 'tasks', 'op' => 'quest_branch'];
+
+        $ok = $this->json($this->postWithCsrf($session, 'play/view', $branch + ['id' => '5', 'intent_id' => 'b1'], true));
+        $this->assertSame('🔀 Путь выбран: Путь торговца. Награда за завершение: 200 золота. Остальные ветки этой развилки закрыты.', $ok['alert']);
+        $this->assertStringContainsString('🛡️ Путь торговца', html_entity_decode($ok['html'], ENT_QUOTES | ENT_HTML5), 'после выбора — активные');
+        $this->assertNull($this->json($this->postWithCsrf($session, 'play/view', $branch + ['id' => '5', 'intent_id' => 'b1'], true))['alert']);
+        $other = $this->json($this->postWithCsrf($session, 'play/view', $branch + ['id' => '6', 'intent_id' => 'b2'], true));
+        $this->assertSame('🔀 Ты уже выбрал путь на этой развилке — назад дороги нет.', $other['alert']);
+        $this->assertSame(1, $this->conn->table('quest_steps')->where('character_id', $charId)->whereIn('quest_id', [5, 6])->countAllResults());
+    }
+
+    /** Схема квестов и событий — миграциями; квесты: корень, звено цепочки, завершённая «Разминка» и развилка после неё. */
+    private function enableDeeds(int $charId): void
+    {
+        $this->conn->query('SET FOREIGN_KEY_CHECKS = 0');
+        $forge = Database::forge();
+        foreach ([
+            '2024-04-26-121416_CreateQuestsTable', '2024-04-26-192334_CreateQuestStepsTable', '2026-05-21-210000_V11AddQuestPrerequisite',
+            '2026-05-21-230000_V12AddQuestObjectiveColumns', '2026-06-04-100000_W11AddQuestBranchColumns', '2026-06-14-100000_AddFactionIdToQuests',
+            '2024-05-15-131853_CreateFactionsTable', '2024-05-15-132233_CreateCharacterFactionsTable',
+            '2024-04-04-090501_CreateActiveEventsTable', '2026-05-05-150000_AddEffectLogToActiveEvents',
+        ] as $file) {
+            $this->migration($file, $forge instanceof Forge ? $forge : null)->up();
+        }
+        // `events` — вручную, как в EventsModelServiceTest: создающая миграция (TEXT с DEFAULT) не проходит строгий MySQL.
+        $this->conn->query(
+            'CREATE TABLE events (event_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL, name_english VARCHAR(255) NULL,'
+            . " description TEXT NULL, biome_ids TEXT NULL, event_type ENUM('local','global') NOT NULL, effect_type ENUM('damage','heal','buff','debuff','none') NOT NULL)"
+        );
+        $this->conn->query('DELETE FROM quests');
+        $this->conn->query(
+            'INSERT INTO quests (id, title_ru, title_en, description, status, min_level, reward, reward_type, objective_type, objective_target, objective_qty, prerequisite_quest, branch_group, branch_label) VALUES'
+            . " (1, 'Запас дров', 'CollectWood', 'Принеси дерево на базу.', 'active', 1, 300, 'gold', 'collect_resource', 'wood', 10, NULL, NULL, NULL),"
+            . " (3, 'Второй этап', 'ChainStage', 'Этап цепочки.', 'active', 1, 100, 'gold', NULL, NULL, NULL, 'CollectWood', NULL, NULL),"
+            . " (4, 'Разминка', 'Warmup', 'Первые шаги.', 'active', 1, 50, 'gold', 'collect_resource', 'wood', 1, NULL, NULL, NULL),"
+            . " (2, 'Изучить 30 ячеек', 'Explore30Cells', 'Разведка.', 'active', 1, 500, 'gold', NULL, NULL, NULL, NULL, NULL, NULL),"
+            . " (5, 'Путь торговца', 'TraderPath', 'Ветка.', 'active', 1, 200, 'gold', 'collect_resource', 'wood', 5, 'Warmup', 'g1', 'Торговец'),"
+            . " (6, 'Путь разведчика', 'ScoutPath', 'Ветка.', 'active', 1, 200, 'gold', 'collect_resource', 'wood', 5, 'Warmup', 'g1', 'Разведчик')"
+        );
+        $this->conn->table('quest_steps')->insert(['quest_id' => 4, 'character_id' => $charId, 'step_order' => 1, 'description' => 'Разминка', 'is_completed' => 1]);
+        $this->conn->query("INSERT INTO biomes (id, name) VALUES (1, 'Лес')");
+        $this->conn->query("INSERT INTO events (event_id, name, description, biome_ids, event_type, effect_type) VALUES (1, 'Кислотный дождь', 'Жжёт.', '[1]', 'local', 'damage'), (2, 'Туман', 'Серо.', NULL, 'global', 'none')");
+        $this->conn->table('active_events')->insert(['event_id' => 1, 'start_time' => date('Y-m-d H:i:s', time() - 600), 'end_time' => date('Y-m-d H:i:s', time() + 7200), 'status' => 'active', 'effect_log' => json_encode([(string) $charId => 1])]);
+        $this->conn->table('active_events')->insert(['event_id' => 2, 'start_time' => '2026-06-20 18:13:00', 'end_time' => '2026-06-20 19:13:00', 'status' => 'completed', 'effect_log' => null]);
+        $this->conn->query('SET FOREIGN_KEY_CHECKS = 1');
+        $this->conn->resetDataCache();
+        foreach (['quests.extended_enabled', 'quests.branching_enabled'] as $key) {
+            service('cache')->save('game_settings_' . str_replace('.', '_', $key), ['v' => true, 't' => 'bool'], 60);
+        }
+    }
+
+    private function installTasks(TasksSurfaceService $tasks, DailyTaskService $daily, ?WebActService $act = null): void
+    {
+        Factories::injectMock('libraries', WebNativeScreenService::class, new WebNativeScreenService($act, tasks: $tasks, daily: $daily));
+        if ($act !== null) {
+            Factories::injectMock('libraries', WebActService::class, $act);
+        }
+    }
+
+    /** Хаб-двойник: флаг и модель — задача 42 на 12 мин, сводка с развилкой, два задания дня (1 из 2). */
+    private function stubTasksSurface(bool $on): TasksSurfaceService
+    {
+        return new class ($on) extends TasksSurfaceService {
+            public function __construct(private bool $on)
+            {
+            }
+
+            public function enabled(): bool
+            {
+                return $this->on;
+            }
+
+            public function model(int $characterId, ?int $level = null): array
+            {
+                return [
+                    'tasks'      => [['id' => 42, 'name' => 'Сбор древесины', 'left' => '12 мин', 'ends_at' => date('Y-m-d H:i:s', time() + 720)]],
+                    'summary'    => [
+                        'active' => 1, 'available' => 2, 'locked' => 1, 'completed' => 3,
+                        'daily'  => ['enabled' => true, 'assigned' => true, 'done' => 1, 'total' => 2, 'bonus' => 500],
+                        'branches' => 1, 'npc_hint' => false,
+                    ],
+                    'polar_star' => '🧭 Цель: построй базу',
+                    'daily'      => [
+                        ['id' => 1, 'slot' => 1, 'task_key' => 'wood', 'title' => 'Добыть дерево', 'verb' => '', 'objective_qty' => 10, 'progress' => 10, 'is_completed' => true, 'reward_gold' => 120],
+                        ['id' => 2, 'slot' => 2, 'task_key' => 'walk', 'title' => 'Пройти клетки', 'verb' => '', 'objective_qty' => 15, 'progress' => 3, 'is_completed' => false, 'reward_gold' => 150],
+                    ],
+                ];
+            }
+        };
+    }
+
+    private function stubDaily(bool $on): DailyTaskService
+    {
+        return new class ($on) extends DailyTaskService {
+            /** @var list<array<string, mixed>> */
+            public array $assigned = [];
+
+            public function __construct(private bool $on)
+            {
+            }
+
+            public function enabled(): bool
+            {
+                return $this->on;
+            }
+
+            public function ensureAssigned(array|\App\Entities\CharacterEntity $character): bool
+            {
+                $this->assigned[] = is_array($character) ? $character : [];
+
+                return $this->on;
+            }
+        };
+    }
+
+    /** Мост-двойник экрана «📋 Дела» бота: `/tasks` — сообщение 45 с «⛔️ 1» и «📜 Квесты», «📜 Квесты» — 46 с «🌐 Квестомания». */
+    private function tasksAct(): WebActService
+    {
+        return new class () extends WebActService {
+            /** @var list<array<string, mixed>> */
+            public array $calls = [];
+
+            public function act(int $accountId, int $characterId, array $intent): array
+            {
+                $this->calls[] = $intent;
+                [$mid, $kb] = match ($intent['data'] ?? null) {
+                    'questAndTask' => [46, [[['text' => '🌐 Квестомания', 'callback_data' => 'questInfo']]]],
+                    '/tasks'       => [45, [[['text' => '⛔️ 1', 'callback_data' => 'finishAllTasks_42']], [['text' => '📜 Квесты (1)', 'callback_data' => 'questAndTask']]]],
+                    default        => [47, []],
+                };
+                $msg = ['message_id' => $mid, 'text' => 'Дела', 'caption' => null, 'parse_mode' => null, 'photo_url' => null, 'inline_keyboard' => $kb];
+
+                return ['state' => ['screen' => [$msg], 'history' => [], 'dock' => [['🧑 Я']], 'input' => null], 'alert' => null, 'unread' => 0];
+            }
+
+            public function current(int $characterId): array
+            {
+                return ['state' => ['screen' => [], 'history' => [], 'dock' => [['🧑 Я']], 'input' => null], 'alert' => null, 'unread' => 0];
+            }
+        };
+    }
+
     private function stubSheets(?WebActService $act = null, array $inventoryRows = [[], []], ?LiveMapService $map = null, ?MoveService $move = null, ?CraftOrderService $orders = null, ?CraftQueueService $queue = null): void
     {
         $conn   = $this->conn;

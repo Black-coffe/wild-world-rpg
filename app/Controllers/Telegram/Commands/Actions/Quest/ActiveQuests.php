@@ -4,11 +4,9 @@ namespace App\Controllers\Telegram\Commands\Actions\Quest;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Notifications\MediaSender;
+use App\Services\Quest\QuestListService;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
-use App\Models\QuestStepsModel;
-use App\Models\CharacterModel;
-use App\Models\QuestModel;
 
 class ActiveQuests extends BaseAction
 {
@@ -16,13 +14,12 @@ class ActiveQuests extends BaseAction
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
-        $questStepModel = new QuestStepsModel();
-        $characterModel = new CharacterModel();
+        // w2-n5-deeds-02: персонаж — по отправителю (BaseAction), не по chat_id (у веб-моста чат
+        // виртуальный); список — из нейтрального ядра QuestListService, общего с вебом.
+        [, $character] = $this->getUserAndCharacter();
+        $characterId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
 
-        $characterId = $characterModel->getCharacterIdByTelegramId($chatId);
-        $character = $characterModel->find($characterId);
-
-        if (!$character) {
+        if ($characterId <= 0) {
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
@@ -31,25 +28,14 @@ class ActiveQuests extends BaseAction
             ]);
         }
 
-        // Получаем запущенные и активные квесты для персонажа
-        $activeQuestSteps = $questStepModel->where('character_id', $characterId)
-            ->where('is_completed', false)
-            ->findAll();
+        $activeQuests = (new QuestListService())->active($characterId);
 
-        if (empty($activeQuestSteps)) {
+        if (empty($activeQuests)) {
             $text = "На данный момент у вас нет активных квестов.";
         } else {
-            $activeQuestIds = array_column($activeQuestSteps, 'quest_id');
-            $activeQuests = $this->getActiveQuestsData($activeQuestIds);
-
-            if (empty($activeQuests)) {
-                $text = "На данный момент у вас нет активных квестов.";
-            } else {
-                $text = "*🚀 Активные квесты:*\n\n";
-                foreach ($activeQuests as $quest) {
-                    $rewardType = $this->translateRewardType($quest['reward_type']);
-                    $text .= "🔹 *{$quest['title_ru']}* || Награда: *{$quest['reward']}* (_{$rewardType}_)\n";
-                }
+            $text = "*🚀 Активные квесты:*\n\n";
+            foreach ($activeQuests as $quest) {
+                $text .= "🔹 *{$quest['title_ru']}* || Награда: *{$quest['reward']}* (_{$quest['reward_type_ru']}_)\n";
             }
         }
 
@@ -68,29 +54,5 @@ class ActiveQuests extends BaseAction
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
-    }
-
-    private function getActiveQuestsData($activeQuestIds)
-    {
-        $questModel = new QuestModel();
-
-        // Проверяем, не пуст ли массив идентификаторов квестов
-        if (empty($activeQuestIds)) {
-            return []; // Возвращаем пустой массив, если нет активных квестов
-        }
-
-        // Получаем данные о запущенных и активных квестах
-        return $questModel->whereIn('id', $activeQuestIds)->findAll();
-    }
-
-    private function translateRewardType($type)
-    {
-        $translations = [
-            'gold' => 'золото',
-            'experience' => 'опыт',
-            'items' => 'предметы',  // Пример добавления другого типа награды
-        ];
-
-        return $translations[$type] ?? $type;  // Возвращаем перевод или оригинальное значение, если перевод отсутствует
     }
 }

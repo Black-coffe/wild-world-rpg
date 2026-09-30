@@ -16,8 +16,9 @@ use App\Services\Telegram\Request;
  *
  * Игрок жмёт одну из веток развилки → QuestChainService::chooseBranch валидирует
  * (branching on / квест — ветка / prerequisite завершён / сиблинг ещё не выбран) и
- * создаёт quest_steps для выбранной ветки. Остальные ветки группы навсегда закрыты.
- * Выбор необратим.
+ * создаёт quest_steps для выбранной ветки под блокировкой строки персонажа (w2-n5-deeds-01).
+ * Остальные ветки группы навсегда закрыты. Выбор необратим. Тексты отказов — общие с вебом
+ * ({@see QuestChainService::branchRefusalText()}).
  */
 final class QuestBranchChooseAction extends BaseAction
 {
@@ -31,7 +32,6 @@ final class QuestBranchChooseAction extends BaseAction
 
     public function handle(): ServerResponse
     {
-        $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
         [$user, $character] = $this->getUserAndCharacter();
         if (! $user || ! $character) {
             return $this->alert('Персонаж не найден.');
@@ -50,14 +50,7 @@ final class QuestBranchChooseAction extends BaseAction
 
         $res = $this->chain->chooseBranch($charId, $questId);
         if ($res['ok'] !== true) {
-            $msg = match ($res['reason']) {
-                'disabled'       => '🔀 Развилки квестов сейчас недоступны.',
-                'already_chosen' => '🔀 Ты уже выбрал путь на этой развилке — назад дороги нет.',
-                'prereq_not_met' => '🔀 Эта развилка ещё не открыта.',
-                'inactive'       => '🔀 Эта ветка больше недоступна.',
-                default          => '🔀 Не удалось выбрать путь. Попробуй из «Доступных квестов».',
-            };
-            return $this->alert($msg);
+            return $this->alert(QuestChainService::branchRefusalText($res['reason']));
         }
 
         Request::answerCallbackQuery([
