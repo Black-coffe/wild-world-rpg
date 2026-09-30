@@ -163,8 +163,8 @@ git check-ignore -v .claude/admin-credentials.local.md .claude/settings.local.js
 | `.claude/commands/vulyk-handoff.md` | вызов глобального `context_guard.py` вместо удалённого `handoff.sh` | `grep -L context_guard .claude/commands/vulyk-handoff.md` |
 | `.claude/agents/lead-architect.md` | блок «Project path binding» — ADR пишутся в `mmorpg-vault/decisions/` | `grep -L "Project path binding" .claude/agents/lead-architect.md` |
 | `.claude/agents/drone-docs.md` | блок «Project path binding» — ноты пишутся в `mmorpg-vault/tech-writing/` | `grep -L "Project path binding" .claude/agents/drone-docs.md` |
-| `scripts/lib.sh` (до 0.12.0 — `ship-check.sh` + `human-check.sh`) | `is_paperwork_path()` знает про леджеры улья (§10) | `grep -c "memory/learnings" scripts/lib.sh` |
-| `scripts/cycle.sh` | `command_cell_exists()` читает и `CLAUDE.vulyk.md` (раздел в конце файла) | `grep -c 'CLAUDE.vulyk.md' scripts/cycle.sh` |
+| `scripts/lib.sh` (до 0.12.0 — `ship-check.sh` + `human-check.sh`) | `is_paperwork_path()` знает про леджеры улья (§10). **С 0.24.0 апстримлено** — файл равен ванили, откатываться нечему | `grep -c "memory/learnings" scripts/lib.sh` |
+| `scripts/cycle.sh` | `command_cell_exists()` читает и `CLAUDE.vulyk.md` (раздел в конце файла). **С 0.24.0 апстримлено** — файл равен ванили | `grep -c 'CLAUDE.vulyk.md' scripts/cycle.sh` |
 
 Одной командой — что откатилось:
 
@@ -173,7 +173,7 @@ grep -L "Project path binding" .claude/agents/lead-architect.md .claude/agents/d
 grep -L "context_guard"       .claude/commands/vulyk-handoff.md
 ls .claude/hooks/handoff.*        # должно быть пусто
 grep -c "handoff.sh" .claude/settings.json   # должно быть 0
-grep -c "memory/learnings" scripts/lib.sh                                 # должно быть 1 (§10)
+grep -c "memory/learnings" scripts/lib.sh                                 # должно быть ≥1 (§10; в ванили 0.24.0 — 2)
 ls .claude/agents/drone-acceptance.md    # должно отсутствовать: упразднён в 0.12.0, но --upgrade не удаляет
 ```
 
