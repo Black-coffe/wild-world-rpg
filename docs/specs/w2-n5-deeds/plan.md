@@ -60,3 +60,4 @@
 ## Plan deltas
 **Briefed:** via grill (assumed), Andrei, 2026-09-29
 **Branch:** vulyk/w2-n5-deeds
+**Council:** RED round 1, 2026-09-30, at 28d25e40, pack 7e6f6c2df069
