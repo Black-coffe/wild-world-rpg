@@ -59,3 +59,4 @@
 
 ## Plan deltas
 **Briefed:** via grill (assumed), Andrei, 2026-09-29
+**Branch:** vulyk/w2-n5-deeds
