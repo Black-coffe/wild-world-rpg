@@ -7,6 +7,7 @@ namespace App\Services\Quest;
 use App\Models\QuestModel;
 use App\Models\QuestStepsModel;
 use App\Services\GameSettings\GameSettingsService;
+use Config\Database;
 
 /**
  * V11 (ADR-036) — цепочки квестов: квест доступен только после завершения его
@@ -350,6 +351,10 @@ final class QuestChainService
      * prerequisite завершён / квест active / сиблинг ещё не выбран) и создаёт quest_steps
      * для выбранной ветки. Идемпотентно (повтор → already_chosen).
      *
+     * w2-n5-deeds-01: проверка «сиблинг ещё не выбран» и вставка — в одной транзакции под
+     * `SELECT … FOR UPDATE` строки персонажа. Двойной тап или бот+веб одновременно по двум веткам
+     * одной развилки: второй ждёт первого и получает already_chosen, второй строки нет.
+     *
      * @return array{ok:bool,reason:string,title_ru:string,reward:int}
      */
     public function chooseBranch(int $characterId, int $questId): array
@@ -392,18 +397,33 @@ final class QuestChainService
                 $siblingIds[] = (int) $s['id'];
             }
         }
-        if ($siblingIds !== [] && $questStepsModel->countStepsForQuests($characterId, $siblingIds) > 0) {
-            return $fail('already_chosen');
+        if (! in_array($questId, $siblingIds, true)) {
+            $siblingIds[] = $questId;
         }
 
         $titleRu = is_string($quest['title_ru'] ?? null) ? $quest['title_ru'] : 'Этап развилки';
-        $questStepsModel->insert([
-            'quest_id'     => $questId,
-            'character_id' => $characterId,
-            'step_order'   => 1,
-            'description'  => $titleRu,
-            'is_completed' => 0,
-        ]);
+        $db      = Database::connect();
+        $db->transBegin();
+        try {
+            $db->query('SELECT id FROM characters WHERE id = ? FOR UPDATE', [$characterId]);
+            if ($questStepsModel->countStepsForQuests($characterId, $siblingIds) > 0) {
+                $db->transRollback();
+
+                return $fail('already_chosen');
+            }
+            $questStepsModel->insert([
+                'quest_id'     => $questId,
+                'character_id' => $characterId,
+                'step_order'   => 1,
+                'description'  => $titleRu,
+                'is_completed' => 0,
+            ]);
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+
+            throw $e;
+        }
 
         return [
             'ok'       => true,
@@ -411,6 +431,20 @@ final class QuestChainService
             'title_ru' => $titleRu,
             'reward'   => is_numeric($quest['reward'] ?? null) ? (int) $quest['reward'] : 0,
         ];
+    }
+
+    /**
+     * Текст отказа {@see chooseBranch()} для игрока — один для бота и веба (w2-n5-deeds-01).
+     */
+    public static function branchRefusalText(string $reason): string
+    {
+        return match ($reason) {
+            'disabled'       => '🔀 Развилки квестов сейчас недоступны.',
+            'already_chosen' => '🔀 Ты уже выбрал путь на этой развилке — назад дороги нет.',
+            'prereq_not_met' => '🔀 Эта развилка ещё не открыта.',
+            'inactive'       => '🔀 Эта ветка больше недоступна.',
+            default          => '🔀 Не удалось выбрать путь. Попробуй из «Доступных квестов».',
+        };
     }
 
     /**

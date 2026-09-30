@@ -111,6 +111,10 @@ class DailyTaskService
      * Выбор шаблонов детерминирован по (char, дата, key) — без mt_rand (стабильно для тестов,
      * варьируется по дням). baseline снимается на момент назначения.
      *
+     * w2-n5-deeds-01: проверка «набор за сегодня есть» и вставка — в одной транзакции под
+     * `SELECT … FOR UPDATE` строки персонажа. Бот и веб заходят одновременно — второй ждёт первого
+     * и видит его набор: дублей дня нет.
+     *
      * @param array<string,mixed>|CharacterEntity $character
      * @return bool назначены/уже есть (true) или фича выключена (false)
      */
@@ -130,8 +134,8 @@ class DailyTaskService
         $taskDate = $this->currentDate();
         $db       = Database::connect();
 
-        // Идемпотентность: набор за сегодня уже есть.
-        if ($db->table(self::TABLE)->where('character_id', $charId)->where('task_date', $taskDate)->countAllResults() > 0) {
+        // Быстрый путь без блокировки: зовётся из вебхука на каждый апдейт, набор обычно уже есть.
+        if ($this->hasSetFor($db, $charId, $taskDate)) {
             return true;
         }
 
@@ -140,25 +144,53 @@ class DailyTaskService
         $picked   = $this->pick($charId, $taskDate, $level, $count);
         $now      = date('Y-m-d H:i:s');
 
-        $slot = 1;
-        foreach ($picked as $tpl) {
-            $type = $tpl['objective_type'];
-            $db->table(self::TABLE)->insert([
-                'character_id'   => $charId,
-                'task_date'      => $taskDate,
-                'slot'           => $slot,
-                'task_key'       => $tpl['key'],
-                'objective_type' => $type,
-                'objective_qty'  => DailyTaskCatalog::qtyFor($tpl['key'], $level),
-                'baseline'       => $this->counter($charId, $type, $db),
-                'reward_gold'    => (int) round(DailyTaskCatalog::goldFor($tpl['key'], $level) * $mult),
-                'is_completed'   => 0,
-                'created_at'     => $now,
-            ]);
-            $slot++;
+        $db->transBegin();
+        try {
+            $db->query('SELECT id FROM characters WHERE id = ? FOR UPDATE', [$charId]);
+
+            // Идемпотентность: набор за сегодня уже есть (в т.ч. выданный параллельным заходом).
+            if ($this->hasSetFor($db, $charId, $taskDate)) {
+                $db->transRollback();
+
+                return true;
+            }
+
+            $slot = 1;
+            foreach ($picked as $tpl) {
+                $type = $tpl['objective_type'];
+                $db->table(self::TABLE)->insert([
+                    'character_id'   => $charId,
+                    'task_date'      => $taskDate,
+                    'slot'           => $slot,
+                    'task_key'       => $tpl['key'],
+                    'objective_type' => $type,
+                    'objective_qty'  => DailyTaskCatalog::qtyFor($tpl['key'], $level),
+                    'baseline'       => $this->counter($charId, $type, $db),
+                    'reward_gold'    => (int) round(DailyTaskCatalog::goldFor($tpl['key'], $level) * $mult),
+                    'is_completed'   => 0,
+                    'created_at'     => $now,
+                ]);
+                $slot++;
+            }
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+
+            throw $e;
         }
 
         return true;
+    }
+
+    /**
+     * Читает БД: между быстрой проверкой и проверкой под блокировкой ответ может смениться.
+     *
+     * @param BaseConnection<object, object> $db
+     * @phpstan-impure
+     */
+    private function hasSetFor(BaseConnection $db, int $charId, string $taskDate): bool
+    {
+        return $db->table(self::TABLE)->where('character_id', $charId)->where('task_date', $taskDate)->countAllResults() > 0;
     }
 
     /**

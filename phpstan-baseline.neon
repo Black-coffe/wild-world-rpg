@@ -6504,11 +6504,6 @@ parameters:
 			count: 2
 			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestStartExplore300Cells.php
 
-		-
-			message: '#^Cannot access offset ''level'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestStartExplore300Cells.php
 
 		-
 			message: '#^Cannot access offset ''reward'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
@@ -6546,11 +6541,6 @@ parameters:
 			count: 2
 			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestStartExplore30Cells.php
 
-		-
-			message: '#^Cannot access offset ''level'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestStartExplore30Cells.php
 
 		-
 			message: '#^Cannot access offset ''reward'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
@@ -6588,11 +6578,6 @@ parameters:
 			count: 2
 			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestStartExploreAllBiomes.php
 
-		-
-			message: '#^Cannot access offset ''level'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestStartExploreAllBiomes.php
 
 		-
 			message: '#^Cannot access offset ''reward'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
@@ -6630,11 +6615,6 @@ parameters:
 			count: 2
 			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestStartFirstAidkitBasic.php
 
-		-
-			message: '#^Cannot access offset ''level'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestStartFirstAidkitBasic.php
 
 		-
 			message: '#^Cannot access offset ''title_ru'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'

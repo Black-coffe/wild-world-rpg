@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Database;
 
 use App\Services\Quest\QuestChainService;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -13,6 +14,9 @@ use Config\Database;
  * V11 (ADR-036) — QuestChainService: prerequisite-логика цепочек + killswitch.
  * GameSettings из game_settings (как FoodBuffServiceTest).
  *
+ * w2-n5-deeds-01: выбор ветки проверяет «сиблинг не выбран» и вставляет под блокировкой строки
+ * персонажа — таблица `characters` нужна для `SELECT … FOR UPDATE`.
+ *
  * @internal
  */
 final class QuestChainServiceTest extends CIUnitTestCase
@@ -20,6 +24,9 @@ final class QuestChainServiceTest extends CIUnitTestCase
     use DatabaseTestTrait;
 
     protected $migrate = false;
+
+    /** @var (callable(mixed): void)|null */
+    private $listener = null;
 
     protected function setUp(): void
     {
@@ -52,6 +59,9 @@ final class QuestChainServiceTest extends CIUnitTestCase
         // V12: quests + quest_steps для advanceChain. W11: + branch_group/branch_label.
         $db->query('DROP TABLE IF EXISTS quest_steps');
         $db->query('DROP TABLE IF EXISTS quests');
+        $db->query('DROP TABLE IF EXISTS characters');
+        $db->query('CREATE TABLE characters (id INT PRIMARY KEY, level INT DEFAULT 1) ENGINE=InnoDB');
+        $db->query('INSERT INTO characters (id, level) VALUES (777, 10)');
         $db->query('
             CREATE TABLE quests (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -75,7 +85,11 @@ final class QuestChainServiceTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        if ($this->listener !== null) {
+            Events::removeListener('DBQuery', $this->listener);
+        }
         $db = Database::connect('tests');
+        $db->query('DROP TABLE IF EXISTS characters');
         $db->query('DROP TABLE IF EXISTS game_settings');
         $db->query('DROP TABLE IF EXISTS quest_steps');
         $db->query('DROP TABLE IF EXISTS quests');
@@ -315,5 +329,94 @@ final class QuestChainServiceTest extends CIUnitTestCase
         $this->assertCount(1, $pending);
         $this->assertSame('Развилка', $pending[0]['branch_point_ru']);
         $this->assertCount(2, $pending[0]['options']);
+    }
+
+    public function testChoosingTheSameBranchTwiceWritesOneRow(): void
+    {
+        [$aId] = $this->seedFork();
+        $this->enableBranching();
+        $this->completeForkPoint(777);
+
+        $svc    = new QuestChainService();
+        $first  = $svc->chooseBranch(777, $aId);
+        $second = $svc->chooseBranch(777, $aId);
+
+        $this->assertTrue($first['ok']);
+        $this->assertFalse($second['ok']);
+        $this->assertSame('already_chosen', $second['reason']);
+        $this->assertSame(1, Database::connect('tests')->table('quest_steps')->where('character_id', 777)->where('quest_id', $aId)->countAllResults());
+    }
+
+    /**
+     * «Параллельный выбор» — детерминированно: после блокировки строки персонажа слушатель `DBQuery`
+     * ловит проверку «сиблинг выбран?», и второе соединение пытается взять ту же блокировку, как это
+     * сделал бы выбор другой ветки из бота или веба. Блокировка держится — второй ждёт, а его выбор после
+     * фиксации первого получает already_chosen.
+     */
+    public function testParallelChoiceOfTheOtherBranchWaitsForTheCharacterLock(): void
+    {
+        [$aId, $bId] = $this->seedFork();
+        $this->enableBranching();
+        $this->completeForkPoint(777);
+
+        $blocked = null;
+        $this->onQueryAfterLock('FROM `quest_steps`', function () use (&$blocked): void {
+            $blocked = $this->characterLockIsHeld(777);
+        });
+
+        $first = (new QuestChainService())->chooseBranch(777, $aId);
+        $other = (new QuestChainService())->chooseBranch(777, $bId);
+
+        $this->assertTrue($first['ok']);
+        $this->assertTrue($blocked, 'во время проверки строка персонажа заблокирована — второй выбор ждёт');
+        $this->assertSame('already_chosen', $other['reason']);
+        $this->assertSame(0, Database::connect('tests')->table('quest_steps')->where('character_id', 777)->where('quest_id', $bId)->countAllResults());
+    }
+
+    public function testBranchRefusalTextsAreTheBotTexts(): void
+    {
+        $this->assertSame('🔀 Ты уже выбрал путь на этой развилке — назад дороги нет.', QuestChainService::branchRefusalText('already_chosen'));
+        $this->assertSame('🔀 Развилки квестов сейчас недоступны.', QuestChainService::branchRefusalText('disabled'));
+        $this->assertSame('🔀 Эта развилка ещё не открыта.', QuestChainService::branchRefusalText('prereq_not_met'));
+        $this->assertSame('🔀 Эта ветка больше недоступна.', QuestChainService::branchRefusalText('inactive'));
+        $this->assertSame('🔀 Не удалось выбрать путь. Попробуй из «Доступных квестов».', QuestChainService::branchRefusalText('not_found'));
+    }
+
+    /** Слушатель срабатывает на первом запросе с $fragment после `FOR UPDATE` проверяемого кода. */
+    private function onQueryAfterLock(string $fragment, callable $action): void
+    {
+        $locked         = false;
+        $fired          = false;
+        $this->listener = static function ($query) use ($fragment, $action, &$locked, &$fired): void {
+            $sql = (string) $query->getQuery();
+            if (! $locked && str_contains($sql, 'FOR UPDATE')) {
+                $locked = true;
+
+                return;
+            }
+            if ($locked && ! $fired && str_contains($sql, $fragment)) {
+                $fired = true;
+                $action();
+            }
+        };
+        Events::on('DBQuery', $this->listener);
+    }
+
+    /** Второе соединение пытается взять блокировку строки персонажа, как параллельный запрос. */
+    private function characterLockIsHeld(int $characterId): bool
+    {
+        $other = Database::connect('tests', false);
+        $other->query('SET SESSION innodb_lock_wait_timeout = 1');
+        $other->transBegin();
+        try {
+            $res  = $other->query('SELECT id FROM characters WHERE id = ? FOR UPDATE', [$characterId]);
+            $held = $res === false && (int) ($other->error()['code'] ?? 0) === 1205;
+        } catch (\Throwable $e) {
+            $held = str_contains($e->getMessage(), 'Lock wait timeout');
+        } finally {
+            $other->transRollback();
+        }
+
+        return $held;
     }
 }
