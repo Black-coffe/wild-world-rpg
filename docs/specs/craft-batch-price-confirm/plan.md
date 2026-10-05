@@ -52,7 +52,7 @@
 
 **Approved:** Andrei, 2026-10-05 (повторно, после правки про /play)
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/craft-batch-price-confirm
 **Checked:**
 **Council:**
 **Shipped:**
