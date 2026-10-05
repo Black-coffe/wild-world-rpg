@@ -103,7 +103,7 @@ final class CraftOrderServiceTest extends CIUnitTestCase
                         "method": "editMessageText",
                         "chat_id": "555002",
                         "message_id": "77",
-                        "text": "*Процесс крафта запущен*\n\nТы создаёшь: 🩹 *Повязку* x2 шт.\n\n🌍 Где угодно · ⏳ Идёт в фоне\n_Можешь идти добывать, в Поход и двигаться по карте — крафт идёт сам. Сообщу, когда будет готово._\n\nВремя крафта: *1 час* ⏱️\n\nПосле завершения будет добавлено *2* шт. в твой инвентарь.\n\n❗Прерывание задачи = потеря ресурсов!\n\n_О готовности узнаешь в сообщении._ 🎁",
+                        "text": "*Процесс крафта запущен*\n\nТы создаёшь: 🩹 *Повязку* x2 шт.\n\n🌍 Где угодно · ⏳ Идёт в фоне\n_Можешь идти добывать, в Поход и двигаться по карте — крафт идёт сам. Сообщу, когда будет готово._\n\nВремя крафта: *1 час* ⏱️\n\n💸 *Списано:* Травы ×4 · Кора деревьев ×4 · Водоросли ×6\n\nПосле завершения будет добавлено *2* шт. в твой инвентарь.\n\n❗Прерывание задачи = потеря ресурсов!\n\n_О готовности узнаешь в сообщении._ 🎁",
                         "parse_mode": "Markdown"
                     }
                 ],
@@ -171,7 +171,7 @@ final class CraftOrderServiceTest extends CIUnitTestCase
                         "method": "editMessageText",
                         "chat_id": "555002",
                         "message_id": "77",
-                        "text": "*Процесс крафта запущен*\n\nТы создаёшь: 🚑 *Базовая аптечка* x1 шт.\n\n🌍 Где угодно · 🔒 Займёт целиком\n_Пока идёт — нельзя двигаться, добывать, идти в Поход и начинать второе такое же дело. Дождись окончания._\n\nВремя крафта: *30 минут* ⏱️\n\nПосле завершения будет добавлено *1* шт. в твой инвентарь.\n\n❗Прерывание задачи = потеря ресурсов!\n\n_О готовности узнаешь в сообщении._ 🎁",
+                        "text": "*Процесс крафта запущен*\n\nТы создаёшь: 🚑 *Базовая аптечка* x1 шт.\n\n🌍 Где угодно · 🔒 Займёт целиком\n_Пока идёт — нельзя двигаться, добывать, идти в Поход и начинать второе такое же дело. Дождись окончания._\n\nВремя крафта: *30 минут* ⏱️\n\n💸 *Списано:* Грибы ×4 · Мед ×2 · Алоэ ×4 · Вода ×11 · Повязка ×5\n\nПосле завершения будет добавлено *1* шт. в твой инвентарь.\n\n❗Прерывание задачи = потеря ресурсов!\n\n_О готовности узнаешь в сообщении._ 🎁",
                         "parse_mode": "Markdown"
                     }
                 ],
@@ -239,7 +239,7 @@ final class CraftOrderServiceTest extends CIUnitTestCase
                         "method": "editMessageText",
                         "chat_id": "555002",
                         "message_id": "77",
-                        "text": "*В очередь поставлено:* 🩹 *Повязку* x1 шт.\n\n🌍 Где угодно · ⏳ Идёт в фоне\n\n📋 Позиция в очереди: *#2*\nНачнётся автоматически после завершения активного крафта.\n\n❗Ресурсы уже списаны. Отмена очереди вернёт их.",
+                        "text": "*В очередь поставлено:* 🩹 *Повязку* x1 шт.\n\n🌍 Где угодно · ⏳ Идёт в фоне\n\n📋 Позиция в очереди: *#2*\nНачнётся автоматически после завершения активного крафта.\n\n💸 *Списано:* Травы ×2 · Кора деревьев ×2 · Водоросли ×3\n\n❗Ресурсы уже списаны. Отмена очереди вернёт их.",
                         "parse_mode": "Markdown",
                         "reply_markup": "{\"inline_keyboard\":[[{\"text\":\"\\u274c \\u041e\\u0442\\u043c\\u0435\\u043d\\u0438\\u0442\\u044c \\u0438\\u0437 \\u043e\\u0447\\u0435\\u0440\\u0435\\u0434\\u0438\",\"callback_data\":\"cancelQueued_2\"},{\"text\":\"\\ud83d\\udccb \\u041e\\u0447\\u0435\\u0440\\u0435\\u0434\\u044c \\u043a\\u0440\\u0430\\u0444\\u0442\\u0430\",\"callback_data\":\"craftQueue\"}]]}"
                     }
@@ -1031,6 +1031,42 @@ final class CraftOrderServiceTest extends CIUnitTestCase
         $settings = json_decode((string) $this->conn->query('SELECT task_settings FROM character_tasks WHERE id = ?', [$medkit['char_task_id']])->getRow('task_settings'), true);
         $this->assertIsArray($settings);
         $this->assertSame(['Bandage' => 5], $settings['consumed']['crafted_items']);
+    }
+
+    /**
+     * craft-batch-price-confirm-01: ответ старта несёт итог списания за партию для строки «Списано» —
+     * рюкзак и склад сложены, компоненты русскими именами, золото за всю партию.
+     */
+    public function testStartReturnsWhatTheBatchCostForTheSpentLine(): void
+    {
+        $this->resetCase();
+        $this->conn->query("INSERT INTO claimed_cells (character_id, map_cell_id, status) VALUES (1, 5, 'active')");
+        $this->conn->query('UPDATE characters SET cell_number = 5 WHERE id = 1');
+        $this->conn->query('UPDATE character_resources SET quantity = 1 WHERE id_resources = 1');
+        $this->conn->query('INSERT INTO base_storage (character_id, resource_id, quantity) VALUES (1, 1, 100)');
+
+        $out = (new \App\Services\Craft\CraftOrderService())->start(self::CHAR, 'Bandage', 2);
+        $this->assertTrue($out['ok']);
+        $this->assertSame([
+            'gold'          => 0,
+            'resources'     => ['Травы' => 4, 'Кора деревьев' => 4, 'Водоросли' => 6],
+            'crafted_items' => [],
+        ], $out['consumed']);
+
+        $this->resetCase();
+        $medkit = (new \App\Services\Craft\CraftOrderService())->start(self::CHAR, 'BasicMedKit', 1);
+        $this->assertSame(['Повязка' => 5], $medkit['consumed']['crafted_items']);
+
+        $this->resetCase();
+        $this->seedWorkbenchOne(gold: 20000);
+        $paid = (new \App\Services\Craft\CraftOrderService())->start(self::CHAR, 'WorkbenchOne', 1);
+        $this->assertTrue($paid['ok']);
+        $this->assertSame(20000, $paid['consumed']['gold']);
+
+        $this->resetCase();
+        $this->seedWorkbenchOne(gold: 19999);
+        $refused = (new \App\Services\Craft\CraftOrderService())->start(self::CHAR, 'WorkbenchOne', 1);
+        $this->assertSame(['gold' => 0, 'resources' => [], 'crafted_items' => []], $refused['consumed']);
     }
 
     /** Превью: без записи; `max_qty` — сколько хватает сырья, 0 при упоре в очередь. */

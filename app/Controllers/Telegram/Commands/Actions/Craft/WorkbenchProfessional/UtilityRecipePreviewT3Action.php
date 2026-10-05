@@ -216,7 +216,17 @@ class UtilityRecipePreviewT3Action extends BaseAction
         }
         $caption .= "\n" . $scope->scopeLine(\App\Services\Tasks\ActionScopeService::KIND_CRAFT, $bg) . "\n";
         $caption .= "\n*Уровень:* L{$needLevel} (у вас L{$charLevel})\n";
-        $caption .= "*Золото:* {$goldNeed} / {$goldHave}\n";
+        // Жалоба 05.10.2026: «Крафт 50шт» списал 300 000 золота и занял 59 ч — карточка показывала
+        // золото без «за 1 шт.» и не показывала время вовсе. Числа здесь — за штуку; партия
+        // умножает и то и другое.
+        $caption .= "*Золото (за 1 шт.):* {$goldNeed} / {$goldHave}\n";
+        if (is_array($taskRow)) {
+            $timeOne  = (new \App\Services\Craft\CraftDurationService($this->gameSettings))->forOne($character, $taskRow, $recipe);
+            $timeLine = $timeOne->hasBonuses() && (bool) $this->gameSettings->get('craft.duration_breakdown.enabled', true)
+                ? mb_substr($timeOne->truthLine(1), 2)
+                : \App\Services\Craft\CraftDurationBreakdown::humanize($timeOne->minutes);
+            $caption .= "*Время (за 1 шт.):* {$timeLine}\n";
+        }
 
         if (!empty($gate)) {
             $caption .= "\n*Требуется в инвентаре:*\n";

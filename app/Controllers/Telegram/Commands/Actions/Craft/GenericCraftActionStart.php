@@ -114,10 +114,10 @@ class GenericCraftActionStart extends BaseAction
         }
 
         if ($result['code'] === CraftOrderService::QUEUED) {
-            return $this->notifyCraftQueued($recipe, $result['queue_pos'], $this->quantity, $result['char_task_id'], $result['background']);
+            return $this->notifyCraftQueued($recipe, $result['queue_pos'], $this->quantity, $result['char_task_id'], $result['background'], self::spentLine($result['consumed']));
         }
 
-        return $this->notifyCraftStarted($recipe, $result['minutes_total'], $this->quantity, $result['background'], $result['breakdown']);
+        return $this->notifyCraftStarted($recipe, $result['minutes_total'], $this->quantity, $result['background'], $result['breakdown'], self::spentLine($result['consumed']));
     }
 
     /**
@@ -185,15 +185,42 @@ class GenericCraftActionStart extends BaseAction
     }
 
     /**
+     * Строка «Списано» за всю партию (жалоба 05.10.2026: 50 лопат одним нажатием ушли за 300 000 золота,
+     * а сообщение о старте молчало о цене). Числа — из `consumed` ядра, то есть ровно то, что списала
+     * транзакция. Имена — данные БД и конфига: markdown-метасимволы вырезаются, иначе непарная `*`/`_`
+     * роняет весь caption (legacy Markdown без эскейпа). Пустое списание — пустая строка.
+     *
+     * @param array{gold:int, resources:array<string,int>, crafted_items:array<string,int>} $consumed
+     */
+    public static function spentLine(array $consumed): string
+    {
+        $parts = [];
+        if ($consumed['gold'] > 0) {
+            $parts[] = number_format($consumed['gold'], 0, '.', ' ') . ' 💰';
+        }
+        foreach ([$consumed['resources'], $consumed['crafted_items']] as $group) {
+            foreach ($group as $name => $n) {
+                $clean = trim(str_replace(['*', '_', '`', '[', ']'], '', (string) $name));
+                if ($n > 0 && $clean !== '') {
+                    $parts[] = $clean . ' ×' . number_format($n, 0, '.', ' ');
+                }
+            }
+        }
+
+        return $parts === [] ? '' : '💸 *Списано:* ' . implode(' · ', $parts);
+    }
+
+    /**
      * v0.51.129: notification для queued task. Показує queue position + qty +
      * cancel button з callback `cancelQueued_<task_id>` для refund.
      */
-    private function notifyCraftQueued(array $recipe, int $queuePosition, int $qty, int $charTaskId, bool $background): ServerResponse
+    private function notifyCraftQueued(array $recipe, int $queuePosition, int $qty, int $charTaskId, bool $background, string $spent): ServerResponse
     {
         $text = "*В очередь поставлено:* {$recipe['start_caption_name']} x{$qty} шт.\n\n"
             . $this->scope->scopeLine(ActionScopeService::KIND_CRAFT, $background) . "\n\n"
             . "📋 Позиция в очереди: *#{$queuePosition}*\n"
             . "Начнётся автоматически после завершения активного крафта.\n\n"
+            . ($spent !== '' ? $spent . "\n\n" : '')
             . "❗Ресурсы уже списаны. Отмена очереди вернёт их.";
 
         $keyboard = [
@@ -214,7 +241,7 @@ class GenericCraftActionStart extends BaseAction
         ]);
     }
 
-    private function notifyCraftStarted(array $recipe, int $minutes, int $qty, bool $background, ?CraftDurationBreakdown $breakdown): ServerResponse
+    private function notifyCraftStarted(array $recipe, int $minutes, int $qty, bool $background, ?CraftDurationBreakdown $breakdown, string $spent): ServerResponse
     {
         $timeStr = $this->formatMinutes($minutes);
 
@@ -234,6 +261,7 @@ class GenericCraftActionStart extends BaseAction
             . "Ты создаёшь: {$recipe['start_caption_name']} x{$qty} шт.\n\n"
             . $this->scope->startedBlock(ActionScopeService::KIND_CRAFT, $background) . "\n\n"
             . $timeBlock . "\n\n"
+            . ($spent !== '' ? $spent . "\n\n" : '')
             . "После завершения будет добавлено *{$qty}* шт. в твой инвентарь.\n\n"
             . "❗Прерывание задачи = потеря ресурсов!\n\n"
             . "_О готовности узнаешь в сообщении._ 🎁";

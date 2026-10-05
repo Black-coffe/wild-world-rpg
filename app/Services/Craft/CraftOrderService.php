@@ -45,6 +45,7 @@ use DateTime;
  * @phpstan-type Log array{reason:string, extra:array<string,mixed>}
  * @phpstan-type Refusal array{code:string, message:string, log:?Log}
  * @phpstan-type Missing array<string, array{need:int, have:int, name:string, storage?:int, pooled?:bool}>
+ * @phpstan-type Consumed array{gold:int, resources:array<string,int>, crafted_items:array<string,int>}
  */
 class CraftOrderService
 {
@@ -213,7 +214,7 @@ class CraftOrderService
      *
      * @return array{ok:bool, code:string, message:string, log:?Log, char_task_id:int, status:string, started_at:?string,
      *     ends_at:?string, minutes_total:int, queue_pos:int, background:bool, breakdown:?CraftDurationBreakdown,
-     *     missing_resources:Missing, missing_items:Missing}
+     *     missing_resources:Missing, missing_items:Missing, consumed:Consumed}
      */
     public function start(int $characterId, string $recipeKey, int $qty): array
     {
@@ -222,6 +223,7 @@ class CraftOrderService
             'ok' => false, 'code' => $code, 'message' => $message, 'log' => $log, 'char_task_id' => 0, 'status' => '',
             'started_at' => null, 'ends_at' => null, 'minutes_total' => 0, 'queue_pos' => 0, 'background' => false,
             'breakdown' => null, 'missing_resources' => [], 'missing_items' => [],
+            'consumed' => ['gold' => 0, 'resources' => [], 'crafted_items' => []],
         ];
 
         $recipe = $this->recipe($recipeKey);
@@ -350,7 +352,32 @@ class CraftOrderService
             'breakdown'         => $breakdown,
             'missing_resources' => [],
             'missing_items'     => [],
+            'consumed'          => $this->consumedSummary($goldRequired, $consumedResources, $consumedItems),
         ];
+    }
+
+    /**
+     * Итог списания за всю партию для экрана игрока («Списано: …»): рюкзак и склад сложены,
+     * компоненты — русскими именами. Числа — ровно то, что транзакция списала, а не пересчёт рецепта.
+     *
+     * @param array<string,array{backpack:int,storage:int}> $resources
+     * @param array<string,int> $items name_eng → списано
+     * @return Consumed
+     */
+    private function consumedSummary(int $gold, array $resources, array $items): array
+    {
+        $res = [];
+        foreach ($resources as $name => $from) {
+            $res[$name] = $from['backpack'] + $from['storage'];
+        }
+        $named = [];
+        foreach ($items as $itemEn => $n) {
+            $row  = $this->craftedItemsModel->getRowByName($itemEn);
+            $name = is_array($row) && is_string($row['name_rus'] ?? null) && $row['name_rus'] !== '' ? $row['name_rus'] : $itemEn;
+            $named[$name] = ($named[$name] ?? 0) + $n;
+        }
+
+        return ['gold' => $gold, 'resources' => $res, 'crafted_items' => $named];
     }
 
     /**
