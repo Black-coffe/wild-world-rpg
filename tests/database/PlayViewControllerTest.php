@@ -1566,11 +1566,11 @@ final class PlayViewControllerTest extends CIUnitTestCase
                     'message' => $this->max > 0 ? '' : 'Недостаточно ресурсов для крафта 1 шт.',
                     'recipe' => ['key' => $recipeKey, 'name' => 'Повязка', 'icon' => '🩹', 'output_type' => 'item'],
                     'resources' => [['name' => 'Хлопок', 'need' => 2 * $qty, 'have' => 14]], 'items' => [], 'gold' => 0,
-                    'minutes_one' => 5, 'minutes_total' => 5 * $qty, 'max_qty' => $this->max, 'queue_pos' => 1, 'gates' => [],
+                    'minutes_one' => 5, 'minutes_total' => 5 * $qty, 'max_qty' => $this->max, 'needs_confirm' => false, 'queue_pos' => 1, 'gates' => [],
                 ];
             }
 
-            public function start(int $characterId, string $recipeKey, int $qty): array
+            public function start(int $characterId, string $recipeKey, int $qty, bool $confirmed = false): array
             {
                 $this->starts[] = [$recipeKey, $qty];
                 $queued         = count($this->starts) > 1;
@@ -1580,6 +1580,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
                     'char_task_id' => count($this->starts), 'status' => $queued ? 'queued' : 'in_work', 'started_at' => null, 'ends_at' => null,
                     'minutes_total' => 5 * $qty, 'queue_pos' => count($this->starts), 'background' => true, 'breakdown' => null,
                     'missing_resources' => [], 'missing_items' => [],
+                    'consumed' => ['gold' => 0, 'resources' => ['Хлопок' => 2 * $qty], 'crafted_items' => []], 'batch' => null,
                 ];
             }
         };

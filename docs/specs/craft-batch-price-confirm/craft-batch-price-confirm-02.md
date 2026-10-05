@@ -1,8 +1,8 @@
 ---
 story: craft-batch-price-confirm-02
 spec: craft-batch-price-confirm
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -38,6 +38,7 @@ GameSettings, к механике — совет дня.
 - app/Database/Migrations/2026-12-16-100010_SeedCraftBatchPriceTip.php
 - tests/unit/Craft/CraftBatchConfirmPolicyTest.php
 - tests/unit/Craft/CraftBatchConfirmCallbackTest.php
+- tests/database/PlayViewControllerTest.php
 
 ## Non-goals
 - Не подписывать итоги на самих кнопках количества и не менять `CraftCardHelper::STEPS`.
@@ -62,5 +63,12 @@ GameSettings, к механике — совет дня.
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- Ядро: `CraftOrderService::start(..., bool $confirmed = false)`, код `CONFIRM_REQUIRED`, ответ `batch{qty, gold, resources, crafted_items, minutes_total}` (тип `Batch`); проверка после гейтов и сырья, до транзакции. `preview()` отдаёт `needs_confirm`. Политика — `CraftBatchConfirmPolicy` (кэш GameSettings, дефолты-страховки 25 / 50 000 = значения сида).
+- Бот: `parseCallback()` (4-й сегмент `ok`), `confirmText()` / `confirmKeyboard()` — чистые статики, `notifyConfirmBatch()` шлёт через `MediaSender::editOrSend` с фото рецепта. «↩️» — `info_callback` (есть у 107 из 112 рецептов), иначе `WorkbenchChoice`.
+- Миграции `2026-12-16-100000_SeedCraftConfirmThresholdSettings` (категория `craft`, rationale/effect/above/below, soft 10–50 / 20k–200k, hard 0–100 / 0–10M) и `2026-12-16-100010_SeedCraftBatchPriceTip` (`CraftBatchPrice`, `крафт`, без чисел; соседний `CraftQuantityBatch` — где кнопки, этот — что партия стоит). Новых таблиц нет — WipeManifest не меняется.
+- Тесты: политика на границах и соседней форме; колбэк ≤64 байт на самом длинном ключе; экран ≤1024 на всех рецептах ×100; DB — 25 шт без флага не трогает состояние, с флагом стартует, нехватка раньше подтверждения, порог из GameSettings, сид идемпотентен. В тест-хелпере политики кэш GameSettings чистится на каждую модель (60-секундный кэш переживает смену модели внутри теста).
+- Промежуточное состояние ветки: до story 03 `/play` на партии выше порога получит `confirm_required` и покажет текст отказа вместо панели — в develop это не уезжает, story 03 на той же ветке.
+- Tier-3 смоук (ask 8) — после деплоя на preprod, результат допишу сюда.
+- Tech-writing: `services/CraftOrderService.md`, `services/CraftBatchConfirmPolicy.md` (новая), `handlers/craft/GenericCraftActionStart.md`, `apps/player/index.md`.
 
 ## Findings

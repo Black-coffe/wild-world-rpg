@@ -1104,6 +1104,71 @@ final class CraftOrderServiceTest extends CIUnitTestCase
         ], $rows, 'второй прогон не дублирует и не перетирает значение из админки');
     }
 
+    /**
+     * craft-batch-price-confirm: крупная партия без подтверждения — `CONFIRM_REQUIRED` с итогом и ни одной
+     * записи; с подтверждением — обычный старт. Правило в ядре, поэтому одинаково для бота и `/play`.
+     */
+    public function testLargeBatchNeedsConfirmationAndTouchesNothingWithoutIt(): void
+    {
+        $this->resetCase();
+        $this->conn->query('UPDATE character_resources SET quantity = 1000 WHERE id_resources IN (1, 2, 3)');
+        $before = $this->state();
+        $svc    = new \App\Services\Craft\CraftOrderService();
+
+        $asked = $svc->start(self::CHAR, 'Bandage', 25);
+        $this->assertSame([false, \App\Services\Craft\CraftOrderService::CONFIRM_REQUIRED], [$asked['ok'], $asked['code']]);
+        $this->assertSame($before, $this->state(), 'без подтверждения ничего не списано и задачи нет');
+        $this->assertIsArray($asked['batch']);
+        $this->assertSame(25, $asked['batch']['qty']);
+        $this->assertSame(['Травы' => 50, 'Кора деревьев' => 50, 'Водоросли' => 75], $asked['batch']['resources']);
+        $this->assertGreaterThan(0, $asked['batch']['minutes_total']);
+        $this->assertTrue($svc->preview(self::CHAR, 'Bandage', 25)['needs_confirm']);
+        $this->assertFalse($svc->preview(self::CHAR, 'Bandage', 24)['needs_confirm']);
+
+        $go = $svc->start(self::CHAR, 'Bandage', 25, true);
+        $this->assertTrue($go['ok']);
+        $this->assertNull($go['batch']);
+        $this->assertSame(['Травы' => 50, 'Кора деревьев' => 50, 'Водоросли' => 75], $go['consumed']['resources']);
+
+        $this->resetCase();
+        $this->conn->query('UPDATE character_resources SET quantity = 1000 WHERE id_resources IN (1, 2, 3)');
+        $this->assertTrue($svc->start(self::CHAR, 'Bandage', 24)['ok'], 'ниже порога — старт сразу, как раньше');
+    }
+
+    /** Нехватка сырья проверяется раньше подтверждения: игрок видит экран нехватки, а не «подтверди». */
+    public function testShortageWinsOverConfirmation(): void
+    {
+        $this->resetCase();
+        $out = (new \App\Services\Craft\CraftOrderService())->start(self::CHAR, 'Bandage', 25);
+        $this->assertSame(\App\Services\Craft\CraftOrderService::MISSING_MATERIALS, $out['code']);
+    }
+
+    /** Порог из GameSettings: 0 выключает условие по штукам. */
+    public function testConfirmThresholdComesFromGameSettings(): void
+    {
+        $this->resetCase();
+        $this->conn->query('UPDATE character_resources SET quantity = 1000 WHERE id_resources IN (1, 2, 3)');
+        $this->setting('craft.confirm.min_qty', 0);
+        $this->assertTrue((new \App\Services\Craft\CraftOrderService())->start(self::CHAR, 'Bandage', 25)['ok']);
+    }
+
+    public function testConfirmThresholdSeedIsIdempotent(): void
+    {
+        $this->resetCase();
+        $m = $this->migration('2026-12-16-100000_SeedCraftConfirmThresholdSettings', null);
+        $m->up();
+        $this->conn->query("UPDATE game_settings SET value_int = 40 WHERE setting_key = 'craft.confirm.min_qty'");
+        $m->up();
+
+        $rows = $this->conn->query(
+            "SELECT setting_key, value_int, default_value_text, category FROM game_settings WHERE setting_key LIKE 'craft.confirm.%' ORDER BY setting_key"
+        )->getResultArray();
+        $this->assertSame([
+            ['setting_key' => 'craft.confirm.min_gold', 'value_int' => '50000', 'default_value_text' => '50000', 'category' => 'craft'],
+            ['setting_key' => 'craft.confirm.min_qty', 'value_int' => '40', 'default_value_text' => '25', 'category' => 'craft'],
+        ], $rows, 'второй прогон не дублирует и не перетирает значение из админки');
+    }
+
     /** Ядро, у которого гейты прошли по устаревшему снимку — как у второго из двух параллельных запросов. */
     private function serviceWithoutGates(): \App\Services\Craft\CraftOrderService
     {
