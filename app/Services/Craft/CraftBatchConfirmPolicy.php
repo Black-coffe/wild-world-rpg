@@ -13,8 +13,10 @@ use App\Services\GameSettings\GameSettingsService;
  * куда ушли деньги. Порог проверяет ЯДРО ({@see CraftOrderService::start()}), а не рендерер: старт
  * вызывают и бот, и `/play`, и правило в одном клиенте было бы дырой в другом.
  *
- * Подтверждение нужно, если выполнено ЛЮБОЕ условие: штук ≥ `craft.confirm.min_qty` или золота за
- * партию ≥ `craft.confirm.min_gold`. Значение 0 выключает своё условие; оба 0 — подтверждения нет.
+ * Подтверждение нужно, если выполнены ОБА условия: штук ≥ `craft.confirm.min_qty` И золота за партию
+ * ≥ `craft.confirm.min_gold` — слово владельца: «от 25 штук и дороже определённой суммы». Дешёвая
+ * партия в 25+ штук (бинты, еда) стартует сразу. Значение 0 выключает своё условие (остаётся
+ * второе); оба 0 — подтверждения нет никогда.
  */
 class CraftBatchConfirmPolicy
 {
@@ -37,8 +39,12 @@ class CraftBatchConfirmPolicy
         $minQty  = $this->threshold(self::KEY_MIN_QTY, self::DEFAULT_MIN_QTY);
         $minGold = $this->threshold(self::KEY_MIN_GOLD, self::DEFAULT_MIN_GOLD);
 
-        return ($minQty > 0 && $qty >= $minQty)
-            || ($minGold > 0 && $goldTotal >= $minGold);
+        if ($minQty === 0 && $minGold === 0) {
+            return false;
+        }
+
+        return ($minQty === 0 || $qty >= $minQty)
+            && ($minGold === 0 || $goldTotal >= $minGold);
     }
 
     private function threshold(string $key, int $default): int

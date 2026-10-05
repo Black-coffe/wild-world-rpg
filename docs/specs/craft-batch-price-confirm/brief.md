@@ -26,6 +26,12 @@
 
 Уточнение (разведка): в `/play` есть ступени `CraftCardHelper::STEPS` до `max_qty` и поле «Своё число» (`app/Views/site/_play/native_craft.php:198-213`); `WebNativeScreenService::craftStart()` (`:910`) зовёт `CraftOrderService::start()` напрямую. `start()` вызывают ровно два места — бот (`GenericCraftActionStart.php:91`) и веб (`WebNativeScreenService.php:932`). Мост `op=bridge` пускает только `genericCraft_<Key>_1` (`craftRoute`, путь к экрану нехватки).
 
+## Owner correction (verbatim, 2026-10-05, во время сборки)
+
+> Your phrase «от 25 штук и дороже определённой суммы» was implemented as «or», so even cheap batches of 25+ will ask for confirmation.
+
+Порог — И: подтверждение только у партии ≥ `craft.confirm.min_qty` штук И ≥ `craft.confirm.min_gold` золота. Перекрывает «ИЛИ» в ask 3 и в ответе 2 гриля (формулировку «любое из двух» в вопрос внёс я, а не владелец).
+
 ## Recon
 
 - Время партии = время одной штуки × qty (`app/Services/Craft/CraftOrderService.php:193`); SapperShovel — 6000 золота и 2 ч (`app/Config/CraftRecipes.php:2225`, override `tier3.utility.sapper_shovel.craft_duration_hours`).

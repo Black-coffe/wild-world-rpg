@@ -1112,6 +1112,8 @@ final class CraftOrderServiceTest extends CIUnitTestCase
     {
         $this->resetCase();
         $this->conn->query('UPDATE character_resources SET quantity = 1000 WHERE id_resources IN (1, 2, 3)');
+        // Бинты бесплатны по золоту: порог по сумме выключен, остаётся порог по штукам.
+        $this->setting('craft.confirm.min_gold', 0);
         $before = $this->state();
         $svc    = new \App\Services\Craft\CraftOrderService();
 
@@ -1132,6 +1134,7 @@ final class CraftOrderServiceTest extends CIUnitTestCase
 
         $this->resetCase();
         $this->conn->query('UPDATE character_resources SET quantity = 1000 WHERE id_resources IN (1, 2, 3)');
+        $this->setting('craft.confirm.min_gold', 0);
         $this->assertTrue($svc->start(self::CHAR, 'Bandage', 24)['ok'], 'ниже порога — старт сразу, как раньше');
     }
 
@@ -1143,13 +1146,17 @@ final class CraftOrderServiceTest extends CIUnitTestCase
         $this->assertSame(\App\Services\Craft\CraftOrderService::MISSING_MATERIALS, $out['code']);
     }
 
-    /** Порог из GameSettings: 0 выключает условие по штукам. */
-    public function testConfirmThresholdComesFromGameSettings(): void
+    /**
+     * Исправление владельца 05.10.2026: «от 25 штук и дороже определённой суммы» — оба условия сразу.
+     * На дефолтных порогах дешёвая партия в 25 бинтов стартует без вопроса.
+     */
+    public function testCheapLargeBatchStartsWithoutConfirmationOnDefaults(): void
     {
         $this->resetCase();
         $this->conn->query('UPDATE character_resources SET quantity = 1000 WHERE id_resources IN (1, 2, 3)');
-        $this->setting('craft.confirm.min_qty', 0);
-        $this->assertTrue((new \App\Services\Craft\CraftOrderService())->start(self::CHAR, 'Bandage', 25)['ok']);
+        $svc = new \App\Services\Craft\CraftOrderService();
+        $this->assertFalse($svc->preview(self::CHAR, 'Bandage', 25)['needs_confirm']);
+        $this->assertTrue($svc->start(self::CHAR, 'Bandage', 25)['ok']);
     }
 
     public function testConfirmThresholdSeedIsIdempotent(): void

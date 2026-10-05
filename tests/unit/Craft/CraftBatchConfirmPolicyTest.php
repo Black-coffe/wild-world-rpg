@@ -53,30 +53,36 @@ final class CraftBatchConfirmPolicyTest extends CIUnitTestCase
         $this->assertTrue($this->policy([])->needsConfirm(50, 300000));
     }
 
-    public function testQuantityBoundary(): void
+    /**
+     * Исправление владельца 05.10.2026: «от 25 штук и дороже определённой суммы» — И, а не ИЛИ.
+     * Соседняя форма исходного случая: дешёвая партия в 25+ штук стартует без вопроса.
+     */
+    public function testCheapLargeBatchDoesNotAsk(): void
     {
         $p = $this->policy(['craft.confirm.min_qty' => 25, 'craft.confirm.min_gold' => 50000]);
-        $this->assertFalse($p->needsConfirm(24, 0));
-        $this->assertTrue($p->needsConfirm(25, 0));
+        $this->assertFalse($p->needsConfirm(100, 0), '100 бинтов без золота');
+        $this->assertFalse($p->needsConfirm(25, 49999));
+        $this->assertFalse($p->needsConfirm(5, 60000), 'мелкая дорогая партия');
     }
 
-    public function testGoldBoundary(): void
+    public function testBothBoundariesMustHold(): void
     {
         $p = $this->policy(['craft.confirm.min_qty' => 25, 'craft.confirm.min_gold' => 50000]);
-        $this->assertFalse($p->needsConfirm(1, 49999));
-        $this->assertTrue($p->needsConfirm(1, 50000));
+        $this->assertTrue($p->needsConfirm(25, 50000));
+        $this->assertFalse($p->needsConfirm(24, 50000));
+        $this->assertFalse($p->needsConfirm(25, 49999));
     }
 
-    /** Соседняя форма: условие по штукам выключено, а дорогая партия всё равно спрашивает. */
+    /** 0 выключает своё условие — остаётся второе. */
     public function testZeroDisablesOnlyItsOwnCondition(): void
     {
         $noQty = $this->policy(['craft.confirm.min_qty' => 0, 'craft.confirm.min_gold' => 50000]);
-        $this->assertFalse($noQty->needsConfirm(100, 0));
         $this->assertTrue($noQty->needsConfirm(5, 60000));
+        $this->assertFalse($noQty->needsConfirm(100, 49999));
 
         $noGold = $this->policy(['craft.confirm.min_qty' => 25, 'craft.confirm.min_gold' => 0]);
-        $this->assertFalse($noGold->needsConfirm(1, 9999999));
         $this->assertTrue($noGold->needsConfirm(25, 0));
+        $this->assertFalse($noGold->needsConfirm(24, 9999999));
     }
 
     public function testBothZeroNeverAsks(): void
