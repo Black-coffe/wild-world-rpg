@@ -57,4 +57,5 @@
 **Branch:** vulyk/craft-batch-price-confirm
 **Checked:**
 **Council:** GREEN round 1, 2026-10-05, at da47fc7a, pack 687cc060b781
+**Council:** GREEN round 2, 2026-10-05, at eb5f0d33, pack 687cc060b781
 **Shipped:**
