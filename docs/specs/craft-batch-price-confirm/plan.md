@@ -42,7 +42,7 @@
 
 ## Plan deltas
 
-**Approved:**
+**Approved:** Andrei, 2026-10-05
 **Briefed:**
 **Branch:**
 **Checked:**
