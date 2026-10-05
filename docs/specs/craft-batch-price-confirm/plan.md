@@ -59,3 +59,4 @@
 **Council:** GREEN round 1, 2026-10-05, at da47fc7a, pack 687cc060b781
 **Council:** GREEN round 2, 2026-10-05, at eb5f0d33, pack 687cc060b781
 **Shipped:**
+**Shipped:** v0.51.687, 2026-10-05, at ae7708e3 - merged to develop (ae7708e3), preprod smoke green (bot webhook + /play 1440/768/375), prod tag v0.51.687 pushed together with w2-n5-deeds and VULYK 0.25.0 by owner's choice

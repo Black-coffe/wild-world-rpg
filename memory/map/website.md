@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-01
+last-verified: 2026-10-05
 
 # Scout report: Публичный сайт wildworld.fun
 
@@ -35,7 +35,8 @@ last-verified: 2026-10-01
   Нативные экраны (ADR-190): `POST /play/view` → `WebNativeScreenService`: «Я»/«Инвентарь»/«Снаряжение»
   (`Services/Player`, `player.md`), «Мир» `view=map` (`LiveMapService`+`MarchService::status`, `world.md`);
   `op=cell|step|march_*`. «Крафт» `view=craft` (`Config\CraftCatalog`, `CraftOrderService`/
-  `CraftQueueService`, `craft.md`); `op=craft_start|craft_cancel`. «База» `view=base`
+  `CraftQueueService`, `craft.md`); `op=craft_start|craft_cancel`; крупная партия: `craftStartOutcome()` → `confirm=N` в nav (панель итога, POST
+  `confirmed=1`; правило в ядре `CraftOrderService::start($confirmed)`, см. `craft.md`). «База» `view=base`
   (`BaseScreenService`, `BuildOrderService`/`BuildingUpgradeService`, `bases.md`); `op=build_start|upgrade`.
   «📋 Дела» `view=tasks` (w2-n5-deeds; `TASK_SECTIONS` hub|active|available|completed|events|quest,
   `tasksModel()`; `op=quest_start|quest_branch` — ядро бота под блокировкой персонажа; вьюха

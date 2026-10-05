@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-27
+last-verified: 2026-10-05
 
 # Scout report: Крафт, ремонт, экономика предметов
 
@@ -12,6 +12,7 @@ last-verified: 2026-09-27
 ## Entry points
 - `app/Services/Craft/CraftOrderService.php` — **ядро старта** для бота и веба (W2.N3, ADR-190):
   `preview()`, `start()`, `gateError()`; коды исхода — константы. `GenericCraftActionStart` — рендерер.
+  Порог подтверждения — `CraftBatchConfirmPolicy` (ниже).
 - `app/Services/Craft/CraftQueueService.php` — очередь: `rows()`/`forCharacter()` (ETA), `cancel()`,
   `promoteNext()`. Рендереры: `ShowCraftQueueAction`, `CancelQueuedCraftAction`, `GenericCraftCompletionHandler`.
 - `app/Config/CraftCatalog.php` — дерево верстак→категория→рецепты для `/play?view=craft` (не бот).
@@ -65,6 +66,13 @@ outbound: ресурсы персонажа, `GameSettings`, `Images`.
   — иначе экран расходится с гейтом старта `CraftOrderService::checkResources()`. T3-утилиты
   (`UtilityRecipePreviewT3Action`) получили паритет с обычными карточками — ряд кнопок количества
   вместо зашитой единственной «1 шт.».
+- **(2026-10-05, craft-batch-price-confirm) Подтверждение крупной партии — только в ядре:**
+  `CraftOrderService::start(..., bool $confirmed = false)` → код `CONFIRM_REQUIRED` + `batch`, ничего не списано;
+  `preview()['needs_confirm']`. Решает `CraftBatchConfirmPolicy::needsConfirm()` — **И**: `qty ≥ craft.confirm.min_qty`
+  И золото партии `≥ craft.confirm.min_gold`; 0 выключает своё условие, оба 0 — никогда (сид: миграция 2026-12-16-100000;
+  подсказка — `…100010`). Бот: `genericCraft_<Key>_<qty>_ok` (`GenericCraftActionStart::parseCallback`, `confirmText/Keyboard`);
+  `/play`: `WebNativeScreenService::craftStartOutcome()` + nav `confirm=N`. Тестовые двойники `CraftOrderService::start`
+  обязаны нести новую сигнатуру. Заметка: `tech-writing/services/CraftBatchConfirmPolicy.md`.
 
 - **(2026-09-23, bugs-info-0923-02) `crafted_items.type='food'` нигде не применяется**:
   Аптечка и Провизия читают только `drug`. `CraftedResourcesAction` помечает такие строки
