@@ -45,6 +45,8 @@ use DateTime;
  * @phpstan-type Log array{reason:string, extra:array<string,mixed>}
  * @phpstan-type Refusal array{code:string, message:string, log:?Log}
  * @phpstan-type Missing array<string, array{need:int, have:int, name:string, storage?:int, pooled?:bool}>
+ * @phpstan-type Consumed array{gold:int, resources:array<string,int>, crafted_items:array<string,int>}
+ * @phpstan-type Batch array{qty:int, gold:int, resources:array<string,int>, crafted_items:array<string,int>, minutes_total:int}
  */
 class CraftOrderService
 {
@@ -68,6 +70,8 @@ class CraftOrderService
     public const NO_GOLD           = 'insufficient_gold';
     public const NO_STAT           = 'insufficient_stat';
     public const MISSING_MATERIALS = 'missing_materials';
+    /** craft-batch-price-confirm: крупная партия без явного подтверждения — ничего не списано, в ответе `batch`. */
+    public const CONFIRM_REQUIRED  = 'confirm_required';
     public const RACE              = 'race';
     public const TX_FAILED         = 'tx_failed';
 
@@ -117,7 +121,7 @@ class CraftOrderService
      *
      * @return array{ok:bool, code:string, message:string, recipe:array{key:string,name:string,icon:string,output_type:string},
      *     resources:list<array{name:string,need:int,have:int}>, items:list<array{name:string,need:int,have:int}>, gold:int,
-     *     minutes_one:int, minutes_total:int, max_qty:int, queue_pos:int, gates:list<array{code:string,message:string}>}
+     *     minutes_one:int, minutes_total:int, max_qty:int, needs_confirm:bool, queue_pos:int, gates:list<array{code:string,message:string}>}
      */
     public function preview(int $characterId, string $recipeKey, int $qty): array
     {
@@ -134,6 +138,7 @@ class CraftOrderService
             'minutes_one'   => 0,
             'minutes_total' => 0,
             'max_qty'       => 0,
+            'needs_confirm' => false,
             'queue_pos'     => 0,
             'gates'         => [],
         ];
@@ -189,6 +194,7 @@ class CraftOrderService
 
         $breakdown            = (new CraftDurationService($this->gameSettings, $this->buildingEffects()))->forOne($character, $taskRow, $recipe);
         $out['gold']          = $goldOne * $qty;
+        $out['needs_confirm'] = (new CraftBatchConfirmPolicy($this->gameSettings))->needsConfirm($qty, $out['gold']);
         $out['minutes_one']   = $breakdown->minutes;
         $out['minutes_total'] = $breakdown->minutes * $qty;
         $out['queue_pos']     = $this->sameRecipeCount($characterId, $this->intField($taskRow, 'id')) + 1;
@@ -213,15 +219,20 @@ class CraftOrderService
      *
      * @return array{ok:bool, code:string, message:string, log:?Log, char_task_id:int, status:string, started_at:?string,
      *     ends_at:?string, minutes_total:int, queue_pos:int, background:bool, breakdown:?CraftDurationBreakdown,
-     *     missing_resources:Missing, missing_items:Missing}
+     *     missing_resources:Missing, missing_items:Missing, consumed:Consumed, batch:?Batch}
+     *
+     * `$confirmed = false` — безопасный дефолт: партия выше порога {@see CraftBatchConfirmPolicy} без явного
+     * подтверждения клиента получает `CONFIRM_REQUIRED` с итогом `batch` и ничего не списывает. Правило
+     * живёт здесь, а не в рендерерах: старт зовут и бот, и `/play` (craft-batch-price-confirm).
      */
-    public function start(int $characterId, string $recipeKey, int $qty): array
+    public function start(int $characterId, string $recipeKey, int $qty, bool $confirmed = false): array
     {
         $qty  = max(1, $qty);
         $fail = static fn (string $code, string $message, ?array $log = null, array $extra = []): array => $extra + [
             'ok' => false, 'code' => $code, 'message' => $message, 'log' => $log, 'char_task_id' => 0, 'status' => '',
             'started_at' => null, 'ends_at' => null, 'minutes_total' => 0, 'queue_pos' => 0, 'background' => false,
             'breakdown' => null, 'missing_resources' => [], 'missing_items' => [],
+            'consumed' => ['gold' => 0, 'resources' => [], 'crafted_items' => []], 'batch' => null,
         ];
 
         $recipe = $this->recipe($recipeKey);
@@ -259,6 +270,21 @@ class CraftOrderService
         $goldRequired = $this->recipeIntField($recipe, 'gold_required') * $qty;
         $breakdown    = (new CraftDurationService($this->gameSettings, $this->buildingEffects()))->forOne($character, $taskRow, $recipe);
         $totalMinutes = $breakdown->minutes * $qty;
+
+        // Подтверждение — после гейтов и сырья (нехватка ведёт на свой экран, а не на «подтверди»)
+        // и до транзакции: отказ ничего не трогает. Числа порога — те же, что спишет старт.
+        if (! $confirmed && (new CraftBatchConfirmPolicy($this->gameSettings))->needsConfirm($qty, $goldRequired)) {
+            $summary = $this->consumedSummary(
+                $goldRequired,
+                array_map(static fn (int $n): array => ['backpack' => $n * $qty, 'storage' => 0], $resources),
+                array_map(static fn (int $n): int => $n * $qty, $items)
+            );
+
+            return $fail(self::CONFIRM_REQUIRED, "Крупная партия: подтверди запуск {$qty} шт.", null, [
+                'batch' => ['qty' => $qty, 'minutes_total' => $totalMinutes] + $summary,
+            ]);
+        }
+
         $startTime    = new DateTime();
         $endTime      = (clone $startTime)->add(new DateInterval('PT' . $totalMinutes . 'M'));
 
@@ -350,7 +376,33 @@ class CraftOrderService
             'breakdown'         => $breakdown,
             'missing_resources' => [],
             'missing_items'     => [],
+            'consumed'          => $this->consumedSummary($goldRequired, $consumedResources, $consumedItems),
+            'batch'             => null,
         ];
+    }
+
+    /**
+     * Итог списания за всю партию для экрана игрока («Списано: …»): рюкзак и склад сложены,
+     * компоненты — русскими именами. Числа — ровно то, что транзакция списала, а не пересчёт рецепта.
+     *
+     * @param array<string,array{backpack:int,storage:int}> $resources
+     * @param array<string,int> $items name_eng → списано
+     * @return Consumed
+     */
+    private function consumedSummary(int $gold, array $resources, array $items): array
+    {
+        $res = [];
+        foreach ($resources as $name => $from) {
+            $res[$name] = $from['backpack'] + $from['storage'];
+        }
+        $named = [];
+        foreach ($items as $itemEn => $n) {
+            $row  = $this->craftedItemsModel->getRowByName($itemEn);
+            $name = is_array($row) && is_string($row['name_rus'] ?? null) && $row['name_rus'] !== '' ? $row['name_rus'] : $itemEn;
+            $named[$name] = ($named[$name] ?? 0) + $n;
+        }
+
+        return ['gold' => $gold, 'resources' => $res, 'crafted_items' => $named];
     }
 
     /**

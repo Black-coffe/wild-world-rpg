@@ -103,7 +103,7 @@ final class CraftOrderServiceTest extends CIUnitTestCase
                         "method": "editMessageText",
                         "chat_id": "555002",
                         "message_id": "77",
-                        "text": "*Процесс крафта запущен*\n\nТы создаёшь: 🩹 *Повязку* x2 шт.\n\n🌍 Где угодно · ⏳ Идёт в фоне\n_Можешь идти добывать, в Поход и двигаться по карте — крафт идёт сам. Сообщу, когда будет готово._\n\nВремя крафта: *1 час* ⏱️\n\nПосле завершения будет добавлено *2* шт. в твой инвентарь.\n\n❗Прерывание задачи = потеря ресурсов!\n\n_О готовности узнаешь в сообщении._ 🎁",
+                        "text": "*Процесс крафта запущен*\n\nТы создаёшь: 🩹 *Повязку* x2 шт.\n\n🌍 Где угодно · ⏳ Идёт в фоне\n_Можешь идти добывать, в Поход и двигаться по карте — крафт идёт сам. Сообщу, когда будет готово._\n\nВремя крафта: *1 час* ⏱️\n\n💸 *Списано:* Травы ×4 · Кора деревьев ×4 · Водоросли ×6\n\nПосле завершения будет добавлено *2* шт. в твой инвентарь.\n\n❗Прерывание задачи = потеря ресурсов!\n\n_О готовности узнаешь в сообщении._ 🎁",
                         "parse_mode": "Markdown"
                     }
                 ],
@@ -171,7 +171,7 @@ final class CraftOrderServiceTest extends CIUnitTestCase
                         "method": "editMessageText",
                         "chat_id": "555002",
                         "message_id": "77",
-                        "text": "*Процесс крафта запущен*\n\nТы создаёшь: 🚑 *Базовая аптечка* x1 шт.\n\n🌍 Где угодно · 🔒 Займёт целиком\n_Пока идёт — нельзя двигаться, добывать, идти в Поход и начинать второе такое же дело. Дождись окончания._\n\nВремя крафта: *30 минут* ⏱️\n\nПосле завершения будет добавлено *1* шт. в твой инвентарь.\n\n❗Прерывание задачи = потеря ресурсов!\n\n_О готовности узнаешь в сообщении._ 🎁",
+                        "text": "*Процесс крафта запущен*\n\nТы создаёшь: 🚑 *Базовая аптечка* x1 шт.\n\n🌍 Где угодно · 🔒 Займёт целиком\n_Пока идёт — нельзя двигаться, добывать, идти в Поход и начинать второе такое же дело. Дождись окончания._\n\nВремя крафта: *30 минут* ⏱️\n\n💸 *Списано:* Грибы ×4 · Мед ×2 · Алоэ ×4 · Вода ×11 · Повязка ×5\n\nПосле завершения будет добавлено *1* шт. в твой инвентарь.\n\n❗Прерывание задачи = потеря ресурсов!\n\n_О готовности узнаешь в сообщении._ 🎁",
                         "parse_mode": "Markdown"
                     }
                 ],
@@ -239,7 +239,7 @@ final class CraftOrderServiceTest extends CIUnitTestCase
                         "method": "editMessageText",
                         "chat_id": "555002",
                         "message_id": "77",
-                        "text": "*В очередь поставлено:* 🩹 *Повязку* x1 шт.\n\n🌍 Где угодно · ⏳ Идёт в фоне\n\n📋 Позиция в очереди: *#2*\nНачнётся автоматически после завершения активного крафта.\n\n❗Ресурсы уже списаны. Отмена очереди вернёт их.",
+                        "text": "*В очередь поставлено:* 🩹 *Повязку* x1 шт.\n\n🌍 Где угодно · ⏳ Идёт в фоне\n\n📋 Позиция в очереди: *#2*\nНачнётся автоматически после завершения активного крафта.\n\n💸 *Списано:* Травы ×2 · Кора деревьев ×2 · Водоросли ×3\n\n❗Ресурсы уже списаны. Отмена очереди вернёт их.",
                         "parse_mode": "Markdown",
                         "reply_markup": "{\"inline_keyboard\":[[{\"text\":\"\\u274c \\u041e\\u0442\\u043c\\u0435\\u043d\\u0438\\u0442\\u044c \\u0438\\u0437 \\u043e\\u0447\\u0435\\u0440\\u0435\\u0434\\u0438\",\"callback_data\":\"cancelQueued_2\"},{\"text\":\"\\ud83d\\udccb \\u041e\\u0447\\u0435\\u0440\\u0435\\u0434\\u044c \\u043a\\u0440\\u0430\\u0444\\u0442\\u0430\",\"callback_data\":\"craftQueue\"}]]}"
                     }
@@ -1033,6 +1033,42 @@ final class CraftOrderServiceTest extends CIUnitTestCase
         $this->assertSame(['Bandage' => 5], $settings['consumed']['crafted_items']);
     }
 
+    /**
+     * craft-batch-price-confirm-01: ответ старта несёт итог списания за партию для строки «Списано» —
+     * рюкзак и склад сложены, компоненты русскими именами, золото за всю партию.
+     */
+    public function testStartReturnsWhatTheBatchCostForTheSpentLine(): void
+    {
+        $this->resetCase();
+        $this->conn->query("INSERT INTO claimed_cells (character_id, map_cell_id, status) VALUES (1, 5, 'active')");
+        $this->conn->query('UPDATE characters SET cell_number = 5 WHERE id = 1');
+        $this->conn->query('UPDATE character_resources SET quantity = 1 WHERE id_resources = 1');
+        $this->conn->query('INSERT INTO base_storage (character_id, resource_id, quantity) VALUES (1, 1, 100)');
+
+        $out = (new \App\Services\Craft\CraftOrderService())->start(self::CHAR, 'Bandage', 2);
+        $this->assertTrue($out['ok']);
+        $this->assertSame([
+            'gold'          => 0,
+            'resources'     => ['Травы' => 4, 'Кора деревьев' => 4, 'Водоросли' => 6],
+            'crafted_items' => [],
+        ], $out['consumed']);
+
+        $this->resetCase();
+        $medkit = (new \App\Services\Craft\CraftOrderService())->start(self::CHAR, 'BasicMedKit', 1);
+        $this->assertSame(['Повязка' => 5], $medkit['consumed']['crafted_items']);
+
+        $this->resetCase();
+        $this->seedWorkbenchOne(gold: 20000);
+        $paid = (new \App\Services\Craft\CraftOrderService())->start(self::CHAR, 'WorkbenchOne', 1);
+        $this->assertTrue($paid['ok']);
+        $this->assertSame(20000, $paid['consumed']['gold']);
+
+        $this->resetCase();
+        $this->seedWorkbenchOne(gold: 19999);
+        $refused = (new \App\Services\Craft\CraftOrderService())->start(self::CHAR, 'WorkbenchOne', 1);
+        $this->assertSame(['gold' => 0, 'resources' => [], 'crafted_items' => []], $refused['consumed']);
+    }
+
     /** Превью: без записи; `max_qty` — сколько хватает сырья, 0 при упоре в очередь. */
     public function testPreviewCountsMaxQuantityAndWritesNothing(): void
     {
@@ -1065,6 +1101,78 @@ final class CraftOrderServiceTest extends CIUnitTestCase
         $this->assertSame([
             ['setting_key' => 'craft.queue.max_per_recipe', 'value_int' => '10', 'default_value_text' => '10', 'category' => 'craft'],
             ['setting_key' => 'craft.queue.max_slots', 'value_int' => '7', 'default_value_text' => '3', 'category' => 'craft'],
+        ], $rows, 'второй прогон не дублирует и не перетирает значение из админки');
+    }
+
+    /**
+     * craft-batch-price-confirm: крупная партия без подтверждения — `CONFIRM_REQUIRED` с итогом и ни одной
+     * записи; с подтверждением — обычный старт. Правило в ядре, поэтому одинаково для бота и `/play`.
+     */
+    public function testLargeBatchNeedsConfirmationAndTouchesNothingWithoutIt(): void
+    {
+        $this->resetCase();
+        $this->conn->query('UPDATE character_resources SET quantity = 1000 WHERE id_resources IN (1, 2, 3)');
+        // Бинты бесплатны по золоту: порог по сумме выключен, остаётся порог по штукам.
+        $this->setting('craft.confirm.min_gold', 0);
+        $before = $this->state();
+        $svc    = new \App\Services\Craft\CraftOrderService();
+
+        $asked = $svc->start(self::CHAR, 'Bandage', 25);
+        $this->assertSame([false, \App\Services\Craft\CraftOrderService::CONFIRM_REQUIRED], [$asked['ok'], $asked['code']]);
+        $this->assertSame($before, $this->state(), 'без подтверждения ничего не списано и задачи нет');
+        $this->assertIsArray($asked['batch']);
+        $this->assertSame(25, $asked['batch']['qty']);
+        $this->assertSame(['Травы' => 50, 'Кора деревьев' => 50, 'Водоросли' => 75], $asked['batch']['resources']);
+        $this->assertGreaterThan(0, $asked['batch']['minutes_total']);
+        $this->assertTrue($svc->preview(self::CHAR, 'Bandage', 25)['needs_confirm']);
+        $this->assertFalse($svc->preview(self::CHAR, 'Bandage', 24)['needs_confirm']);
+
+        $go = $svc->start(self::CHAR, 'Bandage', 25, true);
+        $this->assertTrue($go['ok']);
+        $this->assertNull($go['batch']);
+        $this->assertSame(['Травы' => 50, 'Кора деревьев' => 50, 'Водоросли' => 75], $go['consumed']['resources']);
+
+        $this->resetCase();
+        $this->conn->query('UPDATE character_resources SET quantity = 1000 WHERE id_resources IN (1, 2, 3)');
+        $this->setting('craft.confirm.min_gold', 0);
+        $this->assertTrue($svc->start(self::CHAR, 'Bandage', 24)['ok'], 'ниже порога — старт сразу, как раньше');
+    }
+
+    /** Нехватка сырья проверяется раньше подтверждения: игрок видит экран нехватки, а не «подтверди». */
+    public function testShortageWinsOverConfirmation(): void
+    {
+        $this->resetCase();
+        $out = (new \App\Services\Craft\CraftOrderService())->start(self::CHAR, 'Bandage', 25);
+        $this->assertSame(\App\Services\Craft\CraftOrderService::MISSING_MATERIALS, $out['code']);
+    }
+
+    /**
+     * Исправление владельца 05.10.2026: «от 25 штук и дороже определённой суммы» — оба условия сразу.
+     * На дефолтных порогах дешёвая партия в 25 бинтов стартует без вопроса.
+     */
+    public function testCheapLargeBatchStartsWithoutConfirmationOnDefaults(): void
+    {
+        $this->resetCase();
+        $this->conn->query('UPDATE character_resources SET quantity = 1000 WHERE id_resources IN (1, 2, 3)');
+        $svc = new \App\Services\Craft\CraftOrderService();
+        $this->assertFalse($svc->preview(self::CHAR, 'Bandage', 25)['needs_confirm']);
+        $this->assertTrue($svc->start(self::CHAR, 'Bandage', 25)['ok']);
+    }
+
+    public function testConfirmThresholdSeedIsIdempotent(): void
+    {
+        $this->resetCase();
+        $m = $this->migration('2026-12-16-100000_SeedCraftConfirmThresholdSettings', null);
+        $m->up();
+        $this->conn->query("UPDATE game_settings SET value_int = 40 WHERE setting_key = 'craft.confirm.min_qty'");
+        $m->up();
+
+        $rows = $this->conn->query(
+            "SELECT setting_key, value_int, default_value_text, category FROM game_settings WHERE setting_key LIKE 'craft.confirm.%' ORDER BY setting_key"
+        )->getResultArray();
+        $this->assertSame([
+            ['setting_key' => 'craft.confirm.min_gold', 'value_int' => '50000', 'default_value_text' => '50000', 'category' => 'craft'],
+            ['setting_key' => 'craft.confirm.min_qty', 'value_int' => '40', 'default_value_text' => '25', 'category' => 'craft'],
         ], $rows, 'второй прогон не дублирует и не перетирает значение из админки');
     }
 

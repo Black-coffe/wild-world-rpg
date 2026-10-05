@@ -99,7 +99,7 @@ use InvalidArgumentException;
  * @phpstan-import-type Capture from WebScreenStore
  * @phpstan-import-type Sheet from CharacterSheetService
  * @phpstan-import-type Preview from MarchService
- * @phpstan-type CraftNav array{bench?:string, cat?:string, recipe?:string}
+ * @phpstan-type CraftNav array{bench?:string, cat?:string, recipe?:string, confirm?:int}
  * @phpstan-type BaseNav array{b?:int, section?:string, key?:string, id?:int, from?:int}
  * @phpstan-type TasksNav array{section?:string, id?:int}
  */
@@ -883,6 +883,7 @@ class WebNativeScreenService
             $card      = ['queue_pos' => $willQueue ? count($queue['queued']) + 1 : null] + $pv + [
                 'steps'    => array_values(array_filter(CraftCardHelper::STEPS, static fn (int $n): bool => $n <= $pv['max_qty'])),
                 'shortage' => $pv['code'] === CraftOrderService::MISSING_MATERIALS ? (new CraftCardHelper())->fallbackButton($recipeKey) : null,
+                'confirm'  => $this->confirmPanel($characterId, $recipeKey, $nav['confirm'] ?? 0, $pv['max_qty']),
             ];
         }
 
@@ -898,6 +899,31 @@ class WebNativeScreenService
     }
 
     /**
+     * craft-batch-price-confirm: панель «проверь перед запуском» для партии, на которую ядро ответило
+     * `confirm_required`. Итог — {@see CraftOrderService::preview()} на это количество, тот же, что у бота;
+     * своего порога у веба нет. Панели нет, если партия больше не требует подтверждения (порог сменили в
+     * админке, сырьё ушло) — тогда карточка показывает обычные кнопки.
+     *
+     * @return array{qty:int, gold:int, minutes_total:int, reqs:list<array{name:string,need:int}>}|null
+     */
+    private function confirmPanel(int $characterId, string $recipeKey, int $qty, int $maxQty): ?array
+    {
+        if ($qty < 1 || $qty > $maxQty) {
+            return null;
+        }
+        $big = $this->orders->preview($characterId, $recipeKey, $qty);
+        if (! $big['ok'] || ! $big['needs_confirm']) {
+            return null;
+        }
+        $reqs = [];
+        foreach (array_merge($big['resources'], $big['items']) as $row) {
+            $reqs[] = ['name' => $row['name'], 'need' => $row['need']];
+        }
+
+        return ['qty' => $qty, 'gold' => $big['gold'], 'minutes_total' => $big['minutes_total'], 'reqs' => $reqs];
+    }
+
+    /**
      * Старт крафта из веба: то же ядро, что у бота, один раз на `intent_id`. Количество — от 1 до
      * `max_qty` карточки (сырьё, золото, лимит очереди); больше — отказ без старта. Рецепт, который экран
      * сейчас скрывает ({@see visibleRecipes()}), — отказ без старта. Каждый отказ пишется в `action_log`
@@ -909,35 +935,54 @@ class WebNativeScreenService
      */
     public function craftStart(int $accountId, int $characterId, string $recipeKey, int $qty, string $intentId): ?string
     {
+        return $this->craftStartOutcome($accountId, $characterId, $recipeKey, $qty, $intentId)['alert'];
+    }
+
+    /**
+     * {@see craftStart()} с исходом подтверждения (craft-batch-price-confirm): `confirm` — количество, на
+     * которое ядро ответило `confirm_required` (ничего не списано, экран покажет панель итога); `null` —
+     * обычный исход в `alert`. `$confirmed` — игрок нажал «✅ Запустить» на панели.
+     *
+     * @return array{alert:?string, confirm:?int}
+     *
+     * @throws InvalidArgumentException рецепта нет в каталоге веба, количество < 1 или плохое намерение
+     */
+    public function craftStartOutcome(int $accountId, int $characterId, string $recipeKey, int $qty, string $intentId, bool $confirmed = false): array
+    {
+        $alert = static fn (?string $text): array => ['alert' => $text, 'confirm' => null];
         if ((new CraftCatalog())->locate($recipeKey) === null || $qty < 1) {
             throw new InvalidArgumentException('bad craft start');
         }
         self::assertIntent($intentId);
         if (! $this->claim($accountId, $intentId, ':' . self::OP_CRAFT_START)) {
-            return null;
+            return $alert(null);
         }
 
         if (! $this->recipeVisible($recipeKey)) {
             $this->logCraftRejected($characterId, $recipeKey, 'recipe_hidden', ['qty' => $qty]);
 
-            return 'Этот рецепт сейчас недоступен.';
+            return $alert('Этот рецепт сейчас недоступен.');
         }
 
         $pv = $this->orders->preview($characterId, $recipeKey, 1);
         if ($pv['ok'] && $qty > $pv['max_qty']) {
             $this->logCraftRejected($characterId, $recipeKey, 'qty_over_max', ['qty' => $qty, 'max_qty' => $pv['max_qty']]);
 
-            return "Столько не выйдет: сейчас можно поставить не больше {$pv['max_qty']} шт.";
+            return $alert("Столько не выйдет: сейчас можно поставить не больше {$pv['max_qty']} шт.");
         }
-        $out = $this->orders->start($characterId, $recipeKey, $qty);
+        $out = $this->orders->start($characterId, $recipeKey, $qty, $confirmed);
+        if ($out['code'] === CraftOrderService::CONFIRM_REQUIRED) {
+            // Не отказ, а вопрос: ничего не списано, экран покажет панель итога. В action_log не пишем.
+            return ['alert' => null, 'confirm' => $qty];
+        }
         if (! $out['ok']) {
             $this->logCraftRejected($characterId, $recipeKey, $out['log']['reason'] ?? $out['code'], $out['log']['extra'] ?? []);
 
-            return self::plain($out['message']);
+            return $alert(self::plain($out['message']));
         }
         $what = trim($pv['recipe']['icon'] . ' ' . $pv['recipe']['name']) . " ×{$qty}";
         if ($out['code'] !== CraftOrderService::QUEUED) {
-            return "🛠 Крафт начат: {$what}. Готово через {$out['minutes_total']} мин.";
+            return $alert("🛠 Крафт начат: {$what}. Готово через {$out['minutes_total']} мин.");
         }
 
         $queued = $this->queue->forCharacter($characterId)['queued'];
@@ -949,7 +994,7 @@ class WebNativeScreenService
             }
         }
 
-        return "📋 В очереди: {$what} — №{$pos}. Начнётся, когда закончится текущий.";
+        return $alert("📋 В очереди: {$what} — №{$pos}. Начнётся, когда закончится текущий.");
     }
 
     /**

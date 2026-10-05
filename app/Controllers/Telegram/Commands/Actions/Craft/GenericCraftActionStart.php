@@ -46,6 +46,13 @@ class GenericCraftActionStart extends BaseAction
 
     private string $recipeKey = '';
     private int    $quantity  = 1;
+    private bool   $confirmed = false;
+
+    /** Суффикс колбэка подтверждённой партии: `genericCraft_<Key>_<qty>_ok`. */
+    public const CONFIRM_SUFFIX = 'ok';
+
+    /** Куда «↩️ Изменить кол-во», если у рецепта нет `info_callback`: выбор верстака. */
+    private const CONFIRM_BACK_FALLBACK = 'WorkbenchChoice';
     private GameSettingsService $gameSettings;
     private ActionScopeService $scope;
 
@@ -56,13 +63,21 @@ class GenericCraftActionStart extends BaseAction
         $this->gameSettings = new GameSettingsService();
         $this->scope        = new ActionScopeService();
 
-        // genericCraft_<RecipeKey>_<qty>
-        $data  = $callbackQuery->getData();
+        [$this->recipeKey, $this->quantity, $this->confirmed] = self::parseCallback((string) $callbackQuery->getData());
+    }
+
+    /**
+     * `genericCraft_<RecipeKey>[_<qty>[_ok]]` → [ключ, количество ≥ 1, подтверждено].
+     * `_ok` ставит только экран итога крупной партии (craft-batch-price-confirm).
+     *
+     * @return array{0:string, 1:int, 2:bool}
+     */
+    public static function parseCallback(string $data): array
+    {
         $parts = explode('_', $data);
-        $this->recipeKey = $parts[1] ?? '';
-        if (isset($parts[2]) && is_numeric($parts[2])) {
-            $this->quantity = max(1, (int) $parts[2]);
-        }
+        $qty   = isset($parts[2]) && is_numeric($parts[2]) ? max(1, (int) $parts[2]) : 1;
+
+        return [$parts[1] ?? '', $qty, ($parts[3] ?? '') === self::CONFIRM_SUFFIX];
     }
 
     /**
@@ -88,7 +103,10 @@ class GenericCraftActionStart extends BaseAction
         }
         $characterId = $this->characterIntField($character, 'id');
 
-        $result = $this->core()->start($characterId, $this->recipeKey, $this->quantity);
+        $result = $this->core()->start($characterId, $this->recipeKey, $this->quantity, $this->confirmed);
+        if ($result['code'] === CraftOrderService::CONFIRM_REQUIRED && $result['batch'] !== null) {
+            return $this->notifyConfirmBatch($recipe, $result['batch']);
+        }
         if (!$result['ok']) {
             if ($result['log'] !== null) {
                 $this->logRejected($characterId, "CRAFT_{$this->recipeKey}", $result['log']['reason'], $result['log']['extra']);
@@ -114,10 +132,10 @@ class GenericCraftActionStart extends BaseAction
         }
 
         if ($result['code'] === CraftOrderService::QUEUED) {
-            return $this->notifyCraftQueued($recipe, $result['queue_pos'], $this->quantity, $result['char_task_id'], $result['background']);
+            return $this->notifyCraftQueued($recipe, $result['queue_pos'], $this->quantity, $result['char_task_id'], $result['background'], self::spentLine($result['consumed']));
         }
 
-        return $this->notifyCraftStarted($recipe, $result['minutes_total'], $this->quantity, $result['background'], $result['breakdown']);
+        return $this->notifyCraftStarted($recipe, $result['minutes_total'], $this->quantity, $result['background'], $result['breakdown'], self::spentLine($result['consumed']));
     }
 
     /**
@@ -185,15 +203,122 @@ class GenericCraftActionStart extends BaseAction
     }
 
     /**
+     * Строка «Списано» за всю партию (жалоба 05.10.2026: 50 лопат одним нажатием ушли за 300 000 золота,
+     * а сообщение о старте молчало о цене). Числа — из `consumed` ядра, то есть ровно то, что списала
+     * транзакция. Имена — данные БД и конфига: markdown-метасимволы вырезаются, иначе непарная `*`/`_`
+     * роняет весь caption (legacy Markdown без эскейпа). Пустое списание — пустая строка.
+     *
+     * @param array{gold:int, resources:array<string,int>, crafted_items:array<string,int>} $consumed
+     */
+    public static function spentLine(array $consumed): string
+    {
+        $parts = [];
+        if ($consumed['gold'] > 0) {
+            $parts[] = number_format($consumed['gold'], 0, '.', ' ') . ' 💰';
+        }
+        foreach ([$consumed['resources'], $consumed['crafted_items']] as $group) {
+            foreach ($group as $name => $n) {
+                $clean = trim(str_replace(['*', '_', '`', '[', ']'], '', (string) $name));
+                if ($n > 0 && $clean !== '') {
+                    $parts[] = $clean . ' ×' . number_format($n, 0, '.', ' ');
+                }
+            }
+        }
+
+        return $parts === [] ? '' : '💸 *Списано:* ' . implode(' · ', $parts);
+    }
+
+    /**
+     * craft-batch-price-confirm: текст экрана подтверждения крупной партии. Чистая функция — итог
+     * приходит из ядра (`batch` ответа `CONFIRM_REQUIRED`), здесь ни одного пересчёта.
+     *
+     * @param array{qty:int, gold:int, resources:array<string,int>, crafted_items:array<string,int>, minutes_total:int} $batch
+     */
+    public static function confirmText(string $captionName, array $batch): string
+    {
+        $list = static function (array $group): string {
+            $parts = [];
+            foreach ($group as $name => $n) {
+                $clean = trim(str_replace(['*', '_', '`', '[', ']'], '', (string) $name));
+                if ($n > 0 && $clean !== '') {
+                    $parts[] = $clean . ' ×' . number_format($n, 0, '.', ' ');
+                }
+            }
+
+            return implode(' · ', $parts);
+        };
+
+        $lines = [
+            '⚠️ *Крупная партия — проверь перед запуском*',
+            '',
+            "Ты создаёшь: {$captionName} x{$batch['qty']} шт.",
+            '',
+        ];
+        if ($batch['gold'] > 0) {
+            $lines[] = '💰 Золото: *' . number_format($batch['gold'], 0, '.', ' ') . '*';
+        }
+        if (($res = $list($batch['resources'])) !== '') {
+            $lines[] = '📦 Ресурсы: ' . $res;
+        }
+        if (($items = $list($batch['crafted_items'])) !== '') {
+            $lines[] = '🛠 Компоненты: ' . $items;
+        }
+        $lines[] = '⏱ Время: *' . CraftDurationBreakdown::humanize($batch['minutes_total']) . '*';
+        $lines[] = '';
+        $lines[] = '_Золото и ресурсы спишутся сразу после запуска._';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Кнопки экрана подтверждения — один ряд из двух: запуск ровно этой партии и возврат к рецепту.
+     *
+     * @param array<array-key,mixed> $recipe
+     * @return list<list<array{text:string,callback_data:string}>>
+     */
+    public static function confirmKeyboard(string $recipeKey, int $qty, array $recipe): array
+    {
+        $back = isset($recipe['info_callback']) && is_string($recipe['info_callback']) && $recipe['info_callback'] !== ''
+            ? $recipe['info_callback']
+            : self::CONFIRM_BACK_FALLBACK;
+
+        return [[
+            ['text' => '✅ Запустить', 'callback_data' => 'genericCraft_' . $recipeKey . '_' . $qty . '_' . self::CONFIRM_SUFFIX],
+            ['text' => '↩️ Изменить кол-во', 'callback_data' => $back],
+        ]];
+    }
+
+    /**
+     * @param array<array-key,mixed> $recipe
+     * @param array{qty:int, gold:int, resources:array<string,int>, crafted_items:array<string,int>, minutes_total:int} $batch
+     */
+    private function notifyConfirmBatch(array $recipe, array $batch): ServerResponse
+    {
+        $image   = is_string($recipe['image_in_progress'] ?? null) ? $recipe['image_in_progress'] : '';
+        $caption = is_string($recipe['start_caption_name'] ?? null) ? $recipe['start_caption_name'] : $this->recipeKey;
+
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'photo'        => Request::encodeFile(base_url($image)),
+            'caption'      => self::confirmText($caption, $batch),
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode(['inline_keyboard' => self::confirmKeyboard($this->recipeKey, $batch['qty'], $recipe)]),
+        ]);
+    }
+
+    /**
      * v0.51.129: notification для queued task. Показує queue position + qty +
      * cancel button з callback `cancelQueued_<task_id>` для refund.
      */
-    private function notifyCraftQueued(array $recipe, int $queuePosition, int $qty, int $charTaskId, bool $background): ServerResponse
+    private function notifyCraftQueued(array $recipe, int $queuePosition, int $qty, int $charTaskId, bool $background, string $spent): ServerResponse
     {
         $text = "*В очередь поставлено:* {$recipe['start_caption_name']} x{$qty} шт.\n\n"
             . $this->scope->scopeLine(ActionScopeService::KIND_CRAFT, $background) . "\n\n"
             . "📋 Позиция в очереди: *#{$queuePosition}*\n"
             . "Начнётся автоматически после завершения активного крафта.\n\n"
+            . ($spent !== '' ? $spent . "\n\n" : '')
             . "❗Ресурсы уже списаны. Отмена очереди вернёт их.";
 
         $keyboard = [
@@ -214,7 +339,7 @@ class GenericCraftActionStart extends BaseAction
         ]);
     }
 
-    private function notifyCraftStarted(array $recipe, int $minutes, int $qty, bool $background, ?CraftDurationBreakdown $breakdown): ServerResponse
+    private function notifyCraftStarted(array $recipe, int $minutes, int $qty, bool $background, ?CraftDurationBreakdown $breakdown, string $spent): ServerResponse
     {
         $timeStr = $this->formatMinutes($minutes);
 
@@ -234,6 +359,7 @@ class GenericCraftActionStart extends BaseAction
             . "Ты создаёшь: {$recipe['start_caption_name']} x{$qty} шт.\n\n"
             . $this->scope->startedBlock(ActionScopeService::KIND_CRAFT, $background) . "\n\n"
             . $timeBlock . "\n\n"
+            . ($spent !== '' ? $spent . "\n\n" : '')
             . "После завершения будет добавлено *{$qty}* шт. в твой инвентарь.\n\n"
             . "❗Прерывание задачи = потеря ресурсов!\n\n"
             . "_О готовности узнаешь в сообщении._ 🎁";

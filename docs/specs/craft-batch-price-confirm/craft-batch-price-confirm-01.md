@@ -1,8 +1,8 @@
 ---
 story: craft-batch-price-confirm-01
 spec: craft-batch-price-confirm
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -48,5 +48,11 @@ blocked_by: []
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `CraftOrderService::start()` отдаёт `consumed{gold, resources, crafted_items}` (тип `Consumed`): ровно то, что списала транзакция; рюкзак+склад сложены, компоненты — `name_rus`. У отказа — нули.
+- `GenericCraftActionStart::spentLine()` — public static, чистая; строка «💸 *Списано:* …» вставлена и в старт, и в «В очередь поставлено». Имена чистятся от `* _ \` [ ]` (паттерн `TasksSurfaceService::markdownSafe`).
+- Эталон паритета бота `BOT_BEFORE` в `CraftOrderServiceTest` получил строку «Списано» в трёх случаях (start / start_items / queue) — это намеренное изменение текста, остальное тождественно.
+- Карточка T3: «Золото (за 1 шт.)» + «Время (за 1 шт.)» из `CraftDurationService::forOne` (строка правды при бонусах, с killswitch `craft.duration_breakdown.enabled`).
+- Длина caption: проверена строка «Списано» на самом тяжёлом рецепте ×100 (< 400 символов); полный caption карточки T3 чистой функцией не рендерится — проверка ≤1024 остаётся за Tier-3 смоуком.
+- Tech-writing: `services/CraftOrderService.md`, `handlers/craft/GenericCraftActionStart.md`, `handlers/craft/UtilityRecipePreviewT3Action.md`.
 
 ## Findings
