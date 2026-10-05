@@ -168,6 +168,7 @@ git check-ignore -v .claude/admin-credentials.local.md .claude/settings.local.js
 | `scripts/lib.sh` | `is_paperwork_path()` знает `docs/specs/*/smoke-*.md` — доказательство preprod-смоука после GREEN не делает вердикт STALE (evolve 2026-09-29; в ванили 0.24.0 нет — апгрейд откатит) | `grep -c 'smoke-\*.md|' scripts/lib.sh` |
 | `scripts/scope-check.sh` | все `memory/stats/*.jsonl` (не только `anomalies.jsonl`) не считаются выходом за объём; `skills.json` — считается, как в upstream (evolve 2026-09-29) | `grep -c 'LEDGERS=' scripts/scope-check.sh` |
 | `scripts/wave-check.sh` | `verify-gap` не считает путём первое слово команды (`vendor/bin/phpunit`) (evolve 2026-09-29) | `grep -c 'first word of each command' scripts/wave-check.sh` |
+| `.claude/settings.json` | с 0.25.0 `wire_plugin` дописывает `cc-plugin-you-should-know@builtin`, но пересохраняет весь файл, и кириллица превращается в `\uXXXX`. Ключ оставить, файл вернуть из HEAD и дописать ключ руками одной строкой | `grep -c '\\u04' .claude/settings.json` → 0 |
 
 Одной командой — что откатилось:
 

@@ -144,6 +144,7 @@
     }
   },
   "enabledPlugins": {
-    "litopys@litopys": true
+    "litopys@litopys": true,
+    "cc-plugin-you-should-know@builtin": true
   }
 }
