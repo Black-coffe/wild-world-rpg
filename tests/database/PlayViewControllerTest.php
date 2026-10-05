@@ -803,6 +803,36 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('🛠️ Крафт 5 шт', $page);
     }
 
+    /**
+     * craft-batch-price-confirm, ask 10: без JS ядро ответило `confirm_required` — PRG на карточку с `confirm=N`,
+     * панель итога и форма «✅ Запустить» с `confirmed=1`; её отправка стартует ровно эту партию.
+     */
+    public function testLargeBatchWithoutJsIsPrgToTheConfirmPanelAndConfirmedStarts(): void
+    {
+        [$session] = $this->character('Ворон');
+        [$orders, $queue] = $this->stubCraft(7, true);
+        $this->stubSheets(null, [[], []], null, null, $orders, $queue);
+        $nav = ['view' => 'craft', 'bench' => 'general', 'cat' => 'medicine', 'recipe' => 'Bandage'];
+
+        $res = $this->postWithCsrf($session, 'play/view', $nav + ['op' => 'craft_start', 'qty' => '5', 'intent_id' => 'k1']);
+        $this->assertSame(303, $res->response()->getStatusCode());
+        $this->assertStringEndsWith('/play?view=craft&bench=general&cat=medicine&recipe=Bandage&confirm=5', $res->response()->getHeaderLine('Location'));
+        $this->assertSame([], $orders->starts, 'без подтверждения — без старта');
+
+        $page = html_entity_decode($this->body($this->withSession($session)->get('play?view=craft&bench=general&cat=medicine&recipe=Bandage&confirm=5')), ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-craft-confirm', $page);
+        $this->assertStringContainsString('<dd>5 шт.</dd>', $page);
+        $this->assertMatchesRegularExpression('~name="qty" value="5"><input type="hidden" name="confirmed" value="1">.*?✅ Запустить 5 шт~su', $page);
+
+        $json = $this->json($this->postWithCsrf($session, 'play/view', $nav + ['op' => 'craft_start', 'qty' => '5', 'confirmed' => '1', 'intent_id' => 'k2'], true));
+        $this->assertSame('🛠 Крафт начат: 🩹 Повязка ×5. Готово через 25 мин.', $json['alert']);
+        $this->assertSame([['Bandage', 5]], $orders->starts);
+
+        $junk = html_entity_decode($this->body($this->withSession($session)->get('play?view=craft&bench=general&cat=medicine&recipe=Bandage&confirm=abc')), ENT_QUOTES | ENT_HTML5);
+        $this->assertStringNotContainsString('data-craft-confirm', $junk, 'мусорный confirm в адресе отбрасывается');
+        $this->assertStringContainsString('🛠️ Крафт 5 шт', $junk);
+    }
+
     /** Нехватка: кнопок старта нет, «Чего не хватает?» идёт мостом от хаба `/craft` по пути бота. */
     public function testShortageCardBridgesToTheBotShortageScreen(): void
     {
@@ -1548,13 +1578,14 @@ final class PlayViewControllerTest extends CIUnitTestCase
      *
      * @return array{0: CraftOrderService, 1: CraftQueueService}
      */
-    private function stubCraft(int $max = 7): array
+    private function stubCraft(int $max = 7, bool $askConfirm = false): array
     {
-        $orders = new class ($max) extends CraftOrderService {
+        $orders = new class ($max, $askConfirm) extends CraftOrderService {
             /** @var list<array{0:string, 1:int}> */
             public array $starts = [];
 
-            public function __construct(private int $max)
+            /** $askConfirm — двойник отвечает `confirm_required` на любую неподтверждённую партию (правило — в ядре, не здесь). */
+            public function __construct(private int $max, private bool $askConfirm = false)
             {
                 parent::__construct();
             }
@@ -1566,12 +1597,21 @@ final class PlayViewControllerTest extends CIUnitTestCase
                     'message' => $this->max > 0 ? '' : 'Недостаточно ресурсов для крафта 1 шт.',
                     'recipe' => ['key' => $recipeKey, 'name' => 'Повязка', 'icon' => '🩹', 'output_type' => 'item'],
                     'resources' => [['name' => 'Хлопок', 'need' => 2 * $qty, 'have' => 14]], 'items' => [], 'gold' => 0,
-                    'minutes_one' => 5, 'minutes_total' => 5 * $qty, 'max_qty' => $this->max, 'needs_confirm' => false, 'queue_pos' => 1, 'gates' => [],
+                    'minutes_one' => 5, 'minutes_total' => 5 * $qty, 'max_qty' => $this->max, 'needs_confirm' => $this->askConfirm, 'queue_pos' => 1, 'gates' => [],
                 ];
             }
 
             public function start(int $characterId, string $recipeKey, int $qty, bool $confirmed = false): array
             {
+                if ($this->askConfirm && ! $confirmed) {
+                    return [
+                        'ok' => false, 'code' => self::CONFIRM_REQUIRED, 'message' => 'Крупная партия', 'log' => null,
+                        'char_task_id' => 0, 'status' => '', 'started_at' => null, 'ends_at' => null, 'minutes_total' => 0,
+                        'queue_pos' => 0, 'background' => false, 'breakdown' => null, 'missing_resources' => [], 'missing_items' => [],
+                        'consumed' => ['gold' => 0, 'resources' => [], 'crafted_items' => []],
+                        'batch' => ['qty' => $qty, 'gold' => 0, 'resources' => ['Хлопок' => 2 * $qty], 'crafted_items' => [], 'minutes_total' => 5 * $qty],
+                    ];
+                }
                 $this->starts[] = [$recipeKey, $qty];
                 $queued         = count($this->starts) > 1;
 

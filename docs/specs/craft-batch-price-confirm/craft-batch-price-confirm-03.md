@@ -1,8 +1,8 @@
 ---
 story: craft-batch-price-confirm-03
 spec: craft-batch-price-confirm
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -48,5 +48,12 @@ blocked_by: [craft-batch-price-confirm-02]
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `WebNativeScreenService::craftStartOutcome(..., bool $confirmed)` → `{alert, confirm}`; `craftStart()` остался обёрткой (`['alert']`) — прежние вызовы и тесты не тронуты. `confirm_required` ядра — не отказ: в `action_log` не пишется.
+- `craftModel`: ключ карточки `confirm` (`confirmPanel()`) — `preview(qty)` ядра, только при `ok && needs_confirm && qty ≤ max_qty`; иначе обычные кнопки (порог сменили, сырьё ушло).
+- `Play`: `craftNav` читает `confirm` (`^[1-9][0-9]{0,3}$`), `op=craft_start` передаёт `confirmed === '1'`; ответ `confirm` кладётся в навигацию → PRG `/play?view=craft&…&confirm=N` (с JS — тот же рендер в JSON).
+- Вьюха: панель `play-native-note` + `play-craft-facts` + `play-craft-reqs` + `play-kb-grid` — только существующие классы, нового CSS и компонента нет (ui-kit не меняется, `?v=` не бампается). Кнопки: `$act` с `confirmed=1` и `$go` назад на карточку рецепта.
+- Тесты: настоящее ядро через веб (`WebCraftStartTailsTest`: 25 шт без подтверждения — ничего не списано и не залогировано, панель в HTML, подтверждение стартует, повтор intent — ничего, 24 шт — сразу; дефолтные пороги — дешёвая партия 25 стартует сразу); контроллер (`PlayViewControllerTest`: PRG на `confirm=5`, панель, `confirmed=1` стартует, мусорный `confirm` отброшен).
+- Tier-2 на testbot (1440/768/375, консоль) — после деплоя на preprod.
+- Tech-writing: `services/WebNativeScreenService.md`, `controllers/Play.md`.
 
 ## Findings

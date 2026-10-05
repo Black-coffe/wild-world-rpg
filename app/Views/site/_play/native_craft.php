@@ -195,7 +195,35 @@ $locks = array_values(array_filter($benches, static fn (mixed $b): bool => is_ar
                                 <div class="play-native-note" data-craft-gate><?= esc($gate) ?></div>
                             <?php endif ?>
 
-                            <?php if ($maxQty >= 1): ?>
+                            <?php $confirm = is_array($card['confirm'] ?? null) ? $card['confirm'] : null; ?>
+                            <?php if ($confirm !== null): ?>
+                                <?php /* craft-batch-price-confirm: ядро попросило подтвердить крупную партию — итог из preview(qty), тот же, что у бота. */ ?>
+                                <div class="play-native-note" data-craft-confirm role="status">
+                                    <p><strong>⚠️ Крупная партия — проверь перед запуском</strong></p>
+                                    <dl class="play-craft-facts">
+                                        <div><dt>🛠 Количество</dt><dd><?= $int($confirm['qty'] ?? 0) ?> шт.</dd></div>
+                                        <div><dt>💰 Золото, вся партия</dt><dd><?= $int($confirm['gold'] ?? 0) > 0 ? esc(number_format($int($confirm['gold']), 0, '.', ' ')) . ' зол.' : 'без золота' ?></dd></div>
+                                        <div><dt>⏱ Время, вся партия</dt><dd><?= esc($duration($int($confirm['minutes_total'] ?? 0))) ?></dd></div>
+                                    </dl>
+                                    <?php $bigReqs = is_array($confirm['reqs'] ?? null) ? $confirm['reqs'] : []; ?>
+                                    <?php if ($bigReqs !== []): ?>
+                                        <ul class="play-craft-reqs" aria-label="Сырьё и компоненты на всю партию">
+                                            <?php foreach ($bigReqs as $req): ?>
+                                                <?php if (! is_array($req)) { continue; } ?>
+                                                <li class="play-craft-req">
+                                                    <span class="play-craft-req-name"><?= esc($str($req['name'] ?? '')) ?></span>
+                                                    <span class="play-craft-req-qty">×<?= esc(number_format($int($req['need'] ?? 0), 0, '.', ' ')) ?></span>
+                                                </li>
+                                            <?php endforeach ?>
+                                        </ul>
+                                    <?php endif ?>
+                                    <p class="play-native-hint">Золото и сырьё спишутся сразу после запуска.</p>
+                                </div>
+                                <div class="play-kb-grid">
+                                    <?= $act('craft_start', ['recipe' => $recipeKey, 'qty' => $int($confirm['qty'] ?? 0), 'confirmed' => '1'], '✅ Запустить ' . $int($confirm['qty'] ?? 0) . ' шт', 'play-kb-btn is-primary') ?>
+                                    <?= $go(['bench' => $bench, 'cat' => $cat, 'recipe' => $recipeKey], '↩️ Изменить кол-во', 'play-kb-btn') ?>
+                                </div>
+                            <?php elseif ($maxQty >= 1): ?>
                                 <div class="play-kb-grid">
                                     <?php foreach ($steps as $n): ?>
                                         <?= $act('craft_start', ['recipe' => $recipeKey, 'qty' => $int($n)], '🛠️ Крафт ' . $int($n) . ' шт', 'play-kb-btn' . ($n === 1 ? ' is-primary' : '')) ?>

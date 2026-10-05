@@ -228,13 +228,19 @@ class Play extends BaseController
             $recipe   = $this->request->getPost('recipe');
             $intentId = $this->request->getPost('intent_id');
             try {
-                $alert = $this->native()->craftStart(
+                $outcome = $this->native()->craftStartOutcome(
                     $accountId,
                     $characterId,
                     is_string($recipe) ? $recipe : '',
                     self::count($this->request->getPost('qty')),
-                    is_string($intentId) ? $intentId : ''
+                    is_string($intentId) ? $intentId : '',
+                    $this->request->getPost('confirmed') === '1'
                 );
+                $alert = $outcome['alert'];
+                // craft-batch-price-confirm: ядро попросило подтвердить партию — экран рецепта с панелью итога.
+                if ($outcome['confirm'] !== null) {
+                    $craft['confirm'] = $outcome['confirm'];
+                }
             } catch (InvalidArgumentException $e) {
                 log_message('info', '[Play.view] craft start rejected: ' . $e->getMessage());
 
@@ -573,7 +579,9 @@ class Play extends BaseController
      *
      * @param callable(string): mixed $read чтение поля запроса (GET или POST)
      *
-     * @return array{bench?:string, cat?:string, recipe?:string}
+     * `confirm` — количество партии, которую ядро попросило подтвердить (панель итога на карточке рецепта).
+     *
+     * @return array{bench?:string, cat?:string, recipe?:string, confirm?:int}
      */
     private static function craftNav(callable $read): array
     {
@@ -583,6 +591,10 @@ class Play extends BaseController
             if (is_string($value) && preg_match('/^[A-Za-z0-9_]{1,40}$/', $value) === 1) {
                 $out[$field] = $value;
             }
+        }
+        $confirm = $read('confirm');
+        if (is_string($confirm) && preg_match('/^[1-9][0-9]{0,3}$/', $confirm) === 1) {
+            $out['confirm'] = (int) $confirm;
         }
 
         return $out;

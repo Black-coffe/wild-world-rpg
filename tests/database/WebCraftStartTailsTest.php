@@ -172,6 +172,55 @@ final class WebCraftStartTailsTest extends CIUnitTestCase
         $this->assertStringNotContainsString('Место в очереди', $this->html($svc));
     }
 
+    /**
+     * craft-batch-price-confirm, ask 10: крупная партия из `/play` на настоящем ядре — тот же вопрос, что у бота.
+     * Без подтверждения: ничего не списано, задачи нет, отказа в action_log нет, карточка несёт панель итога.
+     * С подтверждением — старт; повтор того же `intent_id` — ничего. Ниже порога — старт сразу.
+     */
+    public function testLargeBatchFromThePlayPageAsksTheSameQuestionAsTheBot(): void
+    {
+        $this->resources([1 => 1000, 2 => 1000, 3 => 1000]);
+        // Повязка без золота: порог по сумме выключен, остаётся порог по штукам (25).
+        $this->conn->query("INSERT INTO game_settings (setting_key, value_type, value_int, category) VALUES ('craft.confirm.min_gold', 'int', 0, 'craft')");
+        service('cache')->clean();
+        $before = $this->resourceRows();
+        $svc    = new WebNativeScreenService();
+
+        $this->assertSame(['alert' => null, 'confirm' => 25], $svc->craftStartOutcome(self::ACCOUNT, self::CHAR, 'Bandage', 25, 'b1'));
+        $this->assertSame(0, $this->conn->table('character_tasks')->countAllResults());
+        $this->assertSame($before, $this->resourceRows(), 'без подтверждения сырьё не списано');
+        $this->assertSame([], $this->rejections(), 'вопрос — не отказ');
+
+        $panel = $svc->craftModel(self::CHAR, self::BANDAGE_NAV + ['confirm' => 25])['card']['confirm'] ?? null;
+        $this->assertIsArray($panel);
+        $this->assertSame(25, $panel['qty']);
+        $this->assertSame(['need' => 50], array_intersect_key($panel['reqs'][0], ['need' => 1]));
+        $page = html_entity_decode($svc->render(self::CHAR, WebNativeScreenService::VIEW_CRAFT, [], null, [], null, self::BANDAGE_NAV + ['confirm' => 25]), ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-craft-confirm', $page);
+        $this->assertStringContainsString('✅ Запустить 25 шт', $page);
+        $this->assertStringContainsString('name="confirmed" value="1"', $page);
+        $this->assertStringContainsString('↩️ Изменить кол-во', $page);
+        $this->assertStringNotContainsString('data-craft-confirm', $this->html($svc), 'без confirm в адресе — обычная карточка');
+
+        $go = $svc->craftStartOutcome(self::ACCOUNT, self::CHAR, 'Bandage', 25, 'b2', true);
+        $this->assertNull($go['confirm']);
+        $this->assertStringStartsWith('🛠 Крафт начат: 🩹 Повязка ×25.', (string) $go['alert']);
+        $this->assertSame(['alert' => null, 'confirm' => null], $svc->craftStartOutcome(self::ACCOUNT, self::CHAR, 'Bandage', 25, 'b2', true));
+        $this->assertSame(1, $this->conn->table('character_tasks')->countAllResults());
+
+        $this->conn->query('TRUNCATE TABLE character_tasks');
+        $this->assertStringStartsWith('🛠 Крафт начат: 🩹 Повязка ×24.', (string) $svc->craftStart(self::ACCOUNT, self::CHAR, 'Bandage', 24, 'b3'));
+    }
+
+    /** Исправление владельца: на дефолтных порогах (25 шт И 50 000 золота) дешёвая партия в 25 Повязок стартует сразу. */
+    public function testCheapLargeBatchStartsAtOnceOnDefaultThresholds(): void
+    {
+        $this->resources([1 => 1000, 2 => 1000, 3 => 1000]);
+        $out = (new WebNativeScreenService())->craftStartOutcome(self::ACCOUNT, self::CHAR, 'Bandage', 25, 'd1');
+        $this->assertNull($out['confirm']);
+        $this->assertStringStartsWith('🛠 Крафт начат', (string) $out['alert']);
+    }
+
     private function html(WebNativeScreenService $svc): string
     {
         return html_entity_decode($svc->render(self::CHAR, WebNativeScreenService::VIEW_CRAFT, [], null, [], null, self::BANDAGE_NAV), ENT_QUOTES | ENT_HTML5);
