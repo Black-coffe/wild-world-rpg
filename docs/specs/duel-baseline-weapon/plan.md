@@ -63,7 +63,7 @@ ADR-190 (ядро + два рендерера)
 
 **Approved:** владелец (Андрей), 2026-10-08
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/duel-baseline-weapon
 **Checked:**
 **Council:**
 **Shipped:**
