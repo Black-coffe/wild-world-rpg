@@ -23,6 +23,8 @@ use App\Services\Player\InventorySortService;
 use App\Services\Player\InventoryViewService;
 use App\Services\Player\Trade\ResourceShopScreenService;
 use App\Services\Player\Trade\ResourceTradeService;
+use App\Services\PVE\ArenaScreenService;
+use App\Services\PVE\BattleJournalService;
 use App\Models\QuestModel;
 use App\Services\Events\EventsModelService;
 use App\Services\Quest\DailyTaskService;
@@ -105,6 +107,14 @@ use InvalidArgumentException;
  * «на базе» в нём; вне базы экран показывает замок с путём, кнопки остаются. Кнопки `shop` и `baseStorageList`
  * других экранов открывают эти экраны нативно ({@see viewForCallback()}), мимо моста.
  *
+ * w2-n7-combat-03: «⚔️ Бои» — журнал моих боёв (`view=battles`) и карточка боя со всеми раундами (`view=battle`, `id`)
+ * из {@see BattleJournalService}; арена (`view=arena`: ростер, вызов, итог последней дуэли, тумблер) и рейтинг PvP
+ * (`view=ladder`, вкладка фракции `f`) из {@see ArenaScreenService} — те же модели, что рисует бот. Вызов
+ * ({@see duel()}, `:duel`) и тумблер «открыт к дуэлям» ({@see duelsOpen()}, `:duels_open`) — один раз на `intent_id`;
+ * атомарный кулдаун повторной дуэли — в ядре. Чужой бой ядро не отдаёт — карточка отвечает отказом без имён.
+ * Выключенные дуэли или рейтинг — замок с объяснением, журнал от флагов не зависит. Колбэки бота `battles`,
+ * `battleLog_<id>`, `arena`, `pvpLadder…` открывают эти экраны нативно ({@see nativeRoute()}).
+ *
  * Ключ дедупа — `intent_id` + суффикс ступени; {@see intentKey()} держит его в VARCHAR(64)
  * `web_play_intents` при любом допустимом `intent_id`.
  *
@@ -118,6 +128,11 @@ use InvalidArgumentException;
  * @phpstan-type TasksNav array{section?:string, id?:int}
  * @phpstan-type ShopNav array{section?:string, r?:int, id?:int, pct?:int}
  * @phpstan-type StorageNav array{mode?:string}
+ * @phpstan-type BattlesNav array{id?:int, f?:int, duel?:int}
+ * @phpstan-import-type Entry from BattleJournalService
+ * @phpstan-import-type Card from BattleJournalService
+ * @phpstan-import-type Arena from ArenaScreenService
+ * @phpstan-import-type Ladder from ArenaScreenService
  */
 class WebNativeScreenService
 {
@@ -130,12 +145,41 @@ class WebNativeScreenService
     public const VIEW_TASKS     = 'tasks';
     public const VIEW_SHOP      = 'shop';
     public const VIEW_STORAGE   = 'storage';
+    public const VIEW_BATTLES   = 'battles';
+    public const VIEW_BATTLE    = 'battle';
+    public const VIEW_ARENA     = 'arena';
+    public const VIEW_LADDER    = 'ladder';
 
     /** Экраны, у которых уже есть нативная вьюха. */
-    public const VIEWS = [self::VIEW_ME, self::VIEW_INVENTORY, self::VIEW_GEAR, self::VIEW_MAP, self::VIEW_CRAFT, self::VIEW_BASE, self::VIEW_TASKS, self::VIEW_SHOP, self::VIEW_STORAGE];
+    public const VIEWS = [
+        self::VIEW_ME, self::VIEW_INVENTORY, self::VIEW_GEAR, self::VIEW_MAP, self::VIEW_CRAFT, self::VIEW_BASE, self::VIEW_TASKS,
+        self::VIEW_SHOP, self::VIEW_STORAGE, self::VIEW_BATTLES, self::VIEW_BATTLE, self::VIEW_ARENA, self::VIEW_LADDER,
+    ];
+
+    /** Экраны «⚔️ Бои»: их колбэки открываются нативно и из входящих (`/play/act`), не только с нативных экранов. */
+    public const BATTLE_VIEWS = [self::VIEW_BATTLES, self::VIEW_BATTLE, self::VIEW_ARENA, self::VIEW_LADDER];
 
     /** Кнопки других экранов (`callback_data` бота), которые теперь открывают нативный экран, а не мост. */
-    private const NATIVE_CALLBACKS = ['shop' => self::VIEW_SHOP, 'baseStorageList' => self::VIEW_STORAGE];
+    private const NATIVE_CALLBACKS = [
+        'shop' => self::VIEW_SHOP, 'baseStorageList' => self::VIEW_STORAGE,
+        'battles' => self::VIEW_BATTLES, 'arena' => self::VIEW_ARENA, 'pvpLadder' => self::VIEW_LADDER, 'pvpLadder_global' => self::VIEW_LADDER,
+    ];
+
+    /** «⚔️ Бои»: вызов на дуэль с арены и тумблер «открыт к дуэлям» — с дедупом по `intent_id`. */
+    public const OP_DUEL       = 'duel';
+    public const OP_DUELS_OPEN = 'duels_open';
+
+    /** Подписи типа и итога боя веб-рендерера журнала (ядро отдаёт коды; у бота — свои, те же по смыслу). */
+    public const BATTLE_TYPE_LABELS = [
+        BattleJournalService::TYPE_PVE  => '⚔️ PvE',
+        BattleJournalService::TYPE_PVP  => '🗡 PvP',
+        BattleJournalService::TYPE_DUEL => '🤺 Дуэль',
+    ];
+    public const BATTLE_RESULT_LABELS = [
+        BattleJournalService::RESULT_WIN     => '✅ Победа',
+        BattleJournalService::RESULT_LOSS    => '❌ Поражение',
+        BattleJournalService::RESULT_UNKNOWN => '❔ Итог не записан',
+    ];
 
     /** «🛒 Магазин»: разделы экрана и мутации с дедупом по `intent_id`. */
     public const SHOP_SECTIONS = ['hub', 'sell', 'sell_rarity', 'sell_card', 'buy', 'buy_rarity', 'buy_card', 'bulk'];
@@ -275,6 +319,10 @@ class WebNativeScreenService
 
     private BaseStorageService $storage;
 
+    private BattleJournalService $journal;
+
+    private ArenaScreenService $arena;
+
     public function __construct(
         private ?WebActService $act = null,
         ?CharacterSheetService $sheets = null,
@@ -295,7 +343,9 @@ class WebNativeScreenService
         ?QuestChainService $chain = null,
         ?DailyTaskService $daily = null,
         ?ResourceShopScreenService $shop = null,
-        ?BaseStorageService $storage = null
+        ?BaseStorageService $storage = null,
+        ?BattleJournalService $journal = null,
+        ?ArenaScreenService $arena = null
     ) {
         $this->sheets    = $sheets ?? new CharacterSheetService();
         $this->inventory = $inventory ?? new InventoryViewService();
@@ -316,6 +366,8 @@ class WebNativeScreenService
         $this->daily       = $daily ?? new DailyTaskService();
         $this->shop        = $shop ?? new ResourceShopScreenService();
         $this->storage     = $storage ?? new BaseStorageService();
+        $this->journal     = $journal ?? new BattleJournalService();
+        $this->arena       = $arena ?? new ArenaScreenService();
     }
 
     public static function isView(mixed $view): bool
@@ -332,7 +384,28 @@ class WebNativeScreenService
     /** Нативный экран, который открывает кнопка бота с этой `callback_data`; null — кнопка идёт в мост. */
     public static function viewForCallback(string $callback): ?string
     {
-        return self::NATIVE_CALLBACKS[$callback] ?? null;
+        return self::nativeRoute($callback)['view'] ?? null;
+    }
+
+    /**
+     * Нативный экран и его навигация для кнопки бота: `battleLog_<id>` (и `_j` из списка журнала) — карточка боя,
+     * `pvpLadder_faction_<id>` — вкладка фракции рейтинга; null — кнопка идёт в мост.
+     *
+     * @return array{view: string, nav: BattlesNav}|null
+     */
+    public static function nativeRoute(string $callback): ?array
+    {
+        if (isset(self::NATIVE_CALLBACKS[$callback])) {
+            return ['view' => self::NATIVE_CALLBACKS[$callback], 'nav' => []];
+        }
+        if (preg_match('/^battleLog_([1-9]\d{0,11})(?:_j)?$/', $callback, $m) === 1) {
+            return ['view' => self::VIEW_BATTLE, 'nav' => ['id' => (int) $m[1]]];
+        }
+        if (preg_match('/^pvpLadder_faction_([1-9]\d{0,11})$/', $callback, $m) === 1) {
+            return ['view' => self::VIEW_LADDER, 'nav' => ['f' => (int) $m[1]]];
+        }
+
+        return null;
     }
 
     /**
@@ -360,12 +433,37 @@ class WebNativeScreenService
      * @param TasksNav             $tasks   где стоит экран «Дела»: раздел, квест карточки
      * @param ShopNav              $shop    где стоит экран магазина: раздел, редкость, ресурс, доля опта
      * @param StorageNav           $storage режим сортировки склада
+     * @param BattlesNav           $battles «⚔️ Бои»: бой карточки, вкладка фракции рейтинга, итог последней дуэли
      *
      * @throws InvalidArgumentException неизвестный экран или нет персонажа
      */
-    public function render(int $characterId, string $view, array $state, ?string $alert = null, array $events = [], ?array $preview = null, array $craft = [], array $base = [], array $tasks = [], array $shop = [], array $storage = []): string
+    public function render(int $characterId, string $view, array $state, ?string $alert = null, array $events = [], ?array $preview = null, array $craft = [], array $base = [], array $tasks = [], array $shop = [], array $storage = [], array $battles = []): string
     {
         $dock = is_array($state['dock'] ?? null) ? $state['dock'] : [];
+
+        if ($view === self::VIEW_BATTLES) {
+            return view('site/_play/native_battles', [
+                'battles' => $this->battlesModel($characterId),
+                'dock'    => $dock,
+                'alert'   => $alert,
+            ]);
+        }
+
+        if ($view === self::VIEW_BATTLE) {
+            return view('site/_play/native_battle', [
+                'battle' => $this->battleModel($characterId, $battles['id'] ?? 0),
+                'dock'   => $dock,
+                'alert'  => $alert,
+            ]);
+        }
+
+        if ($view === self::VIEW_ARENA || $view === self::VIEW_LADDER) {
+            return view('site/_play/native_arena', [
+                'arena' => $this->arenaModel($characterId, $view, $battles),
+                'dock'  => $dock,
+                'alert' => $alert,
+            ]);
+        }
 
         if ($view === self::VIEW_SHOP) {
             return view('site/_play/native_shop', [
@@ -1481,6 +1579,134 @@ class WebNativeScreenService
             BaseStorageService::SHORT    => 'Не удалось сложить на склад — запас изменился, попробуй ещё раз.',
             default                      => 'Этого ресурса в рюкзаке уже нет.',
         };
+    }
+
+    /**
+     * Модель «📜 Мои бои» в вебе: последние бои из {@see BattleJournalService} — того же ядра, что рисует бот, — и
+     * флаги арены и рейтинга для их входов (выключенный раздел — замок; журнал от флагов не зависит).
+     *
+     * @return array{entries: list<Entry>, arena_on: bool, ladder_on: bool}
+     */
+    public function battlesModel(int $characterId): array
+    {
+        return [
+            'entries'   => $this->journal->listFor($characterId, BattleJournalService::LIMIT_WEB),
+            'arena_on'  => $this->arena->duelsEnabled(),
+            'ladder_on' => $this->arena->ladderEnabled(),
+        ];
+    }
+
+    /**
+     * Карточка боя со всеми раундами — только своего; чужой или несуществующий бой — `card` null, экран отвечает
+     * отказом без имён (ядро чужое не отдаёт).
+     *
+     * @return array{card: Card|null, arena_on: bool}
+     */
+    public function battleModel(int $characterId, int $battleId): array
+    {
+        $res = $this->journal->card($characterId, $battleId);
+
+        return ['card' => $res['ok'] ? $res['battle'] : null, 'arena_on' => $this->arena->duelsEnabled()];
+    }
+
+    /**
+     * Модель арены или рейтинга PvP. Арена — {@see ArenaScreenService::arena()} и итог последней дуэли (`duel` — id
+     * боя: только свой и только дуэль). Рейтинг — {@see ArenaScreenService::ladder()} по вкладке (`f` — фракция).
+     *
+     * @param BattlesNav $nav
+     *
+     * @return array{section: string, arena: Arena|null, ladder: Ladder|null, last: Card|null, arena_on: bool, ladder_on: bool}
+     *
+     * @throws InvalidArgumentException нет персонажа
+     */
+    public function arenaModel(int $characterId, string $view, array $nav): array
+    {
+        if ($view === self::VIEW_LADDER) {
+            $ladder = $this->arena->ladder($characterId, $nav['f'] ?? null);
+
+            return ['section' => 'ladder', 'arena' => null, 'ladder' => $ladder, 'last' => null, 'arena_on' => $this->arena->duelsEnabled(), 'ladder_on' => $ladder['enabled']];
+        }
+        $character = $this->characterRow($characterId);
+        if ($character === null) {
+            throw new InvalidArgumentException('character not found');
+        }
+        $arena = $this->arena->arena($character);
+        $last  = null;
+        if (isset($nav['duel'])) {
+            $res  = $this->journal->card($characterId, $nav['duel']);
+            $last = $res['ok'] && $res['battle']['duel'] ? $res['battle'] : null;
+        }
+
+        return ['section' => 'arena', 'arena' => $arena, 'ladder' => null, 'last' => $last, 'arena_on' => $arena['enabled'], 'ladder_on' => $arena['ladder_enabled']];
+    }
+
+    /**
+     * Вызов на дуэль с арены — {@see ArenaScreenService::challenge()} (гейты, атомарный кулдаун, запись `DUEL` в журнал
+     * обоим, итог защитнику), один раз на `intent_id`. Отказ ядра — его текст как есть.
+     *
+     * @return array{alert: string|null, battle_id: int|null} `alert` null — повтор того же намерения (дуэли нет)
+     *
+     * @throws InvalidArgumentException плохой соперник, намерение или нет персонажа
+     */
+    public function duel(int $accountId, int $characterId, int $defenderId, string $intentId): array
+    {
+        if ($defenderId <= 0) {
+            throw new InvalidArgumentException('bad defender id');
+        }
+        self::assertIntent($intentId);
+        $attacker = $this->characterRow($characterId);
+        if ($attacker === null) {
+            throw new InvalidArgumentException('character not found');
+        }
+        if (! $this->claim($accountId, $intentId, ':' . self::OP_DUEL)) {
+            return ['alert' => null, 'battle_id' => null];
+        }
+
+        $duel = $this->arena->challenge($attacker, $defenderId, true);
+        if (! $duel['ok']) {
+            return ['alert' => $duel['message'], 'battle_id' => null];
+        }
+        $reason = ArenaScreenService::reasonLabel($duel['reason']);
+
+        return [
+            'alert'     => "🤺 Дуэль с {$duel['defender_name']}: победитель — {$duel['winner_name']}" . ($reason !== '' ? " ({$reason})" : '')
+                . '. Ни здоровья, ни опыта не потеряно.',
+            'battle_id' => $duel['battle_id'],
+        ];
+    }
+
+    /**
+     * Тумблер «открыт к дуэлям» — {@see ArenaScreenService::setDuelsOpen()}, тот же метод, что у «⚙️ Настроек» бота,
+     * один раз на `intent_id`.
+     *
+     * @return string|null ответ для игрока; null — повтор того же намерения
+     *
+     * @throws InvalidArgumentException плохое намерение
+     */
+    public function duelsOpen(int $accountId, int $characterId, bool $open, string $intentId): ?string
+    {
+        self::assertIntent($intentId);
+        if (! $this->claim($accountId, $intentId, ':' . self::OP_DUELS_OPEN)) {
+            return null;
+        }
+        $this->arena->setDuelsOpen($characterId, $open);
+
+        return $open
+            ? '⚔️ Ты открыт к дуэлям — соперники с 🏟 Арены могут вызвать тебя на честный бой.'
+            : '🛡 Ты закрыт для дуэлей — на арене тебя больше не видно.';
+    }
+
+    /**
+     * Строка персонажа целиком — бойцу дуэли нужны статы, клетка и флаг дуэлей; null — персонажа нет.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function characterRow(int $characterId): ?array
+    {
+        $res = \Config\Database::connect()->table('characters')->where('id', $characterId)->get();
+        $row = $res === false ? null : $res->getRowArray();
+
+        return is_array($row) ? $row : null;
     }
 
     /** Клетка персонажа (null — нет персонажа или клетки) — клетка прихода при сдаче на склад. */

@@ -269,6 +269,22 @@ final class GuideCatalogTest extends CIUnitTestCase
         $this->assertDoesNotMatchRegularExpression('/\d/u', $body, 'Раздел «Общий чат» не должен называть числа баланса.');
     }
 
+    /**
+     * w2-n7-combat-03 (вердикт Редколлегии: да, раздел «⚔️ Бой и PvE») — журнал боёв: что это, путь в боте
+     * («⚙️ Ещё», кнопка под итогом) и на сайте («⚔️ Бои»), чужих боёв не видно; без чисел баланса.
+     */
+    public function testCombatSectionNamesTheBattleJournalAndItsPaths(): void
+    {
+        $section = GuideCatalog::find('combat');
+        $this->assertNotNull($section);
+
+        $body = $section['body'];
+        foreach (['📜 Мои бои', '📜 Разбор боя', '⚙️ Ещё', '⚔️ Бои', 'по раундам', 'Чужие бои'] as $needle) {
+            $this->assertStringContainsString($needle, $body, "Раздел «⚔️ Бой и PvE» не упоминает «{$needle}».");
+        }
+        $this->assertDoesNotMatchRegularExpression('/\d/u', $body, 'Раздел «⚔️ Бой и PvE» не должен называть числа баланса.');
+    }
+
     // ── Сервис рендера ──────────────────────────────────────────────────────
 
     public function testIndexExposesButtonForEverySection(): void
