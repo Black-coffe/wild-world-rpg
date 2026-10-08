@@ -1,7 +1,7 @@
 ---
 story: w2-n7-combat-04
-status: todo
-returned:
+status: done
+returned: DONE
 worker: worker-code
 model: opus
 wave: 4
@@ -20,6 +20,8 @@ No brief ask is RED in round 1 - the findings below are the whole task.
 1. app/Services/Quest/DailyTaskService.php:102 [regression] a `DUEL` row in `battle_logs` must not count toward the daily «⚔️ Боец — Победи в боях» (`d_battle_win`, 120-320 gold) - `counter()` counts every row with `winner_id = me` regardless of `battle_type`, so risk-free equalized arena duels between two consenting players now complete a paid combat daily; base evidence: `git show 7ddfa8e6:app/Controllers/Telegram/Commands/Actions/PVP/DuelAction.php` line 33 "0 DB-записей по результату" (duels wrote no row, so the same query at `git show 7ddfa8e6:app/Services/Quest/DailyTaskService.php` line 102 saw only PvE/PvP wins); head writes the row at app/Services/PVE/ArenaScreenService.php:398 (the class in docs/defects/record-exposed-beyond-participants.md: a new row type in a shared table must pass every reader)
 
 ## Files
+- app/Services/Quest/DailyTaskService.php
+- tests/database/DailyTaskServiceTest.php
 - app/Services/PVE/BattleJournalService.php
 - app/Controllers/Telegram/Commands/Actions/PVP/BattleJournalAction.php
 - app/Config/CallbackRoutes.php
@@ -68,3 +70,9 @@ No brief ask is RED in round 1 - the findings below are the whole task.
 `vendor/bin/phpunit --no-coverage --no-progress`
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
+
+## Implementation notes
+- `DailyTaskService::counter('d_battle_win')` считает только `battle_type IN ('PVE','PVP')` (константы `BattleJournalService`): дуэль на арене — спорт без потерь двух согласных игроков, в оплачиваемое задание дня «⚔️ Боец» не идёт. До W2.N7 дуэль строк не писала, поэтому поведение для PvE/PvP прежнее; на проде строк `DUEL` ещё нет — снятые сегодня `baseline` заданий не сдвигаются.
+- `## Files` дополнен `DailyTaskService.php` и `DailyTaskServiceTest.php`: находка называет именно этот файл, а нарезанная repair-story несла только файлы спеки.
+- Остальные читатели `battle_logs` сверены (класс `record-exposed-beyond-participants`: новый тип строки — все читатели): `BattlesController`, `ProfileController`, `TributeService` фильтруют `PVP`, `ReturnDigestService` — `PVE`; `DashboardAnalyticsService` (админка) считает по типам; `IslandPulseService` «стычек» считает и дуэли — minor ревью, вне находки, не трогал.
+- Тест: фикстура `battle_logs` получила `battle_type` (раньше без него дыра не ловилась), новый `testBattleWinCountsPveAndPvpButNotArenaDuels` — дуэли не засчитаны (исходный случай), PvE и PvP засчитаны (соседняя форма). Без фикса падают оба теста счётчика (5 вместо 2, 3 вместо 2).

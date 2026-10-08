@@ -6,6 +6,7 @@ namespace App\Services\Quest;
 
 use App\Entities\CharacterEntity;
 use App\Services\GameSettings\GameSettingsReaderTrait;
+use App\Services\PVE\BattleJournalService;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -99,7 +100,12 @@ class DailyTaskService
                 return is_array($row) && is_numeric($row['npc_kills'] ?? null) ? (int) $row['npc_kills'] : 0;
 
             case 'd_battle_win':
-                return (int) $db->table('battle_logs')->where('winner_id', $charId)->countAllResults();
+                // Только бой с риском — PvE и полевой PvP. Дуэль на арене (w2-n7, `DUEL`) — спорт двух согласных
+                // игроков без потерь: засчитанная, она оплачивала бы задание дня боями «по договорённости».
+                return (int) $db->table('battle_logs')
+                    ->where('winner_id', $charId)
+                    ->whereIn('battle_type', [BattleJournalService::TYPE_PVE, BattleJournalService::TYPE_PVP])
+                    ->countAllResults();
 
             default:
                 return 0;

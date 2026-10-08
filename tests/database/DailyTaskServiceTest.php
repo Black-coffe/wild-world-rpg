@@ -46,7 +46,7 @@ final class DailyTaskServiceTest extends CIUnitTestCase
         $db->query('CREATE TABLE explored_cells (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, created_at DATETIME NULL)');
         $db->query('CREATE TABLE crafted_items_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, crafted_item_id INT NULL, quantity INT DEFAULT 1)');
         $db->query('CREATE TABLE action_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, chat_id BIGINT NULL, action_name VARCHAR(255), action_status VARCHAR(20), description TEXT NULL, created_at DATETIME NULL)');
-        $db->query('CREATE TABLE battle_logs (id INT AUTO_INCREMENT PRIMARY KEY, winner_id INT NULL, created_at DATETIME NULL)');
+        $db->query('CREATE TABLE battle_logs (id INT AUTO_INCREMENT PRIMARY KEY, battle_type VARCHAR(8) NOT NULL, winner_id INT NULL, created_at DATETIME NULL)');
         $db->query('CREATE TABLE characters (id INT PRIMARY KEY, telegram_user_id INT NULL, level INT DEFAULT 1, npc_kills INT DEFAULT 0, gold DECIMAL(14,2) DEFAULT 0, daily_tips_enabled TINYINT DEFAULT 1, created_at DATETIME NULL, updated_at DATETIME NULL)');
         $db->query('CREATE TABLE telegram_users (id INT PRIMARY KEY, telegram_id BIGINT NULL)');
         $db->query('CREATE TABLE game_settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(191), category VARCHAR(64) NULL, value_type VARCHAR(16) NULL, value_int INT NULL, value_float DECIMAL(15,5) NULL, value_bool TINYINT NULL, value_string TEXT NULL, hard_min VARCHAR(32) NULL, hard_max VARCHAR(32) NULL)');
@@ -58,7 +58,8 @@ final class DailyTaskServiceTest extends CIUnitTestCase
         $db->table('explored_cells')->insertBatch([['character_id' => 1], ['character_id' => 1], ['character_id' => 1]]);
         $db->table('crafted_items_log')->insertBatch([['character_id' => 1, 'quantity' => 1], ['character_id' => 1, 'quantity' => 1]]);
         $db->table('action_log')->insert(['character_id' => 1, 'action_name' => 'SELL_RESOURCE', 'action_status' => 'Completed']);
-        $db->table('battle_logs')->insertBatch([['winner_id' => 1], ['winner_id' => 1]]);
+        // Две победы с риском (PvE, полевой PvP) и победа в дуэли на арене — она в «Бойца» не идёт (w2-n7, repair 1).
+        $db->table('battle_logs')->insertBatch([['battle_type' => 'PVE', 'winner_id' => 1], ['battle_type' => 'PVP', 'winner_id' => 1], ['battle_type' => 'DUEL', 'winner_id' => 1]]);
 
         $this->seedBool('quests.daily.enabled', 1);
         $this->seedInt('quests.daily.count', 3);
@@ -123,6 +124,22 @@ final class DailyTaskServiceTest extends CIUnitTestCase
         $this->assertSame(4, $s->counter(1, 'd_npc_kill'));
         $this->assertSame(2, $s->counter(1, 'd_battle_win'));
         $this->assertSame(0, $s->counter(1, 'unknown'));
+    }
+
+    /**
+     * w2-n7-combat repair 1: дуэль на арене пишется в `battle_logs` строкой `DUEL`, но «⚔️ Боец — Победи в боях» её не
+     * считает — иначе двое согласных игроков закрывали бы оплачиваемое задание дня безрисковыми дуэлями. Соседняя форма:
+     * новые PvE- и PvP-победы по-прежнему засчитываются.
+     */
+    public function testBattleWinCountsPveAndPvpButNotArenaDuels(): void
+    {
+        $s  = $this->svc();
+        $db = Database::connect('tests');
+        $db->table('battle_logs')->insertBatch([['battle_type' => 'DUEL', 'winner_id' => 1], ['battle_type' => 'DUEL', 'winner_id' => 1]]);
+        $this->assertSame(2, $s->counter(1, 'd_battle_win'), 'дуэли не засчитаны');
+
+        $db->table('battle_logs')->insertBatch([['battle_type' => 'PVE', 'winner_id' => 1], ['battle_type' => 'PVP', 'winner_id' => 1]]);
+        $this->assertSame(4, $s->counter(1, 'd_battle_win'), 'PvE и PvP засчитаны');
     }
 
     public function testEnsureAssignedGeneratesThreeWithBaseline(): void
