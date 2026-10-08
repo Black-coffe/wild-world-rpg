@@ -25,6 +25,7 @@ blocked_by: [w2-n7-combat-01]
 > 3. Дуэль пишется в журнал обоим с пометкой «дуэль, без потерь». Повтор формы или двойной тап не проводит вторую дуэль.
 > 4. В боте есть «📜 Мои бои» из той же модели, сжато в лимит Telegram. Под итогом каждого боя есть кнопка «📜 Разбор боя», а на арене и в рейтинге — вход в журнал. Арену, дуэль и рейтинг бот рисует из тех же моделей, их тексты и кнопки не меняются (паритет проверяется тестом).
 > 5. Всё читается без картинок. Если дуэли или рейтинг выключены, виден замок с объяснением. Вердикты: в /guide — да, строка про журнал в разделе «⚔️ Бой и PvE»; совет — да, про разбор боя.
+> По выбранному варианту в журнал боёв «📜 Мои бои» можно войти только с арены и рейтинга PvP, а игроки, у которых есть PvE-бои, туда почти не заходят.
 
 ## Files
 - app/Services/PVE/ArenaScreenService.php
@@ -33,6 +34,7 @@ blocked_by: [w2-n7-combat-01]
 - app/Controllers/Telegram/Commands/Actions/PVP/DuelAction.php
 - app/Controllers/Telegram/Commands/Actions/PVP/PvpLadderAction.php
 - app/Controllers/Telegram/Commands/Actions/SettingsAction.php
+- app/Services/More/MoreSurfaceService.php
 - app/Services/PVE/BattleJournalService.php
 - tests/database/ArenaScreenServiceTest.php
 - tests/database/ArenaBotParityTest.php
@@ -56,6 +58,7 @@ blocked_by: [w2-n7-combat-01]
 - [ ] Вызов пишет одну строку `battle_logs` `DUEL` (вызвавший, соперник, победитель, раунды, пометка дуэли); здоровье, опыт и ресурсы обоих не меняются; оба видят бой в `BattleJournalService`.
 - [ ] Два вызова подряд и два одновременных (два процесса/соединения) проводят одну дуэль: одна строка `DUEL`, одно начисление рейтинга, второй получает «подожди N сек.».
 - [ ] При `pvp.duel.enabled=false` модель арены — замок с объяснением, вызов — отказ без записи; при `pvp.ladder.enabled=false` — замок рейтинга.
+- [ ] Хаб «⚙️ Ещё» несёт «📜 Мои бои» (`battles`) всегда, рядом с «🏟 Арена»; ряды кнопок без одиночек.
 - [ ] `duelsOpenOn/Off` в боте и тумблер ядра пишут `duels_open` одним методом.
 
 ## Verification

@@ -67,6 +67,8 @@ none
 
 ## Plan deltas
 
+- 2026-10-08 · поправка владельца после story 01 — «По выбранному варианту в журнал боёв «📜 Мои бои» можно войти только с арены и рейтинга PvP, а игроки, у которых есть PvE-бои, туда почти не заходят.» Решение владельца (вопрос «где постоянный вход»): ««⚙ Ещё» (Рекомендую)». Story 02 добавляет «📜 Мои бои» в хаб «⚙️ Ещё» (`MoreSurfaceService`, рядом с «🏟 Арена», без условия — журнал от флагов не зависит); вход с арены и рейтинга и «📜 Разбор боя» под итогом остаются. Отвергнуто: карточка «Я» (обрастает кнопками). Класс — `docs/defects/entry-off-audience-path.md`.
+
 <!--
 The lines below are the cycle's confirmation markers (docs/cycle.md); each placeholder is replaced by
 the command or script that owns it, and scripts/ship-check.sh reads them all.
