@@ -33,7 +33,7 @@ none
 
 **Approved:**
 **Briefed:** via mini-brief, Andrei, 2026-10-08
-**Branch:**
+**Branch:** vulyk/hotfix-trade-race
 **Checked:**
 **Council:**
 **Shipped:**
