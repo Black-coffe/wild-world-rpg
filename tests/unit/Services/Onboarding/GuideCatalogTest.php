@@ -195,6 +195,23 @@ final class GuideCatalogTest extends CIUnitTestCase
         $this->assertTrue($hasPerTypeMarker, 'Раздел «Склад» не объясняет забор по одному виду ресурса (зеркало «Положить на склад»).');
     }
 
+    // ── duel-baseline-weapon-02: базовое оружие на арене ──
+
+    /**
+     * Раздел «🏟 Арена и PvP» одной фразой объясняет базовое оружие и перевес своего — без чисел баланса
+     * (урон, уворот, HP дуэли настраиваются в админке).
+     */
+    public function testArenaSectionExplainsBaselineWeaponWithoutBalanceNumbers(): void
+    {
+        $section = GuideCatalog::find('arena');
+        $this->assertNotNull($section, 'Раздел «Арена и PvP» обязан быть в /guide.');
+        $body = $section['body'];
+
+        $this->assertStringContainsString('Без оружия на арене бьёшь базовым', $body);
+        $this->assertStringContainsString('даёт перевес — но не гарантию победы', $body);
+        $this->assertSame(0, preg_match('/\d/', $body), 'В разделе арены нет цифр: числа баланса меняются из админки.');
+    }
+
     // ── chat-requests-batch-08: две новые двери дописаны в СУЩЕСТВУЮЩИЕ разделы ──
 
     /**

@@ -20,10 +20,17 @@ $arenaOn   = ($m['arena_on'] ?? false) === true;
 $alertText = is_string($alert ?? null) && $alert !== '' ? $alert : null;
 $viewUrl   = base_url('play/view');
 $str       = static fn (mixed $v, string $d = ''): string => is_scalar($v) && (string) $v !== '' ? (string) $v : $d;
+// Формат как у бота (`BattleJournalAction::num`): меньше 1 — двумя знаками, чтобы 0.01 не читалось как «−0».
 $num       = static function (mixed $v): string {
     $f = is_int($v) || is_float($v) ? (float) $v : 0.0;
+    if ($f >= 10.0) {
+        return (string) (int) round($f);
+    }
+    if ($f > 0.0 && $f < 1.0) {
+        return rtrim(rtrim(number_format(max($f, 0.01), 2, '.', ''), '0'), '.');
+    }
 
-    return $f >= 10.0 ? (string) (int) round($f) : rtrim(rtrim(number_format($f, 1, '.', ''), '0'), '.');
+    return rtrim(rtrim(number_format($f, 1, '.', ''), '0'), '.');
 };
 
 /** Переход на экран «⚔️ Боёв». */
