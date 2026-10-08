@@ -484,6 +484,10 @@ class CallbackRoutes extends BaseConfig
         // W18 (ADR-072) — PvP-ладдер. Callback `pvpLadder` / `pvpLadder_global` / `pvpLadder_faction_<id>`
         // (первый сегмент `pvpLadder` → этот handler; вкладка парсится из полного callback_data).
         'pvpLadder'                       => \App\Controllers\Telegram\Commands\Actions\PVP\PvpLadderAction::class,
+        // w2-n7-combat-01 (ADR-190) — «📜 Мои бои»: `battles` (список) и `battleLog_<id>[_j]` (карточка боя,
+        // первый сегмент `battleLog`; id и хвост `_j` «из журнала» парсит сам action).
+        'battles'                         => \App\Controllers\Telegram\Commands\Actions\PVP\BattleJournalAction::class,
+        'battleLog'                       => \App\Controllers\Telegram\Commands\Actions\PVP\BattleJournalAction::class,
         // Топ игроков (2026-07-10): две вкладки одного экрана — живые / легенды.
         'leaderboard'                     => \App\Controllers\Telegram\Commands\Actions\Social\LeaderboardAction::class,
         'leaderboardLegends'              => \App\Controllers\Telegram\Commands\Actions\Social\LeaderboardAction::class,

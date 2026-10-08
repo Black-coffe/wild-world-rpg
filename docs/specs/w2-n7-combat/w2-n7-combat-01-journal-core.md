@@ -1,8 +1,8 @@
 ---
 story: w2-n7-combat-01
 spec: w2-n7-combat
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -65,5 +65,11 @@ blocked_by: []
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- `app/Services/PVE/BattleJournalService.php` (новый): `listFor()` / `card()` / `isMine()`; модель — имена, итог, раунды из обеих форм `log_data` (PvE и PvP v2); полный дамп персонажа PvE наружу не выходит (тест). Победа PvE — `winner_id == я`; при совпадении id спауна с id персонажа итог берётся из последнего удара.
+- `PVP/BattleJournalAction.php` (новый) + `CallbackRoutes` (`battles`, `battleLog`): HTML, экранирование имён, `fit()` режет раунды в бюджет 3500 символов; из уведомления карточка — новым сообщением (итог с наградами не затирается), из списка (`battleLog_<id>_j`) — на месте.
+- Миграция `2026-12-17-100000_WidenBattleLogsType`: `battle_type` VARCHAR(3)→(8); у таблицы нет createTable-миграции, поэтому на пустой базе — no-op.
+- `PveBattleLogWriter::write()` → `?int`, `PvEService` передаёт id в `PveNotificationSender::send(..., ?int $battleId)` и в ответ `battle_id`; `PveNotificationSender::keyboard()` — одна кнопка «📜 Разбор боя».
+- `AttackPlayerAction::postBattleKeyboard($id, $battleId = 0)` — третья кнопка в ряд у обоих бойцов; остальной handler не тронут.
+- Найдено: `tests/unit/Services/PVE/PveNotificationSenderNoKeyTest::testWithKeyTheSamePathReachesSend` падает при отдельном запуске файла и на исходном коде (порядок набора) — в полном наборе зелёный; не трогал.
 
 ## Findings

@@ -18,8 +18,10 @@ final class PveBattleLogWriter
      * @param array<string, mixed>|\App\Entities\CharacterEntity $playerData
      * @param array<string, mixed> $npcData
      * @param array<string, mixed> $fightResult expected keys: log[], winner (object), loser (object|null)
+     *
+     * @return int|null id строки `battle_logs` (w2-n7-combat-01: кнопка «📜 Разбор боя» под итогом) или null
      */
-    public function write(array|\App\Entities\CharacterEntity $playerData, array $npcData, array $fightResult): void
+    public function write(array|\App\Entities\CharacterEntity $playerData, array $npcData, array $fightResult): ?int
     {
         $service = new PveBattleLogService();
         $service->init($playerData, $npcData);
@@ -53,11 +55,13 @@ final class PveBattleLogWriter
             'winnerId' => (int) $winner->id,
             'loserId'  => is_object($loser) ? (int) $loser->id : null,
         ]);
-        $service->saveLog(
+        $id = $service->saveLog(
             'PVE',
             (int) $playerData['id'],
             isset($npcData['npc_id']) ? (int) $npcData['npc_id'] : null,
             (int) $winner->id
         );
+
+        return is_numeric($id) && (int) $id > 0 ? (int) $id : null;
     }
 }
