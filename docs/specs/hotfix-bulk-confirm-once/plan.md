@@ -38,7 +38,7 @@ none
 
 **Approved:**
 **Briefed:** via mini-brief, Andrei, 2026-10-08
-**Branch:**
+**Branch:** vulyk/hotfix-bulk-confirm-once
 **Checked:**
 **Council:**
 **Shipped:**
