@@ -37,8 +37,12 @@ use App\Services\Craft\ItemModifierService;
  *     rarity, crit_chance) с тем же fallback на 'crit_chance' через
  *     special_effect.
  *   getEquippedOutfitsWithDetails — массив outfit-строк (без обёртки eq).
+ *
+ * Не `final` ради одного наследника — {@see DuelEquipmentRepository} (duel-baseline-weapon): дуэль подаёт
+ * неизменному движку то же, что этот репозиторий, но с базовым оружием. Наследник переопределяет КАЖДЫЙ
+ * публичный метод (держит тест `DuelOutcomeTest`): новый публичный метод здесь — добавить и туда.
  */
-final class PvpEquipmentRepository
+class PvpEquipmentRepository
 {
     private CharactersWeaponsModel $charactersWeaponsModel;
     private WeaponModel $weaponsModel;

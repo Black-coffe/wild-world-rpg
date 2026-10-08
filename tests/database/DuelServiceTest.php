@@ -66,6 +66,14 @@ final class DuelServiceTest extends CIUnitTestCase
         $this->cleanCache();
     }
 
+    private function seedFloat(string $key, float $v): void
+    {
+        Database::connect('tests')->table('game_settings')->insert([
+            'setting_key' => $key, 'category' => 'combat', 'value_type' => 'float', 'value_float' => $v,
+        ]);
+        $this->cleanCache();
+    }
+
     private function cleanCache(): void
     {
         if (function_exists('cache')) {
@@ -82,7 +90,10 @@ final class DuelServiceTest extends CIUnitTestCase
         $this->assertFalse($svc->enabled()); // default OFF
         $this->assertSame(20, $svc->baselineLevel());
         $this->assertSame(50, $svc->baselineStat());
-        $this->assertSame(1000, $svc->baselineHealth());
+        $this->assertSame(200, $svc->baselineHealth());
+        $this->assertSame(10.0, $svc->baselineWeaponDamage());
+        $this->assertSame(0.5, $svc->weaponAdvantageWeight());
+        $this->assertSame(40.0, $svc->dodgePercent());
     }
 
     public function testKillswitchOn(): void
@@ -125,16 +136,36 @@ final class DuelServiceTest extends CIUnitTestCase
         // Статы нормализованы к baseline.
         $this->assertSame(20, $eq['level']);
         $this->assertSame(50, $eq['strength']);
-        $this->assertSame(50, $eq['agility']);
+        $this->assertSame(160.0, $eq['agility'], 'ловкость — под уворот дуэли 40 %');
         $this->assertSame(50, $eq['intellect']);
-        $this->assertSame(1000, $eq['health']);
-        $this->assertSame(1000, $eq['max_health']);
+        $this->assertSame(200, $eq['health']);
+        $this->assertSame(200, $eq['max_health']);
         $this->assertGreaterThanOrEqual(30, $eq['tired']); // без tired-штрафа
         // Идентичность + «гир-поля» сохранены.
         $this->assertSame(42, $eq['id']);
         $this->assertSame('Veteran', $eq['name']);
         $this->assertSame(801916, $eq['cell_number']);
         $this->assertSame(7, $eq['weapon_id']);
+        // Клетка площадки передана — боец стоит на ней (дуэль без дистанции).
+        $this->assertSame(5, $svc->equalize($char, 5)['cell_number']);
+    }
+
+    public function testPreparePutsBothOnTheChallengerCell(): void
+    {
+        [$a, $b] = (new DuelService())->prepare(['id' => 1, 'cell_number' => 328454], ['id' => 2, 'cell_number' => 312911]);
+        $this->assertSame(328454, $a['cell_number']);
+        $this->assertSame(328454, $b['cell_number']);
+    }
+
+    public function testDuelWeaponSettingsTunedAndClamped(): void
+    {
+        $this->seedFloat('pvp.duel.baseline_weapon_damage', 15.0);
+        $this->seedFloat('pvp.duel.weapon_advantage_weight', 7.0);
+        $this->seedFloat('pvp.duel.dodge_percent', 99.0);
+        $svc = new DuelService();
+        $this->assertSame(15.0, $svc->baselineWeaponDamage());
+        $this->assertSame(1.0, $svc->weaponAdvantageWeight(), 'вес — не больше 1');
+        $this->assertSame(75.0, $svc->dodgePercent(), 'уворот — не выше потолка движка');
     }
 
     public function testEqualizeMakesTwoFightersEqualOnStats(): void

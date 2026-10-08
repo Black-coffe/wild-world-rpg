@@ -1,8 +1,8 @@
 ---
 story: duel-baseline-weapon-01
 spec: duel-baseline-weapon
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -85,5 +85,23 @@ blocked_by: []
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- `DuelService`: `prepare($a, $b)` — пара уравнена и стоит на клетке вызывающего; `simulate($eqA, $eqB, $biome, $repo)` —
+  неизменный `simulateFight` на `PvpDamageCalculator` поверх `DuelEquipmentRepository`. Этим путём ходят арена
+  (`ArenaScreenService::challenge/realFight`), `DuelOutcomeTest` и проверка дефекта — один код, не копия.
+  `equalize($char, ?int $cell)`: ловкость = `dodge_percent / 0.25`, HP по умолчанию 200; три новых геттера с зажимом
+  (вес 0..1, уворот 0..75, урон ≥ 1), умолчания — `DEFAULT_*`.
+- `DuelEquipmentRepository extends PvpEquipmentRepository` (у родителя снят `final`): декоратор, родительский
+  конструктор не вызывается, поэтому переопределены все 4 публичных метода — держит рефлексивный тест.
+  `duelWeapon()` — чистая статика: слабее базового (урон × редкость) → базовое Common/Physical/крит 0; сильнее →
+  `база + вес × (своё − база)`, тип и крит своего оружия, редкость Common (уже в уроне).
+- Миграция `2026-12-18-100000`: 3 ключа `float` (`combat`), `baseline_health` — тексты, умолчание 200, мягкие 100–1000,
+  значение 1000 → 200 только при `updated_by IS NULL` (testbot и прод — NULL, проверено SELECT); `baseline_stat` —
+  тексты без ловкости. `down()` откатывает всё.
+- Замер на настоящем движке (600 сидов, оружие поровну у вызывающего и защитника): безоружные — 100 % нокаут,
+  медиана ~46 раундов, стаж 0; доли побед — в границах story. Снимок `ArenaBotParityTest` («150, по очкам» →
+  «42, нокаут») обновлён — это и есть фикс.
+- Проверка дефекта: `scripts/defects-duel-knockout-check.php` (CI4 test-bootstrap, кэш `dummy`, настройки из
+  фикстуры через заглушку модели). Умолчания — OK 200/200; обе фикстуры (настройки до фикса) — FAIL, 0 нокаутов.
+  `defects-check.sh` — GREEN: 2 blocking checks.
 
 ## Findings
