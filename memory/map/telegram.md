@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-29
+last-verified: 2026-10-08
 
 # Scout report: Telegram-поверхность
 
@@ -70,6 +70,10 @@ outbound: `Services/Player`, `Services/World`, `Services/Craft*`, `Services/Base
 - **(w2-n4-base, ADR-190) Экраны базы/стройки/апгрейда — рендереры ядра** (`BaseScreenService`,
   `BuildOrderService`, `BuildingUpgradeService`; см. `bases.md`): логику в action-handler'ы не возвращать —
   её же рисует веб `/play`. Апгрейд-confirm: `confirm_upgrade_building_<id>_l<N>[_b<id>]`, без `_l` — перезапрос.
+- **(w2-n6, ADR-190) Магазин сырья и склад — рендереры ядер.** `ShopAction`, `Sell/{SellAction,SellResourceAction,
+  BuyResourceAction,BulkSellAction}` рисуют модели `Services/Player/Trade/ResourceShopScreenService` (над `ResourceTradeService`);
+  `Storage/{BaseStorageListAction,BaseStorageDepositAction}` — `Services/Bases/BaseStorageService` (см. `bases.md`). Логику
+  торговли/склада в handler'ы не возвращать: её же рисует веб `view=shop|storage`. Опт — только с токеном превью.
 - Бот не вешает второго персонажа на аккаунт: если аккаунт с этой telegram-identity уже владеет
   веб-персонажем, бот-персонаж получает свежий аккаунт без identity (`attachBotCharacter`).
 

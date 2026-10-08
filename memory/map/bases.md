@@ -31,6 +31,9 @@ last-verified: 2026-10-08
   по `id` база, покрытая своей Вышкой; `resolveForBase(charId, cell, baseId)`: `on_base`/`tower`/`unavailable`.
 - **`CommunicationTowerCoverageService::coverageByBase()`** — покрытие по каждой активной базе, Вышка
   засчитывается только своей базе; `checkCoverage()` — дешёвый гейт.
+- **Ядро склада базы — `App\Services\Bases\BaseStorageService`** (w2-n6): `storageModel()`, `withdrawAll()`/`withdrawOne()`,
+  `depositOne()`/`depositAll()`, `carriedResources()`; коды `ok|off_base|bad_resource|not_carried|missing|short|empty|failed`.
+  Рендереры: `Storage\BaseStorageListAction`/`BaseStorageDepositAction`, веб `view=storage`. Склад — на персонажа, не на базу.
 - `HangarAction` (`hangar`[`_b<id>`]), робот `StartRobotGatheringAction` / `CompleteRobotGatheringHandler`
   (`task_settings.base_cell`).
 - `app/Services/BuildingEffects/` (`BuildingEffectLines` — строка эффекта), `app/Services/Housing/`; TaskHandlers `app/TaskHandlers/Built/`,
@@ -64,6 +67,8 @@ outbound: ресурсы, `GameSettings`, `Services/Coverage`, `Services/Onboard
   списание условное; лог отказа `BUILD_<Key>` пишет рендерер (ядро отдаёт `log`). `cellLoad()` считает
   стройки в работе по всем базам персонажа, возведённые — по клетке.
 - «❌ Отмена» подтверждения апгрейда ведёт на `Base_b<id>` (та же база), без базы — голый `Base`.
+- **Склад: гейт «на базе» — в ядре** (`isOnBase()` → `BaseCheckService::checkBaseStatus()['isOnBase']`, код `off_base`,
+  ничего не списано); выдача/сдача — условные записи (`BaseStorageModel::withdraw`, `decrementIfAtLeast`), повтор → `missing`/`empty`.
 - Открытые хвосты multibase-picker (`docs/specs/multibase-picker/plan.md`): голые «🏠 База»/«назад» ведут в
   пикер; «📦 Склад базы», «🔨 Снести», `DeleteBase`, «📡 Маяки» без суффикса базу не перепроверяют; робот
   при двух покрытых базах с Мастерскими уходит с меньшей по `id`. «🏗 Строить» суффикс несёт с w2-n4-base-01.
@@ -75,5 +80,4 @@ outbound: ресурсы, `GameSettings`, `Services/Coverage`, `Services/Onboard
 ## Vault
 `mmorpg-vault/apps/bases/index.md` · `tech-writing/services/{BaseScreenService,BuildOrderService,
 BuildingUpgradeService,BuildingUpgradeApplier,BaseService,BaseBuildingsList,BeaconInstaller}.md` ·
-`tech-writing/handlers/camp/{BuildListAction,GenericBuildingInfoAction,GenericBuildingAction,
-UpgradeBuildingAction,DetailedBaseInfoAction}.md`, `handlers/buildings/TeleportBeaconScreen.md`
+`tech-writing/handlers/camp/*.md`, `handlers/buildings/TeleportBeaconScreen.md`
