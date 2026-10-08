@@ -98,6 +98,7 @@ the verdict. Check output goes to a log under `${TMPDIR:-/tmp}`. `DEFECTS_DIR` p
 | id | class | status | quotes | check | last quote |
 |---|---|---|---|---|---|
 | [confirm-repeats-irreversible](confirm-repeats-irreversible.md) | Повтор подтверждения необратимого действия исполняет его снова | block | 1 | `php scripts/defects-confirm-once-check.php` | 2026-10-08 |
+| [duel-outcome-not-decided-by-fight](duel-outcome-not-decided-by-fight.md) | Исход поединка решает не бой, а формальность (тай-брейк, стаж) | text | 1 | — | 2026-10-08 |
 | [entry-off-audience-path](entry-off-audience-path.md) | Вход в фичу стоит только там, куда её аудитория не ходит | text | 1 | — | 2026-10-08 |
 | [exploit-fix-leaves-proceeds](exploit-fix-leaves-proceeds.md) | Фикс эксплойта закрывает механизм, но оставляет добытое им пригодным к выводу | text | 1 | — | 2026-10-08 |
 | [record-exposed-beyond-participants](record-exposed-beyond-participants.md) | Запись игрока видна шире круга участников или хранит лишнее приватное | text | 1 | — | 2026-10-08 |

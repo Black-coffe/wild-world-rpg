@@ -82,3 +82,4 @@ the command or script that owns it, and scripts/ship-check.sh reads them all.
 **Council:** RED round 1, 2026-10-08, at 52566e81, pack 221d7e59a50c
 **Council:** GREEN round 2, 2026-10-08, at 79950d69, pack 09c6c983d5ec
 **Shipped:**
+**Shipped:** v0.51.692, 2026-10-08, at 9dccdc49 - merged to develop, tag v0.51.692 published, prod deployed (run 37837585710); preprod + prod smoke green; owner correction on duel outcome open as defect duel-outcome-not-decided-by-fight
