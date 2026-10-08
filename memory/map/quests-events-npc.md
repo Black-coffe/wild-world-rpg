@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-01
+last-verified: 2026-10-08
 
 # Scout report: Квесты, события, NPC
 
@@ -45,6 +45,9 @@ outbound: ресурсы, статы, `Services/Notifications`, `GameSettings`.
   `:quest_branch`, под блокировкой персонажа). Списки квестов — `QuestListService` (active/available/
   completed/branches), события для экрана — `EventsModelService::model()`, хаб — `TasksSurfaceService::model()`.
   Заметки: `tech-writing/services/{QuestStartService,QuestListService,EventsModelService,TasksSurfaceService}.md`.
+
+- `DailyTaskService` `d_battle_win` считает победы только в `battle_logs` с `battle_type IN ('PVE','PVP')`
+  (`DailyTaskService.php:102-107`); дуэль арены (`DUEL`, w2-n7) задание не двигает — не фармится по согласию.
 
 ## Vault
 `mmorpg-vault/apps/quests/index.md` · `mmorpg-vault/apps/events/index.md` · `mmorpg-vault/apps/npc/index.md`

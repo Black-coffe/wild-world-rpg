@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-15
+last-verified: 2026-10-08
 
 # Scout report: Бой (Services/PVE — и PvE, и PvP)
 
@@ -19,6 +19,10 @@ last-verified: 2026-09-15
 - Периметр: `AntiCampService.php`, `DefenseStructureService.php`, `TowerAlertService.php`,
   `BountyService.php`, `TributeService.php`, `PveCombatValidator.php`.
 - Контроллеры: `app/Controllers/BattlesController.php`, `PvPController.php`.
+- **Журнал и арена (w2-n7-combat, ADR-190) — нейтральные ядра**, их же рисуют бот и веб `/play`:
+  `BattleJournalService` (`listFor`, `card`, `isMine`; бот `PVP\BattleJournalAction`, `battles`/`battleLog_<id>[_j]`)
+  и `ArenaScreenService` (`arena`, `roster`, `challenge`, `ladder`, `setDuelsOpen`; бот `ArenaAction`, `DuelAction`,
+  `PvpLadderAction`, `SettingsAction`). Логику в handler'ы не возвращать.
 
 ## Key types / contracts
 Награда выдаётся **только победившему игроку** (`winner == player`), иначе получается FK-шторм.
@@ -73,6 +77,17 @@ outbound: `Services/Player` (статы, смерть, дебаффы), моде
 Подробности — `mmorpg-vault/tech-writing/services/PvpStandoffService.md`.
 
 ## Gotchas
+- **(w2-n7-combat) Журнал боёв.** `battle_logs.battle_type` теперь `VARCHAR(8)`: `PVE|PVP|DUEL`
+  (миграция `2026-12-17-100000`; на VARCHAR(3) `DUEL` валил INSERT). «Свой» бой: PvE — только `player1_id`
+  (`player2_id` у PvE это `npc_id`), PvP/DUEL — любая из сторон; чужой/несуществующий → `not_found`
+  (`BattleJournalService.php:116-129`). `log_data` двух форм (PvE `player|npc`, PvP `attacker|defender`), битый
+  JSON — карточка без раундов. `PveBattleLogWriter` возвращает id строки → `PveNotificationSender::keyboard()`
+  даёт кнопку «📜 Разбор боя» (`battleLog_<id>`).
+- **Дуэль = строка `DUEL` без координат** (`ArenaScreenService::writeLog`, :374-406: `coords` бойцов
+  вырезаются, `duel:true`, исход тай-брейка в `outcome`). Кулдаун `pvp.attack_cooldown_sec` проверяется и
+  берётся под `GET_LOCK('ww-duel-<db>-<attackerId>')` (`challenge`, :199-257): второй одновременный вызов
+  получает `cooldown`/`busy` без боя. Здоровье/опыт/ресурсы дуэль не трогает. Публичный `/battles/view`
+  отдаёт только `PVP` (`BattlesController.php:59,112`) — дуэли и PvE наружу не светятся.
 - **(2026-09-15, cron-delivery-integrity) Авто-PvE крон терял бой-сообщения молча.**
   `AutoPveHandler` → `PvEService::attack()` → `PveNotificationSender::send()` нигде в этой цепочке
   не поднимал Telegram-мост; неинициализированный `Request::sendMessage` кидал исключение, которое

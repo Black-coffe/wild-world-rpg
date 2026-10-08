@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-08
+last-verified: 2026-10-08 (w2-n7-combat)
 
 # Scout report: Публичный сайт wildworld.fun
 
@@ -41,6 +41,11 @@ last-verified: 2026-10-08
   «📋 Дела» `view=tasks` (`op=quest_start|quest_branch`, `quests-events-npc.md`). «🛒 Магазин» `view=shop`
   (`ResourceShopScreenService`; `op=sell|buy|bulk_sell`, опт с `token` плана) и «📦 Склад» `view=storage`
   (`BaseStorageService`; `op=storage_take|storage_put`) — w2-n6; `op=bridge` с `shop`/`baseStorageList` → нативно.
+  «⚔️ Бои» (w2-n7, `dock.php`): `view=battles` (`BattleJournalService::listFor`, лимит 20), `view=battle&id=` (карточка
+  с раундами; чужой бой — отказ без имён), `view=arena` (+`duel`=id последней дуэли) и `view=ladder` (+`f`=фракция) из
+  `ArenaScreenService`; `op=duel` (id соперника) и `op=duels_open` (`open=1|0`) — один раз на `intent_id`. Колбэки бота
+  `battles|battleLog_<id>|arena|pvpLadder…` идут нативно, в т.ч. из `/play/act` (`WebNativeScreenService::nativeRoute`,
+  `Play::battleScreen`); см. `pve-pvp.md`. Вьюхи `native_{battles,battle,arena}.php`.
   Вьюхи `site/_play/native_*`, `hud`, `dock`, `state`; JS `wildworld-play.js` (`[data-ends-at]`, тик 1 с).
 - Публичная карта `/map` → `app/Controllers/Map.php`: цвета из `BiomePalette`, PNG `?v=filemtime`;
   вошедшему при `web.play_enabled` — «Играть отсюда» → `/play?view=map`.
@@ -80,6 +85,8 @@ outbound: модели постов, `Services/Web/TelegramLoginVerifier`, `Serv
 - Поход из веба стартует без `msg_id` → прогресс тика идёт в Telegram новыми сообщениями. Кнопка
   без нативного экрана идёт `op=bridge` через мост (`/go`, `/craft`+`botRoute`, `Base_b<id>`).
 - HUD: срок `Marching` — из `MarchService::status()['eta']`. Хуки шага/Похода с чатом — под `WebDelivery`-захватом.
+- Публичный `/battles/view/<id>` показывает только `battle_type='PVP'` (`BattlesController.php:112`); PvE и `DUEL` — лишь
+  участнику через `/play` и бота.
 - Сессия: ключи `account_id`, `character_id`, legacy `tg_user_id`; legacy-сессия апгрейдится в `current()`.
 
 ## Vault

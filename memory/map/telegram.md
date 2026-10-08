@@ -74,6 +74,10 @@ outbound: `Services/Player`, `Services/World`, `Services/Craft*`, `Services/Base
   BuyResourceAction,BulkSellAction}` рисуют модели `Services/Player/Trade/ResourceShopScreenService` (над `ResourceTradeService`);
   `Storage/{BaseStorageListAction,BaseStorageDepositAction}` — `Services/Bases/BaseStorageService` (см. `bases.md`). Логику
   торговли/склада в handler'ы не возвращать: её же рисует веб `view=shop|storage`. Опт — только с токеном превью.
+- **(w2-n7-combat, ADR-190) Журнал боёв, арена, рейтинг — рендереры ядер** `BattleJournalService`/`ArenaScreenService`
+  (см. `pve-pvp.md`): `PVP/{BattleJournalAction,ArenaAction,DuelAction,PvpLadderAction}` и тумблер в `SettingsAction`.
+  Маршруты `battles`, `battleLog` (`battleLog_<id>[_j]`), `arena`, `arenaDuel`, `duel`, `pvpLadder`, `duelsOpenOn|Off` —
+  `CallbackRoutes.php:128-129,478-490`. Вход «📜 Мои бои» — в «⚙️ Ещё» (`MoreSurfaceService.php:206`), на арене и в рейтинге.
 - Бот не вешает второго персонажа на аккаунт: если аккаунт с этой telegram-identity уже владеет
   веб-персонажем, бот-персонаж получает свежий аккаунт без identity (`attachBotCharacter`).
 

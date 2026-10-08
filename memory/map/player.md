@@ -68,6 +68,8 @@ outbound: модели `app/Models/*`, `Services/GameSettings`, `Services/Notifi
   проверка `scripts/defects-confirm-once-check.php`. Ловушка (review minor, не исправлена): `FOR UPDATE` на JOIN
   блокирует и общие строки каталога `resources`, не только рюкзак игрока.
 
+- `Player/PvEService::attack()` (w2-n7) передаёт id записанного `battle_logs` в `PveNotificationSender::send()` —
+  под итогом авто-боя кнопка «📜 Разбор боя»; сам журнал — `Services/PVE/BattleJournalService` (`pve-pvp.md`).
 - Цены торговли сырьём (`resources.buy_price`/`sell_price`) пишет не сервис игрока, а крон
   `ResourceBankUpdateHandler`: покупка ≥ base×1.05, выкуп ≤ base×0.95 всегда (hotfix-bank-pump-f6,
   v0.51.691); см. `tasks-worker.md`.

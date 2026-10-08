@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-25
+last-verified: 2026-10-08
 
 # Scout report: Слой данных (модели, миграции, сущности)
 
@@ -33,6 +33,10 @@ last-verified: 2026-09-25
   `−(2^52+account_id)`); виртуальные строки `telegram_users` — под IDENTITY_RESET. P0 web-only
   персонажи с аккаунтом бэкфилльнуты (`…100004`), их NULL-ключи `character_tasks`/`explored_cells`
   заполнены. Подробно — `tech-writing/db/web_play.md`.
+
+- **`battle_logs.battle_type`** — `VARCHAR(8)` (`PVE|PVP|DUEL`), миграция `2026-12-17-100000_WidenBattleLogsType`
+  (раньше `VARCHAR(3)`; у таблицы нет своей `createTable`-миграции, на пустой БД миграция no-op; `down` удаляет
+  строки длиннее 3 символов). WipeManifest не менялся: `battle_logs` уже PLAYER_DATA. См. `pve-pvp.md`.
 
 ## Key types / contracts
 Шесть стратегий вайпа: `KEEP`, `PLAYER_DATA`, `TRANSIENT`, `CHARACTER_RESET`, `IDENTITY_RESET`,
