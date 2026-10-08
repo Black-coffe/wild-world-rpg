@@ -179,14 +179,15 @@ final class MarketDecayTest extends CIUnitTestCase
     public function testKillswitchOffPriceFormulaUnchanged(): void
     {
         $this->seedResource(1, 10);
-        // ratio = (5+1)/(3+1) = 1.5 → в коридоре, buy=10*1.5*1.05=15.75, sell=10*1.5*0.95=14.25
+        // ratio = (5+1)/(3+1) = 1.5 → в коридоре. Спрос поднимает только цену покупки:
+        // buy=10*1.5*1.05=15.75; выкуп не выше базы (hotfix-bank-pump-f6): sell=10*1*0.95=9.5.
         $this->seedBank(1, 5, 3);
 
         (new ResourceBankUpdateHandler())->process();
 
         $prices = $this->readResourcePrices(1);
         $this->assertSame(15.75, $prices['buy_price']);
-        $this->assertSame(14.25, $prices['sell_price']);
+        $this->assertSame(9.5, $prices['sell_price']);
     }
 
     public function testProportionalDecayHalvesCounterAtOneHalfLife(): void
@@ -256,7 +257,81 @@ final class MarketDecayTest extends CIUnitTestCase
 
         $prices = $this->readResourcePrices(1);
         $this->assertSame(15.75, $prices['buy_price'], 'Цена считается из счётчиков ДО масштабирования потолком.');
-        $this->assertSame(14.25, $prices['sell_price'], 'Цена считается из счётчиков ДО масштабирования потолком.');
+        $this->assertSame(9.5, $prices['sell_price'], 'Цена считается из счётчиков ДО масштабирования потолком.');
+    }
+
+    /**
+     * hotfix-bank-pump-f6 — инвариант «торговец всегда покупает дешевле, чем продаёт» при ЛЮБОМ
+     * состоянии счётчиков, включая оба клампа: sell ≤ base×0.95 < base×1.05 ≤ buy. Раньше обе цены
+     * ходили одним множителем, и при отношении ×3.5 выкуп (332.5 на базе 100) был выше цены
+     * покупки в залежавшемся состоянии (36.75) — печать золота кругом «купил → тик → сдал».
+     */
+    public function testBuybackNeverExceedsBasePriceAndPurchaseNeverDropsBelowIt(): void
+    {
+        $counters = [0, 1, 3, 500, 2000, 1000000];
+        $id       = 0;
+        $cases    = [];
+        foreach ($counters as $purchased) {
+            foreach ($counters as $sold) {
+                $id++;
+                $this->seedResource($id, 100);
+                $this->seedBank($id, $purchased, $sold);
+                $cases[$id] = "purchased={$purchased}, sold={$sold}";
+            }
+        }
+
+        (new ResourceBankUpdateHandler())->process();
+
+        foreach ($cases as $resourceId => $label) {
+            $prices = $this->readResourcePrices($resourceId);
+            $this->assertLessThanOrEqual(95.0, $prices['sell_price'], "Выкуп выше базы×0.95 при {$label}.");
+            $this->assertGreaterThanOrEqual(105.0, $prices['buy_price'], "Покупка ниже базы×1.05 при {$label}.");
+            $this->assertLessThan($prices['buy_price'], $prices['sell_price'], "Выкуп не дешевле покупки при {$label}.");
+        }
+    }
+
+    /**
+     * Живость в свою сторону: спрос поднимает цену покупки до верхнего клампа, избыток продаж
+     * опускает цену выкупа до нижнего — как было до хотфикса.
+     */
+    public function testDemandRaisesPurchasePriceAndGlutLowersBuyback(): void
+    {
+        $this->seedResource(1, 100);
+        $this->seedBank(1, 1000000, 0); // спрос: ratio → кламп 3.5
+        $this->seedResource(2, 100);
+        $this->seedBank(2, 0, 1000000); // избыток: ratio → кламп 0.35
+
+        (new ResourceBankUpdateHandler())->process();
+
+        $demand = $this->readResourcePrices(1);
+        $this->assertSame(367.5, $demand['buy_price'], 'Спрос поднимает цену покупки до base×3.5×1.05.');
+        $this->assertSame(95.0, $demand['sell_price'], 'Спрос не поднимает выкуп выше base×0.95.');
+
+        $glut = $this->readResourcePrices(2);
+        $this->assertSame(105.0, $glut['buy_price'], 'Избыток не опускает покупку ниже base×1.05.');
+        $this->assertSame(33.25, $glut['sell_price'], 'Избыток опускает выкуп до base×0.35×0.95.');
+    }
+
+    /**
+     * Сам круг F6 на проде (2026-09-02…10-08): купить в залежавшемся состоянии, своим объёмом
+     * перегнать отношение счётчиков, дождаться тика, сдать. Выручка обязана быть меньше затрат.
+     */
+    public function testBuyPumpTickSellRoundTripAlwaysLoses(): void
+    {
+        $this->seedResource(1, 100);
+        $bankId = $this->seedBank(1, 0, 2000); // залежалось: ratio → 0.35
+
+        $handler = new ResourceBankUpdateHandler();
+        $handler->process();
+        $buyUnit = $this->readResourcePrices(1)['buy_price'];
+
+        $qty = 1000000;
+        Database::connect('tests')->table('resources_bank')->where('id', $bankId)
+            ->set('resources_purchased', "resources_purchased + {$qty}", false)->update();
+        $handler->process();
+        $sellUnit = $this->readResourcePrices(1)['sell_price'];
+
+        $this->assertLessThan($qty * $buyUnit, $qty * $sellUnit, "Круг «купил по {$buyUnit} → тик → сдал по {$sellUnit}» обязан быть в минус.");
     }
 
     public function testRowsWithoutBankEntryAreSkipped(): void

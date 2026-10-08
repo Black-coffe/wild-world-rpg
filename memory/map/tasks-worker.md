@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-29
+last-verified: 2026-10-08
 
 # Scout report: Фоновая обработка (cron → Worker → TaskHandlers)
 
@@ -68,6 +68,13 @@ outbound: почти все доменные сервисы + `Services/Notifica
 - Фоновая `edit*`/`delete*` с `message_id >= Config\WebPlay::firstMessageId` (синтетический, сообщение
   есть только на сайте) в Telegram не уходит и привязанному: правка патчит копию на экране `/play` и
   (флаг on) обновляет одну строку входящих. Пример — Поход, начатый на `/play`.
+- **(hotfix-bank-pump-f6, v0.51.691) Банк сырья: покупка и выкуп считаются разными множителями.**
+  `TaskHandlers/ResourceBankUpdateHandler.php:126-132`: `priceFactor = clamp(ratio, 0.35, 3.5)`,
+  `buyFactor = max(1, priceFactor)`, `sellFactor = min(1, priceFactor)`; `buy = base×buyFactor×1.05`,
+  `sell = base×sellFactor×0.95`. Инвариант: sell ≤ base×0.95 < base×1.05 ≤ buy при любых счётчиках
+  (круг «купил → тик → сдал» всегда в минус; F6 / EA-economy-04 закрыт). `1.0` — разделитель, не
+  ручка баланса. Тесты: `tests/database/Economy/MarketDecayTest.php`, `tests/exploit-poc/EconomyLimitsTest.php`.
+  Нота: `mmorpg-vault/tech-writing/tasks/economy/ResourceBankUpdateHandler.md`.
 - Worker/cron/spark не ставят `BridgeClient`; всё в них — «фон» для моста.
 - `ActiveTasksService::hasActiveRelocation()` + `TEXT_RELOCATION` — гейт переезда для ядра построек
   (`BuildOrderService`, `BuildingUpgradeService`); см. `bases.md`.
