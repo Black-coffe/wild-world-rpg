@@ -238,4 +238,44 @@ final class BulkSellResourcesTest extends CIUnitTestCase
         $this->assertSame(500.0, $this->goldOf());   // золото не изменилось
         $this->assertSame(100, $this->qtyOf(3));      // запас не тронут
     }
+
+    /**
+     * hotfix-trade-race — оптовая продажа по устаревшему снимку: вторая строка в снимке больше,
+     * чем в БД (её уже продал параллельный запрос). Условное списание отказывает → откат ВСЕЙ
+     * сделки: первая строка восстановлена, золото не начислено. Раньше `decreaseQtyById`
+     * писал посчитанный остаток, и обе одновременные продажи получали выручку.
+     */
+    public function testBulkSellFromStaleSnapshotRollsBackEverything(): void
+    {
+        $this->seedCharacter(500);
+        $this->seedResource(1, 3, 2.0);
+        $this->seedResource(2, 3, 4.0);
+        $this->giveResource(1, 100);
+        $this->giveResource(2, 55);
+
+        $stale = new class () extends \App\Models\ResourceModel {
+            public function getCharacterResources($characterId)
+            {
+                $rows = parent::getCharacterResources($characterId);
+                foreach ($rows as $i => $row) {
+                    if ((int) $row['id'] === 2) {
+                        $rows[$i]['quantity'] = 1000; // снимок до чужой продажи
+                    }
+                }
+
+                return $rows;
+            }
+        };
+        $svc  = new ResourceTradeService();
+        $prop = new \ReflectionProperty(ResourceTradeService::class, 'resourceModel');
+        $prop->setValue($svc, $stale);
+
+        $res = $svc->bulkSellResources($this->character(), 100, null);
+
+        $this->assertFalse($res['success']);
+        $this->assertSame(500.0, $this->goldOf(), 'золото не начислено');
+        $this->assertSame(100, $this->qtyOf(1), 'первая строка восстановлена откатом');
+        $this->assertSame(55, $this->qtyOf(2));
+        $this->assertSame(0, $this->soldInBank(1), 'банк не учёл несостоявшуюся продажу');
+    }
 }

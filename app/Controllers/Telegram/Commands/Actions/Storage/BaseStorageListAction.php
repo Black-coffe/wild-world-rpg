@@ -6,9 +6,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Storage;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Helpers\ResourceIconHelper;
-use App\Models\BaseStorageModel;
-use App\Models\CharacterResourceModel;
-use App\Services\Bases\BaseCheckService;
+use App\Services\Bases\BaseStorageService;
 use App\Services\Display\MarkdownSafe;
 use App\Services\Onboarding\OnboardingHintService;
 use App\Services\Player\InventorySortService;
@@ -36,6 +34,9 @@ use App\Services\Telegram\Request;
  * чтобы после забора экран вернулся в том же порядке, а не сбросился на recent
  * (сортировка stateless, другого места её хранить нет).
  *
+ * W2.N6 (ADR-190) — handler только рендерер: модель склада, гейт «на базе» и забор
+ * живут в {@see BaseStorageService} (тот же сервис рисует веб `/play?view=storage`).
+ *
  * Media-off safe (caption самодостаточен).
  */
 class BaseStorageListAction extends BaseAction
@@ -43,15 +44,12 @@ class BaseStorageListAction extends BaseAction
     /** Сколько видов показываем кнопками (зеркало `BaseStorageDepositAction::MAX_BUTTONS`). */
     private const MAX_BUTTONS = 18;
 
-    private BaseStorageModel $storageModel;
-    /** @var CharacterResourceModel */
-    protected $resourceModel;
+    private BaseStorageService $storage;
 
     public function __construct(\Longman\TelegramBot\Entities\CallbackQuery $callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->storageModel  = new BaseStorageModel();
-        $this->resourceModel = new CharacterResourceModel();
+        $this->storage = new BaseStorageService();
     }
 
     public function handle(): ServerResponse
@@ -96,7 +94,8 @@ class BaseStorageListAction extends BaseAction
 
     private function renderList(int $chatId, int $characterId, string $mode = InventorySortService::MODE_RECENT): ServerResponse
     {
-        $entries = InventorySortService::sortRows($this->loadEnrichedEntries($characterId), $mode);
+        $model   = $this->storage->storageModel($characterId, $mode);
+        $entries = $model['rows'];
         if (empty($entries)) {
             return Request::sendMessage([
                 'chat_id'    => $chatId,
@@ -111,7 +110,7 @@ class BaseStorageListAction extends BaseAction
             ]);
         }
 
-        $onBase = $this->isOnBase($characterId);
+        $onBase = $model['on_base'];
 
         $text   = "📦 *Склад базы*\n\n";
         $totalUnits = 0;
@@ -166,54 +165,28 @@ class BaseStorageListAction extends BaseAction
 
     private function retrieveAll(int $chatId, int $characterId): ServerResponse
     {
-        if (! $this->isOnBase($characterId)) {
+        $result = $this->storage->withdrawAll($characterId);
+
+        if ($result['code'] === BaseStorageService::OFF_BASE) {
             return Request::sendMessage([
                 'chat_id'    => $chatId,
                 'text'       => $this->offBaseDenialText(),
                 'parse_mode' => 'Markdown',
             ]);
         }
-
-        $entries = $this->storageModel->findByCharacter($characterId);
-        if (empty($entries)) {
+        if ($result['code'] === BaseStorageService::EMPTY) {
             return Request::sendMessage([
                 'chat_id'    => $chatId,
                 'text'       => "📦 Склад уже пуст — забирать нечего.",
                 'parse_mode' => 'Markdown',
             ]);
         }
-
-        $db = \Config\Database::connect();
-        $db->transStart();
-
-        $totalUnits = 0;
-        $ok         = true;
-        try {
-            foreach ($entries as $e) {
-                $resId = is_numeric($e['resource_id'] ?? null) ? (int) $e['resource_id'] : 0;
-                $qty   = is_numeric($e['quantity'] ?? null) ? (int) $e['quantity'] : 0;
-                $id    = is_numeric($e['id'] ?? null) ? (int) $e['id'] : 0;
-                if ($resId <= 0 || $qty <= 0 || $id <= 0) {
-                    continue;
-                }
-                $this->resourceModel->increaseResources($characterId, $resId, $qty);
-                $this->storageModel->delete($id);
-                $totalUnits += $qty;
-            }
-            $db->transComplete();
-            $ok = $db->transStatus() !== false;
-        } catch (\Throwable $e) {
-            $db->transRollback();
-            $ok = false;
-        }
-
-        // Исход транзакции проверяется отдельно от локально накопленного $totalUnits:
-        // при откате (сбойный query внутри trans или брошенное исключение) счётчик в
-        // памяти PHP уже посчитан, а строки на складе физически не изменились — раньше
-        // это давало игроку «Забрано» при пустом реальном переносе.
-        if (! $ok) {
+        // Исход транзакции проверяет сервис: при откате игрок не читает «Забрано».
+        if ($result['code'] !== BaseStorageService::OK) {
             return $this->errReply($chatId, 'Не удалось забрать ресурсы со склада — попробуй ещё раз.');
         }
+
+        $totalUnits = $result['units'];
 
         return Request::sendMessage([
             'chat_id'      => $chatId,
@@ -244,38 +217,33 @@ class BaseStorageListAction extends BaseAction
 
     /**
      * Забрать один вид ресурса целиком (зеркало `BaseStorageDepositAction::depositOne`).
-     * Списание и зачисление — в одной транзакции через `withdraw()` (списывает не
-     * больше, чем реально было на складе — на сбое ресурс не задваивается и не
-     * исчезает); `quantityFor()`/read-then-withdraw гонки нет, т.к. `withdraw()`
-     * сам берёт «сколько есть», а не то, что мы заранее прочитали отдельным запросом.
+     * Списание и зачисление — {@see BaseStorageService::withdrawOne()}: одна транзакция,
+     * условный `withdraw()` берёт «сколько есть», а не заранее прочитанное.
      */
     private function retrieveOne(int $chatId, int $characterId, int $resourceId, string $mode): ServerResponse
     {
-        if ($resourceId <= 0) {
+        $result = $this->storage->withdrawOne($characterId, $resourceId, $chatId);
+
+        if ($result['code'] === BaseStorageService::BAD_RESOURCE) {
             return $this->errReply($chatId, 'Неверный ресурс.');
         }
-
-        if (! $this->isOnBase($characterId)) {
+        if ($result['code'] === BaseStorageService::OFF_BASE) {
             return Request::sendMessage([
                 'chat_id'    => $chatId,
                 'text'       => $this->offBaseDenialText(),
                 'parse_mode' => 'Markdown',
             ]);
         }
-
-        $outcome = $this->performRetrieveOne($characterId, $resourceId);
-        if ($outcome === null) {
+        if ($result['code'] === BaseStorageService::FAILED) {
             return $this->errReply($chatId, 'Не удалось забрать ресурс со склада — попробуй ещё раз.');
         }
-        if ($outcome['withdrawn'] <= 0) {
+        if ($result['code'] !== BaseStorageService::OK) {
             return $this->errReply($chatId, 'Такого ресурса на складе уже нет.');
         }
 
-        $this->logActivity($characterId, 'BASE_STORAGE_RETRIEVE_ONE', "res={$outcome['name']} qty={$outcome['withdrawn']}");
-
         return Request::sendMessage([
             'chat_id'      => $chatId,
-            'text'         => $outcome['text'],
+            'text'         => $this->formatRetrieveMessage($result['name'], $result['withdrawn']),
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => [
                 [
@@ -288,50 +256,6 @@ class BaseStorageListAction extends BaseAction
                 ],
             ]]),
         ]);
-    }
-
-    /**
-     * Списание одного вида ресурса со склада в рюкзак + сборка текста — вся
-     * логика забора одного вида без Telegram-обвязки (тестируется напрямую).
-     *
-     * Возвращает `null`, если транзакция не завершилась успешно (упавший
-     * query внутри trans или брошенное исключение из моделей) — раньше исход
-     * не проверялся вовсе: `$withdrawn` (посчитанный ДО возможного отката)
-     * использовался как есть, и при откате игрок читал «Забрано», а ресурс
-     * физически оставался на складе.
-     *
-     * @return array{withdrawn:int, name:string, text:string}|null
-     */
-    private function performRetrieveOne(int $characterId, int $resourceId): ?array
-    {
-        $name = $this->resourceName($resourceId);
-
-        $db = \Config\Database::connect();
-        $db->transStart();
-        $withdrawn = 0;
-        try {
-            $withdrawn = $this->storageModel->withdraw($characterId, $resourceId, PHP_INT_MAX);
-            if ($withdrawn > 0) {
-                $this->resourceModel->increaseResources($characterId, $resourceId, $withdrawn);
-            }
-            $db->transComplete();
-            if ($db->transStatus() === false) {
-                return null;
-            }
-        } catch (\Throwable $e) {
-            $db->transRollback();
-            return null;
-        }
-
-        if ($withdrawn <= 0) {
-            return ['withdrawn' => 0, 'name' => $name, 'text' => ''];
-        }
-
-        return [
-            'withdrawn' => $withdrawn,
-            'name'      => $name,
-            'text'      => $this->formatRetrieveMessage($name, $withdrawn),
-        ];
     }
 
     /**
@@ -352,46 +276,6 @@ class BaseStorageListAction extends BaseAction
         $text .= "Ресурс теперь в рюкзаке.";
 
         return $text;
-    }
-
-    /**
-     * Имя ресурса по id — для caption'а результата забора.
-     */
-    private function resourceName(int $resourceId): string
-    {
-        $db  = \Config\Database::connect();
-        $q   = $db->query('SELECT name FROM resources WHERE id = ?', [$resourceId]);
-        $row = (is_object($q) && method_exists($q, 'getRowArray')) ? $q->getRowArray() : null;
-        return (is_array($row) && is_string($row['name'] ?? null)) ? $row['name'] : '';
-    }
-
-    /**
-     * Enrich entries из base_storage join'ом resources (name + weight для UI).
-     *
-     * @return list<array<string,mixed>>
-     */
-    private function loadEnrichedEntries(int $characterId): array
-    {
-        $db = \Config\Database::connect();
-        $q  = $db->query(
-            'SELECT bs.id, bs.resource_id, bs.quantity, bs.arrived_from_cell, r.name
-             FROM base_storage bs
-             INNER JOIN resources r ON r.id = bs.resource_id
-             WHERE bs.character_id = ?
-             ORDER BY bs.updated_at DESC',
-            [$characterId]
-        );
-        if (! is_object($q) || ! method_exists($q, 'getResultArray')) {
-            return [];
-        }
-        $rows = $q->getResultArray();
-        $out  = [];
-        foreach ($rows as $r) {
-            if (is_array($r)) {
-                $out[] = $r;
-            }
-        }
-        return $out;
     }
 
     /**
@@ -457,17 +341,6 @@ class BaseStorageListAction extends BaseAction
     private function offBaseDenialText(): string
     {
         return "🚫 Чтобы забрать со склада, нужно быть на своей клейм-клетке. Вернись на базу.";
-    }
-
-    /**
-     * На своей ли базе игрок. Reuse канонического BaseCheckService (map_cell_id ==
-     * cell_number) — тот же критерий, что у дронов/построек. W8: заменил латентно-битый
-     * inline-запрос (claimed_cells.cell_number — такой колонки нет, бросал SQL-исключение).
-     */
-    private function isOnBase(int $characterId): bool
-    {
-        $status = (new BaseCheckService())->checkBaseStatus($characterId);
-        return ! empty($status['isOnBase']);
     }
 
     private function errReply(int $chatId, string $msg): ServerResponse
