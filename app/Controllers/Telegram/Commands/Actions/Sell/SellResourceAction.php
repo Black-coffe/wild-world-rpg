@@ -10,14 +10,12 @@ use App\Models\CharacterResourceModel;
 use App\Models\CharacterModel;
 use App\Models\ResourcesBankModel;
 use App\Services\Notifications\MediaSender;
-use App\Services\GameSettings\GameSettingsReaderTrait;
+use App\Services\Player\Trade\ResourceShopScreenService;
 // Если хотим сразу пересчитывать цены после сделки
 use App\TaskHandlers\ResourceBankUpdateHandler;
 
 class SellResourceAction extends BaseAction
 {
-    use GameSettingsReaderTrait;
-
     protected $resourceModel;
     protected $characterResourceModel;
     protected $characterModel;
@@ -115,65 +113,31 @@ class SellResourceAction extends BaseAction
     }
 
     /**
-     * Показать ресурсы нужной редкости, учитывая их sell_price
+     * Показать ресурсы нужной редкости — данные из {@see ResourceShopScreenService::sellRarityModel()}
+     * (W2.N6: та же модель, что у веба `/play`).
      */
     protected function showResourcesOfRarity(int $characterId, int $rarity): ServerResponse
     {
-        // Находим все ресурсы такой редкости
-        $resources = $this->resourceModel->where('rarity', $rarity)->findAll();
-        if (empty($resources)) {
+        $model = (new ResourceShopScreenService())->sellRarityModel($characterId, $rarity);
+        if (! $model['known']) {
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
                 'text'    => "Ресурсы редкости {$rarity} не найдены!",
             ]);
         }
 
-        // Получаем, какие из них и в каком кол-ве есть у персонажа
-        $characterResources = $this->characterResourceModel
-            ->where('id_characters', $characterId)
-            ->whereIn('id_resources', array_column($resources, 'id'))
-            ->findAll();
-
         $text            = "📦 *Ресурсы редкости {$rarity}:*\n\n";
         $keyboardButtons = [];
-        $hasSellable     = false; // есть ли ходовой ресурс (sell_price>0) — для оптовых кнопок
-        $resourceTrade   = new \App\Services\Player\Trade\ResourceTradeService();
 
-        foreach ($characterResources as $cr) {
-            // Смотрим ресурс из $resources, у которого id = $cr['id_resources']
-            $res = $this->resourceModel->find($cr['id_resources']);
-            if (!$res) {
-                continue;
-            }
-
-            $quantity = $cr['quantity'];
-            if ($quantity <= 0) {
-                continue;
-            }
-
-            // ADR-096 — оптом продаются только ресурсы с ценой > 0 (флаг для кнопок ниже).
-            $sellPriceRaw = $res['sell_price'] ?? null;
-            if (is_numeric($sellPriceRaw) && (float) $sellPriceRaw > 0) {
-                $hasSellable = true;
-            }
-
-            // «На сумму» — той же формулой, что и сделка (третья копия расчёта в этом
-            // же файле разъезжалась и с карточкой количества, и с выплатой).
-            $qtyInt     = is_numeric($quantity) ? (int) $quantity : 0;
-            $totalValue = $resourceTrade->totalFor($qtyInt, $resourceTrade->unitPrice($res, true));
-            $text .= "*{$res['name']}* | "
-                . "Единиц: *" . number_format($quantity) . "* | "
-                . "На сумму: ~" . number_format($totalValue) . "💰\n";
-
-            // Формируем текст кнопки
-            $btnText = "{$res['name']} | "
-                . "📦 " . number_format($quantity) . " | "
-                . "~" . number_format($totalValue) . "💰";
+        foreach ($model['rows'] as $row) {
+            $text .= "*{$row['name']}* | "
+                . "Единиц: *" . number_format($row['quantity']) . "* | "
+                . "На сумму: ~" . number_format($row['total']) . "💰\n";
 
             // Кнопка для выбора этого ресурса
             $keyboardButtons[] = [[
-                'text'          => $btnText,
-                'callback_data' => "sellResource_{$res['id']}_quantity"
+                'text'          => "{$row['name']} | 📦 " . number_format($row['quantity']) . " | ~" . number_format($row['total']) . "💰",
+                'callback_data' => "sellResource_{$row['resource_id']}_quantity",
             ]];
         }
 
@@ -186,13 +150,10 @@ class SellResourceAction extends BaseAction
         }
 
         // ADR-096 — оптовая продажа внутри редкости: ряд «💰 N%» (продать долю всех
-        // показанных ресурсов этой редкости). Только если есть ходовой ресурс и фича вкл.
-        if (!empty($keyboardButtons) && $hasSellable && $this->gsBool(BulkSellAction::KEY_ENABLED, true)) {
-            $percents = BulkSellAction::parsePercents($this->gsString(BulkSellAction::KEY_PERCENTS, BulkSellAction::DEFAULT_PERCENTS));
-            if ($percents !== []) {
-                $text .= "\n🧺 *Оптом по этой редкости* — продать долю всех показанных ресурсов:";
-                $keyboardButtons[] = BulkSellAction::buttonsRow("rarity_{$rarity}", $percents);
-            }
+        // показанных ресурсов этой редкости). Модель отдаёт доли, только если есть ходовой ресурс и фича вкл.
+        if ($model['bulk'] !== []) {
+            $text .= "\n🧺 *Оптом по этой редкости* — продать долю всех показанных ресурсов:";
+            $keyboardButtons[] = BulkSellAction::buttonsRow("rarity_{$rarity}", $model['bulk']);
         }
 
         // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на выбор редкости.
@@ -214,12 +175,13 @@ class SellResourceAction extends BaseAction
     }
 
     /**
-     * Предложить пользователю ввести/выбрать кол-во
+     * Предложить пользователю выбрать кол-во — карточка из
+     * {@see ResourceShopScreenService::sellCardModel()}.
      */
     protected function askForQuantity(int $characterId, int $resourceId): ServerResponse
     {
-        $resource = $this->resourceModel->find($resourceId);
-        if (!$resource) {
+        $card = (new ResourceShopScreenService())->sellCardModel($characterId, $resourceId);
+        if ($card === null) {
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
@@ -227,41 +189,20 @@ class SellResourceAction extends BaseAction
             ]);
         }
 
-        // Идея #15 (Arseny, 16.04.2025): прозрачная торговля — показываем
-        // итоговую сумму прямо в кнопках, а не только цену за 1 ед.
-        // Цена и итог — из того же сервиса, что проводит сделку. Раньше здесь стояло
-        // `(int) $resource['sell_price']`: дробь ЦЕНЫ обрезалась, а сделка округляла
-        // ИТОГ, и кнопка «5000 ед.» расходилась с выплатой на тысячи золота.
-        $trade     = new \App\Services\Player\Trade\ResourceTradeService();
-        $unitPrice = $trade->unitPrice($resource, true);
-        $unitText  = $trade->formatUnitPrice($unitPrice);
-
-        $text = "Выберите количество для продажи ресурса:\n 📦 *{$resource['name']}*:\n"
-            . "Текущая цена продажи (за 1 ед.) = *{$unitText}* 💰";
-
-        $btn = static function (int $qty) use ($resourceId, $unitPrice, $trade): array {
-            $total = $trade->totalFor($qty, $unitPrice);
-            return [
-                'text'          => "{$qty} → " . number_format($total) . "💰",
-                'callback_data' => "sellResource_{$resourceId}_{$qty}_sell",
-            ];
-        };
+        // Идея #15 (Arseny, 16.04.2025): прозрачная торговля — итог прямо в кнопках.
+        // Цена и итог — из того же сервиса, что проводит сделку (см. ResourceTradeService::totalFor).
+        $text = "Выберите количество для продажи ресурса:\n 📦 *{$card['name']}*:\n"
+            . "Текущая цена продажи (за 1 ед.) = *{$card['unit_text']}* 💰";
 
         // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на список ресурсов
         // той же редкости (а не на выбор редкости через 2 шага).
-        $rawRarity    = $resource['rarity'] ?? null;
-        $rarity       = is_numeric($rawRarity) ? (int) $rawRarity : 0;
-        $backCallback = $rarity > 0 ? "sellResource_rarity_{$rarity}" : 'sell';
+        $backCallback = $card['rarity'] > 0 ? "sellResource_rarity_{$card['rarity']}" : 'sell';
 
-        $keyboardButtons = [
-            [$btn(1),   $btn(5),    $btn(10),   $btn(15)],
-            [$btn(25),  $btn(50),   $btn(100),  $btn(150)],
-            [$btn(250), $btn(500),  $btn(1000), $btn(5000)],
-            [['text' => '📝 Своё число', 'callback_data' => "sellResource_{$resourceId}_custom"]],
-            [
-                ['text' => '⬅️ Назад',  'callback_data' => $backCallback],
-                ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-            ],
+        $keyboardButtons   = self::presetRows($card['presets'], "sellResource_{$resourceId}_", '_sell');
+        $keyboardButtons[] = [['text' => '📝 Своё число', 'callback_data' => "sellResource_{$resourceId}_custom"]];
+        $keyboardButtons[] = [
+            ['text' => '⬅️ Назад',  'callback_data' => $backCallback],
+            ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
         ];
 
         $keyboard = ['inline_keyboard' => $keyboardButtons];
@@ -273,6 +214,25 @@ class SellResourceAction extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * Пресеты количества «N → итог💰» по четыре в ряд. Общая для продажи и покупки. Чистая функция.
+     *
+     * @param list<array{qty:int, total:int}> $presets
+     * @return list<list<array{text:string, callback_data:string}>>
+     */
+    public static function presetRows(array $presets, string $prefix, string $suffix = ''): array
+    {
+        $btns = array_map(
+            static fn (array $p): array => [
+                'text'          => "{$p['qty']} → " . number_format($p['total']) . '💰',
+                'callback_data' => $prefix . $p['qty'] . $suffix,
+            ],
+            $presets
+        );
+
+        return array_chunk($btns, 4);
     }
 
     /**

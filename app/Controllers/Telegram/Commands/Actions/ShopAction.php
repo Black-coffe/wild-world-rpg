@@ -2,6 +2,7 @@
 
 namespace App\Controllers\Telegram\Commands\Actions;
 
+use App\Services\Player\Trade\ResourceShopScreenService;
 use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 
@@ -28,22 +29,8 @@ class ShopAction extends BaseAction
             . "Если ты не боишься рыночной суеты и готов выторговать себе достойную цену, тогда твои способности будут здесь оценены по достоинству. 🤝💰\n\n"
             . "Выбери, что ты хочешь сделать: приступить к торгам за редкие артефакты или продать найденные сокровища, чтобы наполнить свой кошель звонкой монетой? Время показать, на что ты способен! 🎩🔔\n\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '💰 Продать ресы', 'callback_data' => 'sell'],
-                    ['text' => '🛍️ Купить ресы', 'callback_data' => 'buy']
-                ],
-                [
-                    ['text' => '💰 Продать крафт', 'callback_data' => 'sellCraft'],
-                    ['text' => '🛍️ Купить крафт', 'callback_data' => 'buyCraft']
-                ],
-                [
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                ]
-            ]
-        ];
+        // W2.N6: входы хаба — из нейтральной модели (те же четыре, что видит веб `/play`).
+        $keyboard = ['inline_keyboard' => self::hubRows((new ResourceShopScreenService())->hubEntries())];
         $imagePath = base_url('uploads/telegram/vendor_kiosk_in_the_game_world.png'); // Укажите актуальный путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
@@ -55,5 +42,26 @@ class ShopAction extends BaseAction
             'reply_markup' => json_encode($keyboard),
         ]);
 
+    }
+
+    /**
+     * Ряды хаба: сырьё, крафт, затем «Действия» и «Инвентарь». Чистая функция.
+     *
+     * @param list<array{key:string, label:string, native:bool}> $entries
+     * @return list<list<array{text:string, callback_data:string}>>
+     */
+    public static function hubRows(array $entries): array
+    {
+        $buttons = array_map(
+            static fn (array $e): array => ['text' => $e['label'], 'callback_data' => $e['key']],
+            $entries
+        );
+        $rows   = array_chunk($buttons, 2);
+        $rows[] = [
+            ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+            ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+        ];
+
+        return $rows;
     }
 }

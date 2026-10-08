@@ -91,7 +91,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
         'biomes', 'map', 'telegram_users', 'accounts', 'account_identities', 'account_tokens', 'account_link_codes',
         'characters', 'action_log', 'tasks', 'character_tasks', 'explored_cells', 'crafted_items', 'crafted_items_log', 'game_settings', 'player_action_log',
         'telegram_updates_seen', 'web_play_state', 'web_inbox', 'web_play_intents',
-        'claimed_cells', 'buildings', 'character_buildings', 'base_storage', 'faction_endgame_scores', 'resources', 'character_resources',
+        'claimed_cells', 'buildings', 'character_buildings', 'base_storage', 'faction_endgame_scores', 'resources', 'character_resources', 'resources_bank',
         'quests', 'quest_steps', 'factions', 'character_factions', 'events', 'active_events',
     ];
 
@@ -1262,6 +1262,183 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $other = $this->json($this->postWithCsrf($session, 'play/view', $branch + ['id' => '6', 'intent_id' => 'b2'], true));
         $this->assertSame('🔀 Ты уже выбрал путь на этой развилке — назад дороги нет.', $other['alert']);
         $this->assertSame(1, $this->conn->table('quest_steps')->where('character_id', $charId)->whereIn('quest_id', [5, 6])->countAllResults());
+    }
+
+    // ── w2-n6-trade-storage-03: «🛒 Магазин» и «📦 Склад базы» ────────────
+
+    /** Док: «🛒 Магазин» всегда есть; кнопки `shop` и `baseStorageList` других экранов открывают нативные экраны, мост не трогается. */
+    public function testDockShopAndOldBridgeButtonsOpenShopAndStorageNatively(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->seedScreen($charId, [['🧑 Я', '🏠 База']]);
+        $this->enableBase();
+
+        $page = html_entity_decode($this->body($this->withSession($session)->get('play')), ENT_QUOTES | ENT_HTML5);
+        $this->assertMatchesRegularExpression('~action="[^"]*/play/view" method="post">.*?name="view" value="shop"><button class="play-dock-btn" type="submit">🛒 Магазин</button>~su', $page);
+
+        $act = $this->tasksAct();
+        Factories::injectMock('libraries', WebNativeScreenService::class, new WebNativeScreenService($act));
+        Factories::injectMock('libraries', WebActService::class, $act);
+        $shop = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'shop', 'intent_id' => 'n1'], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-native="shop"', $shop);
+        $this->assertMatchesRegularExpression('~name="section" value="sell"><button class="play-kb-btn" type="submit">💰 Продать ресы</button>~su', $shop);
+        $this->assertMatchesRegularExpression('~name="op" value="bridge">.*?name="data" value="sellCraft"><button class="play-kb-btn" type="submit">💰 Продать крафт</button>~su', $shop, 'крафт у торговца — мост');
+
+        $storage = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'baseStorageList', 'intent_id' => 'n2'], true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-native="storage"', $storage);
+        $this->assertSame([], $act->calls, 'нативные экраны не идут через мост');
+
+        // Крафт у торговца — мост от карточки «Я» бота: карточка, «🛒 Магазин», затем сама кнопка.
+        $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'sellCraft', 'intent_id' => 'n3'], true)->assertStatus(200);
+        $this->assertSame(['intent_id' => 'n3:card', 'kind' => 'text', 'data' => BotMenuService::menuLabel('me')], $act->calls[0]);
+    }
+
+    /** Карточка: цена до сделки, пресеты до потолка, своё число; повтор формы не продаёт второй раз; больше потолка — отказ. */
+    public function testShopSellShowsPriceDedupsTheIntentAndRefusesOverMax(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableShop($charId);
+        $post = fn (array $data): array => $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'shop'] + $data, true));
+
+        $card = html_entity_decode($post(['section' => 'sell_card', 'id' => '7'])['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('<dt>💰 Торговец платит за 1 шт.</dt><dd>4.5 💰</dd>', $card);
+        $this->assertStringContainsString('<dt>🎒 У тебя</dt><dd>40 шт.</dd>', $card);
+        $this->assertStringContainsString('25 шт · 113 💰</button>', $card, 'итог пресета виден до сделки');
+        $this->assertStringNotContainsString('50 шт ·', $card, 'пресет больше запаса не предлагается');
+        $this->assertStringContainsString('🧺 Всё — 40 шт</button>', $card);
+        $this->assertMatchesRegularExpression('~name="qty" type="number" inputmode="numeric" min="1" max="40"~', $card);
+
+        $sell = ['section' => 'sell_card', 'id' => '7', 'op' => 'sell', 'qty' => '5'];
+        $first = $post($sell + ['intent_id' => 's1']);
+        $this->assertNotNull($first['alert']);
+        $this->assertSame(35, $this->ownedQty($charId, 7));
+        $this->assertNull($post($sell + ['intent_id' => 's1'])['alert'], 'повтор той же формы — ничего');
+        $this->assertSame(35, $this->ownedQty($charId, 7));
+        $this->assertSame(1, $this->conn->table('action_log')->where('character_id', $charId)->where('action_name', 'SELL_RESOURCE')->countAllResults(), 'сделка в ленте, как у бота');
+        $this->assertStringContainsString('<dt>🎒 У тебя</dt><dd>35 шт.</dd>', html_entity_decode($first['html'], ENT_QUOTES | ENT_HTML5), 'после сделки — та же карточка');
+
+        $over = $post(['section' => 'sell_card', 'id' => '7', 'op' => 'sell', 'qty' => '36', 'intent_id' => 's2']);
+        $this->assertSame('У тебя только 35 шт. — больше продать нельзя.', $over['alert']);
+        $this->assertSame(35, $this->ownedQty($charId, 7), 'больше потолка — ничего не списано');
+        $huge = $post(['section' => 'sell_card', 'id' => '7', 'op' => 'sell', 'qty' => '123456789012', 'intent_id' => 's5']);
+        $this->assertSame('У тебя только 35 шт. — больше продать нельзя.', $huge['alert'], 'длинное число — тот же отказ потолка');
+        $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['view' => 'shop', 'op' => 'sell', 'id' => 'x', 'qty' => '1', 'intent_id' => 's3'], true)->response()->getStatusCode());
+
+        $res = $this->postWithCsrf($session, 'play/view', ['view' => 'shop'] + $sell + ['intent_id' => 's4']);
+        $this->assertSame(303, $res->response()->getStatusCode());
+        $this->assertStringEndsWith('/play?view=shop&section=sell_card&id=7', $res->response()->getHeaderLine('Location'));
+    }
+
+    /** Покупка: потолок — сколько оплатит золото; больше — отказ, золото цело; повтор формы — одна покупка. */
+    public function testShopBuyCapsAtGoldAndDedups(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableShop($charId);
+        $this->conn->table('characters')->where('id', $charId)->update(['gold' => 103]);
+        $post = fn (array $data): array => $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'shop'] + $data, true));
+
+        $card = html_entity_decode($post(['section' => 'buy_card', 'id' => '7'])['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('<dt>📦 Хватит на</dt><dd>10 шт.</dd>', $card);
+        $this->assertStringContainsString('max="10"', $card);
+
+        $over = $post(['section' => 'buy_card', 'id' => '7', 'op' => 'buy', 'qty' => '11', 'intent_id' => 'p1']);
+        $this->assertSame('Золота хватает на 10 шт. — больше купить нельзя.', $over['alert']);
+        $this->assertSame(103.0, (float) $this->conn->table('characters')->select('gold')->where('id', $charId)->get()->getRow()->gold);
+
+        $buy = ['section' => 'buy_card', 'id' => '7', 'op' => 'buy', 'qty' => '2', 'intent_id' => 'p2'];
+        $post($buy);
+        $post($buy);
+        $this->assertSame(42, $this->ownedQty($charId, 7), 'повтор формы — одна покупка');
+    }
+
+    /** Опт: превью несёт отпечаток плана; подтверждение продаёт один раз — и тем же `intent_id`, и новым со старым отпечатком. */
+    public function testBulkSellFromWebConfirmsOnce(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableShop($charId);
+        $post = fn (array $data): array => $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'shop'] + $data, true));
+
+        $preview = html_entity_decode($post(['section' => 'bulk', 'pct' => '50'])['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('<dt>📦 Будет продано</dt><dd>2 вид(ов), 21 ед.</dd>', $preview);
+        $this->assertSame(1, preg_match('~name="op" value="bulk_sell"><input type="hidden" name="token" value="([0-9a-f]{8})">~', $preview, $m));
+        $token = $m[1];
+
+        $go = ['section' => 'bulk', 'pct' => '50', 'op' => 'bulk_sell', 'token' => $token];
+        $done = $post($go + ['intent_id' => 'b1']);
+        $this->assertStringStartsWith('🧺 Оптовая продажа выполнена: 50% всех ресурсов — 2 вид(ов), 21 ед.', (string) $done['alert']);
+        $this->assertSame(20, $this->ownedQty($charId, 7));
+        $this->assertNull($post($go + ['intent_id' => 'b1'])['alert']);
+        $again = $post($go + ['intent_id' => 'b2']);
+        $this->assertSame('Эта оптовая продажа уже выполнена или запас изменился — открой оптовую продажу заново.', $again['alert'], 'отказ ядра, как у бота');
+        $this->assertSame(20, $this->ownedQty($charId, 7), 'старый отпечаток — второй продажи нет');
+        $this->assertSame(1, $this->conn->table('action_log')->where('character_id', $charId)->where('action_name', 'BULK_SELL')->countAllResults());
+        $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['view' => 'shop', 'op' => 'bulk_sell', 'pct' => '33', 'token' => $token, 'intent_id' => 'b3'], true)->response()->getStatusCode(), 'доля не из списка');
+    }
+
+    /** Склад на базе: забрать вид и всё, положить всё — один раз на `intent_id`. Вне базы — замок с путём, кнопки остаются, ядро отказывает. */
+    public function testStorageTakePutOnBaseAndLockOffBase(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableBase();
+        $this->addBase($charId, 100, 'Первая', null);
+        $this->place($charId, 100);
+        foreach ([1 => 'Древесина', 2 => 'Глина'] as $id => $name) {
+            $this->conn->table('resources')->insert(['id' => $id, 'name' => $name]);
+        }
+        $this->conn->table('base_storage')->insert(['character_id' => $charId, 'resource_id' => 1, 'quantity' => 30, 'updated_at' => date('Y-m-d H:i:s')]);
+        $this->conn->table('base_storage')->insert(['character_id' => $charId, 'resource_id' => 2, 'quantity' => 5, 'updated_at' => date('Y-m-d H:i:s')]);
+        $post = fn (array $data): array => $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'storage'] + $data, true));
+        $stored = fn (int $res): int => (int) ($this->conn->table('base_storage')->selectSum('quantity')->where('character_id', $charId)->where('resource_id', $res)->get()->getRow()->quantity ?? 0);
+
+        $on = html_entity_decode($post([])['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringNotContainsString('data-storage-lock', $on);
+        $this->assertStringContainsString('📦 На складе — 35 шт.', $on);
+
+        $one = $post(['op' => 'storage_take', 'id' => '2', 'intent_id' => 'w1']);
+        $this->assertSame('🎒 Забрано со склада: Глина × 5 шт. Ресурс теперь в рюкзаке.', $one['alert']);
+        $this->assertNull($post(['op' => 'storage_take', 'id' => '2', 'intent_id' => 'w1'])['alert']);
+        $this->assertSame(5, $this->ownedQty($charId, 2));
+
+        $this->assertSame('🎒 Забрано со склада: 30 шт. Всё перенесено в рюкзак.', $post(['op' => 'storage_take', 'intent_id' => 'w2'])['alert']);
+        $this->assertSame(0, $stored(1));
+        $this->assertSame('📥 На склад: 2 вид(ов), 35 шт.', $post(['op' => 'storage_put', 'intent_id' => 'w3'])['alert']);
+        $this->assertNull($post(['op' => 'storage_put', 'intent_id' => 'w3'])['alert']);
+        $this->assertSame(30, $stored(1));
+        $this->assertSame(0, $this->ownedQty($charId, 1));
+
+        $this->place($charId, 200);
+        $off = html_entity_decode($post([])['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-storage-lock', $off);
+        $this->assertStringContainsString('положить и забрать можно только на базе', mb_strtolower($off));
+        $this->assertStringContainsString('Путь: 🌍 Мир → дойди до клетки своей базы (🏠 на карте) → 🏠 База → 📦 Склад базы', $off);
+        $this->assertMatchesRegularExpression('~name="op" value="storage_take">.*?🎒 Забрать всё</button>~su', $off, 'кнопки не пропадают');
+        $refused = $post(['op' => 'storage_take', 'intent_id' => 'w4']);
+        $this->assertStringStartsWith('🚫 Склад физически на базе', (string) $refused['alert']);
+        $this->assertSame(30, $stored(1), 'вне базы — ничего не забрано');
+    }
+
+    /** Сырьё для магазина: таблицы цен и банка торговца, как в ResourceShopScreenServiceTest; Ржавый лом ×40 и Глина ×3. */
+    private function enableShop(int $charId): void
+    {
+        $this->conn->query('CREATE TABLE resources (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64), name_en VARCHAR(64) NULL, buy_price DECIMAL(10,2) DEFAULT 0, sell_price DECIMAL(10,2) DEFAULT 0, is_tradeable TINYINT DEFAULT 1, rarity INT DEFAULT 1, level_required INT DEFAULT 0, icon_text VARCHAR(16) NULL)');
+        $this->conn->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT, id_resources INT, quantity INT DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
+        $this->conn->query('CREATE TABLE resources_bank (id INT AUTO_INCREMENT PRIMARY KEY, resource_id INT, current_quantity INT DEFAULT 0, resources_purchased INT DEFAULT 0, resources_sold INT DEFAULT 0, last_update DATETIME NULL, UNIQUE KEY uq_res (resource_id))');
+        $this->conn->table('resources')->insertBatch([
+            ['id' => 7, 'name' => 'Ржавый лом', 'buy_price' => 10.0, 'sell_price' => 4.5, 'is_tradeable' => 1, 'rarity' => 1],
+            ['id' => 8, 'name' => 'Глина', 'buy_price' => 5.0, 'sell_price' => 2.0, 'is_tradeable' => 1, 'rarity' => 1],
+        ]);
+        $this->conn->table('character_resources')->insertBatch([
+            ['id_characters' => $charId, 'id_resources' => 7, 'quantity' => 40],
+            ['id_characters' => $charId, 'id_resources' => 8, 'quantity' => 3],
+        ]);
+        $this->conn->resetDataCache();
+    }
+
+    private function ownedQty(int $charId, int $resourceId): int
+    {
+        $row = $this->conn->table('character_resources')->selectSum('quantity')->where('id_characters', $charId)->where('id_resources', $resourceId)->get()->getRow();
+
+        return (int) ($row->quantity ?? 0);
     }
 
     /** Схема квестов и событий — миграциями; квесты: корень, звено цепочки, завершённая «Разминка» и развилка после неё. */

@@ -10,13 +10,11 @@ use App\Models\CharacterResourceModel;
 use App\Models\CharacterModel;
 use App\Models\ResourcesBankModel;
 use App\Services\Notifications\MediaSender;
-use App\Services\GameSettings\GameSettingsReaderTrait;
+use App\Services\Player\Trade\ResourceShopScreenService;
 use App\TaskHandlers\ResourceBankUpdateHandler;
 
 class BuyResourceAction extends BaseAction
 {
-    use GameSettingsReaderTrait;
-
     protected $resourceModel;
     protected $characterResourceModel;
     protected $characterModel;
@@ -39,10 +37,11 @@ class BuyResourceAction extends BaseAction
             return $this->respondWithMessage('Пользователь не найден в базе данных или персонаж не определён.');
         }
 
-        // Минимальная проверка золота (порог live-tunable через GameSettings, ADR-040)
-        $minGold = $this->gsInt('economy.shop.buy_resource_min_gold', 10);
-        if ((int) ($character['gold'] ?? 0) < $minGold) {
-            return $this->respondWithMessage("К сожалению, у вас недостаточно золотых монет для торговли! Необходимо минимум {$minGold}.");
+        // Минимальная проверка золота (порог live-tunable через GameSettings, ADR-040) —
+        // W2.N6: решает нейтральная модель, общая с вебом `/play`.
+        $hub = (new ResourceShopScreenService())->buyHubModel((int) $character['id']);
+        if (! $hub['allowed']) {
+            return $this->respondWithMessage("К сожалению, у вас недостаточно золотых монет для торговли! Необходимо минимум {$hub['min_gold']}.");
         }
 
         $callbackData = $this->callbackQuery->getData();
@@ -55,7 +54,7 @@ class BuyResourceAction extends BaseAction
 
         if (!isset($params[1])) {
             // Показываем стартовое окно выбора редкости
-            return $this->showStartScreen($character);
+            return $this->showStartScreen($hub['gold']);
         }
 
         switch ($params[1]) {
@@ -69,7 +68,7 @@ class BuyResourceAction extends BaseAction
             case 'select':
                 $resourceId = $params[2] ?? null;
                 if ($resourceId) {
-                    return $this->askForQuantity($resourceId);
+                    return $this->askForQuantity((int) $character['id'], (int) $resourceId);
                 }
                 break;
 
@@ -89,7 +88,7 @@ class BuyResourceAction extends BaseAction
                 $resourceId = $params[2] ?? null;
                 $needQty    = $params[3] ?? null;
                 if ($resourceId) {
-                    return $this->askForQuantity((int) $resourceId, is_numeric($needQty) ? (int) $needQty : 0);
+                    return $this->askForQuantity((int) $character['id'], (int) $resourceId, is_numeric($needQty) ? (int) $needQty : 0);
                 }
                 break;
 
@@ -147,41 +146,21 @@ class BuyResourceAction extends BaseAction
     /**
      * Стартовый экран, где игроку предлагают выбрать редкость для покупки
      */
-    protected function showStartScreen(array|\App\Entities\CharacterEntity $character): ServerResponse
+    protected function showStartScreen(float $gold): ServerResponse
     {
-        $goldAmount = number_format($character['gold']);
+        $goldAmount = number_format($gold);
         $text = "👉*У тебя есть* _{$goldAmount}_ *золотых монет*💰\n\n"
             . "📌Выбери редкость ресурсов, которые хочешь купить:";
 
         // Кнопки по редкостям
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '1️⃣ редкость', 'callback_data' => 'buy_rarity_1'],
-                    ['text' => '2️⃣ редкость', 'callback_data' => 'buy_rarity_2'],
-                    ['text' => '3️⃣ редкость', 'callback_data' => 'buy_rarity_3'],
-                ],
-                [
-                    ['text' => '4️⃣ редкость', 'callback_data' => 'buy_rarity_4'],
-                    ['text' => '5️⃣ редкость', 'callback_data' => 'buy_rarity_5'],
-                    ['text' => '6️⃣ редкость', 'callback_data' => 'buy_rarity_6'],
-                ],
-                [
-                    ['text' => '7️⃣ редкость', 'callback_data' => 'buy_rarity_7'],
-                    ['text' => '8️⃣ редкость', 'callback_data' => 'buy_rarity_8'],
-                    ['text' => '9️⃣ редкость', 'callback_data' => 'buy_rarity_9'],
-                ],
-                [
-                    ['text' => '🔟 редкость', 'callback_data' => 'buy_rarity_10'],
-                    ['text' => '◀️ Я', 'callback_data' => 'character'],
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                ],
-                // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на главный экран магазина.
-                [
-                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                ],
-            ]
+        $rows = SellAction::rarityRows('buy_rarity_');
+        $rows[3][] = ['text' => '◀️ Я', 'callback_data' => 'character'];
+        $rows[3][] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
+        // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на главный экран магазина.
+        $rows[] = [
+            ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
         ];
+        $keyboard = ['inline_keyboard' => $rows];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         // #12 edit-in-place (ADR-018): стартовый экран выбора редкости для покупки — навигация.
@@ -193,44 +172,30 @@ class BuyResourceAction extends BaseAction
     }
 
     /**
-     * Показать список ресурсов указанной редкости. Показываем buy_price.
-     * Добавляем «~» перед buy_price и фразу о том, что реальная цена может отличаться.
+     * Показать список ресурсов указанной редкости с buy_price — витрина из
+     * {@see ResourceShopScreenService::buyRarityModel()} (только торгуемое: семена с
+     * `is_tradeable=0` раньше продавались даром).
      */
     protected function showResourcesOfRarity(int $rarity): ServerResponse
     {
-        // Не торгуемое в магазине не показываем: семена (`is_tradeable=0`) имеют
-        // `buy_price = 0.00`, попадали в список редкости 2 и продавались даром —
-        // при том что крафт-система берёт за них ресурсы.
-        $resources = $this->resourceModel->where('rarity', $rarity)->where('is_tradeable', 1)->findAll();
-        if (empty($resources)) {
+        $model = (new ResourceShopScreenService())->buyRarityModel($rarity);
+        if ($model['rows'] === []) {
             return $this->respondWithMessage("*Ресурсы редкости {$rarity} не найдены.*");
         }
 
-        $text            = "📦 *Ресурсы редкости {$rarity}:*\n\n";
-        $keyboardButtons = [];
-        $row             = [];
-
-        foreach ($resources as $index => $resource) {
+        $text = "📦 *Ресурсы редкости {$rarity}:*\n\n";
+        $btns = [];
+        foreach ($model['rows'] as $row) {
             // Показываем текущую (примерную) цену:
-            $text .= "🧺 *{$resource['name']}* | _Цена покупки_: ~*{$resource['buy_price']}*💰\n";
-
-            // Добавляем кнопку для выбора конкретного ресурса
-            $row[] = [
-                'text'          => $resource['name'],
-                'callback_data' => "buy_select_{$resource['id']}"
-            ];
-
-            // Каждые 2 кнопки в строке
-            if (count($row) == 2 || $index == count($resources) - 1) {
-                $keyboardButtons[] = $row;
-                $row = [];
-            }
+            $text  .= "🧺 *{$row['name']}* | _Цена покупки_: ~*{$row['price_text']}*💰\n";
+            $btns[] = ['text' => $row['name'], 'callback_data' => "buy_select_{$row['resource_id']}"];
         }
 
         // Добавляем фразу о том, что цена может отличаться
         $text .= "*\n❗️Реальная цена может быть другой исходя из спроса ресурса❗️*";
 
-        // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на выбор редкости.
+        // По две кнопки в строке; Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на выбор редкости.
+        $keyboardButtons   = array_chunk($btns, 2);
         $keyboardButtons[] = [
             ['text' => '⬅️ Назад', 'callback_data' => 'buy'],
             ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
@@ -247,68 +212,43 @@ class BuyResourceAction extends BaseAction
     }
 
     /**
-     * Спросить, сколько единиц купить
-     * Аналогично добавляем «~» и фразу о возможном отличии цены.
+     * Спросить, сколько единиц купить — карточка из {@see ResourceShopScreenService::buyCardModel()}.
      */
-    protected function askForQuantity(int $resourceId, int $needQty = 0): ServerResponse
+    protected function askForQuantity(int $characterId, int $resourceId, int $needQty = 0): ServerResponse
     {
-        $resource = $this->resourceModel->find($resourceId);
-        if (!$resource) {
+        $card = (new ResourceShopScreenService())->buyCardModel($characterId, $resourceId, $needQty);
+        if ($card === null) {
             return $this->respondWithMessage("Ресурс не найден.");
         }
 
-        // Идея #15 (Arseny, 16.04.2025): прозрачная торговля — итог в кнопках,
-        // чтобы игрок видел сколько потратит ДО клика, а не после.
-        // Цена и итог — из того же сервиса, что проводит сделку. Раньше здесь стояло
-        // `(int) $resource['buy_price']`: дробь ЦЕНЫ обрезалась, а сделка округляла
-        // ИТОГ, и кнопка недосчитывала — то есть списывалось БОЛЬШЕ обещанного.
-        $trade     = new \App\Services\Player\Trade\ResourceTradeService();
-        $unitPrice = $trade->unitPrice($resource, false);
-        $unitText  = $trade->formatUnitPrice($unitPrice);
-
+        // Идея #15 (Arseny, 16.04.2025): прозрачная торговля — итог в кнопках, чтобы игрок видел,
+        // сколько потратит ДО клика. Цена и итог — из того же сервиса, что проводит сделку.
         $text = "🧺 *Выберите желаемое количество*\n"
-            . "📦 _{$resource['name']}_ *для покупки.*\n"
-            . "Текущая цена за 1 ед: ~*{$unitText}* 💰\n\n"
+            . "📦 _{$card['name']}_ *для покупки.*\n"
+            . "Текущая цена за 1 ед: ~*{$card['unit_text']}* 💰\n\n"
             . "Реальная цена может быть другой исходя из спроса ресурса.";
-
-        $btn = static function (int $qty) use ($resourceId, $unitPrice, $trade): array {
-            $total = $trade->totalFor($qty, $unitPrice);
-            return [
-                'text'          => "{$qty} → " . number_format($total) . "💰",
-                'callback_data' => "buy_quantity_{$resourceId}_{$qty}",
-            ];
-        };
 
         // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на список ресурсов
         // той же редкости (а не на выбор редкости через 2 шага).
-        $rawRarity     = $resource['rarity'] ?? null;
-        $rarity        = is_numeric($rawRarity) ? (int) $rawRarity : 0;
-        $backCallback  = $rarity > 0 ? "buy_rarity_{$rarity}" : 'buy';
+        $backCallback = $card['rarity'] > 0 ? "buy_rarity_{$card['rarity']}" : 'buy';
 
         // Пришли с экрана нехватки — первой кнопкой ровно то количество, которого не хватает,
         // чтобы «докупить» было одним тапом, а не арифметикой в уме. Своё число рядом:
         // одиночная кнопка в ряду запрещена.
         $topRow = [['text' => '📝 Своё число', 'callback_data' => "buy_custom_{$resourceId}"]];
-        if ($needQty > 0) {
-            $needTotal = $trade->totalFor($needQty, $unitPrice);
+        if ($card['need'] !== null) {
             array_unshift($topRow, [
-                'text'          => "🎯 Не хватает {$needQty} → " . number_format($needTotal) . '💰',
-                'callback_data' => "buy_quantity_{$resourceId}_{$needQty}",
+                'text'          => "🎯 Не хватает {$card['need']['qty']} → " . number_format($card['need']['total']) . '💰',
+                'callback_data' => "buy_quantity_{$resourceId}_{$card['need']['qty']}",
             ]);
-            $text .= "\n\n🎯 Для задуманного не хватает *{$needQty}* ед.";
+            $text .= "\n\n🎯 Для задуманного не хватает *{$card['need']['qty']}* ед.";
         }
 
-        $keyboardButtons = [
-            'inline_keyboard' => [
-                [$btn(1),   $btn(5),    $btn(10),   $btn(15)],
-                [$btn(25),  $btn(50),   $btn(100),  $btn(150)],
-                [$btn(250), $btn(500),  $btn(1000), $btn(5000)],
-                $topRow,
-                [
-                    ['text' => '⬅️ Назад',  'callback_data' => $backCallback],
-                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                ],
-            ]
+        $rows   = SellResourceAction::presetRows($card['presets'], "buy_quantity_{$resourceId}_");
+        $rows[] = $topRow;
+        $rows[] = [
+            ['text' => '⬅️ Назад',  'callback_data' => $backCallback],
+            ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
         ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
@@ -316,7 +256,7 @@ class BuyResourceAction extends BaseAction
         return MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $text,
             'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode($keyboardButtons),
+            'reply_markup' => json_encode(['inline_keyboard' => $rows]),
         ]);
     }
 

@@ -6646,11 +6646,6 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyResourceAction.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyResourceAction\:\:showStartScreen\(\) has parameter \$character with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyResourceAction.php
 
 		-
 			message: '#^Parameter \#1 \$rarity of method App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyResourceAction\:\:showResourcesOfRarity\(\) expects int, string given\.$#'
@@ -6658,11 +6653,6 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyResourceAction.php
 
-		-
-			message: '#^Parameter \#1 \$resourceId of method App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyResourceAction\:\:askForQuantity\(\) expects int, string given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyResourceAction.php
 
 		-
 			message: '#^Parameter \#2 \$resourceId of method App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyResourceAction\:\:finalizePurchase\(\) expects int, string given\.$#'
@@ -6706,17 +6696,7 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Sell/SellAction.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\SellAction\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/SellAction.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\SellAction\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/SellAction.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\SellCraftAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'

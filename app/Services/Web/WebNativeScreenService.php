@@ -7,6 +7,7 @@ namespace App\Services\Web;
 use App\Models\ActionLogModel;
 use App\Services\Bases\BaseCallbackSuffix;
 use App\Services\Bases\BaseScreenService;
+use App\Services\Bases\BaseStorageService;
 use App\Services\Buildings\BuildingUpgradeService;
 use App\Services\Buildings\BuildOrderService;
 use App\Models\CraftedItemsLogModel;
@@ -18,7 +19,10 @@ use App\Services\Db\WriteOutcome;
 use App\Services\Logging\PlayerActionLogger;
 use App\Services\Player\CharacterSheetService;
 use App\Services\Player\EquipmentLoadoutService;
+use App\Services\Player\InventorySortService;
 use App\Services\Player\InventoryViewService;
+use App\Services\Player\Trade\ResourceShopScreenService;
+use App\Services\Player\Trade\ResourceTradeService;
 use App\Models\QuestModel;
 use App\Services\Events\EventsModelService;
 use App\Services\Quest\DailyTaskService;
@@ -91,6 +95,16 @@ use InvalidArgumentException;
  * `intent_id`. Выключенный хаб или задания дня — строка-замок. «⛔️ Прервать» и «🌐 Квестомания» — мост от
  * `/tasks` бота ({@see tasksRoute()}).
  *
+ * w2-n6-trade-storage-03: «🛒 Магазин» (`view=shop`) — хаб, продажа по редкости, карточка ресурса с ценой и
+ * пресетами, покупка, опт — модели {@see ResourceShopScreenService}, те же, из которых рисует бот. Продажа
+ * ({@see shopSell()}, `:sell`), покупка ({@see shopBuy()}, `:buy`) и опт ({@see bulkSell()}, `:bulk_sell`) — один
+ * раз на `intent_id`; «своё число» больше потолка карточки — отказ ядра, ничего не списано; опт несёт отпечаток
+ * плана из превью, повтор подтверждения ядро не исполняет. «Продать/Купить крафт» — мост от карточки «Я» бота.
+ * «📦 Склад базы» (`view=storage`) — список, забрать всё или вид, положить всё или вид из рюкзака
+ * ({@see storageTake()}, `:storage_take`; {@see storagePut()}, `:storage_put`) — ядро {@see BaseStorageService}, гейт
+ * «на базе» в нём; вне базы экран показывает замок с путём, кнопки остаются. Кнопки `shop` и `baseStorageList`
+ * других экранов открывают эти экраны нативно ({@see viewForCallback()}), мимо моста.
+ *
  * Ключ дедупа — `intent_id` + суффикс ступени; {@see intentKey()} держит его в VARCHAR(64)
  * `web_play_intents` при любом допустимом `intent_id`.
  *
@@ -102,6 +116,8 @@ use InvalidArgumentException;
  * @phpstan-type CraftNav array{bench?:string, cat?:string, recipe?:string, confirm?:int}
  * @phpstan-type BaseNav array{b?:int, section?:string, key?:string, id?:int, from?:int}
  * @phpstan-type TasksNav array{section?:string, id?:int}
+ * @phpstan-type ShopNav array{section?:string, r?:int, id?:int, pct?:int}
+ * @phpstan-type StorageNav array{mode?:string}
  */
 class WebNativeScreenService
 {
@@ -112,9 +128,24 @@ class WebNativeScreenService
     public const VIEW_CRAFT     = 'craft';
     public const VIEW_BASE      = 'base';
     public const VIEW_TASKS     = 'tasks';
+    public const VIEW_SHOP      = 'shop';
+    public const VIEW_STORAGE   = 'storage';
 
     /** Экраны, у которых уже есть нативная вьюха. */
-    public const VIEWS = [self::VIEW_ME, self::VIEW_INVENTORY, self::VIEW_GEAR, self::VIEW_MAP, self::VIEW_CRAFT, self::VIEW_BASE, self::VIEW_TASKS];
+    public const VIEWS = [self::VIEW_ME, self::VIEW_INVENTORY, self::VIEW_GEAR, self::VIEW_MAP, self::VIEW_CRAFT, self::VIEW_BASE, self::VIEW_TASKS, self::VIEW_SHOP, self::VIEW_STORAGE];
+
+    /** Кнопки других экранов (`callback_data` бота), которые теперь открывают нативный экран, а не мост. */
+    private const NATIVE_CALLBACKS = ['shop' => self::VIEW_SHOP, 'baseStorageList' => self::VIEW_STORAGE];
+
+    /** «🛒 Магазин»: разделы экрана и мутации с дедупом по `intent_id`. */
+    public const SHOP_SECTIONS = ['hub', 'sell', 'sell_rarity', 'sell_card', 'buy', 'buy_rarity', 'buy_card', 'bulk'];
+    public const OP_SELL       = 'sell';
+    public const OP_BUY        = 'buy';
+    public const OP_BULK_SELL  = 'bulk_sell';
+
+    /** «📦 Склад базы»: забрать (всё или вид) и положить (всё или вид) — с дедупом по `intent_id`. */
+    public const OP_STORAGE_TAKE = 'storage_take';
+    public const OP_STORAGE_PUT  = 'storage_put';
 
     /** Подписи нижнего меню → нативный экран. */
     private const DOCK_VIEWS = [
@@ -138,10 +169,13 @@ class WebNativeScreenService
 
     /** Кнопки экрана базы бота без нативного аналога — мост от «🏠 База» (подпись → callback строит модель). */
     private const BASE_BRIDGE_EXACT = [
-        'teleportBeacon', 'baseStorageList', 'TeleportToCamp', 'DeleteBase', 'DeleteBase_FullRelocation', 'demolishBuilding', 'Camp',
+        'teleportBeacon', 'TeleportToCamp', 'DeleteBase', 'DeleteBase_FullRelocation', 'demolishBuilding', 'Camp',
     ];
 
     private const BASE_BRIDGE_PATTERN = '/^((hangar|campDecor|baseDevelopment)_b\d+|building_\d+_[A-Za-z]+_b\d+|genericBuildInfo_[A-Za-z]+(_b\d+)?)$/';
+
+    /** Отказ склада вне базы — что делать, а не голое «нельзя» (тот же смысл, что у бота). */
+    private const STORAGE_OFF_BASE = '🚫 Склад физически на базе: положить и забрать можно только стоя на своей клейм-клетке. Вернись на базу — или из поля отправь груз карго-дроном.';
 
     /** Длина `intent_id` из формы и колонки ключа дедупа (`web_play_intents.intent_id`). */
     public const INTENT_MAX     = 60;
@@ -183,11 +217,13 @@ class WebNativeScreenService
      * @var array<string, list<string>>
      */
     private const BRIDGE_ROUTES = [
-        'baseStorageList'  => ['inventory'],
         'whereItWent'      => ['inventory'],
         'resourceOverview' => ['inventory'],
         // Снаряжение: путь к стройке Арсенала — с lock-экрана раздела «Оружие».
         'genericBuildInfo_Arsenal' => ['equipMenu', 'gearWeapons'],
+        // Магазин: крафт у торговца — с хаба «🛒 Магазин» бота (на карточке «Я»), нативного экрана нет (N6b).
+        'sellCraft' => ['shop'],
+        'buyCraft'  => ['shop'],
     ];
 
     /**
@@ -235,6 +271,10 @@ class WebNativeScreenService
 
     private DailyTaskService $daily;
 
+    private ResourceShopScreenService $shop;
+
+    private BaseStorageService $storage;
+
     public function __construct(
         private ?WebActService $act = null,
         ?CharacterSheetService $sheets = null,
@@ -253,7 +293,9 @@ class WebNativeScreenService
         ?EventsModelService $eventsModel = null,
         ?QuestStartService $questStart = null,
         ?QuestChainService $chain = null,
-        ?DailyTaskService $daily = null
+        ?DailyTaskService $daily = null,
+        ?ResourceShopScreenService $shop = null,
+        ?BaseStorageService $storage = null
     ) {
         $this->sheets    = $sheets ?? new CharacterSheetService();
         $this->inventory = $inventory ?? new InventoryViewService();
@@ -272,6 +314,8 @@ class WebNativeScreenService
         $this->chain       = $chain ?? new QuestChainService();
         $this->questStart  = $questStart ?? new QuestStartService($this->chain);
         $this->daily       = $daily ?? new DailyTaskService();
+        $this->shop        = $shop ?? new ResourceShopScreenService();
+        $this->storage     = $storage ?? new BaseStorageService();
     }
 
     public static function isView(mixed $view): bool
@@ -283,6 +327,12 @@ class WebNativeScreenService
     public static function viewForAction(string $actionId): ?string
     {
         return self::NATIVE_ACTIONS[$actionId] ?? null;
+    }
+
+    /** Нативный экран, который открывает кнопка бота с этой `callback_data`; null — кнопка идёт в мост. */
+    public static function viewForCallback(string $callback): ?string
+    {
+        return self::NATIVE_CALLBACKS[$callback] ?? null;
     }
 
     /**
@@ -308,12 +358,30 @@ class WebNativeScreenService
      * @param CraftNav             $craft   где стоит экран крафта: верстак, категория, рецепт
      * @param BaseNav              $base    где стоит экран базы: база, раздел, постройка
      * @param TasksNav             $tasks   где стоит экран «Дела»: раздел, квест карточки
+     * @param ShopNav              $shop    где стоит экран магазина: раздел, редкость, ресурс, доля опта
+     * @param StorageNav           $storage режим сортировки склада
      *
      * @throws InvalidArgumentException неизвестный экран или нет персонажа
      */
-    public function render(int $characterId, string $view, array $state, ?string $alert = null, array $events = [], ?array $preview = null, array $craft = [], array $base = [], array $tasks = []): string
+    public function render(int $characterId, string $view, array $state, ?string $alert = null, array $events = [], ?array $preview = null, array $craft = [], array $base = [], array $tasks = [], array $shop = [], array $storage = []): string
     {
         $dock = is_array($state['dock'] ?? null) ? $state['dock'] : [];
+
+        if ($view === self::VIEW_SHOP) {
+            return view('site/_play/native_shop', [
+                'shop'  => $this->shopModel($characterId, $shop),
+                'dock'  => $dock,
+                'alert' => $alert,
+            ]);
+        }
+
+        if ($view === self::VIEW_STORAGE) {
+            return view('site/_play/native_storage', [
+                'storage' => $this->storageModel($characterId, $storage),
+                'dock'    => $dock,
+                'alert'   => $alert,
+            ]);
+        }
 
         if ($view === self::VIEW_TASKS) {
             return view('site/_play/native_tasks', [
@@ -1168,6 +1236,262 @@ class WebNativeScreenService
         return null;
     }
 
+    /**
+     * Модель экрана «🛒 Магазин» — разделы из ядра {@see ResourceShopScreenService}, тех же моделей, что рисует бот.
+     * Неизвестный раздел, редкость вне 1…10 или чужой ресурс — ближайший допустимый раздел (ссылка из старой
+     * вкладки не роняет экран).
+     *
+     * @param ShopNav $nav
+     *
+     * @return array<string, mixed>
+     */
+    public function shopModel(int $characterId, array $nav): array
+    {
+        $section = in_array($nav['section'] ?? null, self::SHOP_SECTIONS, true) ? $nav['section'] : 'hub';
+        $rarity  = isset($nav['r']) && in_array($nav['r'], ResourceShopScreenService::RARITIES, true) ? $nav['r'] : null;
+        $model   = [
+            'section'     => $section,
+            'hub'         => $this->shop->hubEntries(),
+            'bulk_on'     => $this->shop->bulkEnabled(),
+            'rarity'      => $rarity,
+            'sell_hub'    => null,
+            'sell_rarity' => null,
+            'card'        => null,
+            'buy_hub'     => null,
+            'buy_rarity'  => null,
+            'bulk'        => null,
+        ];
+
+        if ($section === 'sell_card' && isset($nav['id'])) {
+            $model['card'] = $this->shop->sellCardModel($characterId, $nav['id']);
+        } elseif ($section === 'buy_card' && isset($nav['id'])) {
+            $model['buy_hub'] = $this->shop->buyHubModel($characterId);
+            $model['card']    = $model['buy_hub']['allowed'] ? $this->shop->buyCardModel($characterId, $nav['id']) : null;
+        } elseif ($section === 'bulk' && isset($nav['pct'])) {
+            $bulk          = $this->shop->bulkPreviewModel($characterId, $rarity, $nav['pct']);
+            $model['bulk'] = $bulk['code'] === ResourceShopScreenService::INVALID ? null : $bulk;
+        }
+        if (in_array($section, ['sell_card', 'buy_card', 'bulk'], true) && $model['card'] === null && $model['bulk'] === null) {
+            // Карточка без ресурса, покупка без золота на минимум или опт без доли — раздел уровнем выше.
+            $section = $section === 'buy_card' ? 'buy' : 'sell';
+        }
+
+        if ($section === 'sell_rarity' && $rarity !== null) {
+            $model['sell_rarity'] = $this->shop->sellRarityModel($characterId, $rarity);
+        } elseif ($section === 'buy_rarity' && $rarity !== null) {
+            $model['buy_hub']    = $this->shop->buyHubModel($characterId);
+            $model['buy_rarity'] = $model['buy_hub']['allowed'] ? $this->shop->buyRarityModel($rarity) : null;
+            $section             = $model['buy_rarity'] === null ? 'buy' : $section;
+        } elseif (in_array($section, ['sell_rarity', 'buy_rarity'], true)) {
+            $section = $section === 'sell_rarity' ? 'sell' : 'buy';
+        }
+        if ($section === 'sell') {
+            $model['sell_hub'] = $this->shop->sellHubModel($characterId);
+        } elseif ($section === 'buy') {
+            $model['buy_hub'] = $this->shop->buyHubModel($characterId);
+        }
+        $model['section'] = $section;
+
+        return $model;
+    }
+
+    /**
+     * Продажа сырья из веба: кнопка-пресет или «своё число» — {@see ResourceShopScreenService::sell()} с потолком
+     * «сколько есть», один раз на `intent_id`. Сделка пишется в `action_log` тем же кодом и голосом, что у бота
+     * (`SELL_RESOURCE`: лента «Куда ушло» и шаг онбординга «продай что-нибудь» её читают).
+     *
+     * @return string|null ответ для игрока; null — повтор того же намерения
+     *
+     * @throws InvalidArgumentException плохой ресурс или намерение
+     */
+    public function shopSell(int $accountId, int $characterId, int $resourceId, int $qty, string $intentId): ?string
+    {
+        if ($resourceId <= 0) {
+            throw new InvalidArgumentException('bad resource id');
+        }
+        self::assertIntent($intentId);
+        if (! $this->claim($accountId, $intentId, ':' . self::OP_SELL)) {
+            return null;
+        }
+
+        $card = $this->shop->sellCardModel($characterId, $resourceId);
+        $out  = $this->shop->sell($characterId, $resourceId, $qty);
+        if ($out['code'] !== ResourceShopScreenService::OK) {
+            return self::plain($out['message']);
+        }
+        $name = $card !== null && $card['name'] !== '' ? $card['name'] : "Ресурс#{$resourceId}";
+        $this->logDone($characterId, 'SELL_RESOURCE', ResourceTradeService::describeTrade('Продажа', $name, $out['qty'], $out['amount']));
+
+        return self::plain($out['message']);
+    }
+
+    /**
+     * Покупка сырья из веба: {@see ResourceShopScreenService::buy()} с потолком «сколько оплатит свежее золото»,
+     * один раз на `intent_id`. Запись `BUY_RESOURCE` ядро пишет само.
+     *
+     * @return string|null ответ для игрока; null — повтор того же намерения
+     *
+     * @throws InvalidArgumentException плохой ресурс или намерение
+     */
+    public function shopBuy(int $accountId, int $characterId, int $resourceId, int $qty, string $intentId): ?string
+    {
+        if ($resourceId <= 0) {
+            throw new InvalidArgumentException('bad resource id');
+        }
+        self::assertIntent($intentId);
+        if (! $this->claim($accountId, $intentId, ':' . self::OP_BUY)) {
+            return null;
+        }
+        if (! $this->shop->buyHubModel($characterId)['allowed']) {
+            return 'Золота меньше минимума для покупки у торговца — продай что-нибудь и возвращайся.';
+        }
+
+        return self::plain($this->shop->buy($characterId, $resourceId, $qty)['message']);
+    }
+
+    /**
+     * Опт из веба: подтверждение несёт отпечаток плана из превью (`token`), сделка — {@see ResourceShopScreenService::bulkSell()}.
+     * Повтор той же формы гасит `intent_id`; новый `intent_id` со старым отпечатком ядро не исполняет — запас уже
+     * другой (hotfix-bulk-confirm-once). Сделка пишется в `action_log` как у бота (`BULK_SELL`).
+     *
+     * @return string|null ответ для игрока; null — повтор того же намерения
+     *
+     * @throws InvalidArgumentException доля или редкость не из списка, плохое намерение
+     */
+    public function bulkSell(int $accountId, int $characterId, ?int $rarity, int $percent, string $token, string $intentId): ?string
+    {
+        self::assertIntent($intentId);
+        if (! $this->claim($accountId, $intentId, ':' . self::OP_BULK_SELL)) {
+            return null;
+        }
+
+        $out = $this->shop->bulkSell($characterId, $rarity, $percent, $token);
+        if ($out['code'] === ResourceShopScreenService::DISABLED) {
+            return 'Оптовая продажа временно недоступна.';
+        }
+        if ($out['code'] === ResourceShopScreenService::INVALID) {
+            throw new InvalidArgumentException('bad bulk share');
+        }
+        if ($out['code'] !== ResourceShopScreenService::OK) {
+            return self::plain($out['message']);
+        }
+        $scope = $rarity === null ? 'всех ресурсов' : "редкости {$rarity}";
+        $this->logDone($characterId, 'BULK_SELL', ResourceTradeService::describeBulkTrade("Продажа опт {$percent}% {$scope}", $out['lines'], $out['gold']));
+
+        return "🧺 Оптовая продажа выполнена: {$percent}% {$scope} — {$out['types']} вид(ов), " . number_format($out['qty'], 0, '.', ' ')
+            . ' ед. Выручка: +' . number_format($out['gold'], 0, '.', ' ') . ' 💰.';
+    }
+
+    /**
+     * Модель экрана «📦 Склад базы»: строки склада в режиме сортировки, итог, «на базе» и что лежит в рюкзаке
+     * (то, что можно положить). Флаг «на базе» считается и при пустом складе — от него зависит сдача.
+     *
+     * @param StorageNav $nav
+     *
+     * @return array{mode:string, rows:list<array{resource_id:int, name:string, quantity:int}>, total_units:int, on_base:bool, carried:list<array{resource_id:int, name:string, quantity:int}>}
+     */
+    public function storageModel(int $characterId, array $nav): array
+    {
+        $m    = $this->storage->storageModel($characterId, $nav['mode'] ?? InventorySortService::MODE_RECENT);
+        $rows = [];
+        foreach ($m['rows'] as $r) {
+            $id   = is_numeric($r['resource_id'] ?? null) ? (int) $r['resource_id'] : 0;
+            $name = is_string($r['name'] ?? null) ? $r['name'] : '';
+            $qty  = is_numeric($r['quantity'] ?? null) ? (int) $r['quantity'] : 0;
+            if ($id > 0 && $name !== '' && $qty > 0) {
+                $rows[] = ['resource_id' => $id, 'name' => $name, 'quantity' => $qty];
+            }
+        }
+
+        return [
+            'mode'        => $m['mode'],
+            'rows'        => $rows,
+            'total_units' => $m['total_units'],
+            'on_base'     => $this->storage->isOnBase($characterId),
+            'carried'     => $this->storage->carriedResources($characterId),
+        ];
+    }
+
+    /**
+     * Забрать со склада всё (`$resourceId` null) или один вид целиком — ядро {@see BaseStorageService} с гейтом
+     * «на базе» и условным списанием, один раз на `intent_id`.
+     *
+     * @return string|null ответ для игрока; null — повтор того же намерения
+     *
+     * @throws InvalidArgumentException плохое намерение
+     */
+    public function storageTake(int $accountId, int $characterId, ?int $resourceId, string $intentId): ?string
+    {
+        self::assertIntent($intentId);
+        if (! $this->claim($accountId, $intentId, ':' . self::OP_STORAGE_TAKE)) {
+            return null;
+        }
+
+        if ($resourceId === null) {
+            $out = $this->storage->withdrawAll($characterId);
+
+            return match ($out['code']) {
+                BaseStorageService::OK       => "🎒 Забрано со склада: {$out['units']} шт. Всё перенесено в рюкзак.",
+                BaseStorageService::OFF_BASE => self::STORAGE_OFF_BASE,
+                BaseStorageService::EMPTY    => '📦 Склад уже пуст — забирать нечего.',
+                default                      => 'Не удалось забрать ресурсы со склада — попробуй ещё раз.',
+            };
+        }
+        $out = $this->storage->withdrawOne($characterId, $resourceId);
+
+        return match ($out['code']) {
+            BaseStorageService::OK       => "🎒 Забрано со склада: {$out['name']} × {$out['withdrawn']} шт. Ресурс теперь в рюкзаке.",
+            BaseStorageService::OFF_BASE => self::STORAGE_OFF_BASE,
+            BaseStorageService::FAILED   => 'Не удалось забрать ресурс со склада — попробуй ещё раз.',
+            default                      => 'Такого ресурса на складе уже нет.',
+        };
+    }
+
+    /**
+     * Положить на склад всё добытое (`$resourceId` null) или один вид целиком — ядро {@see BaseStorageService}, один
+     * раз на `intent_id`. Клетка прихода — клетка персонажа (как при сдаче из бота).
+     *
+     * @return string|null ответ для игрока; null — повтор того же намерения
+     *
+     * @throws InvalidArgumentException плохое намерение
+     */
+    public function storagePut(int $accountId, int $characterId, ?int $resourceId, string $intentId): ?string
+    {
+        self::assertIntent($intentId);
+        if (! $this->claim($accountId, $intentId, ':' . self::OP_STORAGE_PUT)) {
+            return null;
+        }
+        $cell = $this->characterCell($characterId);
+
+        if ($resourceId === null) {
+            $out = $this->storage->depositAll($characterId, $cell);
+
+            return match ($out['code']) {
+                BaseStorageService::OK       => "📥 На склад: {$out['kinds']} вид(ов), {$out['units']} шт." . ($out['skipped'] > 0 ? " Пропущено видов: {$out['skipped']} — запас изменился, проверь рюкзак." : ''),
+                BaseStorageService::OFF_BASE => self::STORAGE_OFF_BASE,
+                BaseStorageService::EMPTY    => '🎒 В рюкзаке нет добытого — класть нечего.',
+                default                      => 'Не удалось сложить на склад — запас изменился, попробуй ещё раз.',
+            };
+        }
+        $out = $this->storage->depositOne($characterId, $resourceId, $cell);
+
+        return match ($out['code']) {
+            BaseStorageService::OK       => "📥 На склад: {$out['name']} × {$out['quantity']} шт.",
+            BaseStorageService::OFF_BASE => self::STORAGE_OFF_BASE,
+            BaseStorageService::SHORT    => 'Не удалось сложить на склад — запас изменился, попробуй ещё раз.',
+            default                      => 'Этого ресурса в рюкзаке уже нет.',
+        };
+    }
+
+    /** Клетка персонажа (null — нет персонажа или клетки) — клетка прихода при сдаче на склад. */
+    private function characterCell(int $characterId): ?int
+    {
+        $res = \Config\Database::connect()->table('characters')->select('cell_number')->where('id', $characterId)->get();
+        $row = $res === false ? null : $res->getRowArray();
+
+        return is_array($row) && is_numeric($row['cell_number'] ?? null) ? (int) $row['cell_number'] : null;
+    }
+
     /** Уровень персонажа для выдачи заданий дня (1 — персонажа нет). */
     private function characterLevel(int $characterId): int
     {
@@ -1385,6 +1709,25 @@ class WebNativeScreenService
             ]);
         } catch (\Throwable $e) {
             log_message('error', '[WebNativeScreenService] reject log failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Исполненное веб-действие — в `action_log` тем же кодом, что у бота (`BaseAction::logActivity`). Чата у веба
+     * нет — `chat_id` 0. Никогда не валит запрос.
+     */
+    private function logDone(int $characterId, string $actionName, string $description): void
+    {
+        try {
+            (new ActionLogModel())->save([
+                'character_id'  => $characterId,
+                'chat_id'       => 0,
+                'action_name'   => $actionName,
+                'action_status' => 'Completed',
+                'description'   => mb_substr($description, 0, 500),
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[WebNativeScreenService] action log failed: ' . $e->getMessage());
         }
     }
 

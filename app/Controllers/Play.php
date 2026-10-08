@@ -61,6 +61,13 @@ use InvalidArgumentException;
  * без JS — PRG на `/play?view=tasks&…`); `op=quest_start` и `op=quest_branch` + `id` + `intent_id` — старт квеста и
  * выбор ветки тем же ядром, что у бота (проверка и вставка под блокировкой строки персонажа). Повтор `intent_id`
  * ничего не делает.
+ *
+ * w2-n6-trade-storage-03: `view=shop` + `section`/`r`/`id`/`pct` — экран «🛒 Магазин» (хаб, продажа по редкости,
+ * карточка, покупка, превью опта; без JS — PRG на `/play?view=shop&…`); `op=sell|buy` + `id` + `qty` и
+ * `op=bulk_sell` + `pct` (+ `r`, `token` из превью) + `intent_id` — сделки тем же ядром, что у бота; `qty` больше
+ * потолка карточки — отказ, ничего не списано. `view=storage` + `mode` — «📦 Склад базы»; `op=storage_take|storage_put`
+ * (+ `id` вида, без него — всё) + `intent_id`. Повтор `intent_id` ничего не делает. Кнопка `op=bridge` с
+ * `shop`/`baseStorageList` открывает эти экраны нативно, мимо моста.
  */
 class Play extends BaseController
 {
@@ -113,7 +120,7 @@ class Play extends BaseController
                     $preview = $this->native()->marchPreview($characterId, $wanted['dir'], $wanted['n']);
                     $preview = $preview['ok'] ? $preview : null;
                 }
-                $native = $this->native()->render($characterId, $view, $result['state'], $alert, self::eventList($events), $preview, self::craftNav($this->request->getGet(...)), self::baseNav($this->request->getGet(...)), self::tasksNav($this->request->getGet(...)));
+                $native = $this->native()->render($characterId, $view, $result['state'], $alert, self::eventList($events), $preview, self::craftNav($this->request->getGet(...)), self::baseNav($this->request->getGet(...)), self::tasksNav($this->request->getGet(...)), self::shopNav($this->request->getGet(...)), self::storageNav($this->request->getGet(...)));
             } catch (\Throwable $e) {
                 log_message('error', '[Play.index] native view failed: ' . $e::class . ': ' . $e->getMessage());
             }
@@ -163,8 +170,13 @@ class Play extends BaseController
         $view = $this->request->getPost('view');
         $op   = $this->request->getPost('op');
 
-        if ($op === 'bridge') {
-            $data     = $this->request->getPost('data');
+        $data       = $op === 'bridge' ? $this->request->getPost('data') : null;
+        $nativeView = is_string($data) ? WebNativeScreenService::viewForCallback($data) : null;
+        if ($nativeView !== null) {
+            // Кнопка, у которой теперь есть нативный экран (магазин, склад), — экран, а не мост.
+            $view = $nativeView;
+            $op   = null;
+        } elseif ($op === 'bridge') {
             $intentId = $this->request->getPost('intent_id');
             try {
                 $result = $this->native()->bridge(
@@ -188,7 +200,58 @@ class Play extends BaseController
         $craft   = self::craftNav($this->request->getPost(...));
         $base    = self::baseNav($this->request->getPost(...));
         $tasks   = self::tasksNav($this->request->getPost(...));
-        if ($view === WebNativeScreenService::VIEW_TASKS && is_string($op)
+        $shop    = self::shopNav($this->request->getPost(...));
+        $storage = self::storageNav($this->request->getPost(...));
+        if ($view === WebNativeScreenService::VIEW_SHOP && is_string($op)
+            && in_array($op, [WebNativeScreenService::OP_SELL, WebNativeScreenService::OP_BUY], true)) {
+            $intentId = $this->request->getPost('intent_id');
+            $intentId = is_string($intentId) ? $intentId : '';
+            $qty      = self::quantity($this->request->getPost('qty'));
+            try {
+                $alert = $op === WebNativeScreenService::OP_SELL
+                    ? $this->native()->shopSell($accountId, $characterId, $shop['id'] ?? 0, $qty, $intentId)
+                    : $this->native()->shopBuy($accountId, $characterId, $shop['id'] ?? 0, $qty, $intentId);
+            } catch (InvalidArgumentException $e) {
+                log_message('info', '[Play.view] shop ' . $op . ' rejected: ' . $e->getMessage());
+
+                return $this->rejected($characterId);
+            }
+            // После сделки — та же карточка: видно, сколько осталось, «ещё» — в один клик.
+            $shop = ['section' => $op === WebNativeScreenService::OP_SELL ? 'sell_card' : 'buy_card', 'id' => $shop['id'] ?? 0];
+        } elseif ($view === WebNativeScreenService::VIEW_SHOP && $op === WebNativeScreenService::OP_BULK_SELL) {
+            $intentId = $this->request->getPost('intent_id');
+            $token    = $this->request->getPost('token');
+            try {
+                $alert = $this->native()->bulkSell(
+                    $accountId,
+                    $characterId,
+                    $shop['r'] ?? null,
+                    $shop['pct'] ?? 0,
+                    is_string($token) && preg_match('/^[0-9a-f]{8}$/', $token) === 1 ? $token : '',
+                    is_string($intentId) ? $intentId : ''
+                );
+            } catch (InvalidArgumentException $e) {
+                log_message('info', '[Play.view] bulk sell rejected: ' . $e->getMessage());
+
+                return $this->rejected($characterId);
+            }
+            $shop = isset($shop['r']) ? ['section' => 'sell_rarity', 'r' => $shop['r']] : ['section' => 'sell'];
+        } elseif ($view === WebNativeScreenService::VIEW_STORAGE && is_string($op)
+            && in_array($op, [WebNativeScreenService::OP_STORAGE_TAKE, WebNativeScreenService::OP_STORAGE_PUT], true)) {
+            $intentId = $this->request->getPost('intent_id');
+            $intentId = is_string($intentId) ? $intentId : '';
+            $resource = $this->request->getPost('id');
+            $resource = is_string($resource) && preg_match('/^[1-9]\d{0,11}$/', $resource) === 1 ? (int) $resource : null;
+            try {
+                $alert = $op === WebNativeScreenService::OP_STORAGE_TAKE
+                    ? $this->native()->storageTake($accountId, $characterId, $resource, $intentId)
+                    : $this->native()->storagePut($accountId, $characterId, $resource, $intentId);
+            } catch (InvalidArgumentException $e) {
+                log_message('info', '[Play.view] storage ' . $op . ' rejected: ' . $e->getMessage());
+
+                return $this->rejected($characterId);
+            }
+        } elseif ($view === WebNativeScreenService::VIEW_TASKS && is_string($op)
             && in_array($op, [WebNativeScreenService::OP_QUEST_START, WebNativeScreenService::OP_QUEST_BRANCH], true)) {
             $intentId = $this->request->getPost('intent_id');
             $intentId = is_string($intentId) ? $intentId : '';
@@ -363,6 +426,8 @@ class Play extends BaseController
                 $view === WebNativeScreenService::VIEW_CRAFT && $craft !== [] => '&' . http_build_query($craft),
                 $view === WebNativeScreenService::VIEW_BASE && $base !== []   => '&' . http_build_query($base),
                 $view === WebNativeScreenService::VIEW_TASKS && $tasks !== [] => '&' . http_build_query($tasks),
+                $view === WebNativeScreenService::VIEW_SHOP && $shop !== []   => '&' . http_build_query($shop),
+                $view === WebNativeScreenService::VIEW_STORAGE && $storage !== [] => '&' . http_build_query($storage),
                 default                                                     => '',
             };
 
@@ -371,7 +436,7 @@ class Play extends BaseController
 
         $current = $this->service()->current($characterId);
         try {
-            $html = $this->native()->render($characterId, $view, $current['state'], $alert, $events, $preview, $craft, $base, $tasks);
+            $html = $this->native()->render($characterId, $view, $current['state'], $alert, $events, $preview, $craft, $base, $tasks, $shop, $storage);
         } catch (InvalidArgumentException $e) {
             log_message('info', '[Play.view] render rejected: ' . $e->getMessage());
 
@@ -654,6 +719,58 @@ class Play extends BaseController
         }
 
         return $out;
+    }
+
+    /**
+     * Где стоит экран «🛒 Магазин»: раздел, редкость 1…10, ресурс и доля опта (только подсказка — ядро
+     * перепроверяет). Всё прочее отбрасывается.
+     *
+     * @param callable(string): mixed $read чтение поля запроса (GET или POST)
+     *
+     * @return array{section?:string, r?:int, id?:int, pct?:int}
+     */
+    private static function shopNav(callable $read): array
+    {
+        $out     = [];
+        $section = $read('section');
+        if (is_string($section) && in_array($section, WebNativeScreenService::SHOP_SECTIONS, true)) {
+            $out['section'] = $section;
+        }
+        foreach (['r' => '/^(10|[1-9])$/', 'id' => '/^[1-9]\d{0,11}$/', 'pct' => '/^(100|[1-9]\d?)$/'] as $field => $pattern) {
+            $value = $read($field);
+            if (is_string($value) && preg_match($pattern, $value) === 1) {
+                $out[$field] = (int) $value;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Режим сортировки склада (`mode`) — только из списка режимов склада.
+     *
+     * @param callable(string): mixed $read чтение поля запроса (GET или POST)
+     *
+     * @return array{mode?:string}
+     */
+    private static function storageNav(callable $read): array
+    {
+        $mode = $read('mode');
+
+        return is_string($mode) && in_array($mode, \App\Services\Player\InventorySortService::STORAGE_MODES, true) ? ['mode' => $mode] : [];
+    }
+
+    /**
+     * Количество сделки из формы: 0 — нет/не число (ядро откажет «укажи количество»); длиннее 7 цифр — 9 999 999,
+     * чтобы ядро ответило честным «больше потолка», а не «укажи количество».
+     */
+    private static function quantity(mixed $raw): int
+    {
+        if (! is_string($raw) || preg_match('/^\d+$/', $raw) !== 1) {
+            return 0;
+        }
+
+        return strlen(ltrim($raw, '0')) > 7 ? 9_999_999 : (int) $raw;
     }
 
     /** Целая координата из формы (окно карты может заходить за край мира: знак допустим). */

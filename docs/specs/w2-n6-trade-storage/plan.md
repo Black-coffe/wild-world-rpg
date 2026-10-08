@@ -53,7 +53,9 @@ none
 
 **Approved:** Andrei, 2026-10-08
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/w2-n6-trade-storage
 **Checked:**
 **Council:**
+**Council:** GREEN round 1, 2026-10-08, at 5e7fffd0, pack faccd6a8f1de
+**Council:** GREEN round 2, 2026-10-08, at e3098fa4, pack faccd6a8f1de
 **Shipped:**

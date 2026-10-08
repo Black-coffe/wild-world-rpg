@@ -161,6 +161,12 @@ final class PlayViewsTest extends CIUnitTestCase
         $intents = [];
         foreach ($forms as $form) {
             $this->assertArrayHasKey(csrf_token(), $form, 'CSRF field in every form');
+            if (isset($form['view']) && ! isset($form['op'])) {
+                // Переход на нативный экран (док «🛒 Магазин», W2.N6) — навигация, не мутация: без intent_id.
+                $this->assertStringEndsWith('play/view', $form['@action']);
+
+                continue;
+            }
             $this->assertMatchesRegularExpression('~^[0-9a-f]{32}$~', $form['intent_id'] ?? '', 'intent_id in every form');
             $this->assertStringEndsWith('play/act', $form['@action']);
             $intents[] = $form['intent_id'];
@@ -288,12 +294,26 @@ final class PlayViewsTest extends CIUnitTestCase
     {
         $forms = self::forms($this->renderState(self::state()), '//nav[@class="play-dock"]//');
 
-        $this->assertCount(3, $forms);
+        $this->assertCount(4, $forms);
         foreach (['🗺 Карта', '🎒 Рюкзак', '⚙️ Ещё'] as $i => $label) {
             $this->assertSame('text', $forms[$i]['kind']);
             $this->assertSame($label, $forms[$i]['data']);
             $this->assertSame($label, $forms[$i]['@button']);
         }
+        $this->assertDockShop($forms[3]);
+    }
+
+    /**
+     * W2.N6: последняя кнопка дока — всегда «🛒 Магазин», нативный экран (в боте он на карточке «Я»).
+     *
+     * @param array<string, string> $form
+     */
+    private function assertDockShop(array $form): void
+    {
+        $this->assertSame('shop', $form['view'] ?? null);
+        $this->assertSame('🛒 Магазин', $form['@button']);
+        $this->assertStringEndsWith('play/view', $form['@action']);
+        $this->assertArrayNotHasKey('kind', $form);
     }
 
     public function testEmptyDockRendersMenuFallback(): void
@@ -302,10 +322,11 @@ final class PlayViewsTest extends CIUnitTestCase
         $state['dock'] = [];
         $forms         = self::forms($this->renderState($state), '//nav[@class="play-dock"]//');
 
-        $this->assertCount(1, $forms);
+        $this->assertCount(2, $forms);
         $this->assertSame('command', $forms[0]['kind']);
         $this->assertSame('/menu', $forms[0]['data']);
         $this->assertSame('Меню', $forms[0]['@button']);
+        $this->assertDockShop($forms[1]);
     }
 
     public function testHistoryRendersAllScreensNewestFirstWithPressableButtons(): void
@@ -560,7 +581,7 @@ final class PlayViewsTest extends CIUnitTestCase
     {
         $forms = self::forms(view('site/_play/dock', ['dock' => [['🧑 Я', '📋 Дела']]]));
 
-        $this->assertCount(2, $forms);
+        $this->assertCount(3, $forms);
         $this->assertSame('tasks', $forms[1]['view']);
         $this->assertSame('📋 Дела', $forms[1]['@button']);
         $this->assertStringEndsWith('play/view', $forms[1]['@action']);
@@ -598,9 +619,57 @@ final class PlayViewsTest extends CIUnitTestCase
         $this->assertNotSame($branches[0]['intent_id'], $branches[1]['intent_id']);
     }
 
+    /** w2-n6-trade-storage-03: склад вне базы — замок с путём, кнопки «забрать/положить» остаются; всё текстом, мутации с CSRF и своим intent. */
+    public function testStorageOffBaseShowsLockWithPathAndKeepsButtons(): void
+    {
+        $model = [
+            'mode' => 'recent', 'total_units' => 35, 'on_base' => false,
+            'rows'    => [['resource_id' => 1, 'name' => 'Древесина', 'quantity' => 30], ['resource_id' => 2, 'name' => 'Глина', 'quantity' => 5]],
+            'carried' => [['resource_id' => 3, 'name' => 'Камень', 'quantity' => 4]],
+        ];
+        $off  = view('site/_play/native_storage', ['storage' => $model, 'dock' => []]);
+        $text = html_entity_decode($off, ENT_QUOTES | ENT_HTML5);
+
+        $this->assertStringNotContainsString('<img', $off);
+        $this->assertStringContainsString('data-storage-lock', $off);
+        $this->assertStringContainsString('🔒 Положить и забрать (нужно: стоять на своей базе)', $text);
+        $this->assertStringContainsString('Положить и забрать можно только на базе', $text);
+        $this->assertStringContainsString('Путь: 🌍 Мир → дойди до клетки своей базы (🏠 на карте) → 🏠 База → 📦 Склад базы', $text);
+        $mutations = array_values(array_filter(self::forms($off), static fn (array $f): bool => in_array($f['op'] ?? '', ['storage_take', 'storage_put'], true)));
+        $this->assertSame(['storage_take', 'storage_take', 'storage_take', 'storage_put', 'storage_put'], array_column($mutations, 'op'), 'вне базы кнопки не пропадают');
+        foreach ($mutations as $form) {
+            $this->assertArrayHasKey(csrf_token(), $form);
+            $this->assertMatchesRegularExpression('~^[0-9a-f]{32}$~', $form['intent_id'] ?? '');
+        }
+        $this->assertCount(count($mutations), array_unique(array_column($mutations, 'intent_id')));
+
+        $on = view('site/_play/native_storage', ['storage' => ['on_base' => true] + $model, 'dock' => []]);
+        $this->assertStringNotContainsString('data-storage-lock', $on);
+    }
+
+    /** Карточка продажи: цена за 1 шт. и итоги пресетов видны до сделки, пресеты — не больше запаса, «своё число» с потолком. */
+    public function testShopSellCardShowsPriceBeforeTheDealAndCapsTheNumber(): void
+    {
+        $presets = array_map(static fn (int $q): array => ['qty' => $q, 'total' => (int) round($q * 4.5)], [1, 5, 10, 15, 25, 50]);
+        $html    = html_entity_decode(view('site/_play/native_shop', [
+            'shop' => [
+                'section' => 'sell_card', 'hub' => [], 'bulk_on' => true, 'rarity' => null, 'bulk' => null,
+                'card'    => ['resource_id' => 7, 'name' => 'Ржавый лом', 'rarity' => 1, 'unit_price' => 4.5, 'unit_text' => '4.5', 'max_qty' => 12, 'presets' => $presets],
+            ],
+            'dock' => [],
+        ]), ENT_QUOTES | ENT_HTML5);
+
+        $this->assertStringContainsString('<dt>💰 Торговец платит за 1 шт.</dt><dd>4.5 💰</dd>', $html);
+        $this->assertStringContainsString('10 шт · 45 💰</button>', $html);
+        $this->assertStringNotContainsString('15 шт ·', $html);
+        $this->assertStringContainsString('🧺 Всё — 12 шт</button>', $html);
+        $this->assertStringContainsString('min="1" max="12"', $html);
+        $this->assertStringNotContainsString('<img', $html);
+    }
+
     public function testViewsCarryNoInlineStyles(): void
     {
-        foreach (['site/play', 'site/play_stub', 'site/_play/state', 'site/_play/inbox', 'site/_play/native_tasks'] as $view) {
+        foreach (['site/play', 'site/play_stub', 'site/_play/state', 'site/_play/inbox', 'site/_play/native_tasks', 'site/_play/native_shop', 'site/_play/native_storage'] as $view) {
             $source = (string) file_get_contents(APPPATH . 'Views/' . $view . '.php');
             $this->assertStringNotContainsString('style=', $source, $view);
             $this->assertStringNotContainsString('<style', $source, $view);

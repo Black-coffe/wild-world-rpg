@@ -1,8 +1,8 @@
 ---
 story: w2-n6-trade-storage-01
 spec: w2-n6-trade-storage
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -54,5 +54,13 @@ blocked_by: []
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `app/Services/Bases/BaseStorageService.php` — новый: `isOnBase`, `storageModel`, `carriedResources`, `withdrawAll/One`, `depositOne/All`; код результата + данные. `BaseCheckService` инжектируется (шов тестов).
+- Найдено и закрыто: «Забрать всё» в боте зачисляло прочитанные строки и удаляло по id — повтор зачислил бы дважды. В ядре — `BaseStorageModel::withdraw()` по каждому виду (условная запись).
+- Handler'ы `BaseStorageListAction`/`BaseStorageDepositAction` — рендереры по коду; удалены `performRetrieveOne`, `resourceName`, `loadEnrichedEntries`, `carriedResources`, `isOnBase`. Лог «Забрать всё» не добавлен (бот его не писал, лента «Куда ушло» его не знает).
+- Паритет: `BaseStorageBotParityTest` снят со старых handler'ов (`git show HEAD:` → прогон → зелёный), затем зелёный на новых. Расхождения при снятии были только в моих догадках (подпись «Карта», склейка одиночного ряда нормализатором).
+- `BaseStorageRetrieveTest`: три теста `performRetrieveOne` переехали в `BaseStorageServiceTest` (`withdrawOne`: успех, откат, пусто); рендер-тесты остались. `BaseStorageDepositTest`: срез исходника теперь до `formatRetrieveMessage(` (метод `resourceName` ушёл в сервис).
+- Мульти-база: гейт — «любая активная база на текущей клетке» (как и было); скоупа склада по базе у handler'ов не было и не добавлен — склад персонажа один на все базы.
+- `phpstan-baseline.neon` не понадобился. `tests/exploit-poc/GapAuditTest.php` (вне Files): тест сдачи на склад зелёный; красный `testConfirmationCreatesOneRelocationTask` — переезд, не склад.
+- Tech-writing: `services/BaseStorageService.md` (новая), `handlers/storage/BaseStorageDepositAction.md`, `apps/bases/index.md`.
 
 ## Findings
