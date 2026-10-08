@@ -1,7 +1,8 @@
 ---
 story: hotfix-bank-pump-f6-01
 spec: hotfix-bank-pump-f6
-status: todo
+status: done
+returned: DONE
 tier: 1
 worker: worker-code
 model: sonnet
@@ -22,7 +23,6 @@ blocked_by: []
 ## Files
 - app/TaskHandlers/ResourceBankUpdateHandler.php
 - tests/database/Economy/MarketDecayTest.php
-- tests/database/Economy/BankSpreadInvariantTest.php
 - tests/exploit-poc/EconomyLimitsTest.php
 
 ## Non-goals
@@ -46,5 +46,19 @@ blocked_by: []
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `ResourceBankUpdateHandler::process()`: `buyFactor = max(1.0, priceFactor)`, `sellFactor = min(1.0, priceFactor)`;
+  `buy = base×buyFactor×1.05`, `sell = base×sellFactor×0.95`. Отношение счётчиков, клампы и затухание не тронуты.
+- Тесты инварианта легли в `MarketDecayTest` (его фикстура уже строит `resources`/`resources_bank`), а не в новый
+  файл: ещё один тест, сносящий общие таблицы, — лишний (долг изоляции DB-тестов). Файл
+  `BankSpreadInvariantTest.php` из `## Files` не создан.
+- Два старых ассерта «формула не изменена» (`sell=14.25` при ratio 1.5) переписаны на `9.5`: спрос больше не
+  поднимает выкуп.
+- Доказательство «тест достаёт до правки»: на старом хэндлере `MarketDecayTest` — 5 падений (2 старых ассерта + 3
+  новых теста), на новом — 11/11.
+- Вердикты: /guide — нет, совет — нет (ask 6). Нота `tech-writing/tasks/economy/ResourceBankUpdateHandler.md` обновлена.
 
 ## Evidence (ask 5)
+- PoC `EconomyLimitsTest::testSingleUnguardedPurchasePumpsSellPriceAboveOriginalBuyPrice`: до — RED (95 → 332.50), после — GREEN.
+- `MarketDecayTest::testBuybackNeverExceedsBasePriceAndPurchaseNeverDropsBelowIt` — сетка 6×6 счётчиков (0…10⁶), оба клампа.
+- `testBuyPumpTickSellRoundTripAlwaysLoses` — сам круг с прода (залежалось → покупка 10⁶ → тик → продажа) в минус.
+- Preprod: см. smoke после деплоя.
