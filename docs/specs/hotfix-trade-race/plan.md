@@ -36,4 +36,5 @@ none
 **Branch:** vulyk/hotfix-trade-race
 **Checked:**
 **Council:**
+**Council:** GREEN round 1, 2026-10-08, at f47e58c7, pack 89bc8cc97220
 **Shipped:**
