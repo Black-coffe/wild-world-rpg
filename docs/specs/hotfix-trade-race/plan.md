@@ -38,3 +38,4 @@ none
 **Council:**
 **Council:** GREEN round 1, 2026-10-08, at f47e58c7, pack 89bc8cc97220
 **Shipped:**
+**Shipped:** v0.51.688, 2026-10-08, at 82a264e6 - тег на develop, прод wildworld.fun
