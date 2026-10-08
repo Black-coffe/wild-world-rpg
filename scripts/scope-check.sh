@@ -94,11 +94,13 @@ CHANGED="$(printf '%s\n' "$CHANGED" | grep -v '^$' | grep -Fxv "$STORY_REL" | so
 # The hive's jsonl ledgers (memory/stats/*.jsonl: anomalies, ship, council, scope, ...) ride the
 # cycle's own verbs on their own schedule - a `--record` or a hook can leave one dirty in the tree
 # before a story starts - never a story's own edit. Drop them from the diff too, unless the story
-# itself names one under '## Files' (same reasoning as the story-file exclusion above). skills.json
-# is NOT cycle-owned (owner decision, story 12) - it counts like any other path.
+# itself names one under '## Files' (same reasoning as the story-file exclusion above).
 # (mmorpg evolve 2026-09-29: was anomalies.jsonl only; a leftover ship.jsonl scored every story of
 # w2-n4-tails2 and w2-n4-tails-03 as out of scope.)
-LEDGERS="$(printf '%s\n' "$CHANGED" | grep -E '^memory/stats/[^/]+\.jsonl$')"
+# skills.json joins them (owner, 2026-10-08, reversing story 12): skill-usage-counter.sh rewrites it
+# on every Skill call, so every solo build's /vulyk-build dirtied it - 7 of 7 scope rows in the week
+# to 2026-10-08 were skills.json alone, a scope_breach rate of 100% that carried no signal.
+LEDGERS="$(printf '%s\n' "$CHANGED" | grep -E '^memory/stats/([^/]+\.jsonl|skills\.json)$')"
 while IFS= read -r ledger; do
   [ -z "$ledger" ] && continue
   printf '%s\n' "$DECLARED" | grep -Fxq "$ledger" && continue

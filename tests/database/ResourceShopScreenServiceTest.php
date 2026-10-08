@@ -206,12 +206,20 @@ final class ResourceShopScreenServiceTest extends CIUnitTestCase
         $p = $shop->bulkPreviewModel(1, null, 50);
         $this->assertSame([ResourceShopScreenService::OK, 2, 21, 92], [$p['code'], $p['types'], $p['qty'], $p['gold']]);
 
-        $this->assertSame(ResourceShopScreenService::INVALID, $shop->bulkSell(1, null, 33)['code']);
+        $this->assertSame(8, strlen($p['token']), 'превью несёт отпечаток плана');
+
+        $this->assertSame(ResourceShopScreenService::INVALID, $shop->bulkSell(1, null, 33, $p['token'])['code']);
         $this->assertSame(40, $this->owned(7), 'чужая доля не продаёт ничего');
 
-        $s = $shop->bulkSell(1, null, 50);
+        $s = $shop->bulkSell(1, null, 50, $p['token']);
         $this->assertSame(ResourceShopScreenService::OK, $s['code'], $s['message']);
         $this->assertSame(20, $this->owned(7));
+        $this->assertSame(195.0, $this->gold());
+
+        // Повтор того же подтверждения (двойной тап бота, повтор формы веба) — не вторая продажа.
+        $again = $shop->bulkSell(1, null, 50, $p['token']);
+        $this->assertSame(ResourceShopScreenService::FAILED, $again['code']);
+        $this->assertSame(20, $this->owned(7), 'повтор не продал ещё 50% остатка');
         $this->assertSame(195.0, $this->gold());
     }
 

@@ -249,13 +249,14 @@ final class ResourceShopScreenService
 
     /**
      * Превью опта (без мутаций). `code`: `disabled` | `invalid` (доля не из списка, редкость вне
-     * 1…10) | `empty` (нечего продавать) | `ok`.
+     * 1…10) | `empty` (нечего продавать) | `ok`. `token` — отпечаток плана ({@see ResourceTradeService::bulkConfirmToken()}):
+     * подтверждение несёт его в `bulkSell()`, и повтор той же кнопки/формы не продаёт второй раз.
      *
-     * @return array{code:string, percent:int, rarity:int|null, types:int, qty:int, gold:int}
+     * @return array{code:string, percent:int, rarity:int|null, types:int, qty:int, gold:int, token:string}
      */
     public function bulkPreviewModel(int $characterId, ?int $rarity, int $percent): array
     {
-        $base = ['percent' => $percent, 'rarity' => $rarity, 'types' => 0, 'qty' => 0, 'gold' => 0];
+        $base = ['percent' => $percent, 'rarity' => $rarity, 'types' => 0, 'qty' => 0, 'gold' => 0, 'token' => ''];
         $gate = $this->bulkGate($rarity, $percent);
         if ($gate !== self::OK) {
             return ['code' => $gate] + $base;
@@ -266,15 +267,16 @@ final class ResourceShopScreenService
             return ['code' => self::EMPTY] + $base;
         }
 
-        return ['code' => self::OK, 'types' => $p['typesCount'], 'qty' => $p['totalQty'], 'gold' => $p['totalGold']] + $base;
+        return ['code' => self::OK, 'types' => $p['typesCount'], 'qty' => $p['totalQty'], 'gold' => $p['totalGold'], 'token' => $p['token']] + $base;
     }
 
     /**
-     * Выполнить опт. Те же ворота, что у превью; сделка — `bulkSellResources()`.
+     * Выполнить опт. Те же ворота, что у превью; сделка — `bulkSellResources()`, исполняется только
+     * при совпадении `$confirmToken` с планом в транзакции (иначе `failed`, ничего не продано).
      *
      * @return array{code:string, message:string, types:int, qty:int, gold:int, lines:list<array{name:string, qty:int}>}
      */
-    public function bulkSell(int $characterId, ?int $rarity, int $percent): array
+    public function bulkSell(int $characterId, ?int $rarity, int $percent, string $confirmToken): array
     {
         $none = ['types' => 0, 'qty' => 0, 'gold' => 0, 'lines' => []];
         $gate = $this->bulkGate($rarity, $percent);
@@ -282,7 +284,7 @@ final class ResourceShopScreenService
             return ['code' => $gate, 'message' => ''] + $none;
         }
 
-        $r = $this->trade->bulkSellResources(['id' => $characterId], $percent, $rarity);
+        $r = $this->trade->bulkSellResources(['id' => $characterId], $percent, $rarity, $confirmToken);
         if (! $r['success']) {
             return ['code' => self::FAILED, 'message' => $r['message']] + $none;
         }

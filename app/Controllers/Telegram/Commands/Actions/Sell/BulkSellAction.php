@@ -65,19 +65,24 @@ class BulkSellAction extends BaseAction
         $characterId = (int) $character['id'];
 
         // bulkSell
-        //  └── all_{pct}            → предпросмотр (все ресурсы)
-        //  └── rarity_{r}_{pct}     → предпросмотр (редкость r)
-        //  └── go_all_{pct}         → выполнить (все)
-        //  └── go_rarity_{r}_{pct}  → выполнить (редкость r)
+        //  └── all_{pct}                  → предпросмотр (все ресурсы)
+        //  └── rarity_{r}_{pct}           → предпросмотр (редкость r)
+        //  └── go_all_{pct}_{tok}         → выполнить (все)
+        //  └── go_rarity_{r}_{pct}_{tok}  → выполнить (редкость r)
+        // {tok} — отпечаток плана из превью (hotfix-bulk-confirm-once): кнопка исполняется один раз.
 
         // Выполнение (go) — проверяем раньше (длиннее), сделку делает только эта ветка.
         if ($count >= 4 && $params[1] === 'go') {
-            if ($params[2] === 'all' && $count === 4) {
-                return $this->execute($shop, $characterId, null, (int) $params[3]);
+            if ($params[2] === 'all' && $count === 5) {
+                return $this->execute($shop, $characterId, null, (int) $params[3], $params[4]);
             }
-            if ($params[2] === 'rarity' && $count === 5) {
-                return $this->execute($shop, $characterId, (int) $params[3], (int) $params[4]);
+            if ($params[2] === 'rarity' && $count === 6) {
+                return $this->execute($shop, $characterId, (int) $params[3], (int) $params[4], $params[5]);
             }
+
+            // Кнопка подтверждения без отпечатка — снята до хотфикса и висит в чате: по ней не продаём.
+            $rarity = $params[2] === 'rarity' && $count === 5 ? (int) $params[3] : null;
+            return $this->screen('🧺 Кнопка устарела — открой оптовую продажу заново.', [$this->backRow($rarity)]);
         }
 
         // Предпросмотр (подтверждение).
@@ -127,7 +132,7 @@ class BulkSellAction extends BaseAction
             . "Продолжить?";
 
         return $this->screen($text, [
-            [['text' => $confirmText, 'callback_data' => "bulkSell_go_{$goScope}"]],
+            [['text' => $confirmText, 'callback_data' => "bulkSell_go_{$goScope}_{$preview['token']}"]],
             $this->backRow($rarity),
         ]);
     }
@@ -135,9 +140,9 @@ class BulkSellAction extends BaseAction
     /**
      * Подтверждённое выполнение оптовой продажи — {@see ResourceShopScreenService::bulkSell()}.
      */
-    private function execute(ResourceShopScreenService $shop, int $characterId, ?int $rarity, int $percent): ServerResponse
+    private function execute(ResourceShopScreenService $shop, int $characterId, ?int $rarity, int $percent, string $token): ServerResponse
     {
-        $result = $shop->bulkSell($characterId, $rarity, $percent);
+        $result = $shop->bulkSell($characterId, $rarity, $percent, $token);
         if ($result['code'] === ResourceShopScreenService::INVALID || $result['code'] === ResourceShopScreenService::DISABLED) {
             return $this->backToScope($rarity);
         }

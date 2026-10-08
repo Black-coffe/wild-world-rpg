@@ -76,6 +76,7 @@ outbound: MySQL / MariaDB.
 - Миграция `2024-03-21-224528_CreateResourcesTable.php` не проходит на пустой БД: `biome_id`
   объявлен `TEXT` + `unsigned=>true`, CI4 `Forge` безусловно приписывает `UNSIGNED` любому типу —
   `TEXT UNSIGNED` MySQL 8 отклоняет. Падает и на голом `php spark migrate`, не только в тестах.
+- Опт-продажа: `FOR UPDATE` на JOIN `resources`×`character_resources` (`fetchSellableRowsForUpdate`) лочит и общие строки каталога `resources` (см. `player.md`).
 - **CI4 `transRollback()` на глубине >1 только декрементирует счётчик — нет savepoint'ов.**
   Вложенный `transBegin()` внутри уже открытой транзакции вызывающего не создаёт точку отката:
   откат внутренней «транзакции» физически не отменяет уже выполненные `UPDATE`/`INSERT` этого

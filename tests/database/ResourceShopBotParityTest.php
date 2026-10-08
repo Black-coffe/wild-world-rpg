@@ -189,7 +189,7 @@ _(код заявки: BUY:8)_',
 _Доля берётся от каждого запаса. Реальная цена может отличаться от спроса. Действие необратимо._
 
 Продолжить?',
-            'reply_markup' => '{"inline_keyboard":[[{"text":"\\u2705 \\u0414\\u0430, \\u043f\\u0440\\u043e\\u0434\\u0430\\u0442\\u044c 50%","callback_data":"bulkSell_go_all_50"},{"text":"\\u2b05\\ufe0f \\u041d\\u0430\\u0437\\u0430\\u0434","callback_data":"sell"},{"text":"\\ud83d\\uded2 \\u041c\\u0430\\u0433\\u0430\\u0437\\u0438\\u043d","callback_data":"shop"}]]}',
+            'reply_markup' => '{"inline_keyboard":[[{"text":"\\u2705 \\u0414\\u0430, \\u043f\\u0440\\u043e\\u0434\\u0430\\u0442\\u044c 50%","callback_data":"bulkSell_go_all_50_238ec620"},{"text":"\\u2b05\\ufe0f \\u041d\\u0430\\u0437\\u0430\\u0434","callback_data":"sell"},{"text":"\\ud83d\\uded2 \\u041c\\u0430\\u0433\\u0430\\u0437\\u0438\\u043d","callback_data":"shop"}]]}',
         ],
         'bulk_preview_rarity_1_100' => [
             'method'       => 'editMessageText',
@@ -201,7 +201,7 @@ _Доля берётся от каждого запаса. Реальная це
 _Будут проданы все ходовые ресурсы в этом объёме. Реальная цена может отличаться от спроса. Действие необратимо._
 
 Продолжить?',
-            'reply_markup' => '{"inline_keyboard":[[{"text":"\\u2705 \\u0414\\u0430, \\u043f\\u0440\\u043e\\u0434\\u0430\\u0442\\u044c \\u0432\\u0441\\u0451","callback_data":"bulkSell_go_rarity_1_100"},{"text":"\\u2b05\\ufe0f \\u041d\\u0430\\u0437\\u0430\\u0434","callback_data":"sellResource_rarity_1"},{"text":"\\ud83d\\uded2 \\u041c\\u0430\\u0433\\u0430\\u0437\\u0438\\u043d","callback_data":"shop"}]]}',
+            'reply_markup' => '{"inline_keyboard":[[{"text":"\\u2705 \\u0414\\u0430, \\u043f\\u0440\\u043e\\u0434\\u0430\\u0442\\u044c \\u0432\\u0441\\u0451","callback_data":"bulkSell_go_rarity_1_100_6667f786"},{"text":"\\u2b05\\ufe0f \\u041d\\u0430\\u0437\\u0430\\u0434","callback_data":"sellResource_rarity_1"},{"text":"\\ud83d\\uded2 \\u041c\\u0430\\u0433\\u0430\\u0437\\u0438\\u043d","callback_data":"shop"}]]}',
         ],
         'bulk_preview_bad_pct' => [
             'method'       => 'editMessageText',
@@ -318,7 +318,7 @@ _📌ВАЖНО📌 Чтобы и тебе, и мне, как торговцу, 
         $this->assertScreen('bulk_preview_all_50', BulkSellAction::class, 'bulkSell_all_50');
         $this->assertScreen('bulk_preview_rarity_1_100', BulkSellAction::class, 'bulkSell_rarity_1_100');
         $this->assertScreen('bulk_preview_bad_pct', BulkSellAction::class, 'bulkSell_all_33');
-        $this->assertScreen('bulk_go_all_50', BulkSellAction::class, 'bulkSell_go_all_50');
+        $this->assertScreen('bulk_go_all_50', BulkSellAction::class, 'bulkSell_go_all_50_238ec620');
         $this->assertSame(20, $this->owned(7));
         $this->assertSame(2, $this->owned(8));
         $this->assertSame(1092.0, $this->gold());

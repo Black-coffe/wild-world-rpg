@@ -43,7 +43,7 @@ Tier 2-4 plans stop for the owner's approval (`**Approved:**`) unless `/vulyk-pl
 
 ## Models and effort
 
-Route by family, never by version: Sonnet executes (workers, scout, docs drone, clerk), Opus orchestrates and judges (the Queen, planner, reviewers, council, coverage, librarian), Haiku nothing until one reaches the floor. The family that builds never judges. A repair story after a RED round climbs to Opus.
+Route by family, never by version: Sonnet executes (workers, scout, docs drone, clerk), Opus orchestrates and judges (the Queen, planner, reviewers, council, coverage, librarian), Haiku runs the clerk only. The family that builds never judges. A repair story after a RED round climbs to Opus.
 **Гейт у нас тоже Opus, а не Fable:** пин `TOP_MODEL` стоит в `CLAUDE.md` (не здесь: `scripts/top-model.sh` берёт первое вхождение, и `CLAUDE.md` читается первым); проверка — `bash scripts/top-model.sh --explain` → `decided by: constitution`. Fable у нас только второй ревьюер Tier 4 (это же печатает `--explain`).
 Model floor: no dispatch below `scripts/lib.sh` `model_floor`; always the newest of each family. `bash scripts/top-model.sh --floor` checks the config, telemetry `model_below_floor` what really ran.
 Pass it as `model:` only on the Tier 4 review, `lead-architect`, the Tier 4 `queen-planner` and a missed story's retry.

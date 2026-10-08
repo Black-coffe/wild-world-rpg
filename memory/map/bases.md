@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-29
+last-verified: 2026-10-08
 
 # Scout report: Базы, лагерь, постройки
 
@@ -59,9 +59,6 @@ outbound: ресурсы, `GameSettings`, `Services/Coverage`, `Services/Onboard
   `stale` проверяется **до** условий следующего уровня (золото, уровень персонажа, ресурсы), как только постройка
   найдена: валидатор кладёт `currentLevel` и в поздние отказы. Каждый отказ в боте снимает «часики» (один
   `answerCallbackQuery`). Имена ресурсов для игрока — `preview()['resource_names']` (веб не печатает `Water`).
-- **Эффект уровня**: `BuildingEffectLines` (`effectAt()`, `developmentLine()`, `icon()`) — единый источник строки;
-  `preview()` кладёт `effect_now`/`effect_next` («✨ Эффект: сейчас → после» в боте и вебе), `BaseDevelopmentAction`
-  берёт `developmentLine()`. Складская ёмкость не показывается.
 - **Старт стройки (ADR-181)**: лимит базы и `already_building` (та же задача `in_work|queued` с
   `task_settings.base_cell` этой клетки) перепроверяются под `SELECT … FOR UPDATE` строки персонажа;
   списание условное; лог отказа `BUILD_<Key>` пишет рендерер (ядро отдаёт `log`). `cellLoad()` считает
@@ -73,10 +70,7 @@ outbound: ресурсы, `GameSettings`, `Services/Coverage`, `Services/Onboard
 - **ОТКРЫТО, descoped (EA-economy-04, `docs/specs/exploit-audit/REPORT.md` #3)**: объём покупки сырья
   (`ResourceTradeService::buyResource()`) не ограничен — арбитраж между тиками `ResourceBankUpdateHandler`;
   PoC `EconomyLimitsTest::testSingleUnguardedPurchasePumpsSellPriceAboveOriginalBuyPrice` красный намеренно.
-- ЗАКРЫТО (ADR-181): `BeaconInstaller::install()` — списание до вставки маяка; заряд карго-дрона и ремонт —
-  условная запись. `BaseBuildingUpgradeAction` (abstract) недостижим.
-- «📡 Маяки» — две двери в `BaseServiceMessageFormatter` (`baseBuildings()`, `notOnBasePhysically()`),
-  маяк ставится в клетке игрока; «Центр телепортации на любой базе» — намеренно (ADR-187).
+- Опт-продажа ресурсов (`bulkSellResources`) требует токен превью — см. `player.md`.
 
 ## Vault
 `mmorpg-vault/apps/bases/index.md` · `tech-writing/services/{BaseScreenService,BuildOrderService,

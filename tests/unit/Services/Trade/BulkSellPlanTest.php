@@ -159,4 +159,26 @@ final class BulkSellPlanTest extends CIUnitTestCase
     {
         $this->assertSame([10, 25, 50, 100], BulkSellAction::parsePercents(BulkSellAction::DEFAULT_PERCENTS));
     }
+
+    /**
+     * hotfix-bulk-confirm-once — отпечаток плана: не зависит от порядка строк (превью и сделка читают
+     * их по-разному), но меняется от доли, редкости и запаса в продаваемой строке. После первой сделки
+     * запас другой — та же кнопка второй раз не подтверждается.
+     */
+    public function testConfirmTokenTracksPlanNotRowOrder(): void
+    {
+        $a    = $this->row(['id' => 1, 'charResId' => 10, 'quantity' => 40]);
+        $b    = $this->row(['id' => 2, 'charResId' => 11, 'quantity' => 6]);
+        $base = ResourceTradeService::bulkConfirmToken([$a, $b], 50, null);
+
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{8}$/', $base);
+        $this->assertSame($base, ResourceTradeService::bulkConfirmToken([$b, $a], 50, null));
+        $this->assertNotSame($base, ResourceTradeService::bulkConfirmToken([$a, $b], 100, null));
+        $this->assertNotSame($base, ResourceTradeService::bulkConfirmToken([$a, $b], 50, 3));
+        $this->assertNotSame($base, ResourceTradeService::bulkConfirmToken([$this->row(['quantity' => 20]), $b], 50, null), 'после продажи половины');
+
+        // Строка, которую план не продаёт (0-цена), на отпечаток не влияет.
+        $junk = $this->row(['id' => 3, 'charResId' => 12, 'sell_price' => 0.0]);
+        $this->assertSame($base, ResourceTradeService::bulkConfirmToken([$a, $b, $junk], 50, null));
+    }
 }

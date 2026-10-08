@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-29
+last-verified: 2026-10-08
 
 # Scout report: Игрок (Services/Player)
 
@@ -59,6 +59,14 @@ outbound: модели `app/Models/*`, `Services/GameSettings`, `Services/Notifi
 - Смена снаряжения — **один UPDATE на слот** (`equipped = IF(id = ?,1,0)`), не «снять всех» +
   «надеть»; слот брони эффективный `COALESCE(NULLIF(outfits.slot,''), characters_outfits.slot)`
   (`EquipmentLoadoutService.php:280-290`). Писать equipped в обход сервиса нельзя.
+- **Опт-продажа исполняется один раз (hotfix-bulk-confirm-once, v0.51.689).** `ResourceTradeService::bulkSellPreview()`
+  отдаёт `token` = `bulkConfirmToken()` (sha1 плана: процент, редкость, `charResId:qty`, 8 hex); 
+  `bulkSellResources($char, $pct, ?$rarity, string $confirmToken)` в транзакции перечитывает строки
+  `fetchSellableRowsForUpdate()` (`FOR UPDATE`), сверяет токен `hash_equals` и при расхождении откатывает, ничего не продав.
+  Бот: `bulkSell_go_all_{pct}_{tok}` / `bulkSell_go_rarity_{r}_{pct}_{tok}` (`BulkSellAction.php:70-86`);
+  кнопки без токена отвечают «Кнопка устарела». Карточка `docs/defects/confirm-repeats-irreversible.md`,
+  проверка `scripts/defects-confirm-once-check.php`. Ловушка (review minor, не исправлена): `FOR UPDATE` на JOIN
+  блокирует и общие строки каталога `resources`, не только рюкзак игрока.
 
 ## Vault
 `mmorpg-vault/apps/player/index.md` · `mmorpg-vault/tech-writing/services/`
