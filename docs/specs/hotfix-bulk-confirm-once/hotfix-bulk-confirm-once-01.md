@@ -1,8 +1,8 @@
 ---
 story: hotfix-bulk-confirm-once-01
 spec: hotfix-bulk-confirm-once
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 1
 worker: worker-code
 model: sonnet
@@ -31,6 +31,7 @@ blocked_by: []
 - tests/database/BulkSellResourcesTest.php
 - tests/database/BulkSellConfirmOnceTest.php
 - tests/unit/Services/Trade/BulkSellPlanTest.php
+- tests/unit/Services/Player/Trade/ResourceBankInsertRaceTest.php
 - docs/defects/README.md
 - docs/defects/confirm-repeats-irreversible.md
 - docs/defects/fixtures/confirm-repeats-irreversible-original.php
@@ -59,5 +60,27 @@ blocked_by: []
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- Отпечаток — `ResourceTradeService::bulkConfirmToken()`: 8 hex sha1 от доли, редкости и `charResId:quantity`
+  продаваемых строк, отсортированных по id (превью читает строки моделью, сделка — `FOR UPDATE` в своём порядке).
+  `bulkSellPreview()` отдаёт `token`; `bulkSellResources(..., ?int $rarity, string $confirmToken)` — токен
+  **обязателен**: в транзакции план пересчитывается под `FOR UPDATE`, отпечаток сверяется `hash_equals`, иначе откат.
+  Выбор «обязателен», а не «опционален»: опциональный токен оставил бы ядро открытым для забывчивого вызывающего —
+  ровно соседняя форма класса (веб W2.N6). Цена — `ResourceBankInsertRaceTest` добавлен в `## Files` (одна строка вызова).
+- Бот: токен прямо в строке callback (`bulkSell_go_{$goScope}_{$preview['token']}`), чтобы check видел его там же;
+  разбор `go_all_{pct}_{tok}` (5 частей) / `go_rarity_{r}_{pct}_{tok}` (6). Старая кнопка без токена — «кнопка устарела».
+- Тест «одновременного» случая на уровне сервиса — `testSameConfirmTwiceSellsOnce`: оба вызова несут отпечаток одного
+  превью (так и выглядит двойное нажатие). Настоящая параллельность — PoC двумя процессами (scratchpad, не в репо,
+  харнесс утреннего хотфикса): 3000 видов × 10, «50%», одна кнопка — 3/3 прогона золото 15 000 и остаток 15 000,
+  второй процесс ждёт блокировку и получает отказ; подряд — то же.
+- `testBulkSellFromStaleSnapshotRollsBackEverything` (утренний) теперь отказывает раньше — на отпечатке (снимок 1000 шт.
+  против 55 под блокировкой); его утверждения те же. Условное списание остаётся вторым барьером, но этим тестом больше
+  не достигается — честно: отдельного теста на него поверх отпечатка нет (достичь его можно только гонкой мимо FOR UPDATE).
+- Карточка `docs/defects/confirm-repeats-irreversible.md` + `scripts/defects-confirm-once-check.php`: ловит callback
+  `bulkSell_go_…` без токена в строке и вызов `bulkSellResources()` с < 4 аргументами. Обе фикстуры падают, `app/` чист,
+  `bash scripts/defects-check.sh` GREEN. Ветка W2.N6 (`ResourceShopScreenService::bulkSell`, 3 аргумента) этим check'ом
+  ловится — при merge `develop` её надо перевести на токен (story 03).
+- Другие confirm-экраны (крафт, снаряжение) check не смотрит — он про опт; их повторяемость не проверял (Non-goals).
+- Вне `## Files`: ноты vault `ResourceTradeService.md`, `handlers/sell/BulkSellAction.md`.
+- Вердикты: guide — нет, совет — нет (фикс поведения, новой механики нет).
 
 ## Findings
