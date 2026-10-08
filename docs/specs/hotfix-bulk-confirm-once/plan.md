@@ -41,4 +41,5 @@ none
 **Branch:** vulyk/hotfix-bulk-confirm-once
 **Checked:**
 **Council:**
+**Council:** GREEN round 1, 2026-10-08, at 8872c238, pack 47c99024dada
 **Shipped:**
