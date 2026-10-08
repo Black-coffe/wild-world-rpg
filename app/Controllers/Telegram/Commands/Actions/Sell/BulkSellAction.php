@@ -65,19 +65,24 @@ class BulkSellAction extends BaseAction
         $percents = self::parsePercents($this->gsString(self::KEY_PERCENTS, self::DEFAULT_PERCENTS));
 
         // bulkSell
-        //  └── all_{pct}            → предпросмотр (все ресурсы)
-        //  └── rarity_{r}_{pct}     → предпросмотр (редкость r)
-        //  └── go_all_{pct}         → выполнить (все)
-        //  └── go_rarity_{r}_{pct}  → выполнить (редкость r)
+        //  └── all_{pct}                  → предпросмотр (все ресурсы)
+        //  └── rarity_{r}_{pct}           → предпросмотр (редкость r)
+        //  └── go_all_{pct}_{tok}         → выполнить (все)
+        //  └── go_rarity_{r}_{pct}_{tok}  → выполнить (редкость r)
+        // {tok} — отпечаток плана из превью (hotfix-bulk-confirm-once): кнопка исполняется один раз.
 
         // Выполнение (go) — проверяем раньше (длиннее), сделку делает только эта ветка.
         if ($count >= 4 && $params[1] === 'go') {
-            if ($params[2] === 'all' && $count === 4) {
-                return $this->execute($character, null, (int) $params[3], $percents);
+            if ($params[2] === 'all' && $count === 5) {
+                return $this->execute($character, null, (int) $params[3], $params[4], $percents);
             }
-            if ($params[2] === 'rarity' && $count === 5) {
-                return $this->execute($character, (int) $params[3], (int) $params[4], $percents);
+            if ($params[2] === 'rarity' && $count === 6) {
+                return $this->execute($character, (int) $params[3], (int) $params[4], $params[5], $percents);
             }
+
+            // Кнопка подтверждения без отпечатка — снята до хотфикса и висит в чате: по ней не продаём.
+            $rarity = $params[2] === 'rarity' && $count === 5 ? (int) $params[3] : null;
+            return $this->screen('🧺 Кнопка устарела — открой оптовую продажу заново.', [$this->backRow($rarity)]);
         }
 
         // Предпросмотр (подтверждение).
@@ -129,7 +134,7 @@ class BulkSellAction extends BaseAction
             . "Продолжить?";
 
         return $this->screen($text, [
-            [['text' => $confirmText, 'callback_data' => "bulkSell_go_{$goScope}"]],
+            [['text' => $confirmText, 'callback_data' => "bulkSell_go_{$goScope}_{$preview['token']}"]],
             $this->backRow($rarity),
         ]);
     }
@@ -140,14 +145,14 @@ class BulkSellAction extends BaseAction
      * @param array<string,mixed>|\App\Entities\CharacterEntity $character
      * @param list<int> $percents
      */
-    private function execute($character, ?int $rarity, int $percent, array $percents): ServerResponse
+    private function execute($character, ?int $rarity, int $percent, string $token, array $percents): ServerResponse
     {
         if (! in_array($percent, $percents, true) || ! $this->validRarity($rarity)) {
             return $this->backToScope($rarity);
         }
 
         $charArr = $this->charArray($character);
-        $result  = (new ResourceTradeService())->bulkSellResources($charArr, $percent, $rarity);
+        $result  = (new ResourceTradeService())->bulkSellResources($charArr, $percent, $rarity, $token);
 
         if (! $result['success']) {
             return $this->screen("🧺 {$result['message']}", [$this->backRow($rarity)]);

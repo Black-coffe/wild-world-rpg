@@ -321,10 +321,9 @@ final class ResourceBankInsertRaceTest extends CIUnitTestCase
         $this->seedCharacter(self::CHAR_ID, 0.0);
         $this->giveResource(self::CHAR_ID, self::RESOURCE_ID, 20);
 
-        $result = (new ResourceTradeService())->bulkSellResources(
-            ['id' => self::CHAR_ID, 'gold' => 0],
-            100
-        );
+        $svc    = new ResourceTradeService();
+        $char   = ['id' => self::CHAR_ID, 'gold' => 0];
+        $result = $svc->bulkSellResources($char, 100, null, $svc->bulkSellPreview($char, 100)['token']);
 
         $this->assertTrue($result['success'], $result['message']);
         $this->assertSame(1, $this->bankRowsForResource(self::RESOURCE_ID));

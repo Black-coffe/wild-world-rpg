@@ -163,7 +163,7 @@ final class BulkSellResourcesTest extends CIUnitTestCase
         $this->giveResource(4, 30);
         $this->giveResource(5, 100);
 
-        $res = (new ResourceTradeService())->bulkSellResources($this->character(), 10, null);
+        $res = $this->confirmed(10, null);
 
         // 10%: r1 10→20💰, r2 5→20💰, r4 3→30💰; r3/r5 пропущены.
         $this->assertTrue($res['success']);
@@ -196,7 +196,7 @@ final class BulkSellResourcesTest extends CIUnitTestCase
         $this->giveResource(2, 55);
         $this->giveResource(4, 30);
 
-        $res = (new ResourceTradeService())->bulkSellResources($this->character(), 50, 3);
+        $res = $this->confirmed(50, 3);
 
         // 50% редкости 3: r1 50→100💰, r2 27 (floor 27.5)→108💰.
         $this->assertTrue($res['success']);
@@ -216,7 +216,7 @@ final class BulkSellResourcesTest extends CIUnitTestCase
         $this->seedResource(1, 2, 3.0);
         $this->giveResource(1, 40);
 
-        $res = (new ResourceTradeService())->bulkSellResources($this->character(), 100, null);
+        $res = $this->confirmed(100, null);
 
         $this->assertTrue($res['success']);
         $this->assertSame(40, $res['totalQty']);
@@ -231,7 +231,7 @@ final class BulkSellResourcesTest extends CIUnitTestCase
         $this->seedResource(3, 3, 0.0); // только 0-цена
         $this->giveResource(3, 100);
 
-        $res = (new ResourceTradeService())->bulkSellResources($this->character(), 50, null);
+        $res = $this->confirmed(50, null);
 
         $this->assertFalse($res['success']);
         $this->assertSame(0, $res['totalGold']);
@@ -270,12 +270,96 @@ final class BulkSellResourcesTest extends CIUnitTestCase
         $prop = new \ReflectionProperty(ResourceTradeService::class, 'resourceModel');
         $prop->setValue($svc, $stale);
 
-        $res = $svc->bulkSellResources($this->character(), 100, null);
+        // Превью со снимка (1000 шт.) даёт отпечаток, который запас под блокировкой (55) не повторит.
+        $res = $svc->bulkSellResources($this->character(), 100, null, $svc->bulkSellPreview($this->character(), 100, null)['token']);
 
         $this->assertFalse($res['success']);
         $this->assertSame(500.0, $this->goldOf(), 'золото не начислено');
         $this->assertSame(100, $this->qtyOf(1), 'первая строка восстановлена откатом');
         $this->assertSame(55, $this->qtyOf(2));
         $this->assertSame(0, $this->soldInBank(1), 'банк не учёл несостоявшуюся продажу');
+    }
+
+    /**
+     * hotfix-bulk-confirm-once — одна кнопка подтверждения «50%», нажатая дважды. Раньше второе
+     * нажатие пересчитывало план от остатка и продавало ещё половину (лом 40→20→10, золото дважды).
+     */
+    public function testSameConfirmTwiceSellsOnce(): void
+    {
+        $this->seedCharacter(500);
+        $this->seedResource(1, 3, 2.0);
+        $this->seedResource(2, 3, 4.0);
+        $this->giveResource(1, 40);
+        $this->giveResource(2, 10);
+
+        $svc   = new ResourceTradeService();
+        $token = $svc->bulkSellPreview($this->character(), 50, null)['token'];
+
+        $first  = $svc->bulkSellResources($this->character(), 50, null, $token);
+        $second = $svc->bulkSellResources($this->character(), 50, null, $token);
+
+        $this->assertTrue($first['success'], $first['message']);
+        $this->assertSame(60, $first['totalGold']); // 20×2 + 5×4
+        $this->assertFalse($second['success']);
+        $this->assertStringContainsString('уже выполнена', $second['message']);
+        $this->assertSame(20, $this->qtyOf(1));
+        $this->assertSame(5, $this->qtyOf(2));
+        $this->assertSame(560.0, $this->goldOf(), 'золото — за одну сделку');
+        $this->assertSame(20, $this->soldInBank(1), 'банк учёл одну сделку');
+    }
+
+    /**
+     * «Всё» (100%) дважды: второе нажатие тоже упирается в отпечаток, а не только в пустой рюкзак.
+     * Если после первой сделки игрок успел добыть ещё — второе нажатие не продаёт новую добычу.
+     */
+    public function testConfirmAllAgainDoesNotSellFreshLoot(): void
+    {
+        $this->seedCharacter(500);
+        $this->seedResource(1, 3, 2.0);
+        $this->giveResource(1, 40);
+
+        $svc   = new ResourceTradeService();
+        $token = $svc->bulkSellPreview($this->character(), 100, null)['token'];
+        $this->assertTrue($svc->bulkSellResources($this->character(), 100, null, $token)['success']);
+
+        $this->giveResource(1, 7); // добыл ещё
+        $again = $svc->bulkSellResources($this->character(), 100, null, $token);
+
+        $this->assertFalse($again['success']);
+        $this->assertSame(7, $this->qtyOf(1));
+        $this->assertSame(580.0, $this->goldOf());
+    }
+
+    /** Запас изменился между превью и подтверждением, доля или редкость другая — отказ, ничего не продано. */
+    public function testConfirmFromAnotherPlanIsRefused(): void
+    {
+        $this->seedCharacter(500);
+        $this->seedResource(1, 3, 2.0);
+        $this->giveResource(1, 40);
+
+        $svc   = new ResourceTradeService();
+        $token = $svc->bulkSellPreview($this->character(), 50, null)['token'];
+
+        $this->assertFalse($svc->bulkSellResources($this->character(), 100, null, $token)['success'], 'отпечаток 50% не подтверждает 100%');
+        $this->assertFalse($svc->bulkSellResources($this->character(), 50, 3, $token)['success'], 'отпечаток «все» не подтверждает редкость');
+
+        $this->giveResource(1, 10); // запас изменился после превью
+        $this->assertFalse($svc->bulkSellResources($this->character(), 50, null, $token)['success']);
+        $this->assertFalse($svc->bulkSellResources($this->character(), 50, null, '')['success'], 'без отпечатка не продаём');
+
+        $this->assertSame(50, (int) Database::connect('tests')->query('SELECT SUM(quantity) AS q FROM character_resources WHERE id_resources = 1')->getRowArray()['q']);
+        $this->assertSame(500.0, $this->goldOf());
+    }
+
+    /**
+     * Оптовая продажа так, как её проводит игрок: превью → кнопка подтверждения с отпечатком.
+     *
+     * @return array{success:bool,message:string,typesSold:int,totalQty:int,totalGold:int,lines:list<array{name:string,qty:int}>}
+     */
+    private function confirmed(int $percent, ?int $rarity): array
+    {
+        $svc = new ResourceTradeService();
+
+        return $svc->bulkSellResources($this->character(), $percent, $rarity, $svc->bulkSellPreview($this->character(), $percent, $rarity)['token']);
     }
 }

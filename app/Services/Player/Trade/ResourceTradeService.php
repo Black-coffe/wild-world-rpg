@@ -531,20 +531,54 @@ final class ResourceTradeService
     }
 
     /**
-     * Предпросмотр оптовой продажи (без мутаций) — для экрана подтверждения.
+     * Отпечаток плана оптовой продажи: доля, редкость и сколько лежало в каждой строке, которую
+     * план продаёт. Чистый.
+     *
+     * hotfix-bulk-confirm-once (2026-10-08): превью отдаёт отпечаток, он едет в кнопку
+     * подтверждения, и сделка идёт, только если запас под блокировкой даёт тот же отпечаток. Раньше
+     * повторное нажатие той же кнопки пересчитывало план от остатка и продавало ещё N% — каждое
+     * нажатие было новой необратимой продажей (50% ×2: лом 40→20→10, золото дважды).
+     *
+     * @param list<array{id:int,charResId:int,quantity:int,sell_price:float,is_tradeable:int,rarity:int,name:string,icon:string}> $rows
+     */
+    public static function bulkConfirmToken(array $rows, int $percent, ?int $rarity): string
+    {
+        $seen = [];
+        foreach ($rows as $row) {
+            $seen[$row['charResId']] = $row['quantity'];
+        }
+
+        // Порядок строк у превью (модель) и у сделки (`FOR UPDATE`) разный — отпечаток от него не зависит.
+        $lines = [];
+        foreach (self::planBulkSale($rows, $percent)['lines'] as $line) {
+            $lines[$line['charResId']] = $line['charResId'] . ':' . ($seen[$line['charResId']] ?? 0);
+        }
+        ksort($lines);
+
+        return substr(sha1($percent . '|' . ($rarity ?? 0) . '|' . implode('|', $lines)), 0, self::BULK_TOKEN_LENGTH);
+    }
+
+    /** Длина отпечатка в кнопке: callback Telegram ≤ 64 байт, самый длинный — 34. */
+    public const BULK_TOKEN_LENGTH = 8;
+
+    /**
+     * Предпросмотр оптовой продажи (без мутаций) — для экрана подтверждения. `token` — отпечаток
+     * плана ({@see self::bulkConfirmToken()}), без него сделку не провести.
      *
      * @param array<string,mixed> $character
-     * @return array{typesCount:int,totalQty:int,totalGold:int}
+     * @return array{typesCount:int,totalQty:int,totalGold:int,token:string}
      */
     public function bulkSellPreview(array $character, int $percent, ?int $rarity = null): array
     {
         $charId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
-        $plan   = self::planBulkSale($this->fetchSellableRows($charId, $rarity), $percent);
+        $rows   = $this->fetchSellableRows($charId, $rarity);
+        $plan   = self::planBulkSale($rows, $percent);
 
         return [
             'typesCount' => $plan['typesCount'],
             'totalQty'   => $plan['totalQty'],
             'totalGold'  => $plan['totalGold'],
+            'token'      => self::bulkConfirmToken($rows, $percent, $rarity),
         ];
     }
 
@@ -552,29 +586,40 @@ final class ResourceTradeService
      * Выполнить оптовую продажу: списать долю каждого ходового ресурса, начислить
      * золото одним обновлением, учесть продажи в банке. Атомарно (transaction).
      *
+     * `$confirmToken` — отпечаток из превью: план пересчитывается под `FOR UPDATE` и исполняется,
+     * только если отпечаток совпал. Второе нажатие той же кнопки (подряд или ждущее блокировку)
+     * видит уже другой запас и получает отказ — ничего не продано.
+     *
      * `lines` (story chat-requests-batch-12) — состав сделки для человекочитаемого
      * `description` в `action_log` ({@see self::describeBulkTrade()}); имена в нём уже
-     * разрешены батчем внутри `fetchSellableRows()`/`planBulkSale()`, второго запроса
-     * ради имён здесь не появляется.
+     * разрешены в той же выборке, второго запроса ради имён здесь не появляется.
      *
      * @param array<string,mixed> $character
      * @return array{success:bool,message:string,typesSold:int,totalQty:int,totalGold:int,lines:list<array{name:string,qty:int}>}
      */
-    public function bulkSellResources(array $character, int $percent, ?int $rarity = null): array
+    public function bulkSellResources(array $character, int $percent, ?int $rarity, string $confirmToken): array
     {
+        $none   = ['typesSold' => 0, 'totalQty' => 0, 'totalGold' => 0, 'lines' => []];
         $charId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
         if ($charId <= 0) {
-            return ['success' => false, 'message' => 'Персонаж не определён.', 'typesSold' => 0, 'totalQty' => 0, 'totalGold' => 0, 'lines' => []];
-        }
-
-        // Пересчитываем план НА МОМЕНТ подтверждения (не доверяем превью — запас мог измениться).
-        $plan = self::planBulkSale($this->fetchSellableRows($charId, $rarity), $percent);
-        if ($plan['lines'] === [] || $plan['totalGold'] <= 0) {
-            return ['success' => false, 'message' => 'Нечего продавать оптом — подходящих ресурсов не осталось.', 'typesSold' => 0, 'totalQty' => 0, 'totalGold' => 0, 'lines' => []];
+            return ['success' => false, 'message' => 'Персонаж не определён.'] + $none;
         }
 
         $db = \Config\Database::connect();
         $db->transStart();
+
+        // План — НА МОМЕНТ подтверждения и под блокировкой строк рюкзака: превью могло устареть,
+        // а параллельное нажатие той же кнопки ждёт здесь, пока первая сделка не закоммитится.
+        $rows = $this->fetchSellableRowsForUpdate($charId, $rarity);
+        $plan = self::planBulkSale($rows, $percent);
+        if ($plan['lines'] === [] || $plan['totalGold'] <= 0) {
+            $db->transRollback();
+            return ['success' => false, 'message' => 'Нечего продавать оптом — подходящих ресурсов не осталось.'] + $none;
+        }
+        if (! hash_equals(self::bulkConfirmToken($rows, $percent, $rarity), $confirmToken)) {
+            $db->transRollback();
+            return ['success' => false, 'message' => 'Эта оптовая продажа уже выполнена или запас изменился — открой оптовую продажу заново.'] + $none;
+        }
 
         // exploit-fix-32 (R3-major) — bumpBankSold пишет через ConditionalWriteService
         // (raw query, не Model::update()): его отказ НЕ переводит transStatus в false
@@ -655,6 +700,43 @@ final class ResourceTradeService
             }
             $rows[] = $normalized;
         }
+        return $rows;
+    }
+
+    /**
+     * Те же строки, что {@see self::fetchSellableRows()}, но под `FOR UPDATE` — только внутри
+     * транзакции сделки (hotfix-bulk-confirm-once). Второй запрос с той же кнопкой ждёт здесь
+     * коммита первого и читает уже новый запас.
+     *
+     * @return list<array{id:int,charResId:int,quantity:int,sell_price:float,is_tradeable:int,rarity:int,name:string,icon:string}>
+     */
+    private function fetchSellableRowsForUpdate(int $characterId, ?int $rarity): array
+    {
+        $db    = \Config\Database::connect();
+        $query = $db->query(
+            'SELECT ' . $db->prefixTable('resources') . '.*, cr.id AS charResId, cr.quantity'
+            . ' FROM ' . $db->prefixTable('resources')
+            . ' JOIN ' . $db->prefixTable('character_resources') . ' cr ON ' . $db->prefixTable('resources') . '.id = cr.id_resources'
+            . ' WHERE cr.id_characters = ? ORDER BY cr.id FOR UPDATE',
+            [$characterId]
+        );
+        if (! is_object($query) || ! method_exists($query, 'getResultArray')) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($query->getResultArray() as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            /** @var array<string,mixed> $row */
+            $normalized = $this->normalizeResourceRow($row);
+            if ($rarity !== null && $normalized['rarity'] !== $rarity) {
+                continue;
+            }
+            $rows[] = $normalized;
+        }
+
         return $rows;
     }
 
