@@ -1,8 +1,8 @@
 ---
 story: w2-n6-trade-storage-03
 spec: w2-n6-trade-storage
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -59,5 +59,33 @@ storage_take|storage_put` дедупятся через `web_play_intents`, бе
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- Перед сборкой в ветку влит `develop` (merge `47190476`): `hotfix-bulk-confirm-once` (v0.51.689) конфликтовал со
+  story 02 в `BulkSellAction`. Отпечаток плана опта теперь идёт через ядро: `bulkPreviewModel()` отдаёт `token`,
+  `bulkSell(…, $confirmToken)` его требует; снимки паритета бота обновлены на кнопки с отпечатком; тест повтора
+  подтверждения через сервис экранов — в `ResourceShopScreenServiceTest`.
+- `WebNativeScreenService`: виды `shop`/`storage`, `shopModel()` (разделы с откатом на уровень выше при чужом
+  ресурсе/редкости/доле), `shopSell()`/`shopBuy()`/`bulkSell()` и `storageModel()`/`storageTake()`/`storagePut()` —
+  дедуп `intent_id` (`:sell|:buy|:bulk_sell|:storage_take|:storage_put`); `SELL_RESOURCE`/`BULK_SELL` пишутся в
+  `action_log` тем же голосом, что у бота (`logDone()`, `chat_id` 0) — их читают «Куда ушло» и шаг онбординга.
+- `viewForCallback()`: кнопки `shop` и `baseStorageList` любого нативного экрана (инвентарь, база) открывают нативный
+  вид — контроллер подменяет `op=bridge` на вид, мост не трогается. Поэтому `native_inventory.php` и `native_base.php`
+  не правились, а `baseStorageList` ушёл из `BRIDGE_ROUTES` и `BASE_BRIDGE_EXACT`. `sellCraft`/`buyCraft` — мост
+  через `shop` с карточки «Я» бота.
+- Количество: пресеты ядра ≤ `max_qty`, «🧺 Всё — N шт» (продажа) и поле «своё число» 1…`max_qty`; `qty` в форме —
+  `\d{1,7}` (`Play::quantity()`, 4 знака крафта малы для сырья). Больше потолка — отказ ядра `over_max`.
+- Новых компонентов нет: экраны собраны из `play-craft-*`, `play-kb-*`, `play-lock`, `play-native-*` — поэтому
+  `wildworld-ui.css`, `meta.php` (`?v=`) и `ui-kit.html` не тронуты.
+- Док: «🛒 Магазин» — последней кнопкой всегда (после фолбэка «Меню»); `assertFormsCarryCsrfAndUniqueIntent` в
+  `PlayViewsTest` пропускает формы навигации на нативный вид (у них нет `intent_id` по замыслу, как у «🧑 Я»).
+- ROADMAP §5: строки W2.N1–N5 с тегами из ship-коммитов (`git log --grep 'shipped v'`); строка W2.N6 — при шипе,
+  с настоящим тегом.
+- Вне `## Files`: `memory/map/website.md` (срез `/play`), ноты vault (`WebNativeScreenService.md`, `Play.md`,
+  `ResourceShopScreenService.md`) — правило tech-writing.
+- Вердикты: guide — нет, совет — нет (механика не меняется, второй клиент; бриф ask 5).
 
 ## Findings
+- Одноразовая подсказка бота при первом открытии склада (`OnboardingHintService::maybeSendFirstStorageHint`) из веба
+  не шлётся: ей нужен `chat_id`. Веб-игрок с Telegram получит её при первом открытии склада в боте; чисто веб-игрок —
+  нет. Кандидат в хвосты (через `WebDelivery`, как `BaseScreenService::open()`).
+- Кнопка «📦 Склад базы» в событиях шага на карте (`MoveService` event `storage`) — сообщение моста и жмётся через
+  `/play/act` (бот), а не нативно: события шага живут на экране моста. Не регресс, отмечено.
