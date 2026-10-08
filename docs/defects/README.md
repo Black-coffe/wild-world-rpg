@@ -98,6 +98,7 @@ the verdict. Check output goes to a log under `${TMPDIR:-/tmp}`. `DEFECTS_DIR` p
 | id | class | status | quotes | check | last quote |
 |---|---|---|---|---|---|
 | [confirm-repeats-irreversible](confirm-repeats-irreversible.md) | Повтор подтверждения необратимого действия исполняет его снова | block | 1 | `php scripts/defects-confirm-once-check.php` | 2026-10-08 |
+| [exploit-fix-leaves-proceeds](exploit-fix-leaves-proceeds.md) | Фикс эксплойта закрывает механизм, но оставляет добытое им пригодным к выводу | text | 1 | — | 2026-10-08 |
 
 **Trust.** `defects-check.sh` runs each card's `check:` as a shell command, and `lead-review` runs the gate on the
 branch under review. A card's `check:` is code of this repository, with the same trust as its tests: review a
