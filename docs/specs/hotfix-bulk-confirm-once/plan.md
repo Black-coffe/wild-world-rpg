@@ -43,3 +43,4 @@ none
 **Council:**
 **Council:** GREEN round 1, 2026-10-08, at 8872c238, pack 47c99024dada
 **Shipped:**
+**Shipped:** v0.51.689, 2026-10-08, at a650b327 - merged to develop; preprod Tier-3 green (release 2026-10-08-110452: D1 подряд 1 продажа, D2 одновременно 1 продажа, D3 старая кнопка 0); tag v0.51.689 pushed, prod deploy running

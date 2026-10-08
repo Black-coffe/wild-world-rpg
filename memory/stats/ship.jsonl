@@ -23,3 +23,4 @@
 {"ts":"2026-09-30T21:36:03Z","spec":"w2-n5-deeds","version":"v0.51.687","head":"50ece5a3","pack":"2ca5abd4b506","note":"merged to develop, publish pending"}
 {"ts":"2026-10-05T18:57:59Z","spec":"craft-batch-price-confirm","version":"v0.51.687","head":"ae7708e3","pack":"687cc060b781","note":"merged to develop (ae7708e3), preprod smoke green (bot webhook + /play 1440/768/375), prod tag v0.51.687 pushed together with w2-n5-deeds and VULYK 0.25.0 by owner's choice"}
 {"ts":"2026-10-08T08:01:06Z","spec":"hotfix-trade-race","version":"v0.51.688","head":"82a264e6","pack":"89bc8cc97220","note":"тег на develop, прод wildworld.fun"}
+{"ts":"2026-10-08T11:06:36Z","spec":"hotfix-bulk-confirm-once","version":"v0.51.689","head":"a650b327","pack":"47c99024dada","note":"merged to develop; preprod Tier-3 green (release 2026-10-08-110452: D1 подряд 1 продажа, D2 одновременно 1 продажа, D3 старая кнопка 0); tag v0.51.689 pushed, prod deploy running"}
