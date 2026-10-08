@@ -73,7 +73,7 @@ the command or script that owns it, and scripts/ship-check.sh reads them all.
 -->
 **Approved:**
 **Briefed:** via grill, Andrei, 2026-10-08
-**Branch:**
+**Branch:** vulyk/w2-n7-combat
 **Checked:**
 **Council:**
 **Shipped:**
