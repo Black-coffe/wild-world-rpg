@@ -43,3 +43,4 @@ none
 **Council:** GREEN round 2, 2026-10-08, at f6664a9e, pack eea95b1024d3
 **Shipped:**
 **Briefed:** via mini-brief, Andrei, 2026-10-08
+**Shipped:** v0.51.691, 2026-10-08, at b850d052 - тег v0.51.691 на develop, прод wildworld.fun; фаза 1 отката применена, фаза 2 — кругов нет
