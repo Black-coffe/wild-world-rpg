@@ -8,6 +8,7 @@ use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\ResourcesBankModel;
+use App\Services\Db\ConditionalWriteService;
 use App\Services\Db\WriteOutcome;
 
 /**
@@ -148,35 +149,56 @@ final class ResourceTradeService
 
         $saleAmount = $this->totalFor($sellQuantity, $this->unitPrice($resource, true));
 
-        // Fix 2026-07-13 (класс lost-update): атомарное относительное начисление
-        // от СВЕЖЕГО золота (increaseGold → CharacterStatsService).
-        // Зеркальный близнец (2026-07-27): результат начисления тоже проверяется ДО
-        // списания ресурса. increaseGold возвращает false, когда персонажа не нашли —
-        // раньше в этом случае ресурс всё равно исчезал из инвентаря, а золото не
-        // приходило (потеря ценности в другую сторону).
         $sellerIdRaw = $character['id'] ?? null;
         $sellerId    = is_numeric($sellerIdRaw) ? (int) $sellerIdRaw : 0;
+        $charResId   = is_numeric($charRes['id'] ?? null) ? (int) $charRes['id'] : 0;
 
-        if (! $this->characterModel->increaseGold($sellerId, $saleAmount)) {
-            return [
-                'success' => false,
-                'message' => 'Не удалось начислить золото — продажа отменена, ресурс остался у вас.',
-            ];
-        }
+        // hotfix-trade-race (2026-10-08): списание ресурса — ПЕРВЫМ и условной записью
+        // (`quantity >= N`), начисление золота и банк — только после него, одной транзакцией.
+        // Раньше золото начислялось от количества, прочитанного до записи, а остаток писался
+        // посчитанным числом: два одновременных тапа (бот + веб, двойной тап) читали одно и то
+        // же и оба получали выручку — PoC двумя процессами давал ×2 золота в 5 прогонах из 5.
+        // Проигравший гонку получает Refused/Missing → отказ, ничего не начислено.
+        // Транзакция — явные transBegin/Commit/Rollback, как у buyResource ниже (липкий
+        // transStatus, memory `feedback_transcomplete_false_success_when_strict_off`).
+        $db       = \Config\Database::connect();
+        $topLevel = ($db->transDepth === 0);
+        $fail     = static function (string $message) use ($db, $topLevel): array {
+            if ($db->transDepth > 0) {
+                $db->transRollback();
+            }
+            if ($topLevel) {
+                $db->resetTransStatus();
+            }
 
-        $newQuantity = $charRes['quantity'] - $sellQuantity;
-        if ($newQuantity > 0) {
-            $this->characterResourceModel->update($charRes['id'], ['quantity' => $newQuantity]);
-        } else {
-            $this->characterResourceModel->delete($charRes['id']);
-        }
+            return ['success' => false, 'message' => $message];
+        };
 
-        $bankOutcome = $this->createOrBumpBank($resourceId, $sellQuantity);
-        if ($bankOutcome !== WriteOutcome::Applied) {
-            return [
-                'success' => false,
-                'message' => 'Не удалось учесть продажу в банке ресурсов — обратитесь к администрации.',
-            ];
+        $db->transBegin();
+        try {
+            $debit = (new ConditionalWriteService($db))
+                ->decrementIfAtLeast('character_resources', $charResId, 'quantity', $sellQuantity, true);
+            if ($debit !== WriteOutcome::Applied) {
+                return $fail('Этот ресурс уже продан или потрачен — открой продажу заново.');
+            }
+
+            // Начисление от СВЕЖЕГО золота (increaseGold → CharacterStatsService, fix 2026-07-13);
+            // отказ (персонаж не найден) откатывает и списание — ресурс остаётся у игрока.
+            if (! $this->characterModel->increaseGold($sellerId, $saleAmount)) {
+                return $fail('Не удалось начислить золото — продажа отменена, ресурс остался у вас.');
+            }
+
+            if ($this->createOrBumpBank($resourceId, $sellQuantity) !== WriteOutcome::Applied) {
+                return $fail('Не удалось учесть продажу в банке ресурсов — обратитесь к администрации.');
+            }
+
+            if ($db->transStatus() === false || $db->transCommit() === false) {
+                return $fail('Не удалось провести продажу — попробуйте ещё раз.');
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'ResourceTradeService::sellResource: ' . $e->getMessage());
+
+            return $fail('Не удалось провести продажу — попробуйте ещё раз.');
         }
 
         $message = "Продажа ресурса *'{$resource['name']}'* в количестве *{$sellQuantity}* успешно выполнена.\n"
@@ -560,13 +582,33 @@ final class ResourceTradeService
         // ConditionalWriteService докблок exploit-fix-18). Держим худший исход строк
         // явно и валим транзакцию, если хоть один бамп не Applied — иначе сделка
         // тихо рапортовала бы успех при потерянном счётчике банка.
-        $bankFailed = false;
+        //
+        // hotfix-trade-race (2026-10-08): списание каждой строки — условной записью
+        // (`quantity >= qty`, строка в 0 удаляется). Раньше `decreaseQtyById` писал
+        // посчитанный от снимка остаток: две одновременные оптовые продажи списывали
+        // одно и то же, а золото начисляли обе (PoC двумя процессами: ×2 выручки).
+        // Хоть одна строка не списалась — откат всей сделки, золото не начислено.
+        $bankFailed  = false;
+        $debitFailed = false;
+        $writer      = new ConditionalWriteService($db);
         foreach ($plan['lines'] as $line) {
-            $this->characterResourceModel->decreaseQtyById($line['charResId'], $line['qty']);
+            if ($line['qty'] <= 0) {
+                continue;
+            }
+            if ($writer->decrementIfAtLeast('character_resources', $line['charResId'], 'quantity', $line['qty'], true) !== WriteOutcome::Applied) {
+                $debitFailed = true;
+                break;
+            }
             if ($this->bumpBankSold($line['id'], $line['qty']) !== WriteOutcome::Applied) {
                 $bankFailed = true;
             }
         }
+
+        if ($debitFailed) {
+            $db->transRollback();
+            return ['success' => false, 'message' => 'Часть ресурсов уже продана или потрачена — открой оптовую продажу заново.', 'typesSold' => 0, 'totalQty' => 0, 'totalGold' => 0, 'lines' => []];
+        }
+
         $this->characterModel->increaseGold($charId, (float) $plan['totalGold']);
 
         if ($bankFailed) {

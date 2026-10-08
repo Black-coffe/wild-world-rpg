@@ -98,11 +98,11 @@ final class BaseStorageDepositTest extends CIUnitTestCase
         );
 
         // Блок retrieveOne(): экран-подтверждение «ресурс забран» — до
-        // следующего метода resourceName().
+        // следующего метода formatRetrieveMessage().
         $retrieveOneStart = strpos($src, 'private function retrieveOne(');
-        $resourceNameStart = strpos($src, 'private function resourceName(');
+        $resourceNameStart = strpos($src, 'private function formatRetrieveMessage(');
         $this->assertNotFalse($retrieveOneStart, 'Не нашёл retrieveOne() — правь тест под актуальную структуру файла.');
-        $this->assertNotFalse($resourceNameStart, 'Не нашёл resourceName() — правь тест под актуальную структуру файла.');
+        $this->assertNotFalse($resourceNameStart, 'Не нашёл formatRetrieveMessage() — правь тест под актуальную структуру файла.');
         $retrieveOneBody = substr($src, $retrieveOneStart, $resourceNameStart - $retrieveOneStart);
 
         $this->assertSame(

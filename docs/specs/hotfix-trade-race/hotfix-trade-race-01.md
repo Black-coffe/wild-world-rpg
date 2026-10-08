@@ -1,8 +1,8 @@
 ---
 story: hotfix-trade-race-01
 spec: hotfix-trade-race
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 1
 worker: worker-code
 model: sonnet
@@ -49,5 +49,12 @@ blocked_by: []
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- Склад: файлы ядра и тестов взяты из `6f6f4414` (w2-n6-trade-storage-01) как есть — `git checkout 6f6f4414 -- <файлы>`, без бумаг спеки W2.N6.
+- `ResourceTradeService::sellResource()`: `transBegin` → `ConditionalWriteService::decrementIfAtLeast(..., deleteWhenEmpty: true)` → `increaseGold` → банк → `transCommit`; любой отказ — откат и `success:false`. Новый текст отказа проигравшего: «Этот ресурс уже продан или потрачен — открой продажу заново.»
+- `bulkSellResources()`: `decreaseQtyById` заменён условным списанием; отказ строки — откат всей сделки, «Часть ресурсов уже продана или потрачена — открой оптовую продажу заново.»
+- Тесты: два stale-snapshot теста падают на старом сервисе и проходят на новом; `testSellAllRemovesTheEmptyRow`.
+- PoC двумя процессами (scratchpad, не в репо): прод-код — склад 3000→6000, продажа 100 000→200 000, опт 30 000→60 000; исправленный — 3000 / 100 000 / 30 000, проигравший получает отказ.
+- `phpstan-baseline.neon`: счётчики `offset 'id'` 2→1 и `offset 'quantity'` 3→2 у `ResourceTradeService.php` (обращения ушли).
+- Вердикты: /guide — нет, совет — нет (невидимое исправление).
 
 ## Findings

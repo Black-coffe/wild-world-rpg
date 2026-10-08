@@ -198,4 +198,52 @@ final class ResourceTradeGoldRaceTest extends CIUnitTestCase
         $this->assertSame(9, $this->ownedQty(5));
         $this->assertSame(112.0, $this->goldOf(5), '3 × sell_price 4 = 12💰 сверху');
     }
+
+    /**
+     * hotfix-trade-race — проигравший гонку не получает выручку. Снимок строки прочитан ДО чужой
+     * продажи (двойник `first()` отдаёт 12 шт.), а в БД уже 4: условное списание 12 отказывает,
+     * золото не начислено, остаток не тронут. Раньше начисление шло от снимка, а остаток
+     * перезаписывался посчитанным числом — два одновременных тапа давали ×2 выручки.
+     */
+    public function testSellFromStaleSnapshotIsRefusedAndPaysNothing(): void
+    {
+        $this->seedCharacter(6, 100.0);
+        $db = Database::connect('tests');
+        $db->table('character_resources')->insert(['id_characters' => 6, 'id_resources' => self::RESOURCE_ID, 'quantity' => 4]);
+        $rowId = (int) $db->insertID();
+
+        $stale = new class ($rowId) extends \App\Models\CharacterResourceModel {
+            public function __construct(private readonly int $staleId)
+            {
+                parent::__construct();
+            }
+
+            public function first()
+            {
+                return ['id' => $this->staleId, 'id_characters' => 6, 'id_resources' => 1, 'quantity' => 12];
+            }
+        };
+        $svc  = new ResourceTradeService();
+        $prop = new \ReflectionProperty(ResourceTradeService::class, 'characterResourceModel');
+        $prop->setValue($svc, $stale);
+
+        $result = $svc->sellResource(['id' => 6, 'gold' => 100], self::RESOURCE_ID, 'all');
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(100.0, $this->goldOf(6), 'золото за уже проданное не начисляется');
+        $this->assertSame(4, $this->ownedQty(6), 'остаток не перезаписан снимком');
+    }
+
+    /** Продажа всего остатка удаляет строку инвентаря (экраны считают строки). */
+    public function testSellAllRemovesTheEmptyRow(): void
+    {
+        $this->seedCharacter(7, 0.0);
+        Database::connect('tests')->table('character_resources')->insert(['id_characters' => 7, 'id_resources' => self::RESOURCE_ID, 'quantity' => 5]);
+
+        $result = (new ResourceTradeService())->sellResource(['id' => 7, 'gold' => 0], self::RESOURCE_ID, 'all');
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertSame(0, Database::connect('tests')->table('character_resources')->where('id_characters', 7)->countAllResults());
+        $this->assertSame(20.0, $this->goldOf(7));
+    }
 }

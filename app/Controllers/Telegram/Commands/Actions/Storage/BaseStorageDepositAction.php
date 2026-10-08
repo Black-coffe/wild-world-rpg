@@ -6,10 +6,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Storage;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Helpers\ResourceIconHelper;
-use App\Models\BaseStorageModel;
-use App\Models\CharacterResourceModel;
-use App\Services\Bases\BaseCheckService;
-use App\Services\Db\WriteOutcome;
+use App\Services\Bases\BaseStorageService;
 use App\Services\Telegram\ButtonPacker;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -36,6 +33,9 @@ use App\Services\Telegram\Request;
  * UX-Discoverability), а объясняет причину и даёт две живые двери: вернуться на
  * базу или отправить карго-дрон, который работает с любой клетки.
  *
+ * W2.N6 (ADR-190) — handler только рендерер: гейт, список рюкзака и сдача живут в
+ * {@see BaseStorageService} (тот же сервис у веба `/play?view=storage`).
+ *
  * Media-off safe: чистый текст, весь смысл в тексте. Markdown — только парные `*`.
  */
 final class BaseStorageDepositAction extends BaseAction
@@ -43,15 +43,12 @@ final class BaseStorageDepositAction extends BaseAction
     /** Сколько ресурсов показываем кнопками (у ветеранов видов бывает много). */
     private const MAX_BUTTONS = 18;
 
-    private BaseStorageModel $storageModel;
-    /** @var CharacterResourceModel */
-    protected $resourceModel;
+    private BaseStorageService $storage;
 
     public function __construct(\Longman\TelegramBot\Entities\CallbackQuery $callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->storageModel  = new BaseStorageModel();
-        $this->resourceModel = new CharacterResourceModel();
+        $this->storage = new BaseStorageService();
     }
 
     public function handle(): ServerResponse
@@ -70,7 +67,8 @@ final class BaseStorageDepositAction extends BaseAction
             return $this->errReply($chatId, 'Невозможно определить персонажа.');
         }
 
-        if (! $this->isOnBase($characterId)) {
+        // Экранный гейт (список тоже только на базе); мутации сервис проверяет сам.
+        if (! $this->storage->isOnBase($characterId)) {
             return $this->offBaseScreen($chatId);
         }
 
@@ -93,7 +91,7 @@ final class BaseStorageDepositAction extends BaseAction
      */
     private function renderList(int $chatId, int $characterId): ServerResponse
     {
-        $rows = $this->carriedResources($characterId);
+        $rows = $this->storage->carriedResources($characterId);
 
         if ($rows === []) {
             return Request::sendMessage([
@@ -156,42 +154,24 @@ final class BaseStorageDepositAction extends BaseAction
      */
     private function depositOne(int $chatId, int $characterId, int $resourceId): ServerResponse
     {
-        if ($resourceId <= 0) {
-            return $this->errReply($chatId, 'Неверный ресурс.');
-        }
+        $result = $this->storage->depositOne($characterId, $resourceId, $this->currentCell(), $chatId);
 
-        $row = null;
-        foreach ($this->carriedResources($characterId) as $r) {
-            if ($r['resource_id'] === $resourceId) {
-                $row = $r;
+        switch ($result['code']) {
+            case BaseStorageService::OK:
                 break;
-            }
+            case BaseStorageService::OFF_BASE:
+                return $this->offBaseScreen($chatId);
+            case BaseStorageService::BAD_RESOURCE:
+                return $this->errReply($chatId, 'Неверный ресурс.');
+            case BaseStorageService::NOT_CARRIED:
+                return $this->errReply($chatId, 'Такого ресурса в рюкзаке нет.');
+            case BaseStorageService::MISSING:
+                return $this->errReply($chatId, 'Этого ресурса в рюкзаке уже нет.');
+            default:
+                return $this->errReply($chatId, 'В рюкзаке столько не набралось — кто-то успел его потратить. Попробуй ещё раз.');
         }
 
-        if ($row === null) {
-            return $this->errReply($chatId, 'Такого ресурса в рюкзаке нет.');
-        }
-
-        $fromCell = $this->currentCell();
-
-        $db = \Config\Database::connect();
-        $db->transStart();
-        $outcome = $this->resourceModel->decrementIfAtLeast($characterId, $resourceId, $row['quantity']);
-        if ($outcome === WriteOutcome::Applied) {
-            $this->storageModel->deliver($characterId, $resourceId, $row['quantity'], $fromCell);
-        }
-        // exploit-fix-23 — исход читаем по возврату transComplete(): откат вне
-        // ветки WriteOutcome не должен вести в ветку «убрано на склад».
-        $committed = $db->transComplete();
-
-        if ($outcome !== WriteOutcome::Applied || !$committed) {
-            return $this->errReply($chatId, $outcome === WriteOutcome::Missing
-                ? 'Этого ресурса в рюкзаке уже нет.'
-                : 'В рюкзаке столько не набралось — кто-то успел его потратить. Попробуй ещё раз.');
-        }
-
-        $this->logActivity($characterId, 'BASE_STORAGE_DEPOSIT', "res={$row['name']} qty={$row['quantity']}");
-
+        $row   = ['name' => $result['name'], 'quantity' => $result['quantity']];
         $emoji = ResourceIconHelper::for($row['name']);
         $qty   = number_format($row['quantity'], 0, '.', ' ');
 
@@ -221,44 +201,26 @@ final class BaseStorageDepositAction extends BaseAction
      */
     private function depositAll(int $chatId, int $characterId): ServerResponse
     {
-        $rows = $this->carriedResources($characterId);
-        if ($rows === []) {
+        $result = $this->storage->depositAll($characterId, $this->currentCell(), $chatId);
+
+        if ($result['code'] === BaseStorageService::OFF_BASE) {
+            return $this->offBaseScreen($chatId);
+        }
+        if ($result['code'] === BaseStorageService::EMPTY) {
             return Request::sendMessage([
                 'chat_id'    => $chatId,
                 'text'       => '🎒 В рюкзаке пусто — складывать нечего.',
                 'parse_mode' => 'Markdown',
             ]);
         }
-
-        $fromCell = $this->currentCell();
-
-        $db = \Config\Database::connect();
-        $db->transStart();
-
-        $totalUnits = 0;
-        $kinds      = 0;
-        $skipped    = 0;
-        foreach ($rows as $r) {
-            $outcome = $this->resourceModel->decrementIfAtLeast($characterId, $r['resource_id'], $r['quantity']);
-            if ($outcome !== WriteOutcome::Applied) {
-                $skipped++;
-                continue;
-            }
-            $this->storageModel->deliver($characterId, $r['resource_id'], $r['quantity'], $fromCell);
-            $totalUnits += $r['quantity'];
-            $kinds++;
-        }
-
-        // exploit-fix-23 — исход читаем по возврату transComplete(): откат не должен
-        // вести в ветку «убрано на склад», а лог активности пишем только на успех, не
-        // до проверки отказа.
-        $committed = $db->transComplete();
-
-        if ($kinds === 0 || !$committed) {
+        // Откат и «всё утекло» сервис сводит в не-OK (exploit-fix-23: исход по transComplete()).
+        if ($result['code'] !== BaseStorageService::OK) {
             return $this->errReply($chatId, 'В рюкзаке уже ничего не осталось — кто-то успел его потратить. Попробуй ещё раз.');
         }
 
-        $this->logActivity($characterId, 'BASE_STORAGE_DEPOSIT_ALL', "kinds={$kinds} units={$totalUnits} skipped={$skipped}");
+        $totalUnits = $result['units'];
+        $kinds      = $result['kinds'];
+        $skipped    = $result['skipped'];
 
         $text  = "📥 *Убрано на склад: " . number_format($totalUnits, 0, '.', ' ') . " шт.*\n\n";
         $text .= "Видов ресурсов: *{$kinds}*. Рюкзак пуст, всё лежит на складе базы — забрать можно там же.";
@@ -306,43 +268,6 @@ final class BaseStorageDepositAction extends BaseAction
     }
 
     /**
-     * Добытые ресурсы в рюкзаке (`character_resources`), от большего к меньшему.
-     *
-     * @return list<array{resource_id:int, name:string, quantity:int}>
-     */
-    private function carriedResources(int $characterId): array
-    {
-        $db = \Config\Database::connect();
-        $q  = $db->query(
-            'SELECT cr.id_resources AS resource_id, cr.quantity, r.name
-             FROM character_resources cr
-             INNER JOIN resources r ON r.id = cr.id_resources
-             WHERE cr.id_characters = ? AND cr.quantity > 0
-             ORDER BY cr.quantity DESC',
-            [$characterId]
-        );
-        if (! is_object($q) || ! method_exists($q, 'getResultArray')) {
-            return [];
-        }
-
-        $out = [];
-        foreach ($q->getResultArray() as $r) {
-            if (! is_array($r)) {
-                continue;
-            }
-            $resId = is_numeric($r['resource_id'] ?? null) ? (int) $r['resource_id'] : 0;
-            $qty   = is_numeric($r['quantity'] ?? null) ? (int) $r['quantity'] : 0;
-            $name  = is_string($r['name'] ?? null) ? $r['name'] : '';
-            if ($resId <= 0 || $qty <= 0 || $name === '') {
-                continue;
-            }
-            $out[] = ['resource_id' => $resId, 'name' => $name, 'quantity' => $qty];
-        }
-
-        return $out;
-    }
-
-    /**
      * Клетка, с которой пришла партия — ярлык происхождения в `base_storage`
      * (`arrived_from_cell`), тот же смысл, что у карго-дрона.
      */
@@ -353,16 +278,6 @@ final class BaseStorageDepositAction extends BaseAction
             return null;
         }
         return is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : null;
-    }
-
-    /**
-     * На своей ли базе игрок. Тот же канонический критерий, что у выдачи со склада
-     * и у дронов (`claimed_cells.map_cell_id == cell_number`).
-     */
-    private function isOnBase(int $characterId): bool
-    {
-        $status = (new BaseCheckService())->checkBaseStatus($characterId);
-        return ! empty($status['isOnBase']);
     }
 
     private function errReply(int $chatId, string $msg): ServerResponse

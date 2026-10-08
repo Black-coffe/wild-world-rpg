@@ -8,6 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\Storage\BaseStorageListAction;
 use App\Helpers\ResourceIconHelper;
 use App\Models\BaseStorageModel;
 use App\Models\CharacterResourceModel;
+use App\Services\Bases\BaseStorageService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\CallbackRoutes;
@@ -30,6 +31,10 @@ use ReflectionClass;
  *  3. «…и ещё N видов» считало по одному списку (срез до MAX_BUTTONS), а
  *     кнопки строились из другого (тот же срез, но отфильтрованный) — число
  *     расходилось с фактическим числом кнопок.
+ *
+ * W2.N6: забор переехал в ядро `BaseStorageService` — дефект 1 (исход транзакции, откат,
+ * «ничего не осталось») теперь держит `tests/database/BaseStorageServiceTest.php`
+ * (`withdrawOne`), а этот файл — рендер бота (дефекты 2 и 3, отказ «не на базе»).
  *
  * `retrieveOne()` вызывает Telegram (`Request::sendMessage`) — реальный
  * сетевой вызов в юнит-тесте недопустим (см. остальные Action-тесты в
@@ -111,13 +116,9 @@ final class BaseStorageRetrieveTest extends CIUnitTestCase
         /** @var BaseStorageListAction $instance */
         $instance = $ref->newInstanceWithoutConstructor();
 
-        $storageProp = $ref->getProperty('storageModel');
+        $storageProp = $ref->getProperty('storage');
         $storageProp->setAccessible(true);
-        $storageProp->setValue($instance, new BaseStorageModel());
-
-        $resourceProp = $ref->getProperty('resourceModel');
-        $resourceProp->setAccessible(true);
-        $resourceProp->setValue($instance, $resourceModel ?? new CharacterResourceModel());
+        $storageProp->setValue($instance, new BaseStorageService(new BaseStorageModel(), $resourceModel ?? new CharacterResourceModel()));
 
         return $instance;
     }
@@ -152,58 +153,6 @@ final class BaseStorageRetrieveTest extends CIUnitTestCase
                 "callback_data '{$callbackData}' не резолвится в экран склада — кнопка будет мёртвой."
             );
         }
-    }
-
-    // ── Дефект 1: исход транзакции ──────────────────────────────────────────
-
-    public function testPerformRetrieveOneMovesResourceFromStorageToBackpack(): void
-    {
-        $this->seedResource(1, 'Вода');
-        $this->seedStorage(7, 1, 50);
-
-        $outcome = $this->callPrivate($this->action(), 'performRetrieveOne', [7, 1]);
-
-        $this->assertNotNull($outcome, 'успешная транзакция не должна отдавать null');
-        $this->assertSame(50, $outcome['withdrawn']);
-        $this->assertSame(0, $this->storageQty(7, 1), 'ресурс должен физически уйти со склада');
-        $this->assertSame(50, $this->backpackQty(7, 1), 'и физически появиться в рюкзаке');
-    }
-
-    /**
-     * Сердце дефекта 1. Раньше `$withdrawn` (посчитанный ДО завершения транзакции)
-     * использовался как есть — сорвавшаяся `increaseResources()` не мешала коду
-     * доложить об успехе. Двойник `resourceModel`, бросающий исключение внутри
-     * транзакции, доказывает: результат обязан быть `null`, а СКЛАД — физически
-     * НЕ тронут (реальный откат в SQLite, не флаг в памяти PHP).
-     */
-    public function testPerformRetrieveOneRollsBackAndReturnsNullWhenCreditingBackpackFails(): void
-    {
-        $this->seedResource(1, 'Вода');
-        $this->seedStorage(7, 1, 50);
-
-        $failingResourceModel = new class () extends CharacterResourceModel {
-            public function increaseResources($characterId, $resourceId, $amount)
-            {
-                throw new \RuntimeException('симулированный сбой зачисления в рюкзак');
-            }
-        };
-
-        $outcome = $this->callPrivate($this->action($failingResourceModel), 'performRetrieveOne', [7, 1]);
-
-        $this->assertNull($outcome, 'сорвавшаяся транзакция обязана вернуть null, а не "успех"');
-        $this->assertSame(50, $this->storageQty(7, 1), 'откат обязан вернуть ресурс на склад физически');
-        $this->assertSame(0, $this->backpackQty(7, 1), 'рюкзак не должен получить ничего при откате');
-    }
-
-    public function testPerformRetrieveOneReturnsZeroWhenNothingLeftOnStorage(): void
-    {
-        $this->seedResource(1, 'Вода');
-        // на складе ничего нет для этого ресурса
-
-        $outcome = $this->callPrivate($this->action(), 'performRetrieveOne', [7, 1]);
-
-        $this->assertNotNull($outcome);
-        $this->assertSame(0, $outcome['withdrawn']);
     }
 
     // ── Дефект 2: экранирование имени ───────────────────────────────────────
