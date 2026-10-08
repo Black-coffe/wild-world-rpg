@@ -80,4 +80,5 @@ the command or script that owns it, and scripts/ship-check.sh reads them all.
 **Checked:**
 **Council:**
 **Council:** RED round 1, 2026-10-08, at 52566e81, pack 221d7e59a50c
+**Council:** GREEN round 2, 2026-10-08, at 79950d69, pack 09c6c983d5ec
 **Shipped:**
