@@ -511,12 +511,14 @@ class AttackPlayerAction extends BaseAction
         // обычный вход в Поход. Защитник раньше получал сообщение БЕЗ кнопок (тупик).
         $attackerId = is_numeric($attacker['id'] ?? null) ? (int) $attacker['id'] : 0;
         $defenderId = is_numeric($defender['id'] ?? null) ? (int) $defender['id'] : 0;
+        // w2-n7-combat-01: «📜 Разбор боя» под итогом у обоих — id записанного лога.
+        $journalId = is_numeric($battleId) ? (int) $battleId : 0;
 
         Request::sendMessage([
             'chat_id'                  => $this->callbackQuery->getMessage()->getChat()->getId(),
             'text'                     => $attackerFinalText,
             'parse_mode'               => 'HTML',
-            'reply_markup'             => json_encode($this->postBattleKeyboard($attackerId)),
+            'reply_markup'             => json_encode($this->postBattleKeyboard($attackerId, $journalId)),
             'disable_web_page_preview' => true,
         ]);
 
@@ -527,7 +529,7 @@ class AttackPlayerAction extends BaseAction
                     'chat_id'                  => $defUser['telegram_id'],
                     'text'                     => $defenderFinalText,
                     'parse_mode'               => 'HTML',
-                    'reply_markup'             => json_encode($this->postBattleKeyboard($defenderId)),
+                    'reply_markup'             => json_encode($this->postBattleKeyboard($defenderId, $journalId)),
                     'disable_web_page_preview' => true,
                 ]);
             }
@@ -1022,22 +1024,25 @@ class AttackPlayerAction extends BaseAction
      * (march_resume) вместо нового похода. Иначе обычный вход в Поход. Чистая
      * presentation — без RNG (fixture-fence не затрагивается).
      *
+     * w2-n7-combat-01: при известном id лога третьей кнопкой — «📜 Разбор боя» (карточка журнала).
+     *
      * @return array{inline_keyboard: array<int, array<int, array<string,string>>>}
      */
-    private function postBattleKeyboard(int $characterId): array
+    private function postBattleKeyboard(int $characterId, int $battleId = 0): array
     {
         $marchBtn = $this->hasPausedMarch($characterId)
             ? ['text' => '▶️ Продолжить поход', 'callback_data' => 'march_resume']
             : ['text' => '🗺️ Поход',            'callback_data' => 'march'];
 
-        return [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    $marchBtn,
-                ],
-            ],
+        $row = [
+            ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+            $marchBtn,
         ];
+        if ($battleId > 0) {
+            $row[] = ['text' => '📜 Разбор боя', 'callback_data' => 'battleLog_' . $battleId];
+        }
+
+        return ['inline_keyboard' => [$row]];
     }
 
     /**

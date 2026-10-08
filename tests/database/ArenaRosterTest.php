@@ -2,15 +2,14 @@
 
 namespace Tests\Database;
 
-use App\Controllers\Telegram\Commands\Actions\PVP\ArenaAction;
+use App\Services\PVE\ArenaScreenService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
-use ReflectionClass;
-use ReflectionMethod;
 
 /**
  * E25 (ADR-124) — ростер «🏟 Арены»: список бойцов, открытых к дуэлям.
+ * w2-n7-combat-02: ростер живёт в ядре `ArenaScreenService::roster()` (бот и веб рисуют из него).
  *
  * Проверяет, что roster():
  *  - возвращает только `duels_open=1` (закрытые исключены);
@@ -73,15 +72,10 @@ final class ArenaRosterTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    /** @return array<int, array<string,mixed>> */
+    /** @return list<array{id: int, name: string, level: int, pts: int}> */
     private function roster(int $selfId): array
     {
-        $action = (new ReflectionClass(ArenaAction::class))->newInstanceWithoutConstructor();
-        $m = new ReflectionMethod(ArenaAction::class, 'roster');
-        $m->setAccessible(true);
-        /** @var array<int, array<string,mixed>> $r */
-        $r = $m->invoke($action, $selfId);
-        return $r;
+        return (new ArenaScreenService())->roster($selfId);
     }
 
     private static function num(mixed $v): int

@@ -4,7 +4,8 @@
  * экранов (`site/_play/native_*`). Кнопка, у которой есть нативный экран («🧑 Я», с W2.N2 —
  * «🌍 Мир»/«Карта» → сетка карты, с W2.N3 — «🔨 Крафт» → верстаки и очередь, с W2.N5 — «📋 Дела» → хаб, квесты и
  * события), идёт в POST `/play/view`; с W2.N6 в доке всегда есть «🛒 Магазин» (в боте он на карточке «Я») — нативный
- * экран торговли сырьём. Остальные кнопки — прежним текстом в POST
+ * экран торговли сырьём; с W2.N7 — «⚔️ Бои» (журнал моих боёв, арена, рейтинг PvP; в боте журнал — в «⚙️ Ещё», на арене
+ * и в рейтинге). Остальные кнопки — прежним текстом в POST
  * `/play/act` (мост). Каждая форма несёт CSRF и свой `intent_id`; без JS — PRG.
  *
  * @var list<list<string>>|mixed $dock
@@ -33,4 +34,5 @@ $count   = 0;
         <form action="<?= esc($actUrl, 'attr') ?>" method="post"><?= csrf_field() ?><input type="hidden" name="intent_id" value="<?= bin2hex(random_bytes(16)) ?>"><input type="hidden" name="kind" value="command"><input type="hidden" name="data" value="/menu"><button class="play-dock-btn" type="submit">Меню</button></form>
     <?php endif ?>
     <form action="<?= esc($viewUrl, 'attr') ?>" method="post"><?= csrf_field() ?><input type="hidden" name="view" value="<?= esc(WebNativeScreenService::VIEW_SHOP, 'attr') ?>"><button class="play-dock-btn" type="submit">🛒 Магазин</button></form>
+    <form action="<?= esc($viewUrl, 'attr') ?>" method="post"><?= csrf_field() ?><input type="hidden" name="view" value="<?= esc(WebNativeScreenService::VIEW_BATTLES, 'attr') ?>"><button class="play-dock-btn" type="submit">⚔️ Бои</button></form>
 </nav>

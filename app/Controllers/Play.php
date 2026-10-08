@@ -68,6 +68,12 @@ use InvalidArgumentException;
  * потолка карточки — отказ, ничего не списано. `view=storage` + `mode` — «📦 Склад базы»; `op=storage_take|storage_put`
  * (+ `id` вида, без него — всё) + `intent_id`. Повтор `intent_id` ничего не делает. Кнопка `op=bridge` с
  * `shop`/`baseStorageList` открывает эти экраны нативно, мимо моста.
+ *
+ * w2-n7-combat-03: `view=battles` — «📜 Мои бои», `view=battle` + `id` — карточка своего боя (чужой — отказ без имён),
+ * `view=arena` (+ `duel` — итог последней дуэли) и `view=ladder` (+ `f` — вкладка фракции); `op=duel` + `id` соперника и
+ * `op=duels_open` + `open=1|0` (+ `intent_id`) — вызов и тумблер тем же ядром, что у бота; повтор `intent_id` ничего не
+ * делает. Без JS — PRG на `/play?view=…`. Колбэки бота `battles`, `battleLog_<id>`, `arena`, `pvpLadder…` открывают эти
+ * экраны нативно и с нативных экранов (`op=bridge`), и из входящих и экрана моста (`POST /play/act`).
  */
 class Play extends BaseController
 {
@@ -120,7 +126,7 @@ class Play extends BaseController
                     $preview = $this->native()->marchPreview($characterId, $wanted['dir'], $wanted['n']);
                     $preview = $preview['ok'] ? $preview : null;
                 }
-                $native = $this->native()->render($characterId, $view, $result['state'], $alert, self::eventList($events), $preview, self::craftNav($this->request->getGet(...)), self::baseNav($this->request->getGet(...)), self::tasksNav($this->request->getGet(...)), self::shopNav($this->request->getGet(...)), self::storageNav($this->request->getGet(...)));
+                $native = $this->native()->render($characterId, $view, $result['state'], $alert, self::eventList($events), $preview, self::craftNav($this->request->getGet(...)), self::baseNav($this->request->getGet(...)), self::tasksNav($this->request->getGet(...)), self::shopNav($this->request->getGet(...)), self::storageNav($this->request->getGet(...)), self::battlesNav($this->request->getGet(...)));
             } catch (\Throwable $e) {
                 log_message('error', '[Play.index] native view failed: ' . $e::class . ': ' . $e->getMessage());
             }
@@ -143,6 +149,12 @@ class Play extends BaseController
             if (is_string($value)) {
                 $intent[$field] = $value;
             }
+        }
+
+        // «📜 Разбор боя» и другие кнопки «⚔️ Боёв» из входящих и с экрана моста — нативный экран, а не мост.
+        $route = ($intent['kind'] ?? null) === WebActService::KIND_CALLBACK ? WebNativeScreenService::nativeRoute($intent['data'] ?? '') : null;
+        if ($route !== null && in_array($route['view'], WebNativeScreenService::BATTLE_VIEWS, true)) {
+            return $this->battleScreen($characterId, $route['view'], $route['nav']);
         }
 
         try {
@@ -170,12 +182,14 @@ class Play extends BaseController
         $view = $this->request->getPost('view');
         $op   = $this->request->getPost('op');
 
-        $data       = $op === 'bridge' ? $this->request->getPost('data') : null;
-        $nativeView = is_string($data) ? WebNativeScreenService::viewForCallback($data) : null;
-        if ($nativeView !== null) {
-            // Кнопка, у которой теперь есть нативный экран (магазин, склад), — экран, а не мост.
-            $view = $nativeView;
-            $op   = null;
+        $data     = $op === 'bridge' ? $this->request->getPost('data') : null;
+        $route    = is_string($data) ? WebNativeScreenService::nativeRoute($data) : null;
+        $routeNav = [];
+        if ($route !== null) {
+            // Кнопка, у которой теперь есть нативный экран (магазин, склад, бои), — экран, а не мост.
+            $view     = $route['view'];
+            $op       = null;
+            $routeNav = $route['nav'];
         } elseif ($op === 'bridge') {
             $intentId = $this->request->getPost('intent_id');
             try {
@@ -202,7 +216,34 @@ class Play extends BaseController
         $tasks   = self::tasksNav($this->request->getPost(...));
         $shop    = self::shopNav($this->request->getPost(...));
         $storage = self::storageNav($this->request->getPost(...));
-        if ($view === WebNativeScreenService::VIEW_SHOP && is_string($op)
+        $battles = $routeNav + self::battlesNav($this->request->getPost(...));
+        if ($view === WebNativeScreenService::VIEW_ARENA && $op === WebNativeScreenService::OP_DUEL) {
+            $intentId = $this->request->getPost('intent_id');
+            try {
+                $duel = $this->native()->duel($accountId, $characterId, $battles['id'] ?? 0, is_string($intentId) ? $intentId : '');
+            } catch (InvalidArgumentException $e) {
+                log_message('info', '[Play.view] duel rejected: ' . $e->getMessage());
+
+                return $this->rejected($characterId);
+            }
+            $alert = $duel['alert'];
+            // После дуэли — арена с её итогом и входом в разбор; повтор формы — просто арена.
+            $battles = $duel['battle_id'] !== null ? ['duel' => $duel['battle_id']] : [];
+        } elseif ($view === WebNativeScreenService::VIEW_ARENA && $op === WebNativeScreenService::OP_DUELS_OPEN) {
+            $open     = $this->request->getPost('open');
+            $intentId = $this->request->getPost('intent_id');
+            try {
+                if ($open !== '1' && $open !== '0') {
+                    throw new InvalidArgumentException('bad duels_open value');
+                }
+                $alert = $this->native()->duelsOpen($accountId, $characterId, $open === '1', is_string($intentId) ? $intentId : '');
+            } catch (InvalidArgumentException $e) {
+                log_message('info', '[Play.view] duels_open rejected: ' . $e->getMessage());
+
+                return $this->rejected($characterId);
+            }
+            $battles = [];
+        } elseif ($view === WebNativeScreenService::VIEW_SHOP && is_string($op)
             && in_array($op, [WebNativeScreenService::OP_SELL, WebNativeScreenService::OP_BUY], true)) {
             $intentId = $this->request->getPost('intent_id');
             $intentId = is_string($intentId) ? $intentId : '';
@@ -428,6 +469,7 @@ class Play extends BaseController
                 $view === WebNativeScreenService::VIEW_TASKS && $tasks !== [] => '&' . http_build_query($tasks),
                 $view === WebNativeScreenService::VIEW_SHOP && $shop !== []   => '&' . http_build_query($shop),
                 $view === WebNativeScreenService::VIEW_STORAGE && $storage !== [] => '&' . http_build_query($storage),
+                in_array($view, WebNativeScreenService::BATTLE_VIEWS, true) && $battles !== [] => '&' . http_build_query($battles),
                 default                                                     => '',
             };
 
@@ -436,7 +478,7 @@ class Play extends BaseController
 
         $current = $this->service()->current($characterId);
         try {
-            $html = $this->native()->render($characterId, $view, $current['state'], $alert, $events, $preview, $craft, $base, $tasks, $shop, $storage);
+            $html = $this->native()->render($characterId, $view, $current['state'], $alert, $events, $preview, $craft, $base, $tasks, $shop, $storage, $battles);
         } catch (InvalidArgumentException $e) {
             log_message('info', '[Play.view] render rejected: ' . $e->getMessage());
 
@@ -474,6 +516,35 @@ class Play extends BaseController
         }
 
         return redirect()->to('/play', 303)->withCookies();
+    }
+
+    /**
+     * Кнопка «⚔️ Боёв» из входящих или с экрана моста: нативный экран без диспетча в бота (только чтение — дедуп не
+     * нужен). JSON — экран и HUD, как у `/play/view`; без JS — PRG на `/play?view=…`.
+     *
+     * @param array{id?:int, f?:int, duel?:int} $nav
+     */
+    private function battleScreen(int $characterId, string $view, array $nav): ResponseInterface
+    {
+        if (! $this->wantsJson()) {
+            return redirect()->to('/play?view=' . rawurlencode($view) . ($nav !== [] ? '&' . http_build_query($nav) : ''), 303)->withCookies();
+        }
+        $current = $this->service()->current($characterId);
+        try {
+            $html = $this->native()->render($characterId, $view, $current['state'], battles: $nav);
+        } catch (InvalidArgumentException $e) {
+            log_message('info', '[Play.act] battle screen rejected: ' . $e->getMessage());
+
+            return $this->rejected($characterId);
+        }
+
+        return $this->response->setJSON([
+            'html'   => $html,
+            'hud'    => $this->native()->hudHtml($characterId),
+            'unread' => $current['unread'],
+            'alert'  => null,
+            'csrf'   => csrf_hash(),
+        ]);
     }
 
     /** Отвергнутое намерение: 400 и текущий экран моста, без диспетча. */
@@ -758,6 +829,27 @@ class Play extends BaseController
         $mode = $read('mode');
 
         return is_string($mode) && in_array($mode, \App\Services\Player\InventorySortService::STORAGE_MODES, true) ? ['mode' => $mode] : [];
+    }
+
+    /**
+     * Где стоят экраны «⚔️ Боёв»: бой карточки или соперник вызова (`id`), вкладка фракции рейтинга (`f`), итог последней
+     * дуэли (`duel`) — только подсказки, своё ли это, решает ядро. Всё прочее отбрасывается.
+     *
+     * @param callable(string): mixed $read чтение поля запроса (GET или POST)
+     *
+     * @return array{id?:int, f?:int, duel?:int}
+     */
+    private static function battlesNav(callable $read): array
+    {
+        $out = [];
+        foreach (['id', 'f', 'duel'] as $field) {
+            $value = $read($field);
+            if (is_string($value) && preg_match('/^[1-9]\d{0,11}$/', $value) === 1) {
+                $out[$field] = (int) $value;
+            }
+        }
+
+        return $out;
     }
 
     /**

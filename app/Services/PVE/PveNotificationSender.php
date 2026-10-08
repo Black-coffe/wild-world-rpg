@@ -34,8 +34,9 @@ final class PveNotificationSender
 
     /**
      * @param array<string, mixed>|\App\Entities\CharacterEntity $playerData row/Entity з `name` + `telegram_user_id`
+     * @param int|null $battleId id строки `battle_logs` — под итогом кнопка «📜 Разбор боя» (w2-n7-combat-01)
      */
-    public function send(array|\App\Entities\CharacterEntity $playerData, string $finalText): void
+    public function send(array|\App\Entities\CharacterEntity $playerData, string $finalText, ?int $battleId = null): void
     {
         log_message('debug', "Пытаемся отправить сообщение в Telegram для {$playerData['name']}");
 
@@ -77,11 +78,16 @@ final class PveNotificationSender
             return;
         }
 
-        $result = Request::sendMessage([
+        $payload = [
             'chat_id'    => $tgId,
             'text'       => $finalText,
             'parse_mode' => 'HTML',
-        ]);
+        ];
+        $keyboard = self::keyboard($battleId);
+        if ($keyboard !== null) {
+            $payload['reply_markup'] = (string) json_encode($keyboard);
+        }
+        $result = Request::sendMessage($payload);
 
         if (!$result->isOk()) {
             $desc = $result->getDescription();
@@ -98,6 +104,21 @@ final class PveNotificationSender
             $tgUserModel->clearBlocked($tgId);
             log_message('info', "Сообщение успешно отправлено в Telegram пользователю ID={$tgId}");
         }
+    }
+
+    /**
+     * Клавиатура под итогом боя: «📜 Разбор боя» ведёт в карточку журнала (w2-n7-combat-01). Без id
+     * лога (запись не удалась) — без клавиатуры, как раньше. Pure — тестируется юнитом.
+     *
+     * @return array{inline_keyboard: list<list<array{text: string, callback_data: string}>>}|null
+     */
+    public static function keyboard(?int $battleId): ?array
+    {
+        if ($battleId === null || $battleId <= 0) {
+            return null;
+        }
+
+        return ['inline_keyboard' => [[['text' => '📜 Разбор боя', 'callback_data' => 'battleLog_' . $battleId]]]];
     }
 
     /**

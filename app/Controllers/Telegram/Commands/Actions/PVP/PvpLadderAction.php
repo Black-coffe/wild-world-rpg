@@ -5,11 +5,8 @@ declare(strict_types=1);
 namespace App\Controllers\Telegram\Commands\Actions\PVP;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use App\Models\CharacterFactionModel;
-use App\Models\FactionModel;
 use App\Services\Notifications\MediaSender;
-use App\Services\PVE\PvpLadderService;
-use Longman\TelegramBot\Entities\CallbackQuery;
+use App\Services\PVE\ArenaScreenService;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -19,22 +16,13 @@ use App\Services\Telegram\Request;
  *
  * Топ-N по all-time points (дуэли W17 + летальные PvP-атаки), + личная позиция игрока.
  * Табы: 🌍 Глобальный / 🏳️ Моя фракция (если игрок во фракции). edit-in-place (ADR-018).
- * Killswitch pvp.ladder.enabled: при dormant — alert (кнопка входа скрыта, прямой вызов = info).
+ * Killswitch pvp.ladder.enabled: при dormant — сообщение-замок с объяснением.
+ *
+ * w2-n7-combat-02 (ADR-190): данные — модель `ArenaScreenService::ladder()`, этот handler только рисует
+ * её в Telegram. Вход в журнал «📜 Мои бои» — рядом с ареной.
  */
 final class PvpLadderAction extends BaseAction
 {
-    private PvpLadderService $ladder;
-    private FactionModel $factionModel;
-    private CharacterFactionModel $characterFactions;
-
-    public function __construct(CallbackQuery $callbackQuery)
-    {
-        parent::__construct($callbackQuery);
-        $this->ladder            = new PvpLadderService();
-        $this->factionModel      = new FactionModel();
-        $this->characterFactions = new CharacterFactionModel();
-    }
-
     public function handle(): ServerResponse
     {
         $chatId = (int) $this->callbackQuery->getMessage()->getChat()->getId();
@@ -45,7 +33,16 @@ final class PvpLadderAction extends BaseAction
         if (! $user || ! $character) {
             return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Персонаж не найден.']);
         }
-        if (! $this->ladder->enabled()) {
+
+        // Вкладка из callback_data.
+        $factionId = null;
+        if (preg_match('/^pvpLadder_faction_(\d+)$/', (string) $this->callbackQuery->getData(), $m) === 1) {
+            $factionId = (int) $m[1];
+        }
+
+        $characterId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $ladder      = (new ArenaScreenService())->ladder($characterId, $factionId);
+        if (! $ladder['enabled']) {
             return Request::sendMessage([
                 'chat_id'    => $chatId,
                 'text'       => "🏆 *Рейтинг PvP временно недоступен*\n\n_Раздел отключён администрацией._",
@@ -53,35 +50,16 @@ final class PvpLadderAction extends BaseAction
             ]);
         }
 
-        $characterId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
-        $topN        = $this->ladder->broadcastTopN();
-        $data        = (string) $this->callbackQuery->getData();
-
-        // Определяем вкладку из callback_data.
-        $factionId = null;
-        if (preg_match('/^pvpLadder_faction_(\d+)$/', $data, $m) === 1) {
-            $factionId = (int) $m[1];
-        }
-
-        if ($factionId !== null) {
-            $rows   = $this->ladder->topByFaction($factionId, $topN);
-            $header = "🏆 *Рейтинг PvP — {$this->factionName($factionId)}*\n\n";
-        } else {
-            $rows   = $this->ladder->topGlobal($topN);
-            $header = "🏆 *Рейтинг PvP — 🌍 Глобальный*\n\n";
-        }
-
-        $text = $header . $this->renderRows($rows);
+        $header = $factionId !== null
+            ? "🏆 *Рейтинг PvP — {$ladder['faction_name']}*\n\n"
+            : "🏆 *Рейтинг PvP — 🌍 Глобальный*\n\n";
+        $text = $header . self::renderRows($ladder['rows']);
 
         // Личная позиция игрока (по all-time points).
-        $myRow  = $characterId > 0 ? $this->ladder->rowOf($characterId) : null;
-        $myRank = $characterId > 0 ? $this->ladder->rankOf($characterId) : 0;
-        if (is_array($myRow) && is_numeric($myRow['points'] ?? null) && (int) $myRow['points'] > 0) {
-            $pts = (int) $myRow['points'];
-            $dw  = is_numeric($myRow['duel_wins'] ?? null) ? (int) $myRow['duel_wins'] : 0;
-            $pw  = is_numeric($myRow['pvp_wins'] ?? null) ? (int) $myRow['pvp_wins'] : 0;
-            $rankStr = $myRank > 0 ? "#{$myRank}" : '—';
-            $text .= "\n👤 *Ты:* {$rankStr} · {$pts} очк. (дуэли: {$dw}, PvP: {$pw})";
+        $my = $ladder['my'];
+        if ($my !== null) {
+            $rankStr = $my['rank'] > 0 ? "#{$my['rank']}" : '—';
+            $text .= "\n👤 *Ты:* {$rankStr} · {$my['points']} очк. (дуэли: {$my['duel_wins']}, PvP: {$my['pvp_wins']})";
         } else {
             $text .= "\n👤 *Ты* ещё не в рейтинге — выиграй дуэль, чтобы попасть в таблицу.";
         }
@@ -89,21 +67,21 @@ final class PvpLadderAction extends BaseAction
         $text .= "\n\n_Очки за победы: дуэль и летальное PvP. Рейтинг — престиж, без игровых наград._";
 
         // Табы: глобальный + моя фракция (если игрок во фракции).
-        $tabs      = [];
-        $myFaction = $characterId > 0 ? $this->characterFactions->getFactionId($characterId) : 0;
+        $tabs = [];
         if ($factionId !== null) {
             $tabs[] = ['text' => '🌍 Глобальный', 'callback_data' => 'pvpLadder_global'];
         }
-        if ($myFaction > 0 && $factionId === null) {
-            $tabs[] = ['text' => '🏳️ Моя фракция', 'callback_data' => 'pvpLadder_faction_' . $myFaction];
+        if ($ladder['my_faction'] > 0 && $factionId === null) {
+            $tabs[] = ['text' => '🏳️ Моя фракция', 'callback_data' => 'pvpLadder_faction_' . $ladder['my_faction']];
         }
         $rowsKb = [];
-        if (! empty($tabs)) {
+        if ($tabs !== []) {
             $rowsKb[] = $tabs;
         }
         // E25 (ADR-124) — вход на «🏟 Арену» прямо из рейтинга (climb-the-ladder discoverability).
         $rowsKb[] = [
             ['text' => '🏟 Арена', 'callback_data' => 'arena'],
+            ['text' => '📜 Мои бои', 'callback_data' => 'battles'],
             ['text' => '◀️ Я', 'callback_data' => 'character'],
         ];
 
@@ -116,40 +94,20 @@ final class PvpLadderAction extends BaseAction
     }
 
     /**
-     * @param list<array<string,mixed>> $rows
+     * @param list<array{name: string, points: int, duel_wins: int, pvp_wins: int}> $rows
      */
-    private function renderRows(array $rows): string
+    private static function renderRows(array $rows): string
     {
-        if (empty($rows)) {
+        if ($rows === []) {
             return "_Пока никто не набрал очков. Стань первым!_\n";
         }
         $medals = ['🥇', '🥈', '🥉'];
         $out    = '';
-        $i      = 0;
-        foreach ($rows as $r) {
-            $name = is_string($r['name'] ?? null) && $r['name'] !== '' ? $r['name'] : ('№' . (is_numeric($r['character_id'] ?? null) ? (int) $r['character_id'] : '?'));
-            $pts  = is_numeric($r['points'] ?? null) ? (int) $r['points'] : 0;
-            $dw   = is_numeric($r['duel_wins'] ?? null) ? (int) $r['duel_wins'] : 0;
-            $pw   = is_numeric($r['pvp_wins'] ?? null) ? (int) $r['pvp_wins'] : 0;
+        foreach ($rows as $i => $r) {
             $pos  = $medals[$i] ?? (($i + 1) . '.');
-            $out .= "{$pos} *{$name}* — {$pts} очк. _(дуэли {$dw}, PvP {$pw})_\n";
-            $i++;
+            $out .= "{$pos} *{$r['name']}* — {$r['points']} очк. _(дуэли {$r['duel_wins']}, PvP {$r['pvp_wins']})_\n";
         }
-        return $out;
-    }
 
-    private function factionName(int $factionId): string
-    {
-        if ($factionId <= 0) {
-            return 'Нейтральные';
-        }
-        $row = $this->factionModel->find($factionId);
-        if (is_array($row) && is_string($row['name'] ?? null) && $row['name'] !== '') {
-            return $row['name'];
-        }
-        if (is_object($row) && isset($row->name) && is_string($row->name) && $row->name !== '') {
-            return $row->name;
-        }
-        return 'Фракция #' . $factionId;
+        return $out;
     }
 }

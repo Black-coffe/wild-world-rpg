@@ -176,3 +176,4 @@
 {"v":1,"ts":"2026-10-08T14:04:44Z","code":"scope_breach","value":1,"threshold":0,"vulyk":"0.26.0","tier":0,"model":"","agent":"","spec":"","story":"w2-n6-trade-storage-02-shop-models","ref":"scope:w2-n6-trade-storage-02-shop-models"}
 {"v":1,"ts":"2026-10-08T14:04:45Z","code":"scope_breach","value":1,"threshold":0,"vulyk":"0.26.0","tier":0,"model":"","agent":"","spec":"","story":"hotfix-bulk-confirm-once-01","ref":"scope:hotfix-bulk-confirm-once-01"}
 {"v":1,"ts":"2026-10-08T14:04:46Z","code":"scope_breach","value":1,"threshold":0,"vulyk":"0.26.0","tier":0,"model":"","agent":"","spec":"","story":"w2-n6-trade-storage-03-web-shop-storage","ref":"scope:w2-n6-trade-storage-03-web-shop-storage"}
+{"v":1,"ts":"2026-10-08T17:40:25Z","code":"scope_breach","value":1,"threshold":0,"vulyk":"0.26.0","tier":0,"model":"","agent":"","spec":"","story":"w2-n7-combat-02-arena-core","ref":"scope:w2-n7-combat-02-arena-core"}

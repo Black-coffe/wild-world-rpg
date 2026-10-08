@@ -294,26 +294,30 @@ final class PlayViewsTest extends CIUnitTestCase
     {
         $forms = self::forms($this->renderState(self::state()), '//nav[@class="play-dock"]//');
 
-        $this->assertCount(4, $forms);
+        $this->assertCount(5, $forms);
         foreach (['🗺 Карта', '🎒 Рюкзак', '⚙️ Ещё'] as $i => $label) {
             $this->assertSame('text', $forms[$i]['kind']);
             $this->assertSame($label, $forms[$i]['data']);
             $this->assertSame($label, $forms[$i]['@button']);
         }
-        $this->assertDockShop($forms[3]);
+        $this->assertDockShopAndBattles($forms[3], $forms[4]);
     }
 
     /**
-     * W2.N6: последняя кнопка дока — всегда «🛒 Магазин», нативный экран (в боте он на карточке «Я»).
+     * W2.N6: за кнопками меню в доке всегда «🛒 Магазин» (в боте он на карточке «Я»), с W2.N7 — «⚔️ Бои» (журнал, арена,
+     * рейтинг); оба — нативные экраны.
      *
-     * @param array<string, string> $form
+     * @param array<string, string> $shop
+     * @param array<string, string> $battles
      */
-    private function assertDockShop(array $form): void
+    private function assertDockShopAndBattles(array $shop, array $battles): void
     {
-        $this->assertSame('shop', $form['view'] ?? null);
-        $this->assertSame('🛒 Магазин', $form['@button']);
-        $this->assertStringEndsWith('play/view', $form['@action']);
-        $this->assertArrayNotHasKey('kind', $form);
+        foreach ([[$shop, 'shop', '🛒 Магазин'], [$battles, 'battles', '⚔️ Бои']] as [$form, $view, $label]) {
+            $this->assertSame($view, $form['view'] ?? null);
+            $this->assertSame($label, $form['@button']);
+            $this->assertStringEndsWith('play/view', $form['@action']);
+            $this->assertArrayNotHasKey('kind', $form);
+        }
     }
 
     public function testEmptyDockRendersMenuFallback(): void
@@ -322,11 +326,11 @@ final class PlayViewsTest extends CIUnitTestCase
         $state['dock'] = [];
         $forms         = self::forms($this->renderState($state), '//nav[@class="play-dock"]//');
 
-        $this->assertCount(2, $forms);
+        $this->assertCount(3, $forms);
         $this->assertSame('command', $forms[0]['kind']);
         $this->assertSame('/menu', $forms[0]['data']);
         $this->assertSame('Меню', $forms[0]['@button']);
-        $this->assertDockShop($forms[1]);
+        $this->assertDockShopAndBattles($forms[1], $forms[2]);
     }
 
     public function testHistoryRendersAllScreensNewestFirstWithPressableButtons(): void
@@ -581,7 +585,7 @@ final class PlayViewsTest extends CIUnitTestCase
     {
         $forms = self::forms(view('site/_play/dock', ['dock' => [['🧑 Я', '📋 Дела']]]));
 
-        $this->assertCount(3, $forms);
+        $this->assertCount(4, $forms);
         $this->assertSame('tasks', $forms[1]['view']);
         $this->assertSame('📋 Дела', $forms[1]['@button']);
         $this->assertStringEndsWith('play/view', $forms[1]['@action']);
@@ -667,9 +671,64 @@ final class PlayViewsTest extends CIUnitTestCase
         $this->assertStringNotContainsString('<img', $html);
     }
 
+    /**
+     * w2-n7-combat-03: журнал и карточка — только текст; длинный бой показан весь; дуэль помечена «без потерь»; чужой бой —
+     * отказ без имён. Арена: вызов и тумблер — мутации с CSRF и своим intent; итог ведёт в карточку; замки с объяснением.
+     */
+    public function testBattleViewsAreTextOnlyAndArenaMutationsCarryCsrfAndIntent(): void
+    {
+        $rounds = [];
+        for ($i = 1; $i <= 60; $i++) {
+            $rounds[] = ['n' => $i, 'attacker' => $i % 2 ? 'Ворон' : 'Сова', 'defender' => $i % 2 ? 'Сова' : 'Ворон', 'damage' => 3.25, 'hp_after' => 60.0 - $i, 'lucky' => $i === 2, 'mine' => $i % 2 === 1];
+        }
+        $card = ['id' => 7, 'type' => 'DUEL', 'duel' => true, 'me' => 'Ворон', 'opponent' => 'Сова', 'result' => 'win', 'at' => '2026-10-08 21:05:00', 'rounds_total' => 60, 'rounds' => $rounds];
+
+        $html = html_entity_decode(view('site/_play/native_battle', ['battle' => ['card' => $card, 'arena_on' => true], 'dock' => []]), ENT_QUOTES | ENT_HTML5);
+        $this->assertStringNotContainsString('<img', $html);
+        $this->assertStringContainsString('<dt>Итог</dt><dd>✅ Победа</dd>', $html);
+        $this->assertStringContainsString('🤺 Дуэль — без потерь', $html);
+        $this->assertStringContainsString('2. Сова → Ворон</span><span class="play-craft-req-qty">−3.3 ⚡ · осталось 58 HP', $html);
+        $this->assertStringContainsString('60. Сова → Ворон', $html, 'все раунды, без обрезки');
+
+        $missing = html_entity_decode(view('site/_play/native_battle', ['battle' => ['card' => null, 'arena_on' => false], 'dock' => []]), ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('Этот бой не найден в твоём журнале.', $missing);
+        $this->assertStringContainsString('🔒 Арена (закрыта)', $missing);
+
+        $entries = [['id' => 7, 'type' => 'PVE', 'duel' => false, 'me' => 'Ворон', 'opponent' => 'Рейдер', 'result' => 'loss', 'at' => '2026-10-08 21:05:00', 'rounds_total' => 4]];
+        $list    = view('site/_play/native_battles', ['battles' => ['entries' => $entries, 'arena_on' => true, 'ladder_on' => false], 'dock' => []]);
+        $this->assertStringNotContainsString('<img', $list);
+        $this->assertStringContainsString('1. ❌ Поражение · ⚔️ PvE · Рейдер', html_entity_decode($list, ENT_QUOTES | ENT_HTML5));
+        $this->assertStringContainsString('🔒 Рейтинг PvP (закрыт)', html_entity_decode($list, ENT_QUOTES | ENT_HTML5));
+        $this->assertContains(['view' => 'battle', 'id' => '7'], array_map(static fn (array $f): array => array_intersect_key($f, ['view' => 1, 'id' => 1]), self::forms($list)));
+
+        $arena = view('site/_play/native_arena', ['arena' => [
+            'section' => 'arena', 'ladder' => null, 'arena_on' => true, 'ladder_on' => true, 'last' => $card,
+            'arena'   => ['enabled' => true, 'lock' => '', 'self_open' => false, 'ladder_enabled' => true, 'roster' => [['id' => 5, 'name' => 'Сова', 'level' => 3, 'pts' => 4], ['id' => 6, 'name' => 'Лис', 'level' => 2, 'pts' => 0]]],
+        ], 'dock' => []]);
+        $this->assertStringNotContainsString('<img', $arena);
+        $mutations = array_values(array_filter(self::forms($arena), static fn (array $f): bool => in_array($f['op'] ?? '', ['duel', 'duels_open'], true)));
+        $this->assertSame([['duel', '5'], ['duel', '6'], ['duels_open', '']], array_map(static fn (array $f): array => [$f['op'], $f['id'] ?? ''], $mutations));
+        $this->assertSame('1', $mutations[2]['open'] ?? null);
+        foreach ($mutations as $form) {
+            $this->assertArrayHasKey(csrf_token(), $form);
+            $this->assertMatchesRegularExpression('~^[0-9a-f]{32}$~', $form['intent_id'] ?? '');
+        }
+        $this->assertCount(3, array_unique(array_column($mutations, 'intent_id')));
+        $this->assertContains(['view' => 'battle', 'id' => '7'], array_map(static fn (array $f): array => array_intersect_key($f, ['view' => 1, 'id' => 1]), self::forms($arena)), 'итог дуэли ведёт в карточку');
+
+        $locked = html_entity_decode(view('site/_play/native_arena', ['arena' => [
+            'section' => 'arena', 'ladder' => null, 'last' => null, 'arena_on' => false, 'ladder_on' => false,
+            'arena'   => ['enabled' => false, 'lock' => \App\Services\PVE\ArenaScreenService::LOCK_ARENA, 'self_open' => false, 'roster' => [], 'ladder_enabled' => false],
+        ], 'dock' => []]), ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('🔒 Арена (нужно: дуэли открыты администрацией)', $locked);
+        $this->assertStringContainsString(\App\Services\PVE\ArenaScreenService::LOCK_ARENA, $locked);
+        $this->assertStringContainsString('🔒 Рейтинг PvP (закрыт)', $locked);
+        $this->assertStringNotContainsString('value="duel"', $locked);
+    }
+
     public function testViewsCarryNoInlineStyles(): void
     {
-        foreach (['site/play', 'site/play_stub', 'site/_play/state', 'site/_play/inbox', 'site/_play/native_tasks', 'site/_play/native_shop', 'site/_play/native_storage'] as $view) {
+        foreach (['site/play', 'site/play_stub', 'site/_play/state', 'site/_play/inbox', 'site/_play/native_tasks', 'site/_play/native_shop', 'site/_play/native_storage', 'site/_play/native_battles', 'site/_play/native_battle', 'site/_play/native_arena'] as $view) {
             $source = (string) file_get_contents(APPPATH . 'Views/' . $view . '.php');
             $this->assertStringNotContainsString('style=', $source, $view);
             $this->assertStringNotContainsString('<style', $source, $view);

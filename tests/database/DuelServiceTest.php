@@ -102,6 +102,15 @@ final class DuelServiceTest extends CIUnitTestCase
         $this->assertSame(2000, $svc->baselineHealth());
     }
 
+    /** w2-n7-combat-02: кулдаун дуэли — тот же `pvp.attack_cooldown_sec`, что у PvP-атаки; без ключа — дефолт GameBalance. */
+    public function testCooldownSecReadsAttackCooldown(): void
+    {
+        $this->assertSame(config(\Config\GameBalance::class)->pvpAttackCooldownSec, (new DuelService())->cooldownSec());
+
+        $this->seedInt('pvp.attack_cooldown_sec', 45);
+        $this->assertSame(45, (new DuelService())->cooldownSec());
+    }
+
     public function testEqualizeNormalizesStatsKeepsIdentityAndGear(): void
     {
         $svc = new DuelService();

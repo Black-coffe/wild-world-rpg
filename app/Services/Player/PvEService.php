@@ -113,7 +113,7 @@ class PvEService
         }
 
         // Подробное логирование боя через PveBattleLogWriter (Step 3 v0.51.88)
-        $this->battleLogWriter->write($playerData, $npcData, $fightResult);
+        $battleId = $this->battleLogWriter->write($playerData, $npcData, $fightResult);
 
         // Награды выдаёт ТОЛЬКО победивший ИГРОК. Если победил NPC (игрок проиграл),
         // grantRewards писал бы по winner->id = id NPC: adjustGold/update/insert в
@@ -183,7 +183,7 @@ class PvEService
         // Уведомление НЕ должно ронять уже завершённый бой (награды + npc_kills уже применены выше).
         // В пути встречи Telegram-бот может быть не инициализирован в момент вызова → ловим и логируем.
         try {
-            $this->notificationSender->send($updatedPlayerData, $finalText);
+            $this->notificationSender->send($updatedPlayerData, $finalText, $battleId);
         } catch (\Throwable $e) {
             log_message('error', 'PvE notify failed (бой уже засчитан): ' . $e->getMessage());
         }
@@ -194,6 +194,8 @@ class PvEService
             'log'     => $fightResult['log'],
             'winner'  => $fightResult['winner'],
             'player'  => $updatedPlayerData,
+            // w2-n7-combat-01: id лога — для «📜 Разбор боя» на экранах, которые показывают итог сами.
+            'battle_id' => $battleId,
         ];
     }
 

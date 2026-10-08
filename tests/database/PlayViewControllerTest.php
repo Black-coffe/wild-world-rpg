@@ -93,6 +93,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
         'telegram_updates_seen', 'web_play_state', 'web_inbox', 'web_play_intents',
         'claimed_cells', 'buildings', 'character_buildings', 'base_storage', 'faction_endgame_scores', 'resources', 'character_resources', 'resources_bank',
         'quests', 'quest_steps', 'factions', 'character_factions', 'events', 'active_events',
+        'pvp_ladder', 'outfits', 'weapons', 'characters_outfits', 'characters_weapons', 'battle_logs',
     ];
 
     private const ENV = ['telegram.API_KEY' => '123456:TEST_TOKEN', 'telegram.BOT_USERNAME' => 'wildworldtest_bot'];
@@ -1415,6 +1416,255 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $refused = $post(['op' => 'storage_take', 'intent_id' => 'w4']);
         $this->assertStringStartsWith('🚫 Склад физически на базе', (string) $refused['alert']);
         $this->assertSame(30, $stored(1), 'вне базы — ничего не забрано');
+    }
+
+    // ── w2-n7-combat-03: «⚔️ Бои» — журнал, карточка, арена, рейтинг ─────
+
+    /** Док: «⚔️ Бои» всегда; журнал — только мои бои, карточка — все раунды; чужой и несуществующий бой — один отказ без имён. */
+    public function testBattlesJournalShowsOnlyMyBattlesAndForeignCardIsRefusedWithoutNames(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        [, $otherId]        = $this->character('Сова');
+        $this->seedScreen($charId);
+        $this->enableArena();
+        $pve     = $this->battleLog('PVE', $charId, 9001, $charId, $this->pveLog('Ворон', 'Рейдер', 30));
+        $duel    = $this->battleLog('DUEL', $otherId, $charId, $otherId, $this->pvpLog($otherId, 'Сова', $charId, 'Ворон', 3, true));
+        $foreign = $this->battleLog('PVP', 777, 778, 777, $this->pvpLog(777, 'Чужак', 778, 'Незнакомец', 2, false));
+        $html    = fn (array $data): string => html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', $data, true))['html'], ENT_QUOTES | ENT_HTML5);
+
+        $page = html_entity_decode($this->body($this->withSession($session)->get('play')), ENT_QUOTES | ENT_HTML5);
+        $this->assertMatchesRegularExpression('~name="view" value="battles"><button class="play-dock-btn" type="submit">⚔️ Бои</button>~su', $page);
+
+        $list = $html(['view' => 'battles']);
+        $this->assertStringContainsString('data-native="battles"', $list);
+        $this->assertStringContainsString('1. ❌ Поражение · 🤺 Дуэль · Сова', $list, 'новые сверху');
+        $this->assertStringContainsString('2. ✅ Победа · ⚔️ PvE · Рейдер', $list);
+        $this->assertMatchesRegularExpression('~name="view" value="battle"><input type="hidden" name="id" value="' . $pve . '"><button class="play-kb-btn" type="submit">📜 2\. ✅ Рейдер</button>~su', $list);
+        $this->assertStringNotContainsString('Чужак', $list);
+        $this->assertStringNotContainsString('<img', $list);
+
+        $card = $html(['view' => 'battle', 'id' => (string) $pve]);
+        $this->assertStringContainsString('Ворон против Рейдер', $card);
+        $this->assertStringContainsString('1. Ворон → Рейдер', $card);
+        $this->assertStringContainsString('30. Рейдер → Ворон', $card, 'веб показывает все раунды, без обрезки бота');
+        $this->assertStringNotContainsString('data-battle-missing', $card);
+
+        foreach ([$foreign, 999999] as $id) {
+            $refused = $html(['view' => 'battle', 'id' => (string) $id]);
+            $this->assertStringContainsString('Этот бой не найден в твоём журнале.', $refused);
+            $this->assertStringNotContainsString('Чужак', $refused);
+            $this->assertStringNotContainsString('Незнакомец', $refused);
+        }
+
+        // Кнопки бота с других нативных экранов — нативные экраны, не мост.
+        $act = $this->tasksAct();
+        Factories::injectMock('libraries', WebActService::class, $act);
+        $viaBridge = $html(['op' => 'bridge', 'data' => 'battleLog_' . $duel . '_j', 'intent_id' => 'b1']);
+        $this->assertStringContainsString('🤺 Дуэль — без потерь', $viaBridge);
+        $this->assertStringContainsString('data-native="arena"', $html(['op' => 'bridge', 'data' => 'arena', 'intent_id' => 'b2']));
+        $this->assertStringContainsString('data-native="ladder"', $html(['op' => 'bridge', 'data' => 'pvpLadder', 'intent_id' => 'b3']));
+        $this->assertStringContainsString('data-native="battles"', $html(['op' => 'bridge', 'data' => 'battles', 'intent_id' => 'b4']));
+        $this->assertSame([], $act->calls, 'бои не идут через мост');
+    }
+
+    /**
+     * Вызов с арены: одна дуэль, обоим в журнал; повтор формы — ничего, новый вызов сразу — кулдаун ядра; итог ведёт в
+     * карточку. Защитнику итог приходит во входящие, его «📜 Разбор боя» (`/play/act`) открывает карточку нативно.
+     */
+    public function testArenaDuelFromWebIsLoggedOnceForBothAndInboxButtonOpensTheCard(): void
+    {
+        [$session, $charId]    = $this->character('Ворон');
+        [$defSession, $defId]  = $this->character('Сова');
+        $this->enableArena();
+        $this->conn->table('characters')->whereIn('id', [$charId, $defId])->update(['cell_number' => 5]);
+        $this->conn->table('characters')->where('id', $defId)->update(['duels_open' => 1]);
+        $post = fn (array $data): array => $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'arena'] + $data, true));
+
+        $arena = html_entity_decode($post([])['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-native="arena"', $arena);
+        $this->assertMatchesRegularExpression('~name="op" value="duel"><input type="hidden" name="id" value="' . $defId . '">.*?⚔️ Вызвать: Сова</button>~su', $arena);
+        $this->assertStringContainsString('⚔️ Открыться к дуэлям', $arena);
+
+        mt_srand(42);
+        $first = $post(['op' => 'duel', 'id' => (string) $defId, 'intent_id' => 'd1']);
+        $this->assertStringStartsWith('🤺 Дуэль с Сова: победитель — ', (string) $first['alert']);
+        $rows = $this->conn->table('battle_logs')->where('battle_type', 'DUEL')->get()->getResultArray();
+        $this->assertCount(1, $rows);
+        $battleId = (int) $rows[0]['id'];
+        $result   = html_entity_decode($first['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-duel-result', $result);
+        $this->assertMatchesRegularExpression('~name="view" value="battle"><input type="hidden" name="id" value="' . $battleId . '"><button class="play-kb-btn is-primary" type="submit">📜 Разбор боя</button>~su', $result);
+
+        $this->assertNull($post(['op' => 'duel', 'id' => (string) $defId, 'intent_id' => 'd1'])['alert'], 'повтор формы — ничего');
+        $this->assertStringStartsWith('Подожди ', (string) $post(['op' => 'duel', 'id' => (string) $defId, 'intent_id' => 'd2'])['alert'], 'новый вызов сразу — кулдаун');
+        $this->assertSame(1, $this->conn->table('battle_logs')->where('battle_type', 'DUEL')->countAllResults(), 'одна дуэль');
+        $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['view' => 'arena', 'op' => 'duel', 'id' => 'x', 'intent_id' => 'd3'], true)->response()->getStatusCode());
+
+        foreach ([[$session, 'Сова'], [$defSession, 'Ворон']] as [$who, $opponent]) {
+            $list = html_entity_decode($this->json($this->postWithCsrf($who, 'play/view', ['view' => 'battles'], true))['html'], ENT_QUOTES | ENT_HTML5);
+            $this->assertStringContainsString('🤺 Дуэль · ' . $opponent, $list, 'дуэль в журнале у обоих');
+        }
+
+        $payload = implode("\n", array_column($this->conn->table('web_inbox')->where('character_id', $defId)->get()->getResultArray(), 'payload'));
+        $this->assertStringContainsString('Тебя вызвали на дуэль', $payload);
+        $this->assertStringContainsString('battleLog_' . $battleId, $payload);
+
+        $act = $this->tasksAct();
+        Factories::injectMock('libraries', WebActService::class, $act);
+        $press = ['intent_id' => 'i1', 'kind' => 'callback', 'data' => 'battleLog_' . $battleId, 'message_id' => '5'];
+        $card  = html_entity_decode($this->json($this->postWithCsrf($defSession, 'play/act', $press, true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-native="battle"', $card);
+        $this->assertStringContainsString('Сова против Ворон', $card);
+        $this->assertStringContainsString('🤺 Дуэль — без потерь', $card);
+        $prg = $this->postWithCsrf($defSession, 'play/act', ['intent_id' => 'i2'] + $press);
+        $this->assertSame(303, $prg->response()->getStatusCode());
+        $this->assertStringEndsWith('/play?view=battle&id=' . $battleId, $prg->response()->getHeaderLine('Location'));
+        $this->assertSame([], $act->calls, 'кнопка из входящих — нативный экран, не мост');
+    }
+
+    /** Тумблер «открыт к дуэлям» — одна запись на `intent_id`, без JS — PRG на арену; значение не из 1/0 — 400. */
+    public function testDuelsOpenToggleDedupsAndWithoutJsIsPrgToTheArena(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableArena();
+        $flag = fn (): int => (int) $this->conn->table('characters')->select('duels_open')->where('id', $charId)->get()->getRow()->duels_open;
+
+        $res = $this->postWithCsrf($session, 'play/view', ['view' => 'arena', 'op' => 'duels_open', 'open' => '1', 'intent_id' => 'o1']);
+        $this->assertSame(303, $res->response()->getStatusCode());
+        $this->assertStringEndsWith('/play?view=arena', $res->response()->getHeaderLine('Location'));
+        $this->assertSame(1, $flag());
+
+        $repeat = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'arena', 'op' => 'duels_open', 'open' => '0', 'intent_id' => 'o1'], true));
+        $this->assertNull($repeat['alert']);
+        $this->assertSame(1, $flag(), 'тот же intent_id — второй записи нет');
+        $this->assertStringContainsString('🛡 Закрыться от дуэлей', html_entity_decode($repeat['html'], ENT_QUOTES | ENT_HTML5));
+
+        $closed = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'arena', 'op' => 'duels_open', 'open' => '0', 'intent_id' => 'o2'], true));
+        $this->assertSame('🛡 Ты закрыт для дуэлей — на арене тебя больше не видно.', $closed['alert']);
+        $this->assertSame(0, $flag());
+        $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['view' => 'arena', 'op' => 'duels_open', 'open' => '2', 'intent_id' => 'o3'], true)->response()->getStatusCode());
+    }
+
+    /** Рейтинг: таблица, «ты ещё не в рейтинге», вкладка моей фракции (и колбэк бота `pvpLadder_faction_<id>`). */
+    public function testLadderShowsTableMyPositionAndFactionTab(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        [, $otherId]        = $this->character('Сова');
+        $this->enableArena();
+        $this->conn->table('factions')->insert(['id' => 3, 'name' => 'Северяне']);
+        $this->conn->table('character_factions')->insert(['character_id' => $charId, 'faction_id' => 3]);
+        $this->conn->table('pvp_ladder')->insert(['character_id' => $otherId, 'faction_id' => 3, 'duel_wins' => 2, 'points' => 5]);
+        $html = fn (array $data): string => html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', $data, true))['html'], ENT_QUOTES | ENT_HTML5);
+
+        $global = $html(['view' => 'ladder']);
+        $this->assertStringContainsString('🏆 Рейтинг PvP — 🌍 Глобальный', $global);
+        $this->assertStringContainsString('🥇 Сова', $global);
+        $this->assertStringContainsString('5 очк. · дуэли 2 · PvP 0', $global);
+        $this->assertStringContainsString('Ты ещё не в рейтинге', $global);
+        $this->assertMatchesRegularExpression('~name="view" value="ladder"><input type="hidden" name="f" value="3"><button class="play-kb-btn" type="submit">🏳️ Моя фракция</button>~su', $global);
+
+        $faction = $html(['op' => 'bridge', 'data' => 'pvpLadder_faction_3', 'intent_id' => 'l1']);
+        $this->assertStringContainsString('🏆 Рейтинг PvP — Северяне', $faction);
+        $this->assertStringContainsString('🥇 Сова', $faction);
+    }
+
+    /** Выключенные дуэли и рейтинг — замки с объяснением, вызов — отказ ядра без записи; журнал работает. */
+    public function testArenaAndLadderOffAreLocksAndJournalStillWorks(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        [, $defId]          = $this->character('Сова');
+        $this->enableArena(false, false);
+        $this->conn->table('characters')->where('id', $defId)->update(['duels_open' => 1]);
+        $this->battleLog('PVE', $charId, 9001, $charId, $this->pveLog('Ворон', 'Рейдер', 2));
+        $post = fn (array $data): array => $this->json($this->postWithCsrf($session, 'play/view', $data, true));
+
+        $arena = html_entity_decode($post(['view' => 'arena'])['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-arena-lock', $arena);
+        $this->assertStringContainsString(\App\Services\PVE\ArenaScreenService::LOCK_ARENA, $arena);
+        $this->assertStringNotContainsString('name="op" value="duel"', $arena);
+
+        $ladder = html_entity_decode($post(['view' => 'ladder'])['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-ladder-lock', $ladder);
+        $this->assertStringContainsString(\App\Services\PVE\ArenaScreenService::LOCK_LADDER, $ladder);
+
+        $list = html_entity_decode($post(['view' => 'battles'])['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('🔒 Арена (закрыта)', $list);
+        $this->assertStringContainsString('🔒 Рейтинг PvP (закрыт)', $list);
+        $this->assertStringContainsString('✅ Победа · ⚔️ PvE · Рейдер', $list, 'журнал от флагов не зависит');
+
+        $this->assertSame('Дуэли сейчас недоступны.', $post(['view' => 'arena', 'op' => 'duel', 'id' => (string) $defId, 'intent_id' => 'x1'])['alert']);
+        $this->assertSame(0, $this->conn->table('battle_logs')->where('battle_type', 'DUEL')->countAllResults());
+    }
+
+    /**
+     * Схема арены и журнала — миграциями, как в ArenaScreenServiceTest: флаг дуэлей, рейтинг, фракции, снаряжение для
+     * уравнивания, `battle_logs` (+ расширение типа под `DUEL`); клетка 5 — лес для настоящего боя. Флаги — в кэше
+     * GameSettings, кулдаун повторной дуэли — 30 сек.
+     */
+    private function enableArena(bool $duels = true, bool $ladder = true): void
+    {
+        $this->conn->query('SET FOREIGN_KEY_CHECKS = 0');
+        $forge = Database::forge();
+        foreach ([
+            '2026-06-04-230000_W17AddCharacterDuelsOpen', '2026-06-05-100000_W18CreatePvpLadderTable',
+            '2024-05-15-131853_CreateFactionsTable', '2024-05-15-132233_CreateCharacterFactionsTable',
+            '2025-02-08-194808_CreateOutfitsTable', '2025-02-08-195713_CreateWeaponsTable',
+            '2025-02-10-224703_CreateCharactersOutfitsTable', '2025-02-11-115603_CreateCharactersWeaponsTable',
+        ] as $file) {
+            $this->migration($file, $forge instanceof Forge ? $forge : null)->up();
+        }
+        $this->conn->query(
+            'CREATE TABLE battle_logs (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, battle_type VARCHAR(3) NOT NULL,'
+            . ' player1_id INT NULL, player2_id INT NULL, winner_id INT NULL, created_at DATETIME NOT NULL,'
+            . ' finished_at DATETIME NOT NULL, log_data LONGTEXT NOT NULL)'
+        );
+        $this->conn->resetDataCache();
+        $this->migration('2026-12-17-100000_WidenBattleLogsType', $forge instanceof Forge ? $forge : null)->up();
+        $this->conn->query('SET FOREIGN_KEY_CHECKS = 1');
+        $this->conn->query("INSERT INTO biomes (id, name, danger_level) VALUES (1, 'Лес', 1)");
+        $this->conn->query('INSERT INTO map (id, cell_number, coordinate_x, coordinate_y, biome_id) VALUES (5, 5, 4, 0, 1)');
+        $this->conn->resetDataCache();
+        foreach (['pvp.duel.enabled' => [$duels, 'bool'], 'pvp.ladder.enabled' => [$ladder, 'bool'], 'pvp.attack_cooldown_sec' => [30, 'int']] as $key => [$v, $t]) {
+            service('cache')->save('game_settings_' . str_replace('.', '_', $key), ['v' => $v, 't' => $t], 60);
+        }
+    }
+
+    /** @param array<string, mixed> $log */
+    private function battleLog(string $type, int $p1, int $p2, ?int $winner, array $log): int
+    {
+        static $tick = 0;
+        $at = date('Y-m-d H:i:s', time() - 3600 + (++$tick) * 60);
+        $this->conn->table('battle_logs')->insert([
+            'battle_type' => $type, 'player1_id' => $p1, 'player2_id' => $p2, 'winner_id' => $winner,
+            'created_at' => $at, 'finished_at' => $at, 'log_data' => json_encode($log, JSON_UNESCAPED_UNICODE),
+        ]);
+
+        return (int) $this->conn->insertID();
+    }
+
+    /** PvE-лог: нечётные раунды бьёт игрок, чётные — NPC. @return array<string, mixed> */
+    private function pveLog(string $me, string $npc, int $rounds): array
+    {
+        $out = [];
+        for ($i = 1; $i <= $rounds; $i++) {
+            $mine  = $i % 2 === 1;
+            $out[] = ['round' => $i, 'attacker' => $mine ? $me : $npc, 'defender' => $mine ? $npc : $me, 'final_damage' => 2.5, 'defender_health_after' => 100 - $i, 'luckyStrike' => false];
+        }
+
+        return ['characters' => ['player' => ['name' => $me], 'npc' => ['id' => 9001, 'npc_name_ru' => $npc]], 'rounds' => $out];
+    }
+
+    /** PvP v2-лог (и дуэль с пометкой): нечётные раунды бьёт атакующий. @return array<string, mixed> */
+    private function pvpLog(int $attId, string $att, int $defId, string $def, int $rounds, bool $duel): array
+    {
+        $out = [];
+        for ($i = 1; $i <= $rounds; $i++) {
+            $first = $i % 2 === 1;
+            $out[] = ['round' => $i, 'attacker' => $first ? $att : $def, 'defender' => $first ? $def : $att, 'finalDamage' => 4.0, 'defenderHealthAfter' => 50 - $i, 'luckyStrikeApplied' => $i === 1];
+        }
+        $log = ['characters' => ['attacker' => ['id' => $attId, 'name' => $att], 'defender' => ['id' => $defId, 'name' => $def]], 'rounds' => $out];
+
+        return $duel ? $log + ['duel' => true] : $log;
     }
 
     /** Сырьё для магазина: таблицы цен и банка торговца, как в ResourceShopScreenServiceTest; Ржавый лом ×40 и Глина ×3. */

@@ -133,4 +133,25 @@ final class AttackPlayerPostBattleKeyboardTest extends CIUnitTestCase
         $rows = $kb['inline_keyboard'];
         $this->assertSame('inventory', $rows[0][0]['callback_data'] ?? '');
     }
+
+    /** w2-n7-combat-01 — с id лога третьей кнопкой в том же ряду «📜 Разбор боя». */
+    public function testKeyboardOffersBattleBreakdownWhenLogged(): void
+    {
+        $m = new ReflectionMethod(AttackPlayerAction::class, 'postBattleKeyboard');
+        $m->setAccessible(true);
+        /** @var array{inline_keyboard: array<int,array<int,array<string,string>>>} $kb */
+        $kb   = $m->invoke($this->action(), 2, 77);
+        $rows = $kb['inline_keyboard'];
+        $this->assertCount(1, $rows);
+        $this->assertCount(3, $rows[0]);
+        $this->assertSame('battleLog_77', $rows[0][2]['callback_data'] ?? '');
+        $this->assertSame('📜 Разбор боя', $rows[0][2]['text'] ?? '');
+    }
+
+    public function testKeyboardWithoutLogIdStaysAsBefore(): void
+    {
+        $rows = $this->keyboard(2)['inline_keyboard'];
+        $this->assertIsArray($rows);
+        $this->assertCount(2, $rows[0]);
+    }
 }

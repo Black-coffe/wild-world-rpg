@@ -1,8 +1,8 @@
 ---
 story: w2-n7-combat-03
 spec: w2-n7-combat
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -68,5 +68,17 @@ blocked_by: [w2-n7-combat-02]
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- `WebNativeScreenService`: виды `battles` / `battle` / `arena` / `ladder` (`BATTLE_VIEWS`), модели `battlesModel()` / `battleModel()` / `arenaModel()` поверх `BattleJournalService` и `ArenaScreenService` (инъекция через конструктор), операции `duel()` (`:duel`) и `duelsOpen()` (`:duels_open`) с дедупом `web_play_intents`. Кулдаун повторной дуэли — атомарный, в ядре (story 02); веб его не дублирует.
+- `nativeRoute()` (поверх него — прежний `viewForCallback()`): `battles`, `arena`, `pvpLadder`, `pvpLadder_global` — точные; `battleLog_<id>` и `battleLog_<id>_j` → карточка, `pvpLadder_faction_<id>` → вкладка фракции.
+- `Play::act()` перехватывает колбэк «⚔️ Боёв» (входящие, экран моста) и отдаёт нативный экран без диспетча в бота (JSON — экран, без JS — PRG на `/play?view=…`). Только боевые виды: `shop`/`baseStorageList` из входящих по-прежнему идут мостом — расширять это не просили, мост там работает.
+- Итог дуэли: алерт с победителем и причиной (`ArenaScreenService::reasonLabel`), на арене — блок «🤺 Итог дуэли» из карточки журнала (`duel` = id боя, только свой и только `DUEL`) с кнопкой «📜 Разбор боя» в карточку. Без JS — PRG на `/play?view=arena&duel=<id>`.
+- Чужой и несуществующий бой — один и тот же отказ «Этот бой не найден в твоём журнале.», без имён (ядро чужое не отдаёт).
+- Замки: выключенные дуэли/рейтинг — `play-lock` с текстом ядра (`LOCK_ARENA`/`LOCK_LADDER`) и путём в журнал; на вкладках — «🔒 Арена (закрыта)» / «🔒 Рейтинг PvP (закрыт)», нажатие открывает объяснение. Журнал от флагов не зависит.
+- Док: «⚔️ Бои» — постоянная кнопка после «🛒 Магазин».
+- Новый CSS-компонент не понадобился: хватило `play-craft-reqs`, `play-craft-facts`, `play-lock`, `play-native-note`, `play-kb-grid`. Поэтому `wildworld-ui.css`, `meta.php` (`?v=`), `ui-kit.html` и `phpstan-baseline.neon` не тронуты (phpstan L9 чист).
+- Подписи типа/итога боя веба — `BATTLE_TYPE_LABELS` / `BATTLE_RESULT_LABELS` (ядро отдаёт коды, у бота свои подписи того же смысла).
+- Вердикты: `/guide` — да, раздел `combat` («⚔️ Бой и PvE») дополнен абзацем про «📜 Мои бои» / «📜 Разбор боя» / «⚔️ Бои», без цифр; совет — да, `2026-12-17-100010_SeedBattleJournalTip.php` (`title_en=BattleJournal`, категория `бой`).
+- ROADMAP §5: строка W2.N7 с тегом «—» — тег вписывается при шипе.
+- Тесты: `PlayViewControllerTest` +5 (журнал и чужой бой, дуэль из веба обоим один раз + кнопка из входящих, тумблер, рейтинг с вкладкой фракции, замки), `PlayViewsTest` +1 (текст, мутации с CSRF/intent, замки) и счёт форм дока, `GuideCatalogTest` +1.
 
 ## Findings
