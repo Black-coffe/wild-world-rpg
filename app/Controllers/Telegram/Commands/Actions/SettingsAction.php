@@ -4,6 +4,7 @@ namespace App\Controllers\Telegram\Commands\Actions;
 
 use App\Entities\CharacterEntity;
 use App\Services\Notifications\MediaSender;
+use App\Services\PVE\ArenaScreenService;
 use ArrayAccess;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -87,10 +88,11 @@ class SettingsAction extends BaseAction
                 ? '⚠️ Предупреждения о здоровье включены'
                 : '🔕 Предупреждения о здоровье отключены — даже критические';
         } elseif ($data === 'duelsOpenOn' || $data === 'duelsOpenOff') {
-            // W17 (ADR-071) — тумблер «открыт к дуэлям» (opt-in честный PvP).
+            // W17 (ADR-071) — тумблер «открыт к дуэлям» (opt-in честный PvP). w2-n7-combat-02: пишет
+            // ядро арены — тот же метод, что у веба.
             $open = ($data === 'duelsOpenOn') ? 1 : 0;
             if (self::duelsOpenFlag($character) !== $open) {
-                $this->characterModel->update($character->id, ['duels_open' => $open]);
+                (new ArenaScreenService())->setDuelsOpen((int) $character->id, $open === 1);
                 $reloaded = $this->characterModel->find($character->id);
                 if ($reloaded instanceof CharacterEntity) {
                     $character = $reloaded;

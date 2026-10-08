@@ -99,12 +99,17 @@ class BattlesController extends Controller
         ]);
     }
 
-    /** Публичная детальная страница боя (flat). */
+    /**
+     * Публичная детальная страница боя (flat). Только PvP — как и публичный список (`publicIndex`): дуэли и PvE
+     * видят лишь их участники (журнал боёв в боте и в `/play`). Чужой тип — тот же 404, что и несуществующий бой,
+     * чтобы по номеру нельзя было узнать, что запись есть. Поправка владельца 2026-10-08 (w2-n7-combat-02),
+     * docs/defects/record-exposed-beyond-participants.md.
+     */
     public function publicView(int|string $id): string
     {
         $model  = new BattleLogModel();
         $battle = $model->find((int) $id);
-        if (! $battle instanceof BattleLogEntity) {
+        if (! $battle instanceof BattleLogEntity || $battle->battle_type !== 'PVP') {
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound("Бой #{$id} не найден.");
         }
 

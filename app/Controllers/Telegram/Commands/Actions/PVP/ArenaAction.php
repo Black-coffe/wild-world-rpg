@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace App\Controllers\Telegram\Commands\Actions\PVP;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use App\Controllers\Telegram\Commands\Actions\SettingsAction;
 use App\Services\Notifications\MediaSender;
-use App\Services\PVE\DuelService;
+use App\Services\PVE\ArenaScreenService;
 use App\Services\Telegram\ButtonPacker;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -19,28 +18,26 @@ use App\Services\Telegram\Request;
  * было ТОЛЬКО случайно зайдя в клетку opt-in игрока при походе (на 1M клеток + низкий онлайн =
  * никогда). Арена — ростер всех `duels_open=1` бойцов: выбери и вызови откуда угодно (спорт без
  * ставок → локация не важна). Вызов идёт `arenaDuel_<id>` → DuelAction (тот же equalized движок,
- * без adjacency-гейта). Вход: хаб поселения (safe-зона, тематично) + экран «🏆 Рейтинг PvP».
+ * без adjacency-гейта). Вход: хаб «⚙️ Ещё», хаб поселения + экран «🏆 Рейтинг PvP».
  *
- * Killswitch `pvp.duel.enabled` (DuelService::enabled) — при OFF alert. Caption самодостаточен.
+ * w2-n7-combat-02 (ADR-190): данные — модель `ArenaScreenService::arena()`, этот handler только рисует
+ * её в Telegram (веб рисует ту же модель нативно). Вход в журнал «📜 Мои бои» — рядом с рейтингом.
+ *
+ * Killswitch `pvp.duel.enabled` — при OFF alert. Caption самодостаточен.
  */
 final class ArenaAction extends BaseAction
 {
-    private const ROSTER_LIMIT = 12;
-
     public function handle(): ServerResponse
     {
         [$user, $character] = $this->getUserAndCharacter();
         if (! $user || ! $character) {
             return $this->alert('Персонаж не найден.');
         }
-        if (! (new DuelService())->enabled()) {
+
+        $arena = (new ArenaScreenService())->arena($character);
+        if (! $arena['enabled']) {
             return $this->alert('Арена сейчас закрыта.');
         }
-
-        $selfId   = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
-        $selfOpen = SettingsAction::duelsOpenFlag($character) === 1;
-
-        $roster = $this->roster($selfId);
 
         $text = "🏟 *Арена — равные дуэли*\n\n"
             . "_Спортивный поединок на равных статах: ни здоровья, ни опыта не теряется. "
@@ -48,21 +45,14 @@ final class ArenaAction extends BaseAction
 
         $rows        = [];
         $duelButtons = [];
-        if ($roster === []) {
+        if ($arena['roster'] === []) {
             $text .= "Пока *никто не открыт* для дуэлей.\n";
         } else {
             $text .= "⚔️ *Открытые бойцы:*\n";
-            foreach ($roster as $r) {
-                $id    = is_numeric($r['id'] ?? null) ? (int) $r['id'] : 0;
-                $name  = is_string($r['name'] ?? null) && $r['name'] !== '' ? $r['name'] : ('№' . $id);
-                $lvl   = is_numeric($r['level'] ?? null) ? (int) $r['level'] : 1;
-                $pts   = is_numeric($r['pts'] ?? null) ? (int) $r['pts'] : 0;
-                if ($id <= 0) {
-                    continue;
-                }
-                $ptsTag = $pts > 0 ? " · {$pts} очк." : '';
-                $text  .= "• {$name} (ур.{$lvl}{$ptsTag})\n";
-                $duelButtons[] = ['text' => "⚔️ Вызвать: {$name}", 'callback_data' => 'arenaDuel_' . $id];
+            foreach ($arena['roster'] as $r) {
+                $ptsTag = $r['pts'] > 0 ? " · {$r['pts']} очк." : '';
+                $text  .= "• {$r['name']} (ур.{$r['level']}{$ptsTag})\n";
+                $duelButtons[] = ['text' => "⚔️ Вызвать: {$r['name']}", 'callback_data' => 'arenaDuel_' . $r['id']];
             }
             // Соперников пакуем по 2-3 в ряд: колонкой ростер был бы простынёй.
             foreach (ButtonPacker::pack($duelButtons) as $packedRow) {
@@ -72,7 +62,7 @@ final class ArenaAction extends BaseAction
 
         // Discoverability opt-in: подсказать открыться, чтобы и тебя могли вызвать.
         $text .= "\n";
-        if ($selfOpen) {
+        if ($arena['self_open']) {
             $text .= "✅ Ты *открыт* для дуэлей — тебя могут вызвать. Закрыться можно в ⚙️ Настройках.";
         } else {
             $text .= "🔒 Ты *закрыт* для дуэлей. Откройся в ⚙️ Настройках — тогда и тебя смогут вызвать на арену.";
@@ -81,6 +71,7 @@ final class ArenaAction extends BaseAction
 
         $rows[] = [
             ['text' => '🏆 Рейтинг PvP', 'callback_data' => 'pvpLadder'],
+            ['text' => '📜 Мои бои', 'callback_data' => 'battles'],
             ['text' => '◀️ Я', 'callback_data' => 'character'],
         ];
 
@@ -91,26 +82,6 @@ final class ArenaAction extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $rows]) ?: '{}',
         ]);
-    }
-
-    /**
-     * Ростер бойцов, открытых к дуэлям (кроме себя), по убыванию очков ладдера затем уровня.
-     *
-     * @return array<int, array<string,mixed>>
-     */
-    private function roster(int $selfId): array
-    {
-        $q = \Config\Database::connect()->table('characters c')
-            ->select('c.id, c.name, c.level, COALESCE(l.points, 0) AS pts')
-            ->join('pvp_ladder l', 'l.character_id = c.id', 'left')
-            ->where('c.duels_open', 1)
-            ->where('c.id !=', $selfId)
-            ->orderBy('pts', 'DESC')
-            ->orderBy('c.level', 'DESC')
-            ->limit(self::ROSTER_LIMIT)
-            ->get();
-
-        return $q === false ? [] : $q->getResultArray();
     }
 
     private function alert(string $msg): ServerResponse

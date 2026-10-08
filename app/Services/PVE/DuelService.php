@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\PVE;
 
 use App\Services\GameSettings\GameSettingsService;
+use Config\GameBalance;
 
 /**
  * W17 (ADR-071) — PvP-дуэли: stat-equalize честной арены.
@@ -52,6 +53,18 @@ final class DuelService
     {
         $v = $this->settings->get('pvp.duel.baseline_health', 1000);
         return is_numeric($v) && (int) $v >= 1 ? (int) $v : 1000;
+    }
+
+    /**
+     * Анти-спам кулдаун между дуэлями одного вызывающего — тот же `pvp.attack_cooldown_sec`, что у
+     * PvP-атаки (pvp-detection-clarity-26); `GameBalance` — страховочный дефолт при пустой `game_settings`.
+     * w2-n7-combat-02: читается ядром арены, а не handler'ом.
+     */
+    public function cooldownSec(): int
+    {
+        $v = $this->settings->get('pvp.attack_cooldown_sec', config(GameBalance::class)->pvpAttackCooldownSec);
+
+        return is_numeric($v) ? max(0, (int) $v) : 0;
     }
 
     /**
