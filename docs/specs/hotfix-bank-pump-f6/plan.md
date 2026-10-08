@@ -37,5 +37,6 @@ none
 **Branch:** vulyk/hotfix-bank-pump-f6
 **Checked:**
 **Council:**
+**Council:** GREEN round 1, 2026-10-08, at 3881f455, pack eea95b1024d3
 **Shipped:**
 **Briefed:** via mini-brief, Andrei, 2026-10-08
