@@ -79,4 +79,5 @@ the command or script that owns it, and scripts/ship-check.sh reads them all.
 **Branch:** vulyk/w2-n7-combat
 **Checked:**
 **Council:**
+**Council:** RED round 1, 2026-10-08, at 52566e81, pack 221d7e59a50c
 **Shipped:**
