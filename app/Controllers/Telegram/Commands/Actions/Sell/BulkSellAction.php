@@ -6,8 +6,8 @@ use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Services\Notifications\MediaSender;
+use App\Services\Player\Trade\ResourceShopScreenService;
 use App\Services\Player\Trade\ResourceTradeService;
 
 /**
@@ -32,11 +32,10 @@ use App\Services\Player\Trade\ResourceTradeService;
  */
 class BulkSellAction extends BaseAction
 {
-    use GameSettingsReaderTrait;
-
-    public const KEY_ENABLED      = 'economy.bulk_sell.enabled';
-    public const KEY_PERCENTS     = 'economy.bulk_sell.percent_options';
-    public const DEFAULT_PERCENTS = '10,25,50,100';
+    // W2.N6: ворота опта (killswitch, доли) живут в ядре — ResourceShopScreenService.
+    public const KEY_ENABLED      = ResourceShopScreenService::KEY_BULK_ENABLED;
+    public const KEY_PERCENTS     = ResourceShopScreenService::KEY_BULK_PERCENTS;
+    public const DEFAULT_PERCENTS = ResourceShopScreenService::DEFAULT_BULK_PERCENTS;
 
     public function __construct(CallbackQuery $callbackQuery)
     {
@@ -53,16 +52,17 @@ class BulkSellAction extends BaseAction
             ]);
         }
 
-        if (! $this->gsBool(self::KEY_ENABLED, true)) {
+        $shop = new ResourceShopScreenService();
+        if (! $shop->bulkEnabled()) {
             return $this->screen(
                 '🧺 Оптовая продажа временно недоступна.',
                 [[['text' => '🛒 Магазин', 'callback_data' => 'shop']]]
             );
         }
 
-        $params   = explode('_', (string) $this->callbackQuery->getData());
-        $count    = count($params);
-        $percents = self::parsePercents($this->gsString(self::KEY_PERCENTS, self::DEFAULT_PERCENTS));
+        $params      = explode('_', (string) $this->callbackQuery->getData());
+        $count       = count($params);
+        $characterId = (int) $character['id'];
 
         // bulkSell
         //  └── all_{pct}            → предпросмотр (все ресурсы)
@@ -73,40 +73,38 @@ class BulkSellAction extends BaseAction
         // Выполнение (go) — проверяем раньше (длиннее), сделку делает только эта ветка.
         if ($count >= 4 && $params[1] === 'go') {
             if ($params[2] === 'all' && $count === 4) {
-                return $this->execute($character, null, (int) $params[3], $percents);
+                return $this->execute($shop, $characterId, null, (int) $params[3]);
             }
             if ($params[2] === 'rarity' && $count === 5) {
-                return $this->execute($character, (int) $params[3], (int) $params[4], $percents);
+                return $this->execute($shop, $characterId, (int) $params[3], (int) $params[4]);
             }
         }
 
         // Предпросмотр (подтверждение).
         if ($count === 3 && $params[1] === 'all') {
-            return $this->preview($character, null, (int) $params[2], $percents);
+            return $this->preview($shop, $characterId, null, (int) $params[2]);
         }
         if ($count === 4 && $params[1] === 'rarity') {
-            return $this->preview($character, (int) $params[2], (int) $params[3], $percents);
+            return $this->preview($shop, $characterId, (int) $params[2], (int) $params[3]);
         }
 
         return $this->backToScope(null);
     }
 
     /**
-     * Шаг подтверждения: оценка, что и на сколько будет продано (без мутаций).
-     *
-     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
-     * @param list<int> $percents
+     * Шаг подтверждения: оценка, что и на сколько будет продано (без мутаций) — модель
+     * {@see ResourceShopScreenService::bulkPreviewModel()}, общая с вебом `/play`.
      */
-    private function preview($character, ?int $rarity, int $percent, array $percents): ServerResponse
+    private function preview(ResourceShopScreenService $shop, int $characterId, ?int $rarity, int $percent): ServerResponse
     {
-        if (! in_array($percent, $percents, true) || ! $this->validRarity($rarity)) {
+        $preview = $shop->bulkPreviewModel($characterId, $rarity, $percent);
+        if ($preview['code'] === ResourceShopScreenService::INVALID || $preview['code'] === ResourceShopScreenService::DISABLED) {
             return $this->backToScope($rarity);
         }
 
-        $preview    = (new ResourceTradeService())->bulkSellPreview($this->charArray($character), $percent, $rarity);
         $scopeTitle = $rarity === null ? 'всех ресурсов' : "ресурсов редкости {$rarity}";
 
-        if ($preview['typesCount'] <= 0 || $preview['totalQty'] <= 0) {
+        if ($preview['code'] === ResourceShopScreenService::EMPTY) {
             return $this->screen(
                 "🧺 *Оптовая продажа*\n\n"
                 . "Продавать по *{$percent}%* {$scopeTitle} сейчас нечего — нет ходовых ресурсов в достаточном объёме.\n\n"
@@ -123,8 +121,8 @@ class BulkSellAction extends BaseAction
             : '_Доля берётся от каждого запаса. Реальная цена может отличаться от спроса. Действие необратимо._';
 
         $text = "🧺 *Оптовая продажа — {$headLabel}*\n\n"
-            . "Будет продано: *{$preview['typesCount']}* вид(ов), всего *" . number_format($preview['totalQty']) . "* ед.\n"
-            . "Примерная выручка: *~" . number_format($preview['totalGold']) . "* 💰\n\n"
+            . "Будет продано: *{$preview['types']}* вид(ов), всего *" . number_format($preview['qty']) . "* ед.\n"
+            . "Примерная выручка: *~" . number_format($preview['gold']) . "* 💰\n\n"
             . $shareNote . "\n\n"
             . "Продолжить?";
 
@@ -135,21 +133,15 @@ class BulkSellAction extends BaseAction
     }
 
     /**
-     * Подтверждённое выполнение оптовой продажи.
-     *
-     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
-     * @param list<int> $percents
+     * Подтверждённое выполнение оптовой продажи — {@see ResourceShopScreenService::bulkSell()}.
      */
-    private function execute($character, ?int $rarity, int $percent, array $percents): ServerResponse
+    private function execute(ResourceShopScreenService $shop, int $characterId, ?int $rarity, int $percent): ServerResponse
     {
-        if (! in_array($percent, $percents, true) || ! $this->validRarity($rarity)) {
+        $result = $shop->bulkSell($characterId, $rarity, $percent);
+        if ($result['code'] === ResourceShopScreenService::INVALID || $result['code'] === ResourceShopScreenService::DISABLED) {
             return $this->backToScope($rarity);
         }
-
-        $charArr = $this->charArray($character);
-        $result  = (new ResourceTradeService())->bulkSellResources($charArr, $percent, $rarity);
-
-        if (! $result['success']) {
+        if ($result['code'] !== ResourceShopScreenService::OK) {
             return $this->screen("🧺 {$result['message']}", [$this->backRow($rarity)]);
         }
 
@@ -160,14 +152,14 @@ class BulkSellAction extends BaseAction
         // сделка (story 12) — состав режется «и ещё N» (ResourceTradeService::joinWithLimit),
         // не разносит ленту простынёй на богатом инвентаре.
         $this->logActivity(
-            is_numeric($charArr['id'] ?? null) ? (int) $charArr['id'] : null,
+            $characterId,
             'BULK_SELL',
-            ResourceTradeService::describeBulkTrade("Продажа опт {$percent}% {$scopeTitle}", $result['lines'], $result['totalGold'])
+            ResourceTradeService::describeBulkTrade("Продажа опт {$percent}% {$scopeTitle}", $result['lines'], $result['gold'])
         );
         $text = "✅ *Оптовая продажа выполнена*\n\n"
-            . "Продано по *{$percent}%* {$scopeTitle}: *{$result['typesSold']}* вид(ов), всего *"
-            . number_format($result['totalQty']) . "* ед.\n"
-            . "Выручка: *+" . number_format($result['totalGold']) . "* 💰";
+            . "Продано по *{$percent}%* {$scopeTitle}: *{$result['types']}* вид(ов), всего *"
+            . number_format($result['qty']) . "* ед.\n"
+            . "Выручка: *+" . number_format($result['gold']) . "* 💰";
 
         return $this->screen($text, [
             [
@@ -179,11 +171,6 @@ class BulkSellAction extends BaseAction
                 ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
             ],
         ]);
-    }
-
-    private function validRarity(?int $rarity): bool
-    {
-        return $rarity === null || ($rarity >= 1 && $rarity <= 10);
     }
 
     /**
@@ -206,39 +193,14 @@ class BulkSellAction extends BaseAction
     }
 
     /**
-     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
-     * @return array<string,mixed>
-     */
-    private function charArray($character): array
-    {
-        if ($character instanceof \App\Entities\CharacterEntity) {
-            return $character->toArray();
-        }
-        return $character; // по сигнатуре уже array<string,mixed>
-    }
-
-    /**
-     * Парсер CSV процентов из GameSettings → отсортированный уникальный список (1..100).
-     * Пустой/мусорный список → дефолт [10,25,50]. Чистый, юнит-тестируемый.
+     * Парсер CSV процентов — живёт в ядре ({@see ResourceShopScreenService::parsePercents()}),
+     * здесь остаётся для старых вызовов.
      *
      * @return list<int>
      */
     public static function parsePercents(string $csv): array
     {
-        $vals = [];
-        foreach (explode(',', $csv) as $part) {
-            $part = trim($part);
-            if ($part !== '' && ctype_digit($part)) {
-                $p = (int) $part;
-                if ($p >= 1 && $p <= 100) {
-                    $vals[$p] = true;
-                }
-            }
-        }
-        $list = array_keys($vals);
-        sort($list);
-
-        return $list !== [] ? $list : [10, 25, 50];
+        return ResourceShopScreenService::parsePercents($csv);
     }
 
     /**

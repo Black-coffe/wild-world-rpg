@@ -4,24 +4,15 @@ namespace App\Controllers\Telegram\Commands\Actions\Sell;
 
 use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
-use App\Models\CharacterResourceModel;
-use App\Models\ResourceModel;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Notifications\MediaSender;
-use App\Services\GameSettings\GameSettingsReaderTrait;
+use App\Services\Player\Trade\ResourceShopScreenService;
 
 class SellAction extends BaseAction
 {
-    use GameSettingsReaderTrait;
-
-    protected $characterResourceModel;
-    protected $resourceModel;
-
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->characterResourceModel = new CharacterResourceModel();
-        $this->resourceModel = new ResourceModel();
     }
 
     public function handle(): ServerResponse
@@ -35,50 +26,22 @@ class SellAction extends BaseAction
             ]);
         }
 
-        $characterResources = $this->characterResourceModel->where('id_characters', $character['id'])->findAll();
-        $totalResources = count($characterResources);
-        $totalValue = 0;
+        // W2.N6: данные экрана — из нейтральной модели, общей с вебом `/play`.
+        $model = (new ResourceShopScreenService())->sellHubModel((int) $character['id']);
 
-        foreach ($characterResources as $characterResource) {
-            $resource = $this->resourceModel->find($characterResource['id_resources']);
-            if ($resource) {
-                $totalValue += $resource['sell_price'] * $characterResource['quantity'];
-            }
-        }
-
-        $text = "📦 *У тебя есть разных: $totalResources вид(а) всех ресурсов*\n"
-            . "👉Их общая стоимость = *" . number_format($totalValue) . "💰*\n\n"
+        $text = "📦 *У тебя есть разных: {$model['types']} вид(а) всех ресурсов*\n"
+            . "👉Их общая стоимость = *" . number_format($model['total_value']) . "💰*\n\n"
             . "_📌ВАЖНО📌 Чтобы и тебе, и мне, как торговцу, было проще, пересмотри ресурсы и обрати внимание на их редкость. Ниже отметь цифрой, какой редкости ресурсы ты готов продать. Если их там будет несколько, на следующем шаге ты выберешь нужный ресурс._";
 
-        $rows = [
-            [
-                ['text' => '1️⃣ редкость', 'callback_data' => 'sellResource_rarity_1'],
-                ['text' => '2️⃣ редкость', 'callback_data' => 'sellResource_rarity_2'],
-                ['text' => '3️⃣ редкость', 'callback_data' => 'sellResource_rarity_3'],
-            ],
-            [
-                ['text' => '4️⃣ редкость', 'callback_data' => 'sellResource_rarity_4'],
-                ['text' => '5️⃣ редкость', 'callback_data' => 'sellResource_rarity_5'],
-                ['text' => '6️⃣ редкость', 'callback_data' => 'sellResource_rarity_6'],
-            ],
-            [
-                ['text' => '7️⃣ редкость', 'callback_data' => 'sellResource_rarity_7'],
-                ['text' => '8️⃣ редкость', 'callback_data' => 'sellResource_rarity_8'],
-                ['text' => '9️⃣ редкость', 'callback_data' => 'sellResource_rarity_9'],
-            ],
-            [
-                ['text' => '🔟 редкость', 'callback_data' => 'sellResource_rarity_10'],
-                ['text' => '◀️ Я', 'callback_data' => 'character'],
-                ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-            ],
-        ];
+        $rows = self::rarityRows('sellResource_rarity_');
+        $rows[3][] = ['text' => '◀️ Я', 'callback_data' => 'character'];
+        $rows[3][] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
 
         // ADR-096 — оптовая продажа: ряд «💰 N%» под выбором редкости (продать долю ВСЕХ
-        // ресурсов сразу). Только если есть что продавать (totalValue>0) и фича включена.
-        $percents = BulkSellAction::parsePercents($this->gsString(BulkSellAction::KEY_PERCENTS, BulkSellAction::DEFAULT_PERCENTS));
-        if ($totalValue > 0 && $percents !== [] && $this->gsBool(BulkSellAction::KEY_ENABLED, true)) {
+        // ресурсов сразу). Модель отдаёт доли, только если есть что продавать и фича включена.
+        if ($model['bulk'] !== []) {
             $text .= "\n\n🧺 *Оптом* — продать сразу долю *всех* ресурсов:";
-            $rows[] = BulkSellAction::buttonsRow('all', $percents);
+            $rows[] = BulkSellAction::buttonsRow('all', $model['bulk']);
         }
 
         // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на главный экран магазина.
@@ -97,5 +60,22 @@ class SellAction extends BaseAction
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * Кнопки редкостей 1…10 по три в ряд (последний ряд — одна «🔟», его дополняет вызывающий).
+     * Общая для продажи и покупки. Чистая функция.
+     *
+     * @return list<list<array{text:string, callback_data:string}>>
+     */
+    public static function rarityRows(string $callbackPrefix): array
+    {
+        $digits = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+        $btns   = [];
+        foreach (ResourceShopScreenService::RARITIES as $i => $r) {
+            $btns[] = ['text' => $digits[$i] . ' редкость', 'callback_data' => $callbackPrefix . $r];
+        }
+
+        return array_chunk($btns, 3);
     }
 }

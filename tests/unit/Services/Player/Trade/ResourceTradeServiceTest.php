@@ -138,12 +138,17 @@ final class ResourceTradeServiceTest extends CIUnitTestCase
      */
     public function testResourceScreensDelegateTotalsToTheService(): void
     {
+        // W2.N6: итоги экранов считает нейтральная модель ResourceShopScreenService — той же
+        // формулой сделки; handler'ы только рисуют её числа.
+        $model = (string) file_get_contents(APPPATH . 'Services/Player/Trade/ResourceShopScreenService.php');
+        $this->assertStringContainsString('->totalFor(', $model, 'модель экранов считает итог сама');
+
         foreach (['SellResourceAction', 'BuyResourceAction'] as $screen) {
             $source = (string) file_get_contents(
                 APPPATH . "Controllers/Telegram/Commands/Actions/Sell/{$screen}.php"
             );
 
-            $this->assertStringContainsString('totalFor(', $source, "{$screen} считает итог сам");
+            $this->assertStringContainsString('ResourceShopScreenService', $source, "{$screen} считает итог сам");
             $this->assertDoesNotMatchRegularExpression(
                 "/\\\$unitPrice\s*=\s*\(int\)\s*\\\$resource\[/",
                 $source,

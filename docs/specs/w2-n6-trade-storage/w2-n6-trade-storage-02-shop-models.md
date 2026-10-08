@@ -1,8 +1,8 @@
 ---
 story: w2-n6-trade-storage-02
 spec: w2-n6-trade-storage
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -61,5 +61,27 @@ blocked_by: [w2-n6-trade-storage-01]
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- Перед сборкой в ветку влит `develop` с hotfix `v0.51.688` (merge `78acc727`): ветка была срезана до него, а
+  хотфикс уже перевёл `sellResource()`/`bulkSellResources()` на условное списание. Поэтому `ResourceTradeService`
+  в этой story не тронут — двойная продажа доказана тестом поверх него (`testTwoSellsOfTheLastRemainderSellItOnce`).
+- `ResourceShopScreenService` — модели хаба, продажи (хаб/редкость/карточка), покупки (хаб/витрина/карточка с
+  «не хватает N»), опта (превью/сделка с воротами killswitch + доля из списка + редкость 1…10) и операции
+  `sell()`/`buy()` с потолком `max_qty` (продажа — сколько есть, покупка — сколько оплачивает свежее золото).
+  Персонаж — id; `chat_id`/Telegram в сервис не попадают (тест рефлексией). Своих чисел баланса нет.
+- Handler'ы рисуют из моделей; тексты и кнопки дословно прежние: `ResourceShopBotParityTest` — 22 экрана, снимки
+  сняты со старых handler'ов до переноса (зелёный «до» и «после»). Экраны с фото (хаб, итог продажи) — через
+  чистую `ShopAction::hubRows()` (тест в `ResourceShopScreenServiceTest`): `encodeFile()` в тесте не открывает URL.
+- Общие куски рендера: `SellAction::rarityRows()` (редкости, им же рисует покупка), `SellResourceAction::presetRows()`
+  (пресеты, им же — покупка). Константы опта переехали в сервис, в `BulkSellAction` — алиасы + `parsePercents()`-обёртка.
+- Пресеты бота и ForceReply (`GenericmessageCommand::handleTradeReply`) по-прежнему зовут `ResourceTradeService`
+  напрямую и продают «сколько есть» — поведение бота не меняется; потолок-отказ — только для веб-ввода через
+  `sell()/buy()`. `GenericmessageCommand` не тронут: он уже ходит в то же ядро (тест `testForceReplyCoreSellsAndBuysAsBefore`).
+- Source-scan `ResourceTradeServiceTest::testResourceScreensDelegateTotalsToTheService` переписан: итог считает модель.
+- phpstan: 4 строки baseline стали не нужны — удалены.
+- Вне `## Files`: ноты vault (`ResourceShopScreenService.md` новая, `ShopAction.md` и `sell/SellAction.md` новые,
+  `ResourceTradeService.md` и три ноты `handlers/sell/*` обновлены) — правило tech-writing.
+- `tests/exploit-poc/EconomyLimitsTest` красный и на базе (PoC пампа цены, не эта story).
+- Вердикты: guide — нет (видимой механики не прибавилось, бот прежний; веб-вход решает story 03); совет — нет
+  (рефактор без новой поверхности игрока).
 
 ## Findings
