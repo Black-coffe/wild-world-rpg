@@ -53,7 +53,7 @@ none
 
 **Approved:** Andrei, 2026-10-08
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/w2-n6-trade-storage
 **Checked:**
 **Council:**
 **Shipped:**
