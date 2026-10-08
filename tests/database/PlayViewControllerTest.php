@@ -1320,6 +1320,8 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $over = $post(['section' => 'sell_card', 'id' => '7', 'op' => 'sell', 'qty' => '36', 'intent_id' => 's2']);
         $this->assertSame('У тебя только 35 шт. — больше продать нельзя.', $over['alert']);
         $this->assertSame(35, $this->ownedQty($charId, 7), 'больше потолка — ничего не списано');
+        $huge = $post(['section' => 'sell_card', 'id' => '7', 'op' => 'sell', 'qty' => '123456789012', 'intent_id' => 's5']);
+        $this->assertSame('У тебя только 35 шт. — больше продать нельзя.', $huge['alert'], 'длинное число — тот же отказ потолка');
         $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['view' => 'shop', 'op' => 'sell', 'id' => 'x', 'qty' => '1', 'intent_id' => 's3'], true)->response()->getStatusCode());
 
         $res = $this->postWithCsrf($session, 'play/view', ['view' => 'shop'] + $sell + ['intent_id' => 's4']);
@@ -1408,7 +1410,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $off = html_entity_decode($post([])['html'], ENT_QUOTES | ENT_HTML5);
         $this->assertStringContainsString('data-storage-lock', $off);
         $this->assertStringContainsString('положить и забрать можно только на базе', mb_strtolower($off));
-        $this->assertStringContainsString('Путь: 🌍 Мир → клетка твоей базы', $off);
+        $this->assertStringContainsString('Путь: 🌍 Мир → дойди до клетки своей базы (🏠 на карте) → 🏠 База → 📦 Склад базы', $off);
         $this->assertMatchesRegularExpression('~name="op" value="storage_take">.*?🎒 Забрать всё</button>~su', $off, 'кнопки не пропадают');
         $refused = $post(['op' => 'storage_take', 'intent_id' => 'w4']);
         $this->assertStringStartsWith('🚫 Склад физически на базе', (string) $refused['alert']);

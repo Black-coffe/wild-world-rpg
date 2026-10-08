@@ -760,10 +760,17 @@ class Play extends BaseController
         return is_string($mode) && in_array($mode, \App\Services\Player\InventorySortService::STORAGE_MODES, true) ? ['mode' => $mode] : [];
     }
 
-    /** Количество сделки из формы (0 — нет/не число: ядро откажет «укажи количество»). */
+    /**
+     * Количество сделки из формы: 0 — нет/не число (ядро откажет «укажи количество»); длиннее 7 цифр — 9 999 999,
+     * чтобы ядро ответило честным «больше потолка», а не «укажи количество».
+     */
     private static function quantity(mixed $raw): int
     {
-        return is_string($raw) && preg_match('/^\d{1,7}$/', $raw) === 1 ? (int) $raw : 0;
+        if (! is_string($raw) || preg_match('/^\d+$/', $raw) !== 1) {
+            return 0;
+        }
+
+        return strlen(ltrim($raw, '0')) > 7 ? 9_999_999 : (int) $raw;
     }
 
     /** Целая координата из формы (окно карты может заходить за край мира: знак допустим). */

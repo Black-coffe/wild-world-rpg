@@ -1478,6 +1478,7 @@ class WebNativeScreenService
         return match ($out['code']) {
             BaseStorageService::OK       => "📥 На склад: {$out['name']} × {$out['quantity']} шт.",
             BaseStorageService::OFF_BASE => self::STORAGE_OFF_BASE,
+            BaseStorageService::SHORT    => 'Не удалось сложить на склад — запас изменился, попробуй ещё раз.',
             default                      => 'Этого ресурса в рюкзаке уже нет.',
         };
     }

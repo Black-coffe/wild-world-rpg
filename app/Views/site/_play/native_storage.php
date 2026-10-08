@@ -64,7 +64,7 @@ $modes = ['recent' => '🕒 Недавние', 'name' => '🔤 Название'
                 <div class="play-lock" data-storage-lock>
                     <span class="play-lock-title">🔒 Положить и забрать (нужно: стоять на своей базе)</span>
                     <span class="play-lock-why">Положить и забрать можно только на базе: склад физически стоит на твоей клейм-клетке. Из поля груз домой носит карго-дрон.</span>
-                    <span class="play-lock-path">Путь: 🌍 Мир → клетка твоей базы (🏠 на карте) → 📦 Склад базы</span>
+                    <span class="play-lock-path">Путь: 🌍 Мир → дойди до клетки своей базы (🏠 на карте) → 🏠 База → 📦 Склад базы</span>
                 </div>
                 <div class="play-kb-grid">
                     <?= $go('map', [], '🌍 Мир') ?>

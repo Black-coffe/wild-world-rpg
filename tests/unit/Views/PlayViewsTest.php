@@ -634,7 +634,7 @@ final class PlayViewsTest extends CIUnitTestCase
         $this->assertStringContainsString('data-storage-lock', $off);
         $this->assertStringContainsString('🔒 Положить и забрать (нужно: стоять на своей базе)', $text);
         $this->assertStringContainsString('Положить и забрать можно только на базе', $text);
-        $this->assertStringContainsString('Путь: 🌍 Мир → клетка твоей базы', $text);
+        $this->assertStringContainsString('Путь: 🌍 Мир → дойди до клетки своей базы (🏠 на карте) → 🏠 База → 📦 Склад базы', $text);
         $mutations = array_values(array_filter(self::forms($off), static fn (array $f): bool => in_array($f['op'] ?? '', ['storage_take', 'storage_put'], true)));
         $this->assertSame(['storage_take', 'storage_take', 'storage_take', 'storage_put', 'storage_put'], array_column($mutations, 'op'), 'вне базы кнопки не пропадают');
         foreach ($mutations as $form) {
