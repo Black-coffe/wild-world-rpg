@@ -1,0 +1,10 @@
+{
+  "case": "Исходный случай 2026-10-08: дуэль 491 vs 522 на testbot — оба без оружия, настройки до фикса (HP 1000, базовое оружие = кулаки 2, свой урон целиком, уворот 12,5 %). 150 раундов, исход решил стаж.",
+  "settings": {
+    "pvp.duel.baseline_health": 1000,
+    "pvp.duel.baseline_weapon_damage": 2,
+    "pvp.duel.weapon_advantage_weight": 1,
+    "pvp.duel.dodge_percent": 12.5
+  },
+  "weapons": {}
+}

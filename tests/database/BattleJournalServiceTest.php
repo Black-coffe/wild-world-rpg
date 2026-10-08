@@ -156,6 +156,31 @@ final class BattleJournalServiceTest extends CIUnitTestCase
         $this->assertStringContainsString("\n1. San", $text, 'первый раунд виден');
     }
 
+    /**
+     * duel-baseline-weapon-02: урон и остаток меньше 1 — двумя знаками, а не «−0» (дуэль до фикса била по 0,01).
+     * Тот же набор — в `PlayViewsTest::testWebBattleCardShowsDamageBelowOneLikeTheBot` (паритет форматтеров).
+     */
+    public function testBotCardShowsDamageBelowOneNotAsZero(): void
+    {
+        $text = BattleJournalAction::renderCard(['id' => 9, 'type' => 'DUEL', 'duel' => true, 'me' => 'Ворон', 'opponent' => 'Сова', 'result' => 'win', 'at' => '2026-10-08 21:05:00', 'rounds_total' => 6, 'rounds' => [
+            ['n' => 1, 'attacker' => 'Ворон', 'defender' => 'Сова', 'damage' => 0.01, 'hp_after' => 999.99, 'lucky' => false, 'mine' => true],
+            ['n' => 2, 'attacker' => 'Сова', 'defender' => 'Ворон', 'damage' => 0.04, 'hp_after' => 0.4, 'lucky' => false, 'mine' => false],
+            ['n' => 3, 'attacker' => 'Ворон', 'defender' => 'Сова', 'damage' => 0.4, 'hp_after' => 12.6, 'lucky' => false, 'mine' => true],
+            ['n' => 4, 'attacker' => 'Сова', 'defender' => 'Ворон', 'damage' => 2.36, 'hp_after' => 0.01, 'lucky' => false, 'mine' => false],
+            ['n' => 5, 'attacker' => 'Ворон', 'defender' => 'Сова', 'damage' => 12.6, 'hp_after' => 2.36, 'lucky' => false, 'mine' => true],
+            ['n' => 6, 'attacker' => 'Сова', 'defender' => 'Ворон', 'damage' => 0.0, 'hp_after' => 0.04, 'lucky' => false, 'mine' => false],
+        ]]);
+
+        $this->assertStringContainsString('1. Ворон → Сова: −0.01 (осталось 1000 HP)', $text);
+        $this->assertStringContainsString('2. Сова → Ворон: −0.04 (осталось 0.4 HP)', $text);
+        $this->assertStringContainsString('3. Ворон → Сова: −0.4 (осталось 13 HP)', $text);
+        $this->assertStringContainsString('4. Сова → Ворон: −2.4 (осталось 0.01 HP)', $text);
+        $this->assertStringContainsString('5. Ворон → Сова: −13 (осталось 2.4 HP)', $text);
+        $this->assertStringContainsString('6. Сова → Ворон: промах (осталось 0.04 HP)', $text);
+        $this->assertStringNotContainsString('−0 ', $text);
+        $this->assertStringNotContainsString('−0 (', $text);
+    }
+
     public function testBotListRendersAndPacksButtons(): void
     {
         for ($i = 0; $i < 10; $i++) {

@@ -12,11 +12,27 @@ use Config\GameBalance;
  *
  * Pure GameSettings-reader + чистый пре-процесс структуры бойца ДО неизменного
  * `PvpRoundOrchestrator::simulateFight` (ADR-070 RNG-fence-safe план: simulateFight
- * не трогаем, дуэль — новый CALLER с equalized входом). Снаряжение НЕ нормализуется
- * (грузится по реальному id внутри боя) → решает билд игрока.
+ * не трогаем, дуэль — новый CALLER с equalized входом). Снаряжение грузится по реальному id
+ * внутри боя через {@see DuelEquipmentRepository} → билд игрока решает, но с весом.
+ *
+ * duel-baseline-weapon (поправка ADR-071): дуэль — спорт на одной площадке (оба бойца на клетке
+ * вызывающего, дистанция не режет урон), базовое оружие для безоружных и слабых, вес перевеса своего
+ * оружия, уворот на арене и HP дуэли — всё из `pvp.duel.*`. До фикса бой с арены делил урон на
+ * дистанцию между реальными клетками (кулаки 2.0 / 457 клеток ≈ 0,004) и кончался стажем.
  */
 final class DuelService
 {
+    public const DEFAULT_HEALTH        = 200;
+    public const DEFAULT_WEAPON_DAMAGE = 10.0;
+    public const DEFAULT_WEAPON_WEIGHT = 0.5;
+    public const DEFAULT_DODGE_PERCENT = 40.0;
+
+    /** Потолок уворота движка (`GameBalance::$maxDodgeChancePercent`). */
+    private const MAX_DODGE_PERCENT = 75.0;
+
+    /** `PvpFormulaService::getDodgeChance()`: уворот = ловкость × 0.25 (связь держит тест). */
+    private const DODGE_PER_AGILITY = 0.25;
+
     private GameSettingsService $settings;
 
     public function __construct(?GameSettingsService $settings = null)
@@ -51,8 +67,29 @@ final class DuelService
 
     public function baselineHealth(): int
     {
-        $v = $this->settings->get('pvp.duel.baseline_health', 1000);
-        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 1000;
+        $v = $this->settings->get('pvp.duel.baseline_health', self::DEFAULT_HEALTH);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : self::DEFAULT_HEALTH;
+    }
+
+    /** Урон базового оружия: им бьёт безоружный и тот, чьё оружие слабее (урон × редкость). */
+    public function baselineWeaponDamage(): float
+    {
+        $v = $this->settings->get('pvp.duel.baseline_weapon_damage', self::DEFAULT_WEAPON_DAMAGE);
+        return is_numeric($v) && (float) $v >= 1.0 ? (float) $v : self::DEFAULT_WEAPON_DAMAGE;
+    }
+
+    /** Доля перевеса своего оружия над базовым: 0 — у всех базовое, 1 — своё целиком. */
+    public function weaponAdvantageWeight(): float
+    {
+        $v = $this->settings->get('pvp.duel.weapon_advantage_weight', self::DEFAULT_WEAPON_WEIGHT);
+        return is_numeric($v) ? max(0.0, min(1.0, (float) $v)) : self::DEFAULT_WEAPON_WEIGHT;
+    }
+
+    /** Шанс уворота обоих бойцов в дуэли, %; равен у обоих, даёт исходу разброс. */
+    public function dodgePercent(): float
+    {
+        $v = $this->settings->get('pvp.duel.dodge_percent', self::DEFAULT_DODGE_PERCENT);
+        return is_numeric($v) ? max(0.0, min(self::MAX_DODGE_PERCENT, (float) $v)) : self::DEFAULT_DODGE_PERCENT;
     }
 
     /**
@@ -68,15 +105,15 @@ final class DuelService
     }
 
     /**
-     * Stat-equalize: клон бойца с нормализованными level/strength/agility/intellect/
-     * health/max_health/tired к baseline. id/name/cell_number/faction/прочее — сохранены
-     * (нужны для идентичности исхода + загрузки снаряжения по id внутри боя).
-     * Снаряжение НЕ трогается — билд игрока решает.
+     * Stat-equalize: клон бойца с нормализованными level/strength/intellect к baseline, agility —
+     * под уворот дуэли (`dodgePercent()`), health/max_health/tired — к HP дуэли. id/name/faction/прочее
+     * сохранены (нужны для идентичности исхода + загрузки снаряжения по id внутри боя).
+     * `$cell` — клетка площадки: передан → бойцу ставится эта клетка (дуэль без дистанции).
      *
      * @param array<string,mixed> $char
      * @return array<string,mixed>
      */
-    public function equalize(array $char): array
+    public function equalize(array $char, ?int $cell = null): array
     {
         $level  = $this->baselineLevel();
         $stat   = $this->baselineStat();
@@ -84,14 +121,50 @@ final class DuelService
 
         $char['level']      = $level;
         $char['strength']   = $stat;
-        $char['agility']    = $stat;
+        $char['agility']    = $this->dodgePercent() / self::DODGE_PER_AGILITY;
         $char['intellect']  = $stat;
         $char['health']     = $health;
         $char['max_health'] = $health;
         // tired ≥ 30 → без tired-штрафа EffectService (равный отыгрыш билда).
         $char['tired']      = 100;
+        if ($cell !== null) {
+            $char['cell_number'] = $cell;
+        }
 
         return $char;
+    }
+
+    /**
+     * Пара бойцов дуэли: оба уравнены и стоят на одной площадке — клетке вызывающего.
+     *
+     * @param array<string,mixed> $attacker
+     * @param array<string,mixed> $defender
+     * @return array{0: array<string,mixed>, 1: array<string,mixed>}
+     */
+    public function prepare(array $attacker, array $defender): array
+    {
+        $cell = is_numeric($attacker['cell_number'] ?? null) ? (int) $attacker['cell_number'] : 0;
+
+        return [$this->equalize($attacker, $cell), $this->equalize($defender, $cell)];
+    }
+
+    /**
+     * Бой уравненной пары на неизменном `simulateFight` (спорт, без защиты базы). Оружие — через
+     * {@see DuelEquipmentRepository} поверх `$repo`: базовое для безоружных и слабых, перевес с весом.
+     * Броня и клетки — из `$repo` как есть.
+     *
+     * @param array<string,mixed> $eqAttacker
+     * @param array<string,mixed> $eqDefender
+     * @param array<string,mixed>|\App\Entities\BiomeEntity $biome
+     * @return array<string,mixed> выход simulateFight
+     */
+    public function simulate(array $eqAttacker, array $eqDefender, array|\App\Entities\BiomeEntity $biome, PvpEquipmentRepository $repo): array
+    {
+        $formulas = new PvpFormulaService();
+        $duelRepo = new DuelEquipmentRepository($repo, $this->baselineWeaponDamage(), $this->weaponAdvantageWeight(), $formulas);
+
+        return (new PvpRoundOrchestrator(new PvpDamageCalculator($formulas, $duelRepo), $formulas))
+            ->simulateFight($eqAttacker, $eqDefender, $biome, null);
     }
 
     /**

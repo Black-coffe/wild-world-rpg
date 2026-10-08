@@ -672,6 +672,31 @@ final class PlayViewsTest extends CIUnitTestCase
     }
 
     /**
+     * duel-baseline-weapon-02: веб-карточка форматирует урон и остаток так же, как бот (`BattleJournalAction::num`):
+     * меньше 1 — двумя знаками, а не «−0».
+     */
+    public function testWebBattleCardShowsDamageBelowOneLikeTheBot(): void
+    {
+        $card = ['id' => 9, 'type' => 'DUEL', 'duel' => true, 'me' => 'Ворон', 'opponent' => 'Сова', 'result' => 'win', 'at' => '2026-10-08 21:05:00', 'rounds_total' => 6, 'rounds' => [
+            ['n' => 1, 'attacker' => 'Ворон', 'defender' => 'Сова', 'damage' => 0.01, 'hp_after' => 999.99, 'lucky' => false, 'mine' => true],
+            ['n' => 2, 'attacker' => 'Сова', 'defender' => 'Ворон', 'damage' => 0.04, 'hp_after' => 0.4, 'lucky' => false, 'mine' => false],
+            ['n' => 3, 'attacker' => 'Ворон', 'defender' => 'Сова', 'damage' => 0.4, 'hp_after' => 12.6, 'lucky' => false, 'mine' => true],
+            ['n' => 4, 'attacker' => 'Сова', 'defender' => 'Ворон', 'damage' => 2.36, 'hp_after' => 0.01, 'lucky' => false, 'mine' => false],
+            ['n' => 5, 'attacker' => 'Ворон', 'defender' => 'Сова', 'damage' => 12.6, 'hp_after' => 2.36, 'lucky' => false, 'mine' => true],
+            ['n' => 6, 'attacker' => 'Сова', 'defender' => 'Ворон', 'damage' => 0.0, 'hp_after' => 0.04, 'lucky' => false, 'mine' => false],
+        ]];
+        $html = html_entity_decode(view('site/_play/native_battle', ['battle' => ['card' => $card, 'arena_on' => true], 'dock' => []]), ENT_QUOTES | ENT_HTML5);
+
+        $this->assertStringContainsString('1. Ворон → Сова</span><span class="play-craft-req-qty">−0.01 · осталось 1000 HP', $html);
+        $this->assertStringContainsString('2. Сова → Ворон</span><span class="play-craft-req-qty">−0.04 · осталось 0.4 HP', $html);
+        $this->assertStringContainsString('3. Ворон → Сова</span><span class="play-craft-req-qty">−0.4 · осталось 13 HP', $html);
+        $this->assertStringContainsString('4. Сова → Ворон</span><span class="play-craft-req-qty">−2.4 · осталось 0.01 HP', $html);
+        $this->assertStringContainsString('5. Ворон → Сова</span><span class="play-craft-req-qty">−13 · осталось 2.4 HP', $html);
+        $this->assertStringContainsString('6. Сова → Ворон</span><span class="play-craft-req-qty">промах · осталось 0.04 HP', $html);
+        $this->assertStringNotContainsString('−0 ·', $html);
+    }
+
+    /**
      * w2-n7-combat-03: журнал и карточка — только текст; длинный бой показан весь; дуэль помечена «без потерь»; чужой бой —
      * отказ без имён. Арена: вызов и тумблер — мутации с CSRF и своим intent; итог ведёт в карточку; замки с объяснением.
      */

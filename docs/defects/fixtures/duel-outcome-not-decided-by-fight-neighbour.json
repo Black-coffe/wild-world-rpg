@@ -1,0 +1,12 @@
+{
+  "case": "Соседняя форма: оружие только у одного (Common 6) — вооружённый бьёт втрое сильнее, но при HP 1000 за 150 раундов не добивает, и исход снова решает тай-брейк, а не нокаут.",
+  "settings": {
+    "pvp.duel.baseline_health": 1000,
+    "pvp.duel.baseline_weapon_damage": 2,
+    "pvp.duel.weapon_advantage_weight": 1,
+    "pvp.duel.dodge_percent": 12.5
+  },
+  "weapons": {
+    "1": {"damage_value": 6, "range_value": 1, "damage_type": "Physical", "rarity": "Common", "crit_chance": 0}
+  }
+}

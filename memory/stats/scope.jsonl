@@ -310,3 +310,7 @@
 {"ts":"2026-10-08T18:05:23Z","story":"hotfix-bank-pump-f6-01","declared":3,"changed":3,"out_of_scope":0}
 {"ts":"2026-10-08T19:22:30Z","story":"w2-n7-combat-03-web-battles-arena","declared":16,"changed":12,"out_of_scope":0}
 {"ts":"2026-10-08T19:41:13Z","story":"w2-n7-combat-04-repair-round-1","declared":45,"changed":2,"out_of_scope":0}
+{"ts":"2026-10-08T20:59:15Z","story":"duel-baseline-weapon-01-duel-engine","declared":13,"changed":12,"out_of_scope":0}
+{"ts":"2026-10-08T20:59:24Z","story":"duel-baseline-weapon-01-duel-engine","declared":13,"changed":12,"out_of_scope":0}
+{"ts":"2026-10-08T21:14:51Z","story":"duel-baseline-weapon-02-display-guide-tip","declared":7,"changed":7,"out_of_scope":0}
+{"ts":"2026-10-08T21:14:57Z","story":"duel-baseline-weapon-02-display-guide-tip","declared":7,"changed":7,"out_of_scope":0}

@@ -221,9 +221,20 @@ final class BattleJournalAction extends BaseAction
         return $ts === false ? '' : date('d.m H:i', $ts);
     }
 
+    /**
+     * 12.6 → «13», 2.36 → «2.4», меньше 1 — двумя знаками (0.01 → «0.01», а не «0»: duel-baseline-weapon — урон 0,01
+     * читался как «−0»). Тот же формат — `$num` в `site/_play/native_battle.php` (паритет держит тест).
+     */
     private static function num(float $v): string
     {
-        return $v >= 10.0 ? (string) (int) round($v) : rtrim(rtrim(number_format($v, 1, '.', ''), '0'), '.');
+        if ($v >= 10.0) {
+            return (string) (int) round($v);
+        }
+        if ($v > 0.0 && $v < 1.0) {
+            return rtrim(rtrim(number_format(max($v, 0.01), 2, '.', ''), '0'), '.');
+        }
+
+        return rtrim(rtrim(number_format($v, 1, '.', ''), '0'), '.');
     }
 
     private static function short(string $s, int $max): string

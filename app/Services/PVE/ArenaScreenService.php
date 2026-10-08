@@ -214,10 +214,10 @@ final class ArenaScreenService
             $this->cache->save($cacheKey, time(), $cooldownSec);
 
             // Уравнивание обоих (билд остаётся) → неизменный simulateFight, null defense (спорт).
-            $eqAttacker = $this->duels->equalize($attackerArr);
-            $eqDefender = $this->duels->equalize($defenderArr);
-            $cell       = is_numeric($attackerArr['cell_number'] ?? null) ? (int) $attackerArr['cell_number'] : 0;
-            $fought     = ($this->fight)($eqAttacker, $eqDefender, $cell);
+            // Площадка одна — клетка вызывающего у обоих: дистанция между реальными клетками урон не режет.
+            $cell                     = is_numeric($attackerArr['cell_number'] ?? null) ? (int) $attackerArr['cell_number'] : 0;
+            [$eqAttacker, $eqDefender] = $this->duels->prepare($attackerArr, $defenderArr);
+            $fought                   = ($this->fight)($eqAttacker, $eqDefender, $cell);
             if ($fought === null) {
                 return self::refuse(self::CODE_NO_PLACE, 'Не найдена локация.');
             }
@@ -454,7 +454,8 @@ final class ArenaScreenService
     }
 
     /**
-     * Бой по умолчанию: биом клетки вызывающего → неизменный `simulateFight` без защиты базы (спорт).
+     * Бой по умолчанию: биом клетки вызывающего → неизменный `simulateFight` без защиты базы (спорт),
+     * оружие — через {@see DuelEquipmentRepository} (базовое для безоружных и слабых, перевес с весом).
      *
      * @param array<string,mixed> $eqAttacker
      * @param array<string,mixed> $eqDefender
@@ -472,10 +473,9 @@ final class ArenaScreenService
         if (! $biome) {
             return null;
         }
-        $formulas = new PvpFormulaService();
-        $orch     = new PvpRoundOrchestrator(new PvpDamageCalculator($formulas, $this->equipmentRepo()), $formulas);
-        $result   = $orch->simulateFight($eqAttacker, $eqDefender, $biome, null);
-        $name     = $biome['name'] ?? null;
+        // Базовое оружие и вес перевеса — в ядре дуэли (DuelEquipmentRepository); движок неизменен.
+        $result = $this->duels->simulate($eqAttacker, $eqDefender, $biome, $this->equipmentRepo());
+        $name   = $biome['name'] ?? null;
 
         return ['result' => $result, 'biome' => is_string($name) && $name !== '' ? $name : null];
     }

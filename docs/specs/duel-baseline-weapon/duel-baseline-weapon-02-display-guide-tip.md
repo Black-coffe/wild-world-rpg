@@ -1,8 +1,8 @@
 ---
 story: duel-baseline-weapon-02
 spec: duel-baseline-weapon
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -54,5 +54,14 @@ blocked_by: [duel-baseline-weapon-01]
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- Форматтеры: `BattleJournalAction::num()` (бот) и `$num` в `native_battle.php` (веб) — одна и та же ветка
+  `0 < v < 1` → два знака, `max(v, 0.01)` (крохотный урон не схлопывается в «0»); ≥ 10 и 1–10 — как раньше. Паритет —
+  одинаковый набор значений в `BattleJournalServiceTest::testBotCardShowsDamageBelowOneNotAsZero` и
+  `PlayViewsTest::testWebBattleCardShowsDamageBelowOneLikeTheBot` (0.01/0.04/0.4/2.36/12.6, 999.99 → «1000», 0 → «промах»).
+- Гайд `arena`: одна фраза после «решают билд и удача» — «Без оружия на арене бьёшь базовым, а своё, если оно
+  сильнее, даёт перевес — но не гарантию победы». Тест: фраза есть, цифр в разделе нет.
+- Совет `ArenaBaselineWeapon` (категория «бой»): с соседним `PvpDuels` (летальное поле, «не лезь безоружным») не
+  спорит — тот про поле, этот про арену; путь «⚙️ Ещё → 🏟 Арена» и «⚔️ Бои» сверен с `MoreSurfaceService`/доком.
+  Локально: migrate → 1 строка, rollback → 0, migrate → 1 (байты `tip_type` = «бой» как у `BattleJournal`).
 
 ## Findings
