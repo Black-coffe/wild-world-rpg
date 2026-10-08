@@ -38,9 +38,9 @@ last-verified: 2026-10-05
   `CraftQueueService`, `craft.md`); `op=craft_start|craft_cancel`; крупная партия: `craftStartOutcome()` → `confirm=N` в nav (панель итога, POST
   `confirmed=1`; правило в ядре `CraftOrderService::start($confirmed)`, см. `craft.md`). «База» `view=base`
   (`BaseScreenService`, `BuildOrderService`/`BuildingUpgradeService`, `bases.md`); `op=build_start|upgrade`.
-  «📋 Дела» `view=tasks` (w2-n5-deeds; `TASK_SECTIONS` hub|active|available|completed|events|quest,
-  `tasksModel()`; `op=quest_start|quest_branch` — ядро бота под блокировкой персонажа; вьюха
-  `native_tasks`; `quests-events-npc.md`, `services/WebNativeScreenService.md`).
+  «📋 Дела» `view=tasks` (`op=quest_start|quest_branch`, `quests-events-npc.md`). «🛒 Магазин» `view=shop`
+  (`ResourceShopScreenService`; `op=sell|buy|bulk_sell`, опт с `token` плана) и «📦 Склад» `view=storage`
+  (`BaseStorageService`; `op=storage_take|storage_put`) — w2-n6; `op=bridge` с `shop`/`baseStorageList` → нативно.
   Вьюхи `site/_play/native_*`, `hud`, `dock`, `state`; JS `wildworld-play.js` (`[data-ends-at]`, тик 1 с).
 - Публичная карта `/map` → `app/Controllers/Map.php`: цвета из `BiomePalette`, PNG `?v=filemtime`;
   вошедшему при `web.play_enabled` — «Играть отсюда» → `/play?view=map`.
