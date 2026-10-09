@@ -68,3 +68,4 @@ ADR-190 (ядро + два рендерера)
 **Council:**
 **Council:** GREEN round 1, 2026-10-08, at f927a50c, pack bb159edd1866
 **Shipped:**
+**Shipped:** v0.51.693, 2026-10-09, at 749210a3 - merged to develop d4207aac, preprod smoke green (duel #33 knockout in 38 rounds, bot+/play), tag v0.51.693 on develop

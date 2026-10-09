@@ -27,3 +27,4 @@
 {"ts":"2026-10-08T16:28:03Z","spec":"w2-n6-trade-storage","version":"v0.51.690","head":"8f96a4e9","pack":"faccd6a8f1de","note":"merged to develop, publish pending"}
 {"ts":"2026-10-08T18:46:04Z","spec":"hotfix-bank-pump-f6","version":"v0.51.691","head":"b850d052","pack":"eea95b1024d3","note":"тег v0.51.691 на develop, прод wildworld.fun; фаза 1 отката применена, фаза 2 — кругов нет"}
 {"ts":"2026-10-08T20:19:31Z","spec":"w2-n7-combat","version":"v0.51.692","head":"9dccdc49","pack":"09c6c983d5ec","note":"merged to develop, tag v0.51.692 published, prod deployed (run 37837585710); preprod + prod smoke green; owner correction on duel outcome open as defect duel-outcome-not-decided-by-fight"}
+{"ts":"2026-10-09T05:29:11Z","spec":"duel-baseline-weapon","version":"v0.51.693","head":"749210a3","pack":"bb159edd1866","note":"merged to develop d4207aac, preprod smoke green (duel #33 knockout in 38 rounds, bot+/play), tag v0.51.693 on develop"}
