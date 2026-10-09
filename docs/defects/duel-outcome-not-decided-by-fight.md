@@ -4,7 +4,7 @@ title: Исход поединка решает не бой, а формальн
 status: block
 check: php scripts/defects-duel-knockout-check.php <arg>
 fixtures: [docs/defects/fixtures/duel-outcome-not-decided-by-fight-original.json, docs/defects/fixtures/duel-outcome-not-decided-by-fight-neighbour.json]
-keys: [150 раундов, стаж, 0,01 урона, поедин, тай-брейк, без снаряжения]
+keys: [150 раундов, стаж, 0,01 урона, поедин, тай-брейк, без снаряжения, первым бьёт, побед вызывающего]
 paths: ["app/Services/PVE/DuelService.php", "app/Services/PVE/DuelEquipmentRepository.php", "app/Services/PVE/ArenaScreenService.php", "app/Services/PVE/PvpDamageCalculator.php", "app/Services/PVE/PvpRoundOrchestrator.php"]
 ---
 
@@ -17,6 +17,7 @@ paths: ["app/Services/PVE/DuelService.php", "app/Services/PVE/DuelEquipmentRepos
 
 ## Цитаты владельца
 - 2026-10-08 · w2-n7-combat, preprod-смоук после шипа v0.51.692 · дуэль 491 vs 522 на testbot — «На preprod дуэль двух новичков без снаряжения шла 150 раундов по 0,01 урона, и победителя выбрал стаж, а не бой. Это точно не то что игшроки ждут в поедимнках»
+- 2026-10-09 · duel-baseline-weapon, после шипа v0.51.693 · допуск `DuelOutcomeTest` 40–60 % побед вызывающего — «Если у бойцов равные статы, первым всегда бьёт тот, кто вызвал на дуэль. Тест допускает до 60 % побед вызывающего. Как ты считаеш это норм или нет?»
 
 ## Cause
 Первый диагноз («урон без оружия ~0, потому что 75 % урона от оружия») был неверен. На самом деле:
@@ -34,3 +35,4 @@ paths: ["app/Services/PVE/DuelService.php", "app/Services/PVE/DuelEquipmentRepos
 - Подбирать HP дуэли без расчёта урона за потолок раундов: нокаут должен наступать у двух безоружных новичков.
 - Судить о балансе боя по длине и нокауту без кривой «шанс победы от перевеса».
 - Принимать «−0 · осталось 1000 HP» в разборе за косметику: это бой, который никто не выигрывает.
+- Отдавать первый удар по роли (кто вызвал): при равных статах это ~54 % побед вызывающему — перевес как у оружия на 10 % сильнее. Первый удар в дуэли — жребий; тест держит 47–53 %, а не «примерно поровну» 40–60 %.
