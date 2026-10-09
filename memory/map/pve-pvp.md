@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-08
+last-verified: 2026-10-09
 
 # Scout report: Бой (Services/PVE — и PvE, и PvP)
 
@@ -88,6 +88,16 @@ outbound: `Services/Player` (статы, смерть, дебаффы), моде
   берётся под `GET_LOCK('ww-duel-<db>-<attackerId>')` (`challenge`, :199-257): второй одновременный вызов
   получает `cooldown`/`busy` без боя. Здоровье/опыт/ресурсы дуэль не трогает. Публичный `/battles/view`
   отдаёт только `PVP` (`BattlesController.php:59,112`) — дуэли и PvE наружу не светятся.
+- **(duel-baseline-weapon, поправка ADR-071) Дуэль = одна площадка + базовое оружие.** `ArenaScreenService::challenge`
+  зовёт `DuelService::prepare()` (оба бойца уравнены и ставятся на клетку вызывающего, `equalize($char, ?int $cell)`),
+  `realFight` — `DuelService::simulate()` (`ArenaScreenService.php:219,477`). Оружие даёт `DuelEquipmentRepository`
+  (декоратор над `PvpEquipmentRepository`, тот больше не `final`): оружия нет/слабее базового → базовое, иначе
+  `база + вес × (своё − база)`. Наследование ради типа параметра `PvpDamageCalculator`, родительский конструктор НЕ
+  вызывается — при новом публичном методе в `PvpEquipmentRepository` его обязан переопределить и декоратор (держит
+  тест). Настройки: `pvp.duel.baseline_weapon_damage`, `weapon_advantage_weight`, `dodge_percent` (уворот через
+  agility = % / 0.25), `baseline_health` (дефолт 200). Корень старого урона 0,01: штраф дистанции в
+  `PvpDamageCalculator::computeEquipmentDamage` (кулаки / ~457 клеток) — бой кончался тай-брейком. Число в карточке боя
+  (`BattleJournalAction::num()`, `_play/native_battle.php` `$num`): значения <1 с двумя знаками, без «−0».
 - **(2026-09-15, cron-delivery-integrity) Авто-PvE крон терял бой-сообщения молча.**
   `AutoPveHandler` → `PvEService::attack()` → `PveNotificationSender::send()` нигде в этой цепочке
   не поднимал Telegram-мост; неинициализированный `Request::sendMessage` кидал исключение, которое
