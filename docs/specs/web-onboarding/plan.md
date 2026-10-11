@@ -146,7 +146,7 @@ the command or script that owns it, and scripts/ship-check.sh reads them all.
 -->
 **Approved:** owner (Andrei), 2026-10-12
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/web-onboarding
 **Checked:**
 **Council:**
 **Shipped:**
