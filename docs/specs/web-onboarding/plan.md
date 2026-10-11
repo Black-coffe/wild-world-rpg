@@ -32,9 +32,11 @@
   персонажа появилась новая задача `in_work` (добыча, разведка, крафт мостом `/craft`). Её id запоминается вместе с
   экраном. Если в коде есть сигнал проще (id задачи в callback кнопки «❌ Прервать»), воркер берёт его и сообщает в
   INTERFACES.
-- **«Итог задачи»** — фоновая отправка, сделанная, пока `Worker` обрабатывает именно эту задачу. `Worker` ставит
-  `completed` до `handle()`, так что в этот момент задача уже не `in_work`. Сообщение цепочки обучения, пришедшее в
-  ту же минуту из `QuestObjectiveHandler`, экран не заменяет: оно идёт плашкой. Старый экран уходит в историю.
+- **«Итог задачи»** (после plan delta 2026-10-12) — первое сообщение входящих персонажа, созданное в окне
+  `Config\WebPlay::taskResultWindowSeconds` после `character_tasks.updated_at` задачи экрана, когда она уже не
+  `in_work`. Замена делается при чтении состояния (`WebActService::current()`), а не в кроне: `Worker` и
+  `WebDelivery::route` не трогаются. Позднее сообщение цепочки обучения или титул идут плашкой. Нет итога в окне —
+  экран «✅ … завершена — итог во входящих 🔔». Старый экран уходит в историю.
 - **Нативные экраны (`view=craft`, `view=base` и др.) не хранятся** и под правило замены не попадают: при каждом
   открытии они рисуют живое состояние ядра, а итог крафта приходит плашкой. Если владелец хочет, чтобы и открытый
   нативный экран крафта сменился сам, — это plan delta.
@@ -76,7 +78,7 @@
 
 **Wave 1**
 - `web-onboarding-01` — ядро `ColdOpenWelcomeService` (бот- и веб-модель первого экрана); `StartCommand` рисует новичка из ядра; golden-тест паритета бота по всем сочетаниям флагов; тест веба на бот-лексику.
-- `web-onboarding-02` — итог задачи заменяет экран: id задачи у экрана, контекст задачи в `Worker`, замена в `WebDelivery::route`, ревизия экрана и `revision()`/`screenMessageIds()`. *(opus)*
+- `web-onboarding-02` — итог задачи заменяет экран: id задачи у экрана, замена при чтении (`WebActService::current()`), без правок `Worker` и `WebDelivery` (plan delta 2026-10-12), ревизия экрана и `revision()`/`screenMessageIds()`. *(opus)*
 
 **Wave 2**
 - `web-onboarding-03` — плашка нового сообщения: выборка входящих, `/play` и опрос `/play/inbox` отдают плашку и новый экран по ревизии; вьюха, JS, CSS + UI-kit. Ждёт 02 (читает её методы).
@@ -95,8 +97,9 @@
 - **Ревизия и id экрана (02 → 03, 04).** Состояние `WebScreenStore` получает `rev: int` (+1 при каждой записи `screen`) и
   `task_id: ?int`. Новые публичные методы: `WebScreenStore::revision(int $characterId): int` и
   `WebScreenStore::screenMessageIds(int $characterId): list<int>`.
-- **Итог на экране = строка входящих (02 → 03).** Когда фоновая отправка заменяет экран итогом, `message_id` этого
-  сообщения на экране равен `message_id` строки входящих, которую тот же `route()` добавил. Плашка (03) не показывает
+- **Итог на экране = строка входящих (02 → 03).** Когда чтение состояния (`WebActService::current()`) заменяет экран
+  итогом, `message_id` этого сообщения на экране равен `message_id` выбранной строки входящих. Опрос 03 зовёт
+  `current()`, чтобы замена случалась и на опросе. Плашка (03) не показывает
   непрочитанные строки, чей `message_id` уже стоит на текущем экране.
 - **Засев первого экрана (04, поверх 02).** `WebScreenStore::seedFirstScreen(int $characterId, array $messages): bool` пишет
   `screen` (Msg `{message_id, text, caption, parse_mode, photo_url, inline_keyboard}`, `message_id` из того же
@@ -124,7 +127,7 @@
 - **Tech-writing (drone-docs после мерджа, `mmorpg-vault/tech-writing/`):** новая нота
   `services/ColdOpenWelcomeService.md`. Обновить: `ColdOpenGreetingService`, нота handler'а `StartCommand`,
   `controllers/AccountControllers.md` (`AccountRegister`), `controllers/Play.md`, `services/WebScreenStore.md`,
-  `services/WebDelivery.md`, `services/WebInboxService.md`, `services/WebActService.md`, нота `Worker`,
+  `services/WebDelivery.md`, `services/WebInboxService.md`, `services/WebActService.md`,
   `config/WebPlay` (если есть). Затем строки срезов `memory/map/website.md`, `onboarding.md`, `tasks-worker.md`.
 - **ADR:** Queen решает, хватает ли строки в ADR-190 («приветствие и плашка — ядро + веб-рендерер») или нужен ADR на
   правило «экран задачи заменяется итогом».
@@ -139,6 +142,13 @@
 *(empty)*
 
 ## Plan deltas
+- 2026-10-12 · владелец: «По плану замена залипшего экрана задачи потребует правки общего фонового обработчика задач,
+  через который идут задачи всех игроков, в том числе из Telegram.» Выбрано «веб-сторона, Worker не трогать».
+  Story 02 переписана: замена при чтении состояния (`WebActService::current()`/`bootstrap()`), итог = первое входящее
+  в окне `Config\WebPlay::taskResultWindowSeconds` после завершения задачи, иначе экран «✅ … завершена». `Worker.php`
+  и `WebDelivery.php` исключены из `## Files` и откачены. Story 03: опрос зовёт `current()`.
+- 2026-10-12 · story 01 (NEEDS_CONTEXT): `tests/unit/Services/Onboarding/ColdOpenSingleScreenTest.php` в `## Files` —
+  source-scan перенацелен на `ColdOpenWelcomeService`.
 
 <!--
 The lines below are the cycle's confirmation markers (docs/cycle.md); each placeholder is replaced by

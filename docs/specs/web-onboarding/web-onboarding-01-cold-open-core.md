@@ -35,6 +35,7 @@ blocked_by: []
 - tests/unit/Services/Onboarding/ColdOpenWelcomeServiceTest.php
 - tests/unit/Controllers/Telegram/StartCommandColdOpenParityTest.php
 - tests/unit/Controllers/Telegram/StartCommandColdOpenSnapshots.php
+- tests/unit/Services/Onboarding/ColdOpenSingleScreenTest.php
 
 ## Non-goals
 - Не трогать ветку существующего игрока (`StartCommand.php:265+`, «🧭 Меню ниже.»): это не первый экран новичка.
@@ -74,3 +75,15 @@ blocked_by: []
 ## Implementation notes
 
 ## Findings
+Вопрос (NEEDS_CONTEXT, код не тронут): `tests/unit/Services/Onboarding/ColdOpenSingleScreenTest.php` читает исходник
+`StartCommand.php` (`START_COMMAND`) и требует в нём метку «🧭 Сделать первый шаг», `callback_data` `move`/`tag('move'`,
+`tag('setCharacterName', ...FROM_COLDOPEN)` и `$starterKitText|$signalText|$greeterText = null;`
+(тесты `testFirstStepButtonIsWiredAndLabelMatchesCopy`, `testBothFirstScreenDoorsCarryOriginTag`,
+`testSectionsAreClearedAfterInlining`). После переноса в `ColdOpenWelcomeService` (AC: в StartCommand нет литералов
+клавиатуры) эти три теста станут красными, а файл не в `## Files`. Нужно добавить его в Files: разрешите перенацелить
+`START_COMMAND` на `ColdOpenWelcomeService.php` и убрать проверку обнуления переменных.
+
+Ответ Queen (2026-10-12, plan delta): да — `tests/unit/Services/Onboarding/ColdOpenSingleScreenTest.php` добавлен в `## Files`.
+Перенацель source-scan `START_COMMAND` на `ColdOpenWelcomeService.php` (метка «🧭 Сделать первый шаг», `move`/`tag('move'`,
+`tag('setCharacterName', …FROM_COLDOPEN)`), проверку обнуления `$starterKitText|$signalText|$greeterText` убери:
+её заменяет golden-тест паритета. Смысл тестов (кнопки подписаны и несут метку cold) сохраняется.
