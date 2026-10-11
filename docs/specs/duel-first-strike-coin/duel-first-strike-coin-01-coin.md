@@ -1,7 +1,7 @@
 ---
 story: duel-first-strike-coin-01
 spec: duel-first-strike-coin
-status: open
+status: todo
 tier: 1
 worker: queen
 model: opus
