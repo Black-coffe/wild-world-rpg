@@ -147,6 +147,10 @@
   Story 02 переписана: замена при чтении состояния (`WebActService::current()`/`bootstrap()`), итог = первое входящее
   в окне `Config\WebPlay::taskResultWindowSeconds` после завершения задачи, иначе экран «✅ … завершена». `Worker.php`
   и `WebDelivery.php` исключены из `## Files` и откачены. Story 03: опрос зовёт `current()`.
+- 2026-10-12 · владелец: «Ты выбрал вариант «веб-сторона» под обещание отсекать чужие сообщения по типу, но в
+  переписанной story 02 такого фильтра нет. Итогом считается просто первое сообщение после задачи.» Story 02: выбор
+  итога — чистый `WebTaskResultPicker` с отсечением чужих типов (шаг цепочки, подсказка, титул, прочие фоновые у L1–L5),
+  сигнатуры из построителей; карточка `docs/defects/task-result-foreign-message.md` → `block` с проверкой и фикстурами.
 - 2026-10-12 · story 01 (NEEDS_CONTEXT): `tests/unit/Services/Onboarding/ColdOpenSingleScreenTest.php` в `## Files` —
   source-scan перенацелен на `ColdOpenWelcomeService`.
 
