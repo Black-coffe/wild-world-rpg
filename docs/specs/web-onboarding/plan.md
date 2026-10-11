@@ -144,7 +144,7 @@
 The lines below are the cycle's confirmation markers (docs/cycle.md); each placeholder is replaced by
 the command or script that owns it, and scripts/ship-check.sh reads them all.
 -->
-**Approved:**
+**Approved:** owner (Andrei), 2026-10-12
 **Briefed:**
 **Branch:**
 **Checked:**
