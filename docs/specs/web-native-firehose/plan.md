@@ -38,3 +38,4 @@
 - `PlayerActionLogger::recordWebAction(?int $characterId, string $actionName, ?string $rawInput, string $status = 'ok', ?string $errorText = null): void`
 - `PlayerActionLogger::suppressPipeline(bool $on): void` — пока true, `begin()` не активирует захват.
 **Briefed:** via grill, Andrei, 2026-10-11
+**Branch:** vulyk/web-native-firehose
