@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-09
+last-verified: 2026-10-11
 
 # Scout report: Бой (Services/PVE — и PvE, и PvP)
 
@@ -98,6 +98,13 @@ outbound: `Services/Player` (статы, смерть, дебаффы), моде
   agility = % / 0.25), `baseline_health` (дефолт 200). Корень старого урона 0,01: штраф дистанции в
   `PvpDamageCalculator::computeEquipmentDamage` (кулаки / ~457 клеток) — бой кончался тай-брейком. Число в карточке боя
   (`BattleJournalAction::num()`, `_play/native_battle.php` `$num`): значения <1 с двумя знаками, без «−0».
+- **(duel-first-strike-coin) Первый удар дуэли — жребий.** Уравнивание даёт равную инициативу, движок при равенстве
+  бьёт первым первый аргумент (всегда вызывающий, ~54 % побед). `DuelService::simulate()` (`:177-179`) по монетке
+  меняет порядок аргументов `simulateFight`; победитель берётся по id, журнал не меняется. Конструктор
+  `(?GameSettingsService, ?\Random\Randomizer $coin)`, дефолт `Config\Services::duelCoin()` (общий Randomizer);
+  поток `mt_rand` боя монетка не трогает. Тесты, которым нужен детерминизм (снимок паритета арены-бота
+  `ArenaBotParityTest`), фиксируют монетку через `Services::injectMock('duelCoin', ...)` или параметр конструктора.
+  Гейт: `scripts/defects-duel-knockout-check.php` (доля побед вызывающего 47–53 %).
 - **(2026-09-15, cron-delivery-integrity) Авто-PvE крон терял бой-сообщения молча.**
   `AutoPveHandler` → `PvEService::attack()` → `PveNotificationSender::send()` нигде в этой цепочке
   не поднимал Telegram-мост; неинициализированный `Request::sendMessage` кидал исключение, которое

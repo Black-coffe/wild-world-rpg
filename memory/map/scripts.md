@@ -1,5 +1,5 @@
 # Scout report: scripts/
-last-verified: 2026-09-30
+last-verified: 2026-10-11
 
 ## Purpose
 Every deterministic (model-free) gate and helper VULYK's cycle runs on (framework 0.24.0 since
@@ -70,4 +70,7 @@ report-only gates (`ship-check`, `human-check`, `acceptance-log`, `scope-check`,
 - `state.json` is derived, never truth for `cycle.sh`.
 - `smoke/*` reach only the testbot by design (2026-06-05 a smoke hit the prod DB). `-tap` ok proves the
   route, not the outcome - check a `testbot-db.sh` delta.
+- `scripts/defects-duel-knockout-check.php` (project check of `docs/defects/duel-outcome-not-decided-by-fight.md`) runs
+  the real `DuelService::prepare/simulate` with a seeded `Mt19937` coin; also asserts challenger win share 47-53 % over
+  4000 equal fights (fixture `...-first-strike.json`).
 - `defects-check` "block" needs a non-empty `check:` and >= 2 fixtures, else the card is text.
