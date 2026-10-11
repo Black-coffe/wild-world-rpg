@@ -105,8 +105,9 @@ class WebActService
         }
 
         $update  = $build(-$rowId);
+        $before  = $this->lastTaskId($characterId);
         [$capture, $failed] = $this->runBridged($update, $identity['telegram_id'], $characterId);
-        $this->store->applyCapture($characterId, $capture);
+        $this->store->applyCapture($characterId, $capture, $this->startedTaskId($characterId, $before));
 
         return $this->result($characterId, $capture['alert'] ?? ($failed ? self::FAILED_ALERT : null));
     }
@@ -177,6 +178,30 @@ class WebActService
         }
 
         return [$capture, $failed];
+    }
+
+    /** Последний id `character_tasks` персонажа до действия (0 — задач не было). */
+    private function lastTaskId(int $characterId): int
+    {
+        $res = $this->db->query('SELECT MAX(id) AS id FROM character_tasks WHERE character_id = ?', [$characterId]);
+        $row = $res instanceof ResultInterface ? $res->getRowArray() : null;
+
+        return is_array($row) && is_numeric($row['id'] ?? null) ? (int) $row['id'] : 0;
+    }
+
+    /**
+     * Задача `in_work`, которую начало действие (web-onboarding-02): новейшая строка с id больше
+     * снимка до действия. Null — действие задачу не начало.
+     */
+    private function startedTaskId(int $characterId, int $before): ?int
+    {
+        $res = $this->db->query(
+            "SELECT id FROM character_tasks WHERE character_id = ? AND id > ? AND status = 'in_work' ORDER BY id DESC LIMIT 1",
+            [$characterId, $before]
+        );
+        $row = $res instanceof ResultInterface ? $res->getRowArray() : null;
+
+        return is_array($row) && is_numeric($row['id'] ?? null) ? (int) $row['id'] : null;
     }
 
     /**

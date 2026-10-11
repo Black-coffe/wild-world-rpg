@@ -1,7 +1,7 @@
 ---
 story: web-onboarding-02
 spec: web-onboarding
-status: todo
+status: done
 returned:
 tier: 3
 worker: worker-code

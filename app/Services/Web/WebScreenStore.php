@@ -18,6 +18,11 @@ use Config\WebPlay;
  * в историю, старая копия из истории убирается). Reply-клавиатура — док, force-reply — поле
  * ввода. Синтетические `message_id` выдаются по персонажу монотонно, с `firstMessageId`.
  *
+ * web-onboarding-02: колонка `screen` хранит `{rev, task_id, messages}` (старая форма — голый
+ * список сообщений, читается как `rev = 0`, `task_id = null`). `rev` растёт на 1 при каждой записи,
+ * меняющей экран; `task_id` — задача `in_work`, которую начало действие, показавшее этот экран.
+ * Фоновая отправка в контексте этой задачи заменяет экран итогом ({@see replaceScreenForTask()}).
+ *
  * @phpstan-type Button array{text:string, callback_data?:string, url?:string}
  * @phpstan-type Msg array{message_id:int, text:?string, caption:?string, parse_mode:?string, photo_url:?string, inline_keyboard:list<list<Button>>}
  * @phpstan-type Input array{placeholder:string, reply_to:int}
@@ -63,14 +68,36 @@ class WebScreenStore
     /** @return State */
     public function state(int $characterId): array
     {
-        return $this->readState($characterId, false) ?? ['screen' => [], 'history' => [], 'dock' => [], 'input' => null];
+        return $this->readState($characterId, false)['state'] ?? ['screen' => [], 'history' => [], 'dock' => [], 'input' => null];
+    }
+
+    /** Ревизия экрана: +1 при каждой записи, меняющей экран; 0 — экрана ещё не было. */
+    public function revision(int $characterId): int
+    {
+        return $this->readState($characterId, false)['rev'] ?? 0;
+    }
+
+    /**
+     * `message_id` сообщений текущего экрана.
+     *
+     * @return list<int>
+     */
+    public function screenMessageIds(int $characterId): array
+    {
+        return array_map(static fn (array $m): int => $m['message_id'], $this->state($characterId)['screen']);
+    }
+
+    /** Задача, итога которой ждёт текущий экран; null — не ждёт. */
+    public function screenTaskId(int $characterId): ?int
+    {
+        return $this->readState($characterId, false)['task_id'] ?? null;
     }
 
     /**
      * Состояние из строки `web_play_state`; null — строки нет. `$forUpdate` — блокирующее чтение
      * (только внутри {@see guarded()}).
      *
-     * @return State|null
+     * @return array{state: State, rev: int, task_id: ?int}|null
      */
     private function readState(int $characterId, bool $forUpdate): ?array
     {
@@ -82,27 +109,63 @@ class WebScreenStore
             return null;
         }
 
-        /** @var list<Msg> $screen */
-        $screen = self::decodeList($row['screen'] ?? null);
+        [$screen, $rev, $taskId] = self::decodeScreen($row['screen'] ?? null);
         /** @var list<list<Msg>> $history */
         $history = self::decodeList($row['history'] ?? null);
         /** @var list<list<string>> $dock */
         $dock  = self::decodeList($row['dock'] ?? null);
         $input = self::decodeInput($row['input'] ?? null);
 
-        return ['screen' => $screen, 'history' => $history, 'dock' => $dock, 'input' => $input];
+        return [
+            'state'   => ['screen' => $screen, 'history' => $history, 'dock' => $dock, 'input' => $input],
+            'rev'     => $rev,
+            'task_id' => $taskId,
+        ];
     }
 
     /**
-     * Применить захват одного действия к экрану.
+     * Применить захват одного действия к экрану. `$taskId` — задача `in_work`, которую начало это
+     * действие (null — не начало). Экран сменился — пометка экрана становится `$taskId` (в том
+     * числе null); не сменился — новая задача всё равно его помечает, иначе пометка остаётся.
      *
      * @param Capture $capture
      */
-    public function applyCapture(int $characterId, array $capture): void
+    public function applyCapture(int $characterId, array $capture, ?int $taskId = null): void
     {
         $this->ensureRow($characterId);
-        $this->guarded($characterId, function (array $state) use ($characterId, $capture): bool {
-            $this->applyCaptureTo($characterId, $state, $capture);
+        $this->guarded($characterId, function (array $state, int $rev, ?int $oldTaskId) use ($characterId, $capture, $taskId): bool {
+            $this->applyCaptureTo($characterId, $state, $rev, $taskId ?? $oldTaskId, $taskId, $capture);
+
+            return true;
+        });
+    }
+
+    /**
+     * Итог задачи на экран: если текущий экран помечен задачей `$taskId`, он уходит в историю, а
+     * экраном становится `$msg` целиком. Пометка снимается, `rev` растёт. False — экран помечен не
+     * этой задачей (или строки нет), ничего не записано.
+     *
+     * @param Msg $msg
+     */
+    public function replaceScreenForTask(int $characterId, int $taskId, array $msg): bool
+    {
+        return $this->guarded($characterId, function (array $state, int $rev, ?int $screenTask) use ($characterId, $taskId, $msg): bool {
+            if ($screenTask !== $taskId) {
+                return false;
+            }
+            $history = $state['history'];
+            if ($state['screen'] !== []) {
+                array_unshift($history, $state['screen']);
+            }
+            $history = array_slice($history, 0, max(0, $this->config->historySize));
+
+            $this->beforeWrite($characterId);
+            $this->db->table('web_play_state')->where('character_id', $characterId)->update([
+                'screen'     => self::encodeScreen([$msg], $rev + 1, null),
+                'history'    => json_encode($history, JSON_UNESCAPED_UNICODE),
+                'input'      => null,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
 
             return true;
         });
@@ -116,7 +179,7 @@ class WebScreenStore
      */
     public function patchMessage(int $characterId, int $messageId, array $msg): bool
     {
-        return $this->guarded($characterId, function (array $state) use ($characterId, $messageId, $msg): bool {
+        return $this->guarded($characterId, function (array $state, int $rev, ?int $taskId) use ($characterId, $messageId, $msg): bool {
             $screen  = $state['screen'];
             $history = $state['history'];
             $found   = self::contains($screen, $messageId);
@@ -134,7 +197,7 @@ class WebScreenStore
             }
             $this->beforeWrite($characterId);
             $this->db->table('web_play_state')->where('character_id', $characterId)->update([
-                'screen'     => json_encode($screen, JSON_UNESCAPED_UNICODE),
+                'screen'     => self::encodeScreen($screen, $screen === $state['screen'] ? $rev : $rev + 1, $taskId),
                 'history'    => json_encode($history, JSON_UNESCAPED_UNICODE),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
@@ -150,15 +213,15 @@ class WebScreenStore
      * `$apply` не зовётся, результат false. Внутри внешней транзакции CI4 вкладывает (блокировка
      * держится до внешнего коммита).
      *
-     * @param callable(State): bool $apply
+     * @param callable(State, int, ?int): bool $apply состояние, ревизия, пометка задачи
      */
     private function guarded(int $characterId, callable $apply): bool
     {
         $statusBefore = $this->db->transStatus();
         $this->db->transBegin();
         try {
-            $state  = $this->readState($characterId, true);
-            $result = $state !== null && $apply($state);
+            $read   = $this->readState($characterId, true);
+            $result = $read !== null && $apply($read['state'], $read['rev'], $read['task_id']);
             // Внутри транзакции CI4 не бросает на ошибке запроса (напр. lock wait timeout), а
             // гасит transStatus: иначе «нет строки» и тихо закоммиченная половина.
             if (! $this->db->transStatus()) {
@@ -186,7 +249,7 @@ class WebScreenStore
      * @param State   $state
      * @param Capture $capture
      */
-    private function applyCaptureTo(int $characterId, array $state, array $capture): void
+    private function applyCaptureTo(int $characterId, array $state, int $rev, ?int $keptTaskId, ?int $newTaskId, array $capture): void
     {
         $screen  = $state['screen'];
         $history = $state['history'];
@@ -234,11 +297,13 @@ class WebScreenStore
             $dock = $capture['dock'];
         }
 
+        $changed = $screen !== $state['screen'];
+
         $this->beforeWrite($characterId);
         $this->db->table('web_play_state')->where('character_id', $characterId)->update([
-            'screen'     => json_encode($screen, JSON_UNESCAPED_UNICODE),
+            'screen'     => self::encodeScreen($screen, $changed ? $rev + 1 : $rev, $changed ? $newTaskId : $keptTaskId),
             'history'    => json_encode($history, JSON_UNESCAPED_UNICODE),
-            'dock'       => json_encode($dock, JSON_UNESCAPED_UNICODE),
+            'dock'      => json_encode($dock, JSON_UNESCAPED_UNICODE),
             'input'      => $input === null ? null : json_encode($input, JSON_UNESCAPED_UNICODE),
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
@@ -351,6 +416,40 @@ class WebScreenStore
     private static function removeFrom(array $screen, int $id): array
     {
         return array_values(array_filter($screen, static fn (array $m): bool => $m['message_id'] !== $id));
+    }
+
+    /** @param list<Msg> $screen */
+    private static function encodeScreen(array $screen, int $rev, ?int $taskId): string
+    {
+        return (string) json_encode(['rev' => $rev, 'task_id' => $taskId, 'messages' => $screen], JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Колонка `screen`: `{rev, task_id, messages}` или старая форма — голый список сообщений.
+     *
+     * @return array{0: list<Msg>, 1: int, 2: ?int}
+     */
+    private static function decodeScreen(mixed $raw): array
+    {
+        if (! is_string($raw) || $raw === '') {
+            return [[], 0, null];
+        }
+        $decoded = json_decode($raw, true);
+        if (! is_array($decoded)) {
+            return [[], 0, null];
+        }
+        if (! array_key_exists('messages', $decoded)) {
+            /** @var list<Msg> $legacy */
+            $legacy = array_values($decoded);
+
+            return [$legacy, 0, null];
+        }
+        /** @var list<Msg> $messages */
+        $messages = is_array($decoded['messages']) ? array_values($decoded['messages']) : [];
+        $rev      = is_int($decoded['rev'] ?? null) ? $decoded['rev'] : 0;
+        $taskId   = is_int($decoded['task_id'] ?? null) ? $decoded['task_id'] : null;
+
+        return [$messages, $rev, $taskId];
     }
 
     /** @return list<mixed> */
