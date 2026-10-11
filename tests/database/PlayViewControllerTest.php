@@ -7,6 +7,7 @@ namespace Tests\Database;
 use App\Services\Buildings\BuildingUpgradeService;
 use App\Services\Craft\CraftOrderService;
 use App\Services\Craft\CraftQueueService;
+use App\Services\Logging\PlayerActionLogger;
 use App\Services\Logging\TelegramDeliveryProbe;
 use App\Services\Player\CharacterSheetService;
 use App\Services\Player\EquipmentLoadoutService;
@@ -153,6 +154,80 @@ final class PlayViewControllerTest extends CIUnitTestCase
         Services::resetSingle('throttler');
         $this->dropTables();
         parent::tearDown();
+    }
+
+    // ── Журнал действий игроков (web-native-firehose) ───────────────────
+
+    /**
+     * Нативный `/play` пишет в `player_action_log` одну строку на запрос, как бот: экран, действие, отказ, нажатие
+     * через мост. `source='web'`, `character_id` — персонаж сессии, Telegram-полей нет.
+     */
+    public function testFirehoseWritesOneWebRowPerScreenActionRefusalAndBridgeTap(): void
+    {
+        PlayerActionLogger::reset();
+        [$session, $charId] = $this->character('Ворон');
+        $act  = $this->fakeAct('ok');
+        $move = $this->stubMove();
+        $this->stubSheets($act, [[], []], $this->stubMap(), $move);
+
+        $this->postWithCsrf($session, 'play/view', ['view' => 'me'], true)->assertStatus(200);
+        $this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'step', 'dir' => 'north', 'intent_id' => 'fh1'], true)->assertStatus(200);
+        $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['view' => 'me', 'op' => 'nope'], true)->response()->getStatusCode());
+        $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'guide', 'intent_id' => 'fh2'], true)->assertStatus(200);
+        $this->assertCount(2, $act->calls, 'мост: карточка + callback — два прогона пайплайна, одна строка');
+
+        $rows = $this->conn->table('player_action_log')->orderBy('id')->get()->getResultArray();
+        $this->assertSame(
+            [
+                ['web', 'me', 'view=me', 'ok'],
+                ['web', 'step', 'view=map&op=step', 'ok'],
+                ['web', 'nope', 'view=me&op=nope', 'rejected'],
+                ['web', 'guide', 'guide', 'ok'],
+            ],
+            array_map(static fn (array $r): array => [$r['source'], $r['action_name'], $r['raw_input'], $r['status']], $rows)
+        );
+        foreach ($rows as $r) {
+            $this->assertSame($charId, (int) $r['character_id'], 'строка несёт персонажа сессии');
+            $this->assertNull($r['telegram_user_id']);
+            $this->assertNull($r['chat_id']);
+        }
+    }
+
+    public function testFirehoseKillswitchOffWritesNoWebRows(): void
+    {
+        PlayerActionLogger::reset();
+        [$session] = $this->character('Ворон');
+        $this->stubSheets();
+        service('cache')->save('game_settings_logging_player_actions_enabled', ['v' => false, 't' => 'bool'], 60);
+
+        $this->postWithCsrf($session, 'play/view', ['view' => 'me'], true)->assertStatus(200);
+
+        $this->assertSame(0, $this->conn->table('player_action_log')->countAllResults());
+    }
+
+    /** Отказ ядра (квест нельзя начать вручную) и сбой/«не понял» пайплайна моста доходят до единственной строки. */
+    public function testFirehoseRowCarriesCoreRefusalAndBridgePipelineStatus(): void
+    {
+        PlayerActionLogger::reset();
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableDeeds($charId);
+        $this->postWithCsrf($session, 'play/view', ['view' => 'tasks', 'op' => 'quest_start', 'id' => '3', 'intent_id' => 'fq1'], true)->assertStatus(200);
+
+        $row = $this->conn->table('player_action_log')->orderBy('id', 'DESC')->get(1)->getRowArray();
+        $this->assertIsArray($row);
+        $this->assertSame(['quest_start', 'rejected'], [$row['action_name'], $row['status']], 'деловой отказ ядра — rejected, как у бота');
+        $this->assertStringStartsWith('QUEST_START_', (string) $row['error_text']);
+
+        foreach (['error' => 'fb1', 'unrouted' => 'fb2'] as $status => $intent) {
+            $before = $this->conn->table('player_action_log')->countAllResults();
+            $this->stubSheets($this->fakeAct($status));
+            $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'guide', 'intent_id' => $intent], true)->assertStatus(200);
+
+            $this->assertSame($before + 1, $this->conn->table('player_action_log')->countAllResults(), "мост ({$status}): одна строка");
+            $last = $this->conn->table('player_action_log')->orderBy('id', 'DESC')->get(1)->getRowArray();
+            $this->assertIsArray($last);
+            $this->assertSame(['guide', $status, $charId], [$last['action_name'], $last['status'], (int) $last['character_id']]);
+        }
     }
 
     // ── Гейты: флаг, вход, CSRF, лимит ───────────────────────────────────
@@ -1882,15 +1957,36 @@ final class PlayViewControllerTest extends CIUnitTestCase
      * Мост-двойник: пишет намерения. «Карточка» (`:card`) — сообщение 41 с кнопками `inventory`
      * и `guide`; хаб инвентаря (`:s0`) — сообщение 43 с `whereItWent`; остальное — 42.
      */
-    private function fakeAct(): WebActService
+    /**
+     * @param string|null $pipeline web-native-firehose: не null — каждый вызов прогоняет захват логгера, как
+     *                              `UpdatePipeline` (`begin`/`commit`); на шаге `:cb` — `error` или `unrouted`, иначе `ok`
+     */
+    private function fakeAct(?string $pipeline = null): WebActService
     {
-        return new class () extends WebActService {
+        return new class ($pipeline) extends WebActService {
             /** @var list<array<string, mixed>> */
             public array $calls = [];
+
+            public function __construct(private readonly ?string $pipeline)
+            {
+            }
 
             public function act(int $accountId, int $characterId, array $intent): array
             {
                 $this->calls[] = $intent;
+                if ($this->pipeline !== null) {
+                    $logger = PlayerActionLogger::current();
+                    $data   = (string) ($intent['data'] ?? '');
+                    $logger->begin(['update_id' => 1, 'callback_query' => ['id' => 'x', 'from' => ['id' => 5], 'data' => $data, 'message' => ['chat' => ['id' => 5]]]], 'web');
+                    if (str_ends_with((string) ($intent['intent_id'] ?? ''), ':cb')) {
+                        match ($this->pipeline) {
+                            'error'    => $logger->markError('dispatch failed'),
+                            'unrouted' => $logger->markUnrouted(),
+                            default    => null,
+                        };
+                    }
+                    $logger->commit();
+                }
                 $id            = (string) ($intent['intent_id'] ?? '');
                 [$mid, $text, $kb] = match (true) {
                     ($intent['data'] ?? null) === '/go' => [44, 'Карта', [[['text' => '⬆️ Север', 'callback_data' => 'move_dir_north'], ['text' => '🌍 Остров живёт', 'callback_data' => 'island']]]],
