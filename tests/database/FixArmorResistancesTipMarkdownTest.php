@@ -30,13 +30,15 @@ final class FixArmorResistancesTipMarkdownTest extends CIUnitTestCase
         require_once APPPATH . 'Database/Migrations/2026-05-29-100000_V30SeedContentPassTipsV6ToV19.php';
         require_once APPPATH . 'Database/Migrations/2026-12-19-100000_FixArmorResistancesTipMarkdown.php';
         $db = Database::connect('tests');
-        $db->query('DROP TABLE IF EXISTS game_tips');
-        $db->query('CREATE TABLE game_tips (id INT AUTO_INCREMENT PRIMARY KEY, title_ru VARCHAR(255) NULL, title_en VARCHAR(255) NULL, tip_type VARCHAR(32) NULL, content TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL) DEFAULT CHARSET=utf8mb4');
+        $t  = $db->prefixTable('game_tips');
+        $db->query("DROP TABLE IF EXISTS {$t}");
+        $db->query("CREATE TABLE {$t} (id INT AUTO_INCREMENT PRIMARY KEY, title_ru VARCHAR(255) NULL, title_en VARCHAR(255) NULL, tip_type VARCHAR(32) NULL, content TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL) DEFAULT CHARSET=utf8mb4");
     }
 
     protected function tearDown(): void
     {
-        Database::connect('tests')->query('DROP TABLE IF EXISTS game_tips');
+        $db = Database::connect('tests');
+        $db->query('DROP TABLE IF EXISTS ' . $db->prefixTable('game_tips'));
         parent::tearDown();
     }
 
