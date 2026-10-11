@@ -1,0 +1,7 @@
+# neighbour: booleans equal, numbers equal in another spelling; drift only in a float balance value and a key absent on preprod
+onboarding.fast_start.enabled	1	1
+progression.early.taper_level	10	10.0
+combat.death.newbie_level_max	10	10
+npc.march_encounter_chance	0.0000	0.0500
+world.new_feature.enabled	MISSING	1
+tips.daily_last_broadcast	2026-09-26	2026-10-11
