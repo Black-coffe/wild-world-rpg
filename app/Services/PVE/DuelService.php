@@ -19,6 +19,10 @@ use Config\GameBalance;
  * вызывающего, дистанция не режет урон), базовое оружие для безоружных и слабых, вес перевеса своего
  * оружия, уворот на арене и HP дуэли — всё из `pvp.duel.*`. До фикса бой с арены делил урон на
  * дистанцию между реальными клетками (кулаки 2.0 / 457 клеток ≈ 0,004) и кончался стажем.
+ *
+ * duel-first-strike-coin: первый удар — жребий. Уравнивание даёт бойцам равную инициативу, а движок при равенстве
+ * отдаёт удар первому аргументу — то есть всегда вызывающему (~54 % его побед). Монетка решает порядок аргументов
+ * `simulateFight`; поток `mt_rand` боя она не трогает (свой `Randomizer`), победитель берётся по id — журнал не меняется.
  */
 final class DuelService
 {
@@ -35,9 +39,13 @@ final class DuelService
 
     private GameSettingsService $settings;
 
-    public function __construct(?GameSettingsService $settings = null)
+    /** Монетка первого удара; по умолчанию — `Services::duelCoin()` (криптостойкий движок), в тестах — `Mt19937` с seed. */
+    private \Random\Randomizer $coin;
+
+    public function __construct(?GameSettingsService $settings = null, ?\Random\Randomizer $coin = null)
     {
         $this->settings = $settings ?? new GameSettingsService();
+        $this->coin     = $coin ?? \Config\Services::duelCoin();
     }
 
     /** Killswitch дуэлей. Default OFF = dormant. */
@@ -151,7 +159,7 @@ final class DuelService
     /**
      * Бой уравненной пары на неизменном `simulateFight` (спорт, без защиты базы). Оружие — через
      * {@see DuelEquipmentRepository} поверх `$repo`: базовое для безоружных и слабых, перевес с весом.
-     * Броня и клетки — из `$repo` как есть.
+     * Броня и клетки — из `$repo` как есть. Первый удар — жребием (см. шапку класса).
      *
      * @param array<string,mixed> $eqAttacker
      * @param array<string,mixed> $eqDefender
@@ -163,8 +171,12 @@ final class DuelService
         $formulas = new PvpFormulaService();
         $duelRepo = new DuelEquipmentRepository($repo, $this->baselineWeaponDamage(), $this->weaponAdvantageWeight(), $formulas);
 
-        return (new PvpRoundOrchestrator(new PvpDamageCalculator($formulas, $duelRepo), $formulas))
-            ->simulateFight($eqAttacker, $eqDefender, $biome, null);
+        $engine = new PvpRoundOrchestrator(new PvpDamageCalculator($formulas, $duelRepo), $formulas);
+
+        // Жребий первого удара: при решке защитник идёт первым аргументом и при равной инициативе бьёт первым.
+        return $this->coin->getInt(0, 1) === 0
+            ? $engine->simulateFight($eqAttacker, $eqDefender, $biome, null)
+            : $engine->simulateFight($eqDefender, $eqAttacker, $biome, null);
     }
 
     /**

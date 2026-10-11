@@ -78,4 +78,20 @@ class Services extends BaseService
         );
     }
 
+    /**
+     * duel-first-strike-coin — монетка первого удара дуэли ({@see \App\Services\PVE\DuelService}). По умолчанию —
+     * криптостойкий движок: поток `mt_rand` боя она не трогает. Handler'ы бота создают DuelService сами, поэтому в
+     * тестах монетка подменяется здесь: `Services::injectMock('duelCoin', new Randomizer(new Mt19937(7)))`.
+     */
+    public static function duelCoin(bool $getShared = true): \Random\Randomizer
+    {
+        if ($getShared) {
+            $shared = static::getSharedInstance('duelCoin');
+            if ($shared instanceof \Random\Randomizer) {
+                return $shared;
+            }
+        }
+
+        return new \Random\Randomizer();
+    }
 }

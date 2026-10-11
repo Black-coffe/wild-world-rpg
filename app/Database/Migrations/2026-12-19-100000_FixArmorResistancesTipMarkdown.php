@@ -12,7 +12,7 @@ use CodeIgniter\Database\Migration;
  * отвечал на рассылку «can't parse entities … byte offset 542»: игрок совет не получал, а просмотр уже записан.
  * На проде — 12 таких отказов с 03.10 (DailyTipBroadcastHandler). Заодно уходит английское имя колонки из текста игроку.
  *
- * Idempotent: REPLACE по точной фразе; повторный запуск и чистая база (где совета нет) — no-op.
+ * Idempotent: замена по точной фразе через builder (префикс таблиц соблюдается); повторный запуск и чистая база (где совета нет) — no-op.
  */
 class FixArmorResistancesTipMarkdown extends Migration
 {
@@ -32,12 +32,15 @@ class FixArmorResistancesTipMarkdown extends Migration
 
     private function swap(string $from, string $to): void
     {
-        if (! $this->db->tableExists('game_tips')) {
+        if (! $this->db->tableExists('game_tips', false)) { // без кэша listTables — он мог быть снят до создания таблицы
             return;
         }
-        $this->db->query(
-            'UPDATE game_tips SET content = REPLACE(content, ?, ?) WHERE title_en = ?',
-            [$from, $to, self::TITLE_EN]
-        );
+        $rows = $this->db->table('game_tips')->select('id, content')->where('title_en', self::TITLE_EN)->get()->getResultArray();
+        foreach ($rows as $row) {
+            $content = is_string($row['content'] ?? null) ? $row['content'] : '';
+            if (str_contains($content, $from)) {
+                $this->db->table('game_tips')->where('id', $row['id'])->update(['content' => str_replace($from, $to, $content)]);
+            }
+        }
     }
 }

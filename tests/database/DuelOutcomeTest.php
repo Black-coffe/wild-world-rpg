@@ -13,6 +13,9 @@ use CodeIgniter\Database\Forge;
 use CodeIgniter\Database\Migration;
 use CodeIgniter\Test\CIUnitTestCase;
 use Config\Database;
+use Random\Engine;
+use Random\Engine\Mt19937;
+use Random\Randomizer;
 
 /**
  * duel-baseline-weapon — исход дуэли решает бой (docs/defects/duel-outcome-not-decided-by-fight.md).
@@ -188,8 +191,23 @@ final class DuelOutcomeTest extends CIUnitTestCase
         $this->assertSame(self::N, $stats['ko'], 'каждый бой — нокаут');
         $this->assertLessThan(150, $stats['median_rounds']);
         $this->assertSame(0, $stats['reasons']['seniority'] ?? 0, 'стаж не решает');
-        $this->assertGreaterThanOrEqual(0.40, $stats['challenger_rate'], 'равные: первый удар вызывающего не решает исход');
-        $this->assertLessThanOrEqual(0.60, $stats['challenger_rate']);
+    }
+
+    /**
+     * duel-first-strike-coin: при равных статах первый удар — жребий, а не право вызывающего. Окно 47–53 % на 4000
+     * боях — около ±3σ вокруг честных 50 %. Монетка «всегда за вызывающим» (как было до фикса) из окна выходит:
+     * тест ловит именно эту форму, а не любой шум.
+     */
+    public function testFirstStrikeIsACoinTossNotTheChallengersRight(): void
+    {
+        $this->migrate();
+
+        $fair = $this->series(['n' => 4000]);
+        $this->assertGreaterThanOrEqual(0.47, $fair['challenger_rate'], 'жребий: вызывающий не получает перевеса');
+        $this->assertLessThanOrEqual(0.53, $fair['challenger_rate']);
+
+        $rigged = $this->series(['n' => 4000, 'coin' => self::alwaysChallengerCoin()]);
+        $this->assertGreaterThan(0.53, $rigged['challenger_rate'], 'первый удар по роли даёт вызывающему перевес');
     }
 
     public function testWeaponOnlyOnOneSideStillKnocksOutAndWins(): void
@@ -284,6 +302,17 @@ final class DuelOutcomeTest extends CIUnitTestCase
         };
     }
 
+    /** Монетка, которая всегда выпадает вызывающему: форма дефекта до duel-first-strike-coin. */
+    private static function alwaysChallengerCoin(): Randomizer
+    {
+        return new Randomizer(new class () implements Engine {
+            public function generate(): string
+            {
+                return str_repeat("\0", 8);
+            }
+        });
+    }
+
     /**
      * Два новичка с реальных клеток: 1 — вызывающий, 2 — защитник. `$onePlace` — как в дуэли (клетка вызывающего).
      *
@@ -299,22 +328,23 @@ final class DuelOutcomeTest extends CIUnitTestCase
 
     /**
      * N дуэлей на настоящем движке. `armed` — оружие одного бойца: в чётных боях оно у вызывающего, в нечётных — у
-     * защитника (первый удар при равной инициативе за вызывающим — так он не подмешивается в долю оружия).
+     * защитника. Монетка первого удара — `Mt19937` с seed (детерминированно), либо `coin` из опций.
      *
-     * @param array{armed?: array<string, mixed>} $opts
+     * @param array{armed?: array<string, mixed>, n?: int, coin?: Randomizer} $opts
      *
      * @return array{ko: int, median_rounds: int, reasons: array<string, int>, challenger_rate: float, armed_rate: float}
      */
     private function series(array $opts): array
     {
-        $duels    = new DuelService();
+        $n        = $opts['n'] ?? self::N;
+        $duels    = new DuelService(null, $opts['coin'] ?? new Randomizer(new Mt19937(7)));
         $ko       = 0;
         $rounds   = [];
         $reasons  = [];
         $chWins   = 0;
         $armWins  = 0;
 
-        for ($i = 0; $i < self::N; $i++) {
+        for ($i = 0; $i < $n; $i++) {
             $armedId = $i % 2 === 0 ? 1 : 2;
             $weapons = isset($opts['armed']) ? [$armedId => $opts['armed']] : [];
             [$a, $b] = $this->pair($duels, true);
@@ -335,8 +365,8 @@ final class DuelOutcomeTest extends CIUnitTestCase
             'ko'              => $ko,
             'median_rounds'   => $rounds[intdiv(count($rounds), 2)],
             'reasons'         => $reasons,
-            'challenger_rate' => $chWins / self::N,
-            'armed_rate'      => $armWins / self::N,
+            'challenger_rate' => $chWins / $n,
+            'armed_rate'      => $armWins / $n,
         ];
     }
 }
