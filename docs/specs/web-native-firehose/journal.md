@@ -6,3 +6,4 @@
 - 2026-10-11T19:18:51Z · 04-council:RED · round 1 verdict RED at db73aef5 pack b10881080dee · next: repair
 - 2026-10-11T19:18:53Z · 03-building · repair round 1: web-native-firehose-02-repair-round-1.md · next: build:2
 - 2026-10-11T19:28:47Z · 04-council:open · round 2 opened, no court (no blind seat required) · next: dispatch:review
+- 2026-10-11T19:37:34Z · 04-council:GREEN · round 2 verdict GREEN at 87bfb812 pack 0e52d5d39668 · next: green
