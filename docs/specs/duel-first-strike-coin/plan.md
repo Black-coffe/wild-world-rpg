@@ -28,3 +28,4 @@
 - `DuelService::__construct(?GameSettingsService $settings = null, ?\Random\Randomizer $coin = null)` — второй
   аргумент необязателен, существующие вызовы не меняются.
 **Briefed:** via mini-brief, Andrei, 2026-10-11
+**Branch:** vulyk/duel-first-strike-coin
