@@ -58,10 +58,12 @@ class PlayerActionLogger
     private ?string $origin     = null;
 
     /**
-     * web-native-firehose — пока true, `begin()` не активирует захват: нажатие через веб-мост прогоняет пайплайн до
-     * 4 раз (карточка, шаги маршрута, сам callback), а строка в журнале должна быть одна — её пишет `/play`.
+     * web-native-firehose — открыт захват запроса нативного `/play` ({@see beginWeb()}). Пока true, `begin()`/`commit()`
+     * пайплайна не сбрасывают и не пишут: веб-мост прогоняет пайплайн до 4 раз (карточка, шаги, callback), а строка
+     * одна — её пишет {@see commitWeb()}. `markRejected`/`markError`/`markUnrouted` (ядро, `BaseAction`, пайплайн
+     * моста) копят статус в этот захват.
      */
-    private bool $pipelineSuppressed = false;
+    private bool $webCapture = false;
 
     /**
      * Окно доставки: счётчики отправок (заполняет {@see TelegramDeliveryProbe}).
@@ -97,12 +99,10 @@ class PlayerActionLogger
      */
     public function begin(array $update, ?string $source = null): void
     {
-        $this->parseUpdate($update);
-        if ($this->pipelineSuppressed) {
-            $this->active = false;
-
-            return;
+        if ($this->webCapture) {
+            return; // шаг веб-моста: статус копится в захват /play, своей строки нет
         }
+        $this->parseUpdate($update);
         if ($this->active && $source !== null && $source !== '') {
             $this->source = $source;
         }
@@ -271,7 +271,7 @@ class PlayerActionLogger
      */
     public function commit(): void
     {
-        if (! $this->active || $this->committed) {
+        if ($this->webCapture || ! $this->active || $this->committed) {
             return;
         }
         $this->committed = true;
@@ -310,10 +310,43 @@ class PlayerActionLogger
         }
     }
 
-    /** web-native-firehose — приглушить захват пайплайна на время веб-моста (снимать в `finally`). */
-    public function suppressPipeline(bool $on): void
+    /**
+     * web-native-firehose — открыть захват запроса нативного `/play`: свежий статус `ok`, `source='web'`. Закрывать
+     * {@see commitWeb()} или {@see abortWeb()} в `finally`.
+     */
+    public function beginWeb(): void
     {
-        $this->pipelineSuppressed = $on;
+        $this->active         = true;
+        $this->committed      = false;
+        $this->status         = 'ok';
+        $this->errorText      = null;
+        $this->source         = 'web';
+        $this->actionName     = '';
+        $this->rawInput       = '';
+        $this->telegramUserId = null;
+        $this->chatId         = null;
+        $this->origin         = null;
+        $this->webCapture     = true;
+    }
+
+    /** Закрыть захват `/play` и записать одну строку со скопленным статусом и причиной. Не бросает. */
+    public function commitWeb(?int $characterId, string $actionName, ?string $rawInput): void
+    {
+        if (! $this->webCapture) {
+            return;
+        }
+        $status = $this->status;
+        $error  = $this->errorText;
+        $this->abortWeb();
+        $this->recordWebAction($characterId, $actionName, $rawInput, $status, $error);
+    }
+
+    /** Закрыть захват `/play` без строки (гейт не пройден). */
+    public function abortWeb(): void
+    {
+        $this->webCapture = false;
+        $this->active     = false;
+        $this->committed  = true;
     }
 
     /**

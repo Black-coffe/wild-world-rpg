@@ -164,12 +164,22 @@ class Play extends BaseController
         $route = ($intent['kind'] ?? null) === WebActService::KIND_CALLBACK ? WebNativeScreenService::nativeRoute($intent['data'] ?? '') : null;
         if ($route !== null && in_array($route['view'], WebNativeScreenService::BATTLE_VIEWS, true)) {
             // Мимо пайплайна — строку пишем сами, как бот пишет тот же callback.
-            $data     = $intent['data'] ?? '';
+            $data   = $intent['data'] ?? '';
+            $logger = $this->logger();
             $this->firehoseRejected = false;
-            $response = $this->battleScreen($characterId, $route['view'], $route['nav']);
-            $this->logger()->recordWebAction($characterId, explode('_', $data)[0], $data, $this->firehoseStatus());
+            $logger->beginWeb();
+            try {
+                return $this->battleScreen($characterId, $route['view'], $route['nav']);
+            } catch (\Throwable $e) {
+                $logger->markError($e::class . ': ' . $e->getMessage());
 
-            return $response;
+                throw $e;
+            } finally {
+                if ($this->firehoseStatus() === 'rejected') {
+                    $logger->markRejected(self::REJECTED_ALERT);
+                }
+                $logger->commitWeb($characterId, explode('_', $data)[0], $data);
+            }
         }
 
         try {
@@ -189,11 +199,12 @@ class Play extends BaseController
     public function view(): ResponseInterface|string
     {
         // web-native-firehose: одна строка `player_action_log` на запрос — экран, действие или нажатие через мост.
-        // На время моста пайплайн приглушён: он прогоняется до 4 раз (карточка, шаги, callback), а тап — один.
+        // Захват логгера копит статус: деловой отказ ядра, отказ/ошибка/«не понял» пайплайна моста (он прогоняется до
+        // 4 раз, но своих строк не пишет), отказ формы — rejected(), исключение — error.
         $view   = $this->request->getPost('view');
         $op     = $this->request->getPost('op');
         $data   = $this->request->getPost('data');
-        $bridge = $op === 'bridge' && is_string($data);
+        $bridge = $op === 'bridge' && is_string($data); // мост: строка — префикс callback и сам callback, как у бота
         [$action, $raw] = $bridge
             ? [$data === '' ? '(empty)' : explode('_', $data)[0], $data]
             : [is_string($op) && $op !== '' ? $op : (is_string($view) && $view !== '' ? $view : '(empty)'), self::firehoseInput($view, $op, $this->request->getPost('id'))];
@@ -201,22 +212,23 @@ class Play extends BaseController
         $this->firehoseCharacterId = null;
         $this->firehoseRejected    = false;
         $logger                    = $this->logger();
-        $logger->suppressPipeline($bridge);
+        $logger->beginWeb();
         try {
             $response = $this->viewScreen();
         } catch (\Throwable $e) {
-            $charId = $this->firehoseCharacter();
-            if ($charId !== null) {
-                $logger->recordWebAction($charId, $action, $raw, 'error', $e::class . ': ' . $e->getMessage());
-            }
+            $logger->markError($e::class . ': ' . $e->getMessage());
 
             throw $e;
         } finally {
-            $logger->suppressPipeline(false);
-        }
-        $charId = $this->firehoseCharacter();
-        if ($charId !== null) {
-            $logger->recordWebAction($charId, $action, $raw, $this->firehoseStatus());
+            $charId = $this->firehoseCharacter();
+            if ($charId === null) {
+                $logger->abortWeb();
+            } else {
+                if ($this->firehoseStatus() === 'rejected') {
+                    $logger->markRejected(self::REJECTED_ALERT);
+                }
+                $logger->commitWeb($charId, $action, $raw);
+            }
         }
 
         return $response;

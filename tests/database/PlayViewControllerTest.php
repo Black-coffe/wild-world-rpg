@@ -166,7 +166,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
     {
         PlayerActionLogger::reset();
         [$session, $charId] = $this->character('Ворон');
-        $act  = $this->fakeAct();
+        $act  = $this->fakeAct('ok');
         $move = $this->stubMove();
         $this->stubSheets($act, [[], []], $this->stubMap(), $move);
 
@@ -174,7 +174,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->postWithCsrf($session, 'play/view', ['view' => 'map', 'op' => 'step', 'dir' => 'north', 'intent_id' => 'fh1'], true)->assertStatus(200);
         $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['view' => 'me', 'op' => 'nope'], true)->response()->getStatusCode());
         $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'guide', 'intent_id' => 'fh2'], true)->assertStatus(200);
-        $this->assertCount(2, $act->calls, 'мост: карточка + callback — два прогона, одна строка');
+        $this->assertCount(2, $act->calls, 'мост: карточка + callback — два прогона пайплайна, одна строка');
 
         $rows = $this->conn->table('player_action_log')->orderBy('id')->get()->getResultArray();
         $this->assertSame(
@@ -205,23 +205,29 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->conn->table('player_action_log')->countAllResults());
     }
 
-    /** Мост гоняет пайплайн до 4 раз: пока приглушён, `begin()`/`commit()` не пишут — строку даёт `/play`. */
-    public function testSuppressedPipelineWritesNothingUntilReleased(): void
+    /** Отказ ядра (квест нельзя начать вручную) и сбой/«не понял» пайплайна моста доходят до единственной строки. */
+    public function testFirehoseRowCarriesCoreRefusalAndBridgePipelineStatus(): void
     {
         PlayerActionLogger::reset();
-        $logger = PlayerActionLogger::current();
-        $update = ['update_id' => 1, 'callback_query' => ['id' => 'x', 'from' => ['id' => 5], 'data' => 'guide', 'message' => ['chat' => ['id' => 5]]]];
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableDeeds($charId);
+        $this->postWithCsrf($session, 'play/view', ['view' => 'tasks', 'op' => 'quest_start', 'id' => '3', 'intent_id' => 'fq1'], true)->assertStatus(200);
 
-        $logger->suppressPipeline(true);
-        $logger->begin($update, 'web');
-        $logger->commit();
-        $this->assertSame(0, $this->conn->table('player_action_log')->countAllResults());
+        $row = $this->conn->table('player_action_log')->orderBy('id', 'DESC')->get(1)->getRowArray();
+        $this->assertIsArray($row);
+        $this->assertSame(['quest_start', 'rejected'], [$row['action_name'], $row['status']], 'деловой отказ ядра — rejected, как у бота');
+        $this->assertStringStartsWith('QUEST_START_', (string) $row['error_text']);
 
-        $logger->suppressPipeline(false);
-        $logger->begin($update, 'web');
-        $logger->commit();
-        $this->assertSame(1, $this->conn->table('player_action_log')->countAllResults());
-        PlayerActionLogger::reset();
+        foreach (['error' => 'fb1', 'unrouted' => 'fb2'] as $status => $intent) {
+            $before = $this->conn->table('player_action_log')->countAllResults();
+            $this->stubSheets($this->fakeAct($status));
+            $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'guide', 'intent_id' => $intent], true)->assertStatus(200);
+
+            $this->assertSame($before + 1, $this->conn->table('player_action_log')->countAllResults(), "мост ({$status}): одна строка");
+            $last = $this->conn->table('player_action_log')->orderBy('id', 'DESC')->get(1)->getRowArray();
+            $this->assertIsArray($last);
+            $this->assertSame(['guide', $status, $charId], [$last['action_name'], $last['status'], (int) $last['character_id']]);
+        }
     }
 
     // ── Гейты: флаг, вход, CSRF, лимит ───────────────────────────────────
@@ -1951,15 +1957,36 @@ final class PlayViewControllerTest extends CIUnitTestCase
      * Мост-двойник: пишет намерения. «Карточка» (`:card`) — сообщение 41 с кнопками `inventory`
      * и `guide`; хаб инвентаря (`:s0`) — сообщение 43 с `whereItWent`; остальное — 42.
      */
-    private function fakeAct(): WebActService
+    /**
+     * @param string|null $pipeline web-native-firehose: не null — каждый вызов прогоняет захват логгера, как
+     *                              `UpdatePipeline` (`begin`/`commit`); на шаге `:cb` — `error` или `unrouted`, иначе `ok`
+     */
+    private function fakeAct(?string $pipeline = null): WebActService
     {
-        return new class () extends WebActService {
+        return new class ($pipeline) extends WebActService {
             /** @var list<array<string, mixed>> */
             public array $calls = [];
+
+            public function __construct(private readonly ?string $pipeline)
+            {
+            }
 
             public function act(int $accountId, int $characterId, array $intent): array
             {
                 $this->calls[] = $intent;
+                if ($this->pipeline !== null) {
+                    $logger = PlayerActionLogger::current();
+                    $data   = (string) ($intent['data'] ?? '');
+                    $logger->begin(['update_id' => 1, 'callback_query' => ['id' => 'x', 'from' => ['id' => 5], 'data' => $data, 'message' => ['chat' => ['id' => 5]]]], 'web');
+                    if (str_ends_with((string) ($intent['intent_id'] ?? ''), ':cb')) {
+                        match ($this->pipeline) {
+                            'error'    => $logger->markError('dispatch failed'),
+                            'unrouted' => $logger->markUnrouted(),
+                            default    => null,
+                        };
+                    }
+                    $logger->commit();
+                }
                 $id            = (string) ($intent['intent_id'] ?? '');
                 [$mid, $text, $kb] = match (true) {
                     ($intent['data'] ?? null) === '/go' => [44, 'Карта', [[['text' => '⬆️ Север', 'callback_data' => 'move_dir_north'], ['text' => '🌍 Остров живёт', 'callback_data' => 'island']]]],
