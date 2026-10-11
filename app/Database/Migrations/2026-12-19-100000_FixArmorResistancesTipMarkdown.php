@@ -32,7 +32,7 @@ class FixArmorResistancesTipMarkdown extends Migration
 
     private function swap(string $from, string $to): void
     {
-        if (! $this->db->tableExists('game_tips')) {
+        if (! $this->db->tableExists('game_tips', false)) { // без кэша listTables — он мог быть снят до создания таблицы
             return;
         }
         $rows = $this->db->table('game_tips')->select('id, content')->where('title_en', self::TITLE_EN)->get()->getResultArray();
