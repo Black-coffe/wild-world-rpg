@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Logging\PlayerActionLogger;
 use App\Services\Web\AccountSession;
 use App\Services\Web\WebActService;
 use App\Services\Web\WebDelivery;
@@ -90,6 +91,12 @@ class Play extends BaseController
 
     private const REJECTED_ALERT = 'Эта кнопка уже недоступна — экран обновлён.';
 
+    /** web-native-firehose — персонаж запроса `view()` после гейта (null — гейт не пройден, строки нет). */
+    private ?int $firehoseCharacterId = null;
+
+    /** web-native-firehose — запрос `view()`/`act()` кончился отказом ({@see rejected()}). */
+    private bool $firehoseRejected = false;
+
     public function index(): ResponseInterface|string
     {
         $gate = $this->gate();
@@ -103,6 +110,8 @@ class Play extends BaseController
             return $gate;
         }
         [$accountId, $characterId] = $gate;
+        $openView = $this->request->getGet('view');
+        $this->logger()->recordWebAction($characterId, 'play', is_string($openView) && $openView !== '' ? 'view=' . $openView : null);
 
         try {
             $result = $this->service()->bootstrap($accountId, $characterId);
@@ -154,7 +163,13 @@ class Play extends BaseController
         // «📜 Разбор боя» и другие кнопки «⚔️ Боёв» из входящих и с экрана моста — нативный экран, а не мост.
         $route = ($intent['kind'] ?? null) === WebActService::KIND_CALLBACK ? WebNativeScreenService::nativeRoute($intent['data'] ?? '') : null;
         if ($route !== null && in_array($route['view'], WebNativeScreenService::BATTLE_VIEWS, true)) {
-            return $this->battleScreen($characterId, $route['view'], $route['nav']);
+            // Мимо пайплайна — строку пишем сами, как бот пишет тот же callback.
+            $data     = $intent['data'] ?? '';
+            $this->firehoseRejected = false;
+            $response = $this->battleScreen($characterId, $route['view'], $route['nav']);
+            $this->logger()->recordWebAction($characterId, explode('_', $data)[0], $data, $this->firehoseStatus());
+
+            return $response;
         }
 
         try {
@@ -169,15 +184,55 @@ class Play extends BaseController
     }
 
     /**
-     * W2.N1 — нативный экран или кнопка нативного экрана через мост. Персонаж — только из сессии.
+     * POST `/play/view`: обёртка {@see viewScreen()} — пишет одну строку журнала действий игроков (web-native-firehose).
      */
     public function view(): ResponseInterface|string
+    {
+        // web-native-firehose: одна строка `player_action_log` на запрос — экран, действие или нажатие через мост.
+        // На время моста пайплайн приглушён: он прогоняется до 4 раз (карточка, шаги, callback), а тап — один.
+        $view   = $this->request->getPost('view');
+        $op     = $this->request->getPost('op');
+        $data   = $this->request->getPost('data');
+        $bridge = $op === 'bridge' && is_string($data);
+        [$action, $raw] = $bridge
+            ? [$data === '' ? '(empty)' : explode('_', $data)[0], $data]
+            : [is_string($op) && $op !== '' ? $op : (is_string($view) && $view !== '' ? $view : '(empty)'), self::firehoseInput($view, $op, $this->request->getPost('id'))];
+
+        $this->firehoseCharacterId = null;
+        $this->firehoseRejected    = false;
+        $logger                    = $this->logger();
+        $logger->suppressPipeline($bridge);
+        try {
+            $response = $this->viewScreen();
+        } catch (\Throwable $e) {
+            $charId = $this->firehoseCharacter();
+            if ($charId !== null) {
+                $logger->recordWebAction($charId, $action, $raw, 'error', $e::class . ': ' . $e->getMessage());
+            }
+
+            throw $e;
+        } finally {
+            $logger->suppressPipeline(false);
+        }
+        $charId = $this->firehoseCharacter();
+        if ($charId !== null) {
+            $logger->recordWebAction($charId, $action, $raw, $this->firehoseStatus());
+        }
+
+        return $response;
+    }
+
+    /**
+     * W2.N1 — нативный экран или кнопка нативного экрана через мост. Персонаж — только из сессии.
+     */
+    private function viewScreen(): ResponseInterface
     {
         $gate = $this->gate();
         if ($gate instanceof ResponseInterface || is_string($gate)) {
             return $this->denied($gate);
         }
         [$accountId, $characterId] = $gate;
+        $this->firehoseCharacterId = $characterId;
 
         $view = $this->request->getPost('view');
         $op   = $this->request->getPost('op');
@@ -550,6 +605,7 @@ class Play extends BaseController
     /** Отвергнутое намерение: 400 и текущий экран моста, без диспетча. */
     private function rejected(int $characterId): ResponseInterface
     {
+        $this->firehoseRejected = true;
         $state = $this->service()->current($characterId);
         if ($this->wantsJson()) {
             return $this->response->setStatusCode(400)->setJSON([
@@ -889,6 +945,34 @@ class Play extends BaseController
         $service = Factories::get('libraries', WebActService::class);
 
         return $service instanceof WebActService ? $service : new WebActService();
+    }
+
+    /** Персонаж текущего запроса `view()` (null — гейт не пройден). Геттер: флаг меняют вызванные методы. */
+    private function firehoseCharacter(): ?int
+    {
+        return $this->firehoseCharacterId;
+    }
+
+    /** Статус строки журнала: отказ, если запрос кончился {@see rejected()}. */
+    private function firehoseStatus(): string
+    {
+        return $this->firehoseRejected ? 'rejected' : 'ok';
+    }
+
+    private function logger(): PlayerActionLogger
+    {
+        return PlayerActionLogger::current();
+    }
+
+    /** `raw_input` веб-строки: экран, операция и id предмета формы — как `callback_data` у бота. */
+    private static function firehoseInput(mixed $view, mixed $op, mixed $id): ?string
+    {
+        $parts = array_filter(
+            ['view' => is_string($view) ? $view : null, 'op' => is_string($op) ? $op : null, 'id' => is_string($id) ? $id : null],
+            static fn (?string $v): bool => $v !== null && $v !== ''
+        );
+
+        return $parts === [] ? null : http_build_query($parts);
     }
 
     private function native(): WebNativeScreenService

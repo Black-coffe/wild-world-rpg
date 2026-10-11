@@ -58,6 +58,12 @@ class PlayerActionLogger
     private ?string $origin     = null;
 
     /**
+     * web-native-firehose — пока true, `begin()` не активирует захват: нажатие через веб-мост прогоняет пайплайн до
+     * 4 раз (карточка, шаги маршрута, сам callback), а строка в журнале должна быть одна — её пишет `/play`.
+     */
+    private bool $pipelineSuppressed = false;
+
+    /**
      * Окно доставки: счётчики отправок (заполняет {@see TelegramDeliveryProbe}).
      * Открывается отдельно от `active`, потому что у Worker'а захвата begin/commit нет,
      * а окно нужно СВОЁ на каждую задачу — один прогон завершает их N.
@@ -92,6 +98,11 @@ class PlayerActionLogger
     public function begin(array $update, ?string $source = null): void
     {
         $this->parseUpdate($update);
+        if ($this->pipelineSuppressed) {
+            $this->active = false;
+
+            return;
+        }
         if ($this->active && $source !== null && $source !== '') {
             $this->source = $source;
         }
@@ -296,6 +307,42 @@ class PlayerActionLogger
             ]);
         } catch (\Throwable $e) {
             log_message('error', '[PlayerActionLogger] commit failed: ' . $e->getMessage());
+        }
+    }
+
+    /** web-native-firehose — приглушить захват пайплайна на время веб-моста (снимать в `finally`). */
+    public function suppressPipeline(bool $on): void
+    {
+        $this->pipelineSuppressed = $on;
+    }
+
+    /**
+     * web-native-firehose — записать нажатие в нативном вебе `/play` (экран, действие, мост). Самостоятельная вставка
+     * по образцу {@see recordTaskCompletion()}: `source='web'`, `character_id` из сессии сайта, Telegram-полей нет —
+     * у web-only игрока их и не бывает, а метрики связывают строки по `character_id`.
+     *
+     * 🔴 Defensive: не бросает — сбой журнала не должен ломать ход игрока. Killswitch — тот же.
+     */
+    public function recordWebAction(?int $characterId, string $actionName, ?string $rawInput, string $status = 'ok', ?string $errorText = null): void
+    {
+        try {
+            if (! $this->enabled()) {
+                return;
+            }
+            $st = in_array($status, self::VALID_STATUSES, true) ? $status : 'ok';
+            $this->insertRow([
+                'character_id'     => $characterId,
+                'telegram_user_id' => null,
+                'chat_id'          => null,
+                'source'           => 'web',
+                'action_name'      => $actionName === '' ? null : mb_substr($actionName, 0, 255),
+                'raw_input'        => ($rawInput !== null && $rawInput !== '') ? mb_substr($rawInput, 0, 255) : null,
+                'status'           => $st,
+                'error_text'       => ($errorText !== null && $errorText !== '') ? mb_substr($errorText, 0, 500) : null,
+                'created_at'       => date('Y-m-d H:i:s'),
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[PlayerActionLogger] recordWebAction failed: ' . $e->getMessage());
         }
     }
 

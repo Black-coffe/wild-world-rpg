@@ -1,7 +1,8 @@
 ---
 story: web-native-firehose-01
 spec: web-native-firehose
-status: todo
+status: done
+returned: DONE
 tier: 2
 worker: queen
 model: opus
@@ -27,7 +28,7 @@ Telegram-полей) и флаг `suppressPipeline()`. `Play::view()` пишет
 ## Files
 - app/Services/Logging/PlayerActionLogger.php
 - app/Controllers/Play.php
-- tests/database/WebNativeFirehoseTest.php
+- tests/database/PlayViewControllerTest.php
 
 ## Non-goals
 - Не трогать `UpdatePipeline`, `WebActService`, `WebNativeScreenService` (немой `markRejected` — вне спеки).
@@ -46,3 +47,10 @@ Telegram-полей) и флаг `suppressPipeline()`. `Play::view()` пишет
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress`
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+
+## Implementation notes
+- `PlayerActionLogger::recordWebAction()` — по образцу `recordTaskCompletion()`: `source='web'`, Telegram-поля null, `raw_input` ≤ 255 (ширина колонки), killswitch тот же, не бросает. `suppressPipeline(bool)` — флаг синглтона; `begin()` при нём оставляет `active=false`, `commit()` — no-op.
+- `Play::view()` — обёртка над прежним телом (`viewScreen()`): действие = `op`, иначе `view`; `raw_input` = `view=…&op=…&id=…`; мост — префикс callback и сам callback, как у бота. Статус: `rejected()` ставит флаг, исключение — `error` и проброс. Пайплайн приглушается только на мосту и снимается в `finally`. Строка пишется, только если гейт пройден (персонаж известен).
+- `GET /play` пишет `play` (`raw_input` `view=…`, если открыт нативный экран). Battle-кнопки в `act()` мимо пайплайна пишут строку с префиксом callback.
+- Флаги читаются через геттеры `firehoseCharacter()`/`firehoseStatus()`: phpstan иначе сужает их до значений, присвоенных перед вызовом.
+- Тесты: в `PlayViewControllerTest` (там уже есть `player_action_log` и хелперы сессии), а не в новом файле — `## Files` поправлен. Три теста: 4 запроса → 4 строки с персонажем сессии (экран, шаг, отказ, мост с двумя прогонами `act`); killswitch → 0 строк; приглушённый `begin/commit` → 0, после снятия → 1.
