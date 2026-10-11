@@ -19,6 +19,7 @@ use CodeIgniter\Database\Migration;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\Services;
 use GuzzleHttp\Client;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
@@ -28,6 +29,8 @@ use Longman\TelegramBot\Request as LongmanRequest;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Psr\Http\Message\RequestInterface;
+use Random\Engine;
+use Random\Randomizer;
 
 /**
  * w2-n7-combat-02 — паритет бота: арена, итог дуэли и рейтинг PvP после выноса в `ArenaScreenService`
@@ -261,6 +264,13 @@ _Раздел отключён администрацией._',
     public function testDuelResultAndRefusals(): void
     {
         mt_srand(self::SEED);
+        // duel-first-strike-coin: первый удар — жребий; монетка «за вызывающим» держит снимок, снятый до жребия.
+        Services::injectMock('duelCoin', new Randomizer(new class () implements Engine {
+            public function generate(): string
+            {
+                return str_repeat(chr(0), 8);
+            }
+        }));
         $sent = $this->sent(DuelAction::class, 'arenaDuel_2');
         $msgs = array_values(array_filter($sent, static fn (array $c): bool => $c['method'] === 'sendMessage'));
         $this->assertCount(2, $msgs, 'защитник и вызвавший: ' . json_encode(array_column($sent, 'method')));

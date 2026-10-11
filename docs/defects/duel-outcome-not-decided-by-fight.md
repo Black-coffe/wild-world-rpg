@@ -3,7 +3,7 @@ id: duel-outcome-not-decided-by-fight
 title: Исход поединка решает не бой, а формальность (тай-брейк, стаж)
 status: block
 check: php scripts/defects-duel-knockout-check.php <arg>
-fixtures: [docs/defects/fixtures/duel-outcome-not-decided-by-fight-original.json, docs/defects/fixtures/duel-outcome-not-decided-by-fight-neighbour.json]
+fixtures: [docs/defects/fixtures/duel-outcome-not-decided-by-fight-original.json, docs/defects/fixtures/duel-outcome-not-decided-by-fight-neighbour.json, docs/defects/fixtures/duel-outcome-not-decided-by-fight-first-strike.json]
 keys: [150 раундов, стаж, 0,01 урона, поедин, тай-брейк, без снаряжения, первым бьёт, побед вызывающего]
 paths: ["app/Services/PVE/DuelService.php", "app/Services/PVE/DuelEquipmentRepository.php", "app/Services/PVE/ArenaScreenService.php", "app/Services/PVE/PvpDamageCalculator.php", "app/Services/PVE/PvpRoundOrchestrator.php"]
 ---
