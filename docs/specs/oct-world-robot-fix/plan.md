@@ -34,7 +34,7 @@
 ## Plan deltas
 
 **Approved:**
-**Briefed:**
+**Briefed:** via mini-brief, Andrei, 2026-10-12
 **Branch:**
 **Checked:**
 **Council:**
