@@ -1,8 +1,8 @@
 ---
 story: web-onboarding-01
 spec: web-onboarding
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: sonnet
@@ -73,6 +73,11 @@ blocked_by: []
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- Новые: ColdOpenWelcomeService (build bot/web), ColdOpenGreetingService::closingWeb(); StartCommand: renderNewcomer/welcomeService/deliver (защищённые швы), литералов cold open нет.
+- Снимок снят до правки: копия прежней ветки (git HEAD, строки 114-263) прогнана скриптом; 112 случаев (метка x greeting x defer x single x спавн x набор, + «не влезает»), без БД, ActionOrigin::overrideEnabled.
+- Паритет идёт без БД (швы deliver/welcomeService), в tests/database не переезжал. Reply-меню и disable_web_page_preview добавляет рендерер.
+- Веб: одно окно (greetingSingleScreen + паёк/сигнал/встречающий + closingWeb), при >3900 символов откат на раздельные сообщения, кнопка на последнем.
+- ColdOpenSingleScreenTest перенацелен на ColdOpenWelcomeService, тест обнуления переменных удалён (plan delta в Findings).
 
 ## Findings
 Вопрос (NEEDS_CONTEXT, код не тронут): `tests/unit/Services/Onboarding/ColdOpenSingleScreenTest.php` читает исходник

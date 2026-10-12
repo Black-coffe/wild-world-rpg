@@ -27,7 +27,7 @@ final class ColdOpenSingleScreenTest extends CIUnitTestCase
     /** Метка кнопки первого CTA — единый источник для копии, кнопки и этого теста. */
     private const FIRST_STEP_LABEL = '🧭 Сделать первый шаг';
 
-    private const START_COMMAND = APPPATH . 'Controllers/Telegram/Commands/StartCommand.php';
+    private const START_COMMAND = APPPATH . 'Services/Onboarding/ColdOpenWelcomeService.php';
 
     /** Флаг читается СВОИМ ключом и по умолчанию выключен (dormant-обещание). */
     public function testSingleScreenReadsOwnKeyAndDefaultsOff(): void
@@ -103,7 +103,7 @@ final class ColdOpenSingleScreenTest extends CIUnitTestCase
     }
 
     /**
-     * 🔴 Анти-дрейф: кнопка первого CTA обязана называться в StartCommand ровно так же,
+     * 🔴 Анти-дрейф: кнопка первого CTA обязана называться в ColdOpenWelcomeService ровно так же,
      * как её называет копия, и вести в ЖИВОЙ callback-роут. Разъезд любой из двух
      * половин = экран врёт («жми X», а кнопки X нет) или кнопка мёртвая.
      */
@@ -192,23 +192,6 @@ final class ColdOpenSingleScreenTest extends CIUnitTestCase
             $source,
             'кнопка «назвать героя» обязана нести метку источника'
         );
-    }
-
-    /**
-     * Секции, въехавшие в одно окно, НЕ должны уехать ещё и отдельными сообщениями:
-     * StartCommand обязан обнулить их перед блоками отправки (иначе игрок получит дубль).
-     */
-    public function testSectionsAreClearedAfterInlining(): void
-    {
-        $source = (string) file_get_contents(self::START_COMMAND);
-
-        foreach (['starterKitText', 'signalText', 'greeterText'] as $var) {
-            $this->assertMatchesRegularExpression(
-                '/\$' . $var . '\s*=\s*null;/',
-                $source,
-                "секция \${$var} должна обнуляться после встраивания в одно окно"
-            );
-        }
     }
 }
 
