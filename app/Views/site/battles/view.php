@@ -19,6 +19,8 @@
  * @var string $tgName
  * @var string $botUsername
  * @var int $myCharId  ID персонажа залогиненного игрока (0 если нет) — для приватности координат
+ * @var list<string> $why  oct-pvp-clarity-02: строки «почему так вышло» (контроллер уже выбрал уровень: участнику —
+ *                         с числами обороны, остальным — без); вьюха только выводит через esc()
  */
 $num = static fn ($v): ?float => is_numeric($v) ? (float) $v : null;
 $fmt = static fn (?float $v): string => $v === null ? '—' : (string) (round($v * 10) / 10);
@@ -142,6 +144,18 @@ $currentPath = '/' . uri_string();
             <?= $playerCard($att, $winnerId, 'Атакующий', $authed, $myCharId) ?>
             <?= $playerCard($def, $winnerId, 'Защитник', $authed, $myCharId) ?>
         </div>
+
+        <?php $whyLines = isset($why) && is_array($why) ? array_values(array_filter($why, 'is_string')) : []; ?>
+        <?php if ($whyLines !== []): ?>
+            <h3 class="kicker mt-4">🧩 Почему так вышло</h3>
+            <div class="card" data-battle-why>
+                <div class="stack">
+                    <?php foreach ($whyLines as $line): ?>
+                        <p class="mb-0"><?= esc($line) ?></p>
+                    <?php endforeach ?>
+                </div>
+            </div>
+        <?php endif ?>
 
         <h3 class="kicker mt-4">Ход боя по раундам</h3>
         <?php if (! $authed): ?>

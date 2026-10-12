@@ -22,6 +22,10 @@ use Longman\TelegramBot\Entities\ServerResponse;
  * Текст — HTML (имена игроков и NPC экранируются), только текст (media-off по построению), ≤ лимита
  * сообщения Telegram: длинный бой показывает первые и последние раунды и «… ещё N …».
  *
+ * oct-pvp-clarity-02: между итогом и раундами — блок «🧩 Почему так вышло» из `battle.why` (строки считает
+ * `PvpOutcomeExplainer`, здесь только экранирование). Пустой `why` — карточка байт-в-байт прежняя; блок идёт
+ * до раундов и уменьшает их бюджет, а не лимит сообщения.
+ *
  * @phpstan-import-type Entry from BattleJournalService
  * @phpstan-import-type Card from BattleJournalService
  */
@@ -115,6 +119,7 @@ final class BattleJournalAction extends BaseAction
         if ($card['duel']) {
             $head .= "\n🤺 Дуэль — без потерь: здоровье, опыт и ресурсы не меняются.";
         }
+        $head .= self::whyBlock($card['why']);
         if ($card['rounds'] === []) {
             return $head . "\n\n<i>Подробности раундов для этого боя не сохранились.</i>";
         }
@@ -129,6 +134,21 @@ final class BattleJournalAction extends BaseAction
         }
 
         return $head . "\n\n" . implode("\n", self::fit($lines, self::TEXT_BUDGET - mb_strlen($head) - 4));
+    }
+
+    /**
+     * Блок «почему так вышло»: заголовок и строки ядра, экранированные под HTML. Пусто — пустая строка.
+     *
+     * @param list<string> $why
+     */
+    public static function whyBlock(array $why): string
+    {
+        if ($why === []) {
+            return '';
+        }
+        $lines = array_map(static fn (string $l): string => self::esc($l), $why);
+
+        return "\n\n🧩 <b>Почему так вышло</b>\n" . implode("\n", $lines);
     }
 
     /**

@@ -1,8 +1,8 @@
 ---
 story: oct-pvp-clarity-02
 spec: oct-pvp-clarity
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -57,5 +57,26 @@ blocked_by: [oct-pvp-clarity-01]
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+
+- **Бот** (`BattleJournalAction`): `whyBlock(list<string>)` — «🧩 <b>Почему так вышло</b>» и строки ядра между итогом
+  и раундами. Карточка бота — **HTML** (`parse_mode: HTML`), не legacy Markdown: строки идут через `esc()`
+  (`htmlspecialchars`), поэтому `_`, `*`, `<`, `&` в имени ничего не ломают (тест на имя `Kill_er*<b>&Bob</b>`).
+  Блок уменьшает бюджет раундов (`fit()`), а не лимит сообщения: 150 раундов + блок ≤ 4096 и в символах, и в UTF-16.
+  Пустой `why` — `whyBlock` даёт `''`, текст прежний.
+- **`/play`** (`native_battle.php`): секция `data-battle-why` из `card.why` на существующих `play-native-section` /
+  `play-craft-reqs`, вывод через `esc()`; нет `why` (или пусто) — разметки нет. Новых CSS-классов нет.
+- **Публичная `/battles/view`** (поправка владельца, ask 8): `BattlesController::whyFor($log, $viewerCharId)` выбирает
+  уровень — участник боя (`authContext()['characterId']` = attacker/defender id) получает числа обороны, остальные
+  `explain(..., false)`. Во вьюху идёт только `$why` (готовые строки), `log_data.defense` — нет (тест: `wall_reduction`
+  в HTML гостя отсутствует). Вьюха — классы `card`/`stack`/`kicker`/`mb-0` из `wildworld-ui.css`, без инлайн-стилей,
+  компонент не новый (карточка с текстом), `ui-kit.html` не трогаю.
+- Вход участника в feature-тесте потребовал бы таблицы аккаунтов (ADR-188), поэтому уровень проверен напрямую на
+  `whyFor` (участник / гость 0 / посторонний 99), а GET гостя — по HTML.
+- **Проверки:** `BattlesPublicViewTest` (+3), `BattleJournalServiceTest` (+1), `PlayViewsTest` (+1) зелёные; phpstan чистый.
+  Локальный Apache не поднят (`curl` → 000), рендер страницы покрыт feature-тестом (200).
+- **Ещё не сделано — Tier-3 и Tier-2 на preprod:** настоящий PvP-бой у базы с обороной на testbot → «📜 Разбор боя»
+  в боте, тот же бой на `/play` и `/battles/view` (гостем и участником), 1440/768/375. Это возможно только после
+  мерджа в `develop` и деплоя на preprod; результат — в smoke-отчёт перед тегом.
+- Tech-writing: `handlers/pvp/BattleJournalAction`, `controllers/BattlesController` обновлены.
 
 ## Findings
