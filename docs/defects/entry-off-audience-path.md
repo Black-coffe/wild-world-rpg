@@ -1,9 +1,9 @@
 ---
 id: entry-off-audience-path
 title: Вход в фичу стоит только там, куда её аудитория не ходит
-status: text
-check:
-fixtures: []
+status: block
+check: php scripts/defects-audience-surfaces-check.php <arg>
+fixtures: [docs/defects/fixtures/entry-off-audience-path-original.md, docs/defects/fixtures/entry-off-audience-path-neighbour.md]
 keys: [почти не заходят, вход только, можно войти только, не найдут, не дойдут]
 paths: ["app/Services/More/**", "app/Controllers/Telegram/Commands/Actions/**", "app/Views/site/_play/**", "docs/specs/*/plan.md", "docs/specs/*/brief.md"]
 ---
@@ -28,4 +28,5 @@ discoverability всё сходилось, а основная аудитори�
 - Считать кнопку «по контексту» (под итогом события) единственным входом: нужен ещё постоянный вход на хабе, где эти игроки бывают.
 
 ## Можно
+- План player-фичи или объяснения несёт таблицу `## Audience surfaces` (что · где бывает аудитория, с доказательством: firehose, скриншот жалобы · где стоит вход). `php scripts/defects-audience-surfaces-check.php <plan.md>` падает, если поверхность аудитории не покрыта входом.
 - Вход на тематическом экране (арена) в дополнение к входу на общем хабе («⚙️ Ещё») или на экране, который аудитория открывает сама.
