@@ -1,8 +1,8 @@
 ---
 story: web-onboarding-03
 spec: web-onboarding
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: sonnet
@@ -36,8 +36,8 @@ blocked_by: [web-onboarding-02]
 - app/Config/WebPlay.php
 - app/Views/site/_play/banner.php
 - app/Views/site/play.php
-- public/assets/wildworld-play.js
-- public/assets/wildworld-ui.css
+- public/assets/js/wildworld-play.js
+- public/assets/css/wildworld-ui.css
 - public/ui-kit.html
 - app/Views/site/_layout/meta.php
 - tests/database/PlayInboxBannerTest.php
@@ -80,5 +80,12 @@ blocked_by: [web-onboarding-02]
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- WebInboxService::banner() (непрочитанные, новейшие bannerMax, без экранных message_id, more); Config\WebPlay::bannerMax=3.
+- Play::inbox() зовёт service()->current(), отдаёт banner_html, rev, screen_html только при rev клиента != серверному (rev не передан — экран не шлётся).
+- Play::markRead без Accept: json — 303 на /play (кнопка Скрыть без JS). Баннер-партиал _play/banner.php дублирует тело сообщения из state.php (closure там не вынести без правки вне Files).
+- JS: мостовой экран из опроса подменяется только если есть .play-input-form и игрок не печатает; v у play.js=4, ui.css=15.
+- Пути в разделе Files исправлены на реальные (public/assets/js/, public/assets/css/): иначе close-story не закоммитил бы JS и CSS.
 
 ## Findings
+
+Close-story: полный phpunit краснеет 5 прогонов подряд (26 errors; таймаут; 3; таймаут; 970; затем AccountAuthTest). Каждый раз другие тесты (AccountCabinetTest, AccountAuthTest, WebFirstScreenTest, CommunityCleanupTest), а мои PlayInboxBannerTest + PlayControllerTest (31 тест) зелёные поодиночке и парой на тихой машине. Гипотеза: общая БД wildworld_tests делится с параллельными прогонами соседних историй (tasklist показывал чужие php.exe с phpunit; ошибки Table already exists / Deadlock / Unknown column name), плюс незакоммиченные правки AccountRegister.php и WebFirstScreenTest.php от story 04. Нужен прогон при единственном владельце тест-БД.

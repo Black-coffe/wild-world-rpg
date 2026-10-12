@@ -27,6 +27,9 @@ class WebPlay extends BaseConfig
     /** Серверный минимум периода опроса, секунды. */
     public int $inboxPollMinSeconds = 10;
 
+    /** Сколько новых сообщений плашка показывает целиком; остальные — строкой «ещё N». UI-лимит, не баланс. */
+    public int $bannerMax = 3;
+
     /** Действий `/play/act` в минуту на аккаунт. */
     public int $actsPerMinute = 60;
 

@@ -121,6 +121,32 @@ class WebInboxService
         return $out;
     }
 
+    /**
+     * web-onboarding-03: непрочитанные для плашки над экраном. Новейшие `$max`, без сообщений, чей
+     * `message_id` уже стоит на экране; `more` — сколько непрочитанных не поместилось.
+     *
+     * @param list<int> $screenIds
+     * @return array{items:list<Msg>, more:int}
+     */
+    public function banner(int $characterId, array $screenIds, int $max): array
+    {
+        $rows = $this->rows(
+            'SELECT payload FROM web_inbox WHERE character_id = ? AND read_at IS NULL ORDER BY id DESC',
+            [$characterId]
+        );
+
+        $fresh = [];
+        foreach ($rows as $row) {
+            $msg = self::decodeMsg($row['payload'] ?? null);
+            if ($msg !== null && ! in_array($msg['message_id'], $screenIds, true)) {
+                $fresh[] = $msg;
+            }
+        }
+        $max = max(0, $max);
+
+        return ['items' => array_slice($fresh, 0, $max), 'more' => max(0, count($fresh) - $max)];
+    }
+
     public function markAllRead(int $characterId): void
     {
         $this->db->query(
