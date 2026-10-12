@@ -1,3 +1,17 @@
 # Journal: web-onboarding
 
 - 2026-10-11T21:15:43Z · 02-approved · approved by owner · next: branch
+- 2026-10-11T21:16:01Z · 03-building · launching the hive · next: the loop holds the working tree of vulyk/web-onboarding; to edit, run /vulyk-pause web-onboarding
+- 2026-10-11T21:16:07Z · 03-building · branch vulyk/web-onboarding created · next: build:1
+- 2026-10-11T21:25:47Z · driver · driver released · next: paused
+- 2026-10-11T21:25:47Z · paused · владелец: story 02 не трогает общий Worker — замена залипшего экрана на веб-стороне · next: paused
+- 2026-10-11T21:28:52Z · 03-building · plan delta: story 02 web-side, Worker untouched · next: owner correction; Worker.php/WebDelivery.php reverted; resume rebuilds 01 and 02
+- 2026-10-12T07:00:25Z · 03-building · story 02 reopened · next: close-story ran after PAUSE (worker in flight, 21:33Z) and committed the pre-delta design as 0111d083; status back to todo
+- 2026-10-12T17:54:42Z · resumed · resumed · next: status
+- 2026-10-12T17:54:57Z · 03-building · launching the hive · next: the loop holds the working tree of vulyk/web-onboarding; to edit, run /vulyk-pause web-onboarding
+- 2026-10-12T17:56:30Z · 03-building · relaunch: first launch stopped at branch (git checkout failed: dirty develop — ledgers + journal); ledgers committed on develop, journal moved here · next: build:1
+- 2026-10-12T20:38:40Z · 04-council:open · round 1 opened, court at C:/laragon/www/mmorpg/.vulyk/court/web-onboarding/round-1 · next: dispatch:haiku,opus,review
+- 2026-10-12T20:52:45Z · 04-council:RED · round 1 verdict RED at a51c9529 pack eaa9d4008b8e · next: repair
+- 2026-10-12T20:52:49Z · 03-building · repair round 1: web-onboarding-05-repair-round-1.md · next: build:3
+- 2026-10-12T21:02:48Z · 04-council:open · round 2 opened, court at C:/laragon/www/mmorpg/.vulyk/court/web-onboarding/round-2, carried from round 1: haiku · next: dispatch:opus,review
+- 2026-10-12T21:13:30Z · 04-council:GREEN · round 2 verdict GREEN at 2e756416 pack d6fbf376d40d · next: green

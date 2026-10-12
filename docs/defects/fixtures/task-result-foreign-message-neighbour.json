@@ -1,0 +1,12 @@
+{
+  "case": "Соседняя форма: раньше итога в окне пришли уведомление о титуле и подсказка «🗓 Появились задания дня!», итог крафта — с фото и caption. Форма до фикса — picker только по окну.",
+  "picker": "window_only",
+  "task": {"id": 7002, "status": "completed", "updated_at": "2026-10-11 14:20:00"},
+  "rows": [
+    {"id": 60, "created_at": "2026-10-11 14:19:58", "msg": {"message_id": 1000000060, "text": "🎒 Инвентарь: пусто", "caption": null, "parse_mode": null, "photo_url": null, "inline_keyboard": []}},
+    {"id": 61, "created_at": "2026-10-11 14:20:00", "msg": {"message_id": 1000000061, "text": "🎖 *Новый титул!*\n\n🎖 *Первопроходец*\n\n_Выбрать активный титул — «🎖 Титулы» в карточке Персонажа._", "caption": null, "parse_mode": "Markdown", "photo_url": null, "inline_keyboard": []}},
+    {"id": 62, "created_at": "2026-10-11 14:20:01", "msg": {"message_id": 1000000062, "text": "🗓 *Появились задания дня!*\n\nКаждый день — короткий список целей: разведка, крафт, торговля, охота, бой.", "caption": null, "parse_mode": "Markdown", "photo_url": null, "inline_keyboard": [[{"text": "🗓 Задания дня", "callback_data": "dailyTasks"}, {"text": "📜 Все задания", "callback_data": "questAndTask"}]]}},
+    {"id": 63, "created_at": "2026-10-11 14:20:01", "msg": {"message_id": 1000000063, "text": null, "caption": "🛠 Крафт завершён: 🩹 Повязка ×1. Лечит раны, лежит в инвентаре.", "parse_mode": null, "photo_url": "/uploads/web/abc.jpg", "inline_keyboard": [[{"text": "🎒 Инвентарь", "callback_data": "inventory"}, {"text": "🔨 Крафт", "callback_data": "craft"}]]}}
+  ],
+  "expect_message_id": 1000000063
+}

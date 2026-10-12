@@ -27,6 +27,9 @@ class WebPlay extends BaseConfig
     /** Серверный минимум периода опроса, секунды. */
     public int $inboxPollMinSeconds = 10;
 
+    /** Сколько новых сообщений плашка показывает целиком; остальные — строкой «ещё N». UI-лимит, не баланс. */
+    public int $bannerMax = 3;
+
     /** Действий `/play/act` в минуту на аккаунт. */
     public int $actsPerMinute = 60;
 
@@ -41,6 +44,13 @@ class WebPlay extends BaseConfig
 
     /** Окно дедупа `web_play_intents`, часы: старше — удаляется при записи намерения (plan A17). */
     public int $intentRetentionHours = 24;
+
+    /**
+     * web-onboarding-02: окно поиска итога задачи во входящих, секунды от `character_tasks.updated_at`
+     * (крон ставит `completed` до обработчика — итог приходит в ту же секунду или чуть позже). Прошло
+     * окно без итога — экран заменяется нейтральным «✅ … завершена — итог во входящих 🔔».
+     */
+    public int $taskResultWindowSeconds = 120;
 
     /**
      * Каталоги под `public/`, чьи файлы отправитель удаляет сразу после отправки (карта —

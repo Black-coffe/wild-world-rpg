@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Onboarding\ColdOpenWelcomeService;
 use App\Services\Player\CharacterProvisioningService;
 use App\Services\Player\NameService;
 use App\Services\Web\AccountService;
+use App\Services\Telegram\BotMenuService;
 use App\Services\Web\AccountSession;
+use App\Services\Web\WebScreenStore;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Database;
+use Longman\TelegramBot\Entities\Entity;
 use Config\Social;
 
 /**
@@ -82,7 +86,9 @@ class AccountRegister extends BaseController
         try {
             $accounts = new AccountService($db);
             if ($accounts->characterForAccount($accountId) === null) {
-                (new CharacterProvisioningService($accounts))->create($name, null, null, $accountId);
+                $provisioning = new CharacterProvisioningService($accounts);
+                $characterId  = $provisioning->create($name, null, null, $accountId);
+                $this->seedFirstScreen($characterId, $provisioning->lastTexts());
             }
         } finally {
             $db->query('SELECT RELEASE_LOCK(?)', [$lock]);
@@ -90,7 +96,48 @@ class AccountRegister extends BaseController
 
         $session->refreshCharacter();
 
-        return redirect()->to('/account')->withCookies();
+        // web-onboarding-04: сразу в игру, если она включена (иначе /play — заглушка).
+        $play = (new GameSettingsService())->get('web.play_enabled', false);
+        $to   = ($play === true || (is_numeric($play) && (int) $play === 1)) ? '/play' : '/account';
+
+        return redirect()->to($to)->withCookies();
+    }
+
+    /**
+     * web-onboarding-04: веб-модель приветствия из ядра — первым экраном `/play` с тем же доком,
+     * что даёт бутстрап. Сбой не роняет создание: экран остаётся пустым, `/play` идёт прежним бутстрапом.
+     *
+     * @param array{spawned: bool, singleScreen: bool, starterKit: ?string, signal: ?string, greeter: ?string} $texts
+     */
+    private function seedFirstScreen(int $characterId, array $texts): void
+    {
+        try {
+            $model = (new ColdOpenWelcomeService())->build(ColdOpenWelcomeService::CLIENT_WEB, $texts);
+            if (! $texts['spawned']) {
+                return; // спавна нет: «ошибку» в экран не кладём, бутстрап сам разберётся
+            }
+            $messages = [];
+            foreach ($model as $m) {
+                $messages[] = ['text' => $m['text'], 'parse_mode' => $m['parse_mode'], 'inline_keyboard' => $m['inline_keyboard']];
+            }
+            $dock = [];
+            foreach (BotMenuService::mainReplyKeyboard()->raw_data['keyboard'] ?? [] as $row) {
+                $labels = [];
+                foreach ((array) $row as $btn) {
+                    $raw  = $btn instanceof Entity ? $btn->raw_data : $btn;
+                    $text = is_string($raw) ? $raw : (is_array($raw) ? ($raw['text'] ?? null) : null);
+                    if (is_string($text) && $text !== '') {
+                        $labels[] = $text;
+                    }
+                }
+                if ($labels !== []) {
+                    $dock[] = $labels;
+                }
+            }
+            (new WebScreenStore())->seedFirstScreen($characterId, $messages, $dock);
+        } catch (\Throwable $e) {
+            log_message('error', '[AccountRegister] first screen seed failed for character ' . $characterId . ': ' . $e->getMessage());
+        }
     }
 
     public static function registrationOpen(): bool

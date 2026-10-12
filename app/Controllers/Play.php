@@ -10,6 +10,7 @@ use App\Services\Web\AccountSession;
 use App\Services\Web\WebActService;
 use App\Services\Web\WebDelivery;
 use App\Services\Web\WebInboxService;
+use App\Services\Web\WebScreenStore;
 use App\Services\Web\WebNativeScreenService;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\ResultInterface;
@@ -642,13 +643,25 @@ class Play extends BaseController
         }
         $inbox = new WebInboxService();
 
-        return $this->response->setJSON([
-            'unread' => $inbox->unreadCount($gate[1]),
-            'html'   => view('site/_play/inbox', ['items' => $inbox->latest($gate[1], self::INBOX_PAGE)]),
-            'hud'    => $this->native()->hudHtml($gate[1]),
+        // web-onboarding-03: чтение через current() — оно же заменяет залипший экран задачи итогом.
+        $current = $this->service()->current($gate[1]);
+        $rev     = (new WebScreenStore())->revision($gate[1]);
+        $clients = $this->request->getGet('rev');
+
+        $payload = [
+            'unread'      => $inbox->unreadCount($gate[1]),
+            'html'        => view('site/_play/inbox', ['items' => $inbox->latest($gate[1], self::INBOX_PAGE)]),
+            'banner_html' => $this->bannerHtml($gate[1]),
+            'rev'         => $rev,
+            'hud'         => $this->native()->hudHtml($gate[1]),
             // p1-13: JS берёт отсюда свежий токен перед PRG-откатом.
-            'csrf'   => csrf_hash(),
-        ]);
+            'csrf'        => csrf_hash(),
+        ];
+        if (is_string($clients) && $clients !== '' && (int) $clients !== $rev) {
+            $payload['screen_html'] = view('site/_play/state', ['state' => $current['state'], 'alert' => null]);
+        }
+
+        return $this->response->setJSON($payload);
     }
 
     public function markRead(): ResponseInterface|string
@@ -659,6 +672,10 @@ class Play extends BaseController
         }
         $inbox = new WebInboxService();
         $inbox->markAllRead($gate[1]);
+
+        if (! $this->wantsJson()) {
+            return redirect()->to('/play', 303)->withCookies();
+        }
 
         return $this->response->setJSON(['unread' => $inbox->unreadCount($gate[1]), 'csrf' => csrf_hash()]);
     }
@@ -726,12 +743,26 @@ class Play extends BaseController
             'state'          => $result['state'],
             'native_html'    => $nativeHtml,
             'hud_html'       => $this->native()->hudHtml($characterId),
+            'banner_html'    => $this->bannerHtml($characterId),
+            'rev'            => (new WebScreenStore())->revision($characterId),
             'unread'         => $result['unread'],
             'poll_seconds'   => max($config->inboxPollMinSeconds, $config->inboxPollSeconds),
             'character_name' => $this->characterName($characterId),
             'alert'          => $alert,
             'meta'           => self::meta(),
         ]);
+    }
+
+    /** web-onboarding-03: плашка новых сообщений; сообщения, уже стоящие на экране, в неё не попадают. */
+    private function bannerHtml(int $characterId): string
+    {
+        $banner = (new WebInboxService())->banner(
+            $characterId,
+            (new WebScreenStore())->screenMessageIds($characterId),
+            (new WebPlay())->bannerMax
+        );
+
+        return view('site/_play/banner', ['items' => $banner['items'], 'more' => $banner['more']]);
     }
 
     private function characterName(int $characterId): string

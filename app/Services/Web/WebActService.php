@@ -48,6 +48,9 @@ class WebActService
 
     public const FAILED_ALERT = 'Не получилось выполнить действие. Попробуй ещё раз.';
 
+    /** Текст экрана законченной задачи без найденного итога. */
+    public const TASK_DONE_TEXT = '✅ Задача «%s» завершена — итог во входящих 🔔';
+
     /** @var BaseConnection<object, object> */
     private BaseConnection $db;
 
@@ -105,8 +108,9 @@ class WebActService
         }
 
         $update  = $build(-$rowId);
+        $before  = $this->lastTaskId($characterId);
         [$capture, $failed] = $this->runBridged($update, $identity['telegram_id'], $characterId);
-        $this->store->applyCapture($characterId, $capture);
+        $this->store->applyCapture($characterId, $capture, $this->startedTaskId($characterId, $before));
 
         return $this->result($characterId, $capture['alert'] ?? ($failed ? self::FAILED_ALERT : null));
     }
@@ -118,7 +122,102 @@ class WebActService
      */
     public function current(int $characterId): array
     {
+        $this->settleTaskScreen($characterId);
+
         return $this->result($characterId, null);
+    }
+
+    /**
+     * web-onboarding-02: экран ждёт задачу, а она закончилась — экран заменяется её итогом.
+     *
+     * `completed` → итог из входящих ({@see WebTaskResultPicker}: окно от `updated_at` задачи, чужие
+     * по типу отброшены); итога нет, а окно ещё идёт — ждём (крон ставит `completed` до обработчика);
+     * окно прошло — нейтральный {@see TASK_DONE_TEXT}. `interrupted`/`cancelled` или строки нет —
+     * сразу нейтральный. `in_work`, `queued`, `paused` — экран не трогается. Замена под блокировкой
+     * строки состояния и только пока экран помечен этой задачей — повторное и параллельное чтение
+     * второй раз не меняет. Задача-цепочка (следующий шаг — новая строка того же типа) судится по
+     * последнему шагу: пока он идёт, экран стоит.
+     */
+    private function settleTaskScreen(int $characterId): void
+    {
+        $taskId = $this->store->screenTaskId($characterId);
+        if ($taskId === null) {
+            return;
+        }
+        $res  = $this->db->query(
+            'SELECT ct.status, ct.updated_at, ct.task_id, t.name_rus'
+            . ' FROM character_tasks ct LEFT JOIN tasks t ON t.id = ct.task_id WHERE ct.id = ? AND ct.character_id = ?',
+            [$taskId, $characterId]
+        );
+        $task = $res instanceof ResultInterface ? $res->getRowArray() : null;
+        // Цепочка шагов (Поход: каждый тик закрывает шаг и ставит следующий `in_work` того же типа):
+        // судьба экрана — по последнему шагу, а не по первому.
+        if (is_array($task) && is_numeric($task['task_id'] ?? null)) {
+            $res  = $this->db->query(
+                'SELECT ct.status, ct.updated_at, ct.task_id, t.name_rus'
+                . ' FROM character_tasks ct LEFT JOIN tasks t ON t.id = ct.task_id'
+                . ' WHERE ct.character_id = ? AND ct.id > ? AND ct.task_id = ? ORDER BY ct.id DESC LIMIT 1',
+                [$characterId, $taskId, (int) $task['task_id']]
+            );
+            $step = $res instanceof ResultInterface ? $res->getRowArray() : null;
+            if (is_array($step)) {
+                $task = $step;
+            }
+        }
+        $status = is_array($task) && is_string($task['status'] ?? null) ? $task['status'] : null;
+        if (in_array($status, ['in_work', 'queued', 'paused'], true)) {
+            return;
+        }
+
+        $msg = null;
+        if (is_array($task) && $status === 'completed') {
+            $msg = (new WebTaskResultPicker($this->config))->pick($task, $this->inboxRowsSince($characterId, $task['updated_at'] ?? null));
+            // Часы PHP, как у писателей `updated_at` задачи и `web_inbox.created_at`.
+            $done = is_string($task['updated_at'] ?? null) ? strtotime($task['updated_at']) : false;
+            $age  = $done === false ? PHP_INT_MAX : time() - $done;
+            if ($msg === null && $age <= $this->config->taskResultWindowSeconds) {
+                return;
+            }
+        }
+        if ($msg === null) {
+            $name = is_array($task) && is_string($task['name_rus'] ?? null) && $task['name_rus'] !== '' ? $task['name_rus'] : 'Задача';
+            $msg  = [
+                'message_id'      => $this->store->nextMessageId($characterId),
+                'text'            => sprintf(self::TASK_DONE_TEXT, $name),
+                'caption'         => null,
+                'parse_mode'      => null,
+                'photo_url'       => null,
+                'inline_keyboard' => [],
+            ];
+        }
+        $this->store->replaceScreenForTask($characterId, $taskId, $msg);
+    }
+
+    /**
+     * Входящие персонажа, созданные не раньше `$since` (по порядку id).
+     *
+     * @return list<array{id:int, created_at:string, msg:Msg}>
+     */
+    private function inboxRowsSince(int $characterId, mixed $since): array
+    {
+        if (! is_string($since) || $since === '') {
+            return [];
+        }
+        $res = $this->db->query(
+            'SELECT id, created_at, payload FROM web_inbox WHERE character_id = ? AND created_at >= ? ORDER BY id',
+            [$characterId, $since]
+        );
+        $out = [];
+        foreach ($res instanceof ResultInterface ? $res->getResultArray() : [] as $row) {
+            $msg = is_string($row['payload'] ?? null) ? json_decode($row['payload'], true) : null;
+            if (! is_array($msg) || ! is_int($msg['message_id'] ?? null) || ! is_numeric($row['id'] ?? null) || ! is_string($row['created_at'] ?? null)) {
+                continue;
+            }
+            /** @var Msg $msg */
+            $out[] = ['id' => (int) $row['id'], 'created_at' => $row['created_at'], 'msg' => $msg];
+        }
+
+        return $out;
     }
 
     /**
@@ -177,6 +276,30 @@ class WebActService
         }
 
         return [$capture, $failed];
+    }
+
+    /** Последний id `character_tasks` персонажа до действия (0 — задач не было). */
+    private function lastTaskId(int $characterId): int
+    {
+        $res = $this->db->query('SELECT MAX(id) AS id FROM character_tasks WHERE character_id = ?', [$characterId]);
+        $row = $res instanceof ResultInterface ? $res->getRowArray() : null;
+
+        return is_array($row) && is_numeric($row['id'] ?? null) ? (int) $row['id'] : 0;
+    }
+
+    /**
+     * Задача `in_work`, которую начало действие (web-onboarding-02): новейшая строка с id больше
+     * снимка до действия. Null — действие задачу не начало.
+     */
+    private function startedTaskId(int $characterId, int $before): ?int
+    {
+        $res = $this->db->query(
+            "SELECT id FROM character_tasks WHERE character_id = ? AND id > ? AND status = 'in_work' ORDER BY id DESC LIMIT 1",
+            [$characterId, $before]
+        );
+        $row = $res instanceof ResultInterface ? $res->getRowArray() : null;
+
+        return is_array($row) && is_numeric($row['id'] ?? null) ? (int) $row['id'] : null;
     }
 
     /**

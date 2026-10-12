@@ -1681,6 +1681,15 @@ section.block:first-of-type { border-top: 0; }
 .play-alert-title { font-family: var(--font-display); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--info); }
 .play-alert.is-alert { border-color: var(--warning); border-left-color: var(--warning); background: var(--bg-elev-3); }
 .play-alert.is-alert .play-alert-title { color: var(--warning); }
+.play-banner { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px; background: var(--bg-elev-2); border: 1px solid var(--accent-lo); border-left: 3px solid var(--accent); }
+.play-banner[hidden] { display: none; }
+.play-banner-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.play-banner-head form { display: contents; }
+.play-banner-title { font-family: var(--font-display); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+.play-banner-close { min-height: 44px; padding: 6px 12px; background: transparent; color: var(--text-dim); border: 1px solid var(--border-strong); font-family: var(--font-body); font-size: 13px; cursor: pointer; }
+.play-banner-close:hover { border-color: var(--accent); color: var(--accent); }
+.play-banner-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.play-banner-more { margin: 0; font-size: 13px; color: var(--text-muted); }
 .play-alert .btn { align-self: flex-end; }
 
 /* Замок / заглушка: фича недоступна и почему */
@@ -2331,6 +2340,18 @@ section.block:first-of-type { border-top: 0; }
         <div class="play-bar">
           <span class="play-bar-title">ВОРОН-7 · клетка 432</span>
           <a class="play-bell is-unread" href="#play-inbox" aria-label="Входящие: 3 непрочитанных"><span aria-hidden="true">🔔</span><span class="play-bell-count">3</span></a>
+        </div>
+
+        <div class="play-banner" aria-live="polite">
+          <div class="play-banner-head">
+            <span class="play-banner-title">Новое сообщение</span>
+            <form action="#play" method="post"><button class="play-banner-close" type="submit">✕ Скрыть</button></form>
+          </div>
+          <article class="play-msg play-banner-msg">
+            <div class="play-msg-text"><b>✅ Шаг обучения закрыт.</b> Награда: 20 золота. Следующий шаг: собери воду.</div>
+            <div class="play-kb"><div class="play-kb-row"><form action="#play" method="post"><button class="play-kb-btn" type="submit">Дальше</button></form></div></div>
+          </article>
+          <p class="play-banner-more">ещё 2 — во входящих 🔔</p>
         </div>
 
         <div class="play-alert" role="status"><span class="play-alert-title">Ответ кнопки</span>Дрон уже в пути.</div>

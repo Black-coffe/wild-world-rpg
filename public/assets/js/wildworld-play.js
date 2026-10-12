@@ -15,6 +15,9 @@
      (поправка на часы браузера — по data-now, времени сервера в момент отрисовки HUD);
    - инвентарь ([data-inv]): вкладка фильтрует полки на месте, поиск — строки по имени;
      без JS вкладки остаются якорями к полкам, строка поиска скрыта.
+   web-onboarding-03: плашка новых сообщений (#play-banner) приходит в `banner_html` опроса; опрос шлёт
+   `rev` экрана, и при расхождении сервер отдаёт `screen_html` — мостовой экран заменяется без перезагрузки;
+   «✕ Скрыть» (POST /play/inbox/read) убирает плашку на месте.
    W2.N3-03: таймеры очереди крафта (#play-state [data-ends-at]) тикают тем же тиком, что HUD.
    ============================================================ */
 (() => {
@@ -54,6 +57,38 @@
         delete el.dataset.playLocked;
       }
     });
+  };
+
+  const banner = () => document.getElementById('play-banner');
+
+  const setBanner = (html) => {
+    const current = banner();
+    if (!current || typeof html !== 'string' || html === '') return;
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html.trim();
+    const next = tpl.content.firstElementChild;
+    if (next && next.id === 'play-banner') current.replaceWith(next);
+  };
+
+  const clearBanner = () => {
+    const current = banner();
+    if (!current) return;
+    current.hidden = true;
+    current.innerHTML = '';
+  };
+
+  /* Ревизия экрана: уходит в опрос; сервер при расхождении присылает screen_html. */
+  const setRev = (rev) => {
+    if (Number.isInteger(rev)) root.dataset.rev = String(rev);
+  };
+
+  /* Мостовой экран (есть строка ввода) заменяем, если игрок не печатает; нативный экран не трогаем. */
+  const applyScreen = (html) => {
+    if (typeof html !== 'string' || html === '' || !stateBox.querySelector('.play-input-form')) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLInputElement && stateBox.contains(active) && active.value !== '') return;
+    stateBox.innerHTML = html;
+    enhanceNative();
   };
 
   const setUnread = (n) => {
@@ -228,6 +263,11 @@
     const form = event.target;
     if (!(form instanceof HTMLFormElement) || !root.contains(form)) return;
     const action = form.getAttribute('action');
+    if (action === root.dataset.readUrl) {
+      event.preventDefault();
+      if (!busy) markRead().then(clearBanner).catch(() => { form.submit(); });
+      return;
+    }
     if (action !== root.dataset.actUrl && action !== root.dataset.viewUrl) return;
     event.preventDefault();
     if (busy) return;
@@ -243,9 +283,12 @@
   });
 
   /* ---- Входящие: опрос счётчика, панель по колоколу ---- */
-  const loadInbox = () => request(root.dataset.inboxUrl).then((json) => {
+  const loadInbox = () => request(root.dataset.inboxUrl + '?rev=' + encodeURIComponent(root.dataset.rev || '0')).then((json) => {
     setUnread(json.unread);
     setHud(json.hud);
+    setBanner(json.banner_html);
+    applyScreen(json.screen_html);
+    setRev(json.rev);
     if (inboxList && typeof json.html === 'string' && panel && !panel.hidden) inboxList.innerHTML = json.html;
     return json;
   });
@@ -265,7 +308,7 @@
       panel.hidden = !panel.hidden;
       bell.setAttribute('aria-expanded', panel.hidden ? 'false' : 'true');
       if (panel.hidden || busy) return;
-      loadInbox().then(markRead).catch(() => {});
+      loadInbox().then(markRead).then(clearBanner).catch(() => {});
     });
   }
 

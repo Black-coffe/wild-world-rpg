@@ -15,6 +15,8 @@
  * @var string              $character_name
  * @var string|null         $native_html
  * @var string              $hud_html
+ * @var string              $banner_html  плашка новых сообщений (web-onboarding-03)
+ * @var int                 $rev          ревизия экрана для опроса
  */
 $unreadCount = is_int($unread ?? null) && $unread > 0 ? $unread : 0;
 $pollMin     = config(\Config\WebPlay::class)->inboxPollMinSeconds;
@@ -32,6 +34,7 @@ $countLabel  = $unreadCount > 99 ? '99+' : ($unreadCount > 0 ? (string) $unreadC
              data-act-url="<?= esc(base_url('play/act'), 'attr') ?>"
              data-inbox-url="<?= esc(base_url('play/inbox'), 'attr') ?>"
              data-read-url="<?= esc(base_url('play/inbox/read'), 'attr') ?>"
+             data-rev="<?= is_int($rev ?? null) ? $rev : 0 ?>"
              data-poll-seconds="<?= $poll ?>"
              data-poll-min="<?= $pollMin ?>"
              data-csrf-name="<?= esc(csrf_token(), 'attr') ?>">
@@ -48,6 +51,8 @@ $countLabel  = $unreadCount > 99 ? '99+' : ($unreadCount > 0 ? (string) $unreadC
                 <div id="play-inbox-list"></div>
             </section>
 
+            <?= is_string($banner_html ?? null) ? $banner_html : '' ?>
+
             <?= is_string($hud_html ?? null) ? $hud_html : '' ?>
 
             <div id="play-state">
@@ -63,5 +68,5 @@ $countLabel  = $unreadCount > 99 ? '99+' : ($unreadCount > 0 ? (string) $unreadC
 
 <?= $this->endSection() ?>
 <?= $this->section('scripts') ?>
-<script src="<?= base_url('assets/js/wildworld-play.js') ?>?v=3" defer></script>
+<script src="<?= base_url('assets/js/wildworld-play.js') ?>?v=4" defer></script>
 <?= $this->endSection() ?>

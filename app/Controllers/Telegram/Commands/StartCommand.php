@@ -111,156 +111,7 @@ class StartCommand extends UserCommand
                 );
             }
 
-            // Сообщение по умолчанию на случай ошибки
-            $text          = "Извините, произошла ошибка при попытке определить локацию для спавна. Пожалуйста, попробуйте ещё раз.";
-            $encodedKeyboard = json_encode([]);
-            $starterKitText = $created['starterKit']; // ADR-104: текст набора Роби (если выдан)
-            $signalText     = $created['signal'];     // S4 (ADR-139) слайс 3: радио-нарратив приманки (если размещена)
-            $greeterText    = $created['greeter'];    // S2 (ADR-144): нарратив встречающего-нейтрала (если размещён)
-
-            if ($created['spawned']) {
-                // Слайс «Первые 3 минуты»: режим первого экрана сервис прочитал ДО размещения
-                // приманки и встречающего (их навигационный хвост в одном окне только шумит).
-                $coldOpen     = new \App\Services\Onboarding\ColdOpenGreetingService();
-                $singleScreen = $created['singleScreen'];
-
-                // Формируем приветственное сообщение.
-                // S4 (ADR-139) слайс 1b: cold-open framing — короткий интригующий вариант под
-                // суб-killswitch `onboarding.cold_open_v2.start_greeting` (default OFF → легаси
-                // 121-слово ниже, byte-identical). CTA «Задать имя» / паёк / спавн не меняются.
-                if ($coldOpen->greetingEnabled()) {
-                    $text = $coldOpen->greeting();
-                } else {
-                    $text = "🤖 *Wild World — выживание на острове после глобальной катастрофы.* 🌍\n\n"
-                        . "Меня зовут *Роби*, я — твой проводник. Мы оказались на остатке земли, где всё рухнуло: цивилизация ушла, выжившие сами разбираются, как жить дальше.\n\n"
-                        . "Что тебя ждёт:\n"
-                        . "• 9 биомов — от спокойных полей до вулканических земель и подземелий\n"
-                        . "• Сбор ресурсов, крафт, постройка лагеря — всё из подручного хлама\n"
-                        . "• События мира: погода, болезни, рейдеры, редкие находки\n"
-                        . "• На lvl 10 — выбор одной из 4 фракций. У каждой свой путь: доминирование, анархия, научный прорыв или мирное возрождение.\n\n"
-                        . "Не все выжившие дружелюбны — продумывай, как защитить себя и базу.\n\n"
-                        . "Сейчас покажу несколько подсказок, чтобы ты не блуждал в первый час. Можно прервать в любой момент — но советую дойти до конца.\n\n"
-                        . "Вопросы и стратегии обсуждаем в [общем чате](https://t.me/wild_world_info).\n\n"
-                        . "Придумай герою имя и поехали.";
-                }
-
-                // ADR-168: метка `cold` — это первый экран. Без неё вход неотличим от прочих
-                // мест, где та же кнопка встречается позже.
-                $keyboard = [
-                    'inline_keyboard' => [
-                        [
-                            ['text' => '🤔 Задать имя персонажа', 'callback_data' => \App\Services\Logging\ActionOrigin::tag('setCharacterName', \App\Services\Logging\ActionOrigin::FROM_COLDOPEN)]
-                        ],
-                    ]
-                ];
-                $encodedKeyboard = json_encode($keyboard);
-
-                // Слайс «Первые 3 минуты» (замер 2026-07-24) — ОДНО окно вместо пяти.
-                //
-                // Замер когорты Хабра 07-08.07 (45 человек): 42 из 45 остались на L1, живы
-                // через две недели 3; лишь 18 (40%) нажали единственную кнопку первого экрана,
-                // а 18 из 26 ушедших уложились в ≤3 минуты. При этом сокращение текста
-                // (слайс 1b, `start_greeting`) метрику «не назвали героя» не сдвинуло: было
-                // ~58%, стало 60% → барьер не в длине копии, а в форме первого контакта:
-                // пять сообщений подряд, CTA в последнем, и он требует ПЕЧАТАТЬ, хотя имя
-                // уже автоподставлено из username (см. insert выше).
-                //
-                // Здесь: паёк/сигнал/встречающий въезжают секциями В welcome (обнуляем их —
-                // отдельные sendMessage ниже пропускаются), а первый CTA ведёт в мир
-                // (callback `move` → компас ходьбы). Имя остаётся второй кнопкой и явно
-                // названо необязательным. При OFF (default) — всё byte-identical.
-                if ($singleScreen) {
-                    $composed = $coldOpen->composeWelcome([
-                        $coldOpen->greetingSingleScreen(),
-                        $starterKitText,
-                        $signalText,
-                        $greeterText,
-                        $coldOpen->closingSingleScreen(),
-                    ]);
-
-                    // Не влезло в одно сообщение (контент разросся) → честный откат на
-                    // раздельную отправку, а не потеря экрана целиком.
-                    if ($coldOpen->fitsSingleMessage($composed)) {
-                        $text            = $composed;
-                        // ADR-168: обе двери первого экрана помечены `cold`. Особенно важно для
-                        // `move` — этот callback шлют около полусотни экранов («к карте»,
-                        // «уйти», «идти дальше»), и без метки первый шаг новичка неотличим от
-                        // любого возврата ветерана на карту, то есть эффект правки не измерить.
-                        $encodedKeyboard = json_encode([
-                            'inline_keyboard' => [
-                                [
-                                    ['text' => '🧭 Сделать первый шаг', 'callback_data' => \App\Services\Logging\ActionOrigin::tag('move', \App\Services\Logging\ActionOrigin::FROM_COLDOPEN)],
-                                ],
-                                [
-                                    ['text' => '✏️ Назвать героя', 'callback_data' => \App\Services\Logging\ActionOrigin::tag('setCharacterName', \App\Services\Logging\ActionOrigin::FROM_COLDOPEN)],
-                                ],
-                            ],
-                        ]);
-
-                        $starterKitText = null;
-                        $signalText     = null;
-                        $greeterText    = null;
-                    }
-                }
-            }
-
-            // N4 (ADR-039): постоянную reply-клавиатуру шлём только новичку. Для
-            // существующих игроков её ставит CharacterService::showCharacterInfo —
-            // раньше StartCommand слал её безусловно → дубль keyboard-сообщения на /start.
-            //
-            // Правка «одна инструкция вместо двух» (аудит 2026-08-14): текст этого сообщения
-            // приказывал «используйте меню ниже» и конкурировал с CTA следующего экрана —
-            // 36% свежей когорты уходили в нижнее меню и делали втрое меньше действий.
-            // Теперь он направляет вперёд. Клавиатура по-прежнему ставится (прятать её нельзя:
-            // игрок должен знать, что меню есть). Dormant под `cold_open_v2.menu_defer`.
-            Request::sendMessage([
-                'chat_id'      => $chatId,
-                'text'         => (new \App\Services\Onboarding\ColdOpenGreetingService())->menuAttachText(),
-                'reply_markup' => $replyKeyboard,
-            ]);
-
-            // ADR-104 Фаза 1: если стартовый набор выдан — шлём сообщение Роби о пайке
-            // ПЕРЕД финальным welcome'ом, чтобы CTA «Задать имя» остался последним
-            // (самым заметным). MEDIA-OFF: текстовое, весь смысл в тексте.
-            if ($starterKitText !== null) {
-                Request::sendMessage([
-                    'chat_id'                  => $chatId,
-                    'text'                     => $starterKitText,
-                    'parse_mode'               => 'Markdown',
-                    'disable_web_page_preview' => true,
-                ]);
-            }
-
-            // S4 (ADR-139) слайс 3: радио-нарратив приманки (если размещена) — ПОСЛЕ пайка,
-            // ПЕРЕД финальным welcome'ом, чтобы CTA «Задать имя» остался последним. MEDIA-OFF.
-            if ($signalText !== null) {
-                Request::sendMessage([
-                    'chat_id'                  => $chatId,
-                    'text'                     => $signalText,
-                    'parse_mode'               => 'Markdown',
-                    'disable_web_page_preview' => true,
-                ]);
-            }
-
-            // S2 (ADR-144): нарратив встречающего-нейтрала (если размещён) — ПОСЛЕ сигнала,
-            // ПЕРЕД финальным welcome'ом, чтобы CTA «Задать имя» остался последним. MEDIA-OFF.
-            if ($greeterText !== null) {
-                Request::sendMessage([
-                    'chat_id'                  => $chatId,
-                    'text'                     => $greeterText,
-                    'parse_mode'               => 'Markdown',
-                    'disable_web_page_preview' => true,
-                ]);
-            }
-
-            // Возвращаем результат
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => $text,
-                'parse_mode' => 'Markdown',
-                'disable_web_page_preview' => true,
-                'reply_markup' => $encodedKeyboard
-            ]);
+            return $this->renderNewcomer((int) $chatId, $created, $replyKeyboard);
 
         } else {
             // Если персонаж УЖЕ существует → используем CharacterService.
@@ -290,6 +141,55 @@ class StartCommand extends UserCommand
             $charService = new CharacterService();
             return $charService->showCharacterInfo($chatId, $existingCharacter);
         }
+    }
+
+    /**
+     * Ветка нового персонажа — тонкий рендерер ядра первого экрана
+     * ({@see \App\Services\Onboarding\ColdOpenWelcomeService}): что, в каком порядке и с какими
+     * кнопками слать, решает модель; здесь только отправка и reply-меню на носителе.
+     *
+     * @param array{spawned: bool, singleScreen: bool, starterKit: ?string, signal: ?string, greeter: ?string} $created
+     */
+    protected function renderNewcomer(int $chatId, array $created, string $replyKeyboard): ServerResponse
+    {
+        $response = null;
+        foreach ($this->welcomeService()->build(\App\Services\Onboarding\ColdOpenWelcomeService::CLIENT_BOT, $created) as $msg) {
+            if ($msg['role'] === 'menu_carrier') {
+                $payload = [
+                    'chat_id'      => $chatId,
+                    'text'         => $msg['text'],
+                    'reply_markup' => $replyKeyboard,
+                ];
+            } else {
+                $payload = [
+                    'chat_id'                  => $chatId,
+                    'text'                     => $msg['text'],
+                    'parse_mode'               => $msg['parse_mode'],
+                    'disable_web_page_preview' => true,
+                ];
+                if ($msg['role'] === 'welcome' || $msg['role'] === 'error') {
+                    $payload['reply_markup'] = json_encode($msg['inline_keyboard'] === [] ? [] : ['inline_keyboard' => $msg['inline_keyboard']]);
+                }
+            }
+            $response = $this->deliver($payload);
+        }
+
+        if ($response === null) {
+            throw new \LogicException('ColdOpenWelcomeService вернул пустую модель');
+        }
+
+        return $response;
+    }
+
+    protected function welcomeService(): \App\Services\Onboarding\ColdOpenWelcomeService
+    {
+        return new \App\Services\Onboarding\ColdOpenWelcomeService();
+    }
+
+    /** @param array<string,mixed> $payload шов для тестов: настоящая отправка */
+    protected function deliver(array $payload): ServerResponse
+    {
+        return Request::sendMessage($payload);
     }
 
     /**
