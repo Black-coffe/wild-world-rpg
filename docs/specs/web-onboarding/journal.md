@@ -11,3 +11,4 @@
 - 2026-10-12T17:54:57Z · 03-building · launching the hive · next: the loop holds the working tree of vulyk/web-onboarding; to edit, run /vulyk-pause web-onboarding
 - 2026-10-12T17:56:30Z · 03-building · relaunch: first launch stopped at branch (git checkout failed: dirty develop — ledgers + journal); ledgers committed on develop, journal moved here · next: build:1
 - 2026-10-12T20:38:40Z · 04-council:open · round 1 opened, court at C:/laragon/www/mmorpg/.vulyk/court/web-onboarding/round-1 · next: dispatch:haiku,opus,review
+- 2026-10-12T20:52:45Z · 04-council:RED · round 1 verdict RED at a51c9529 pack eaa9d4008b8e · next: repair

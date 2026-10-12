@@ -163,4 +163,5 @@ the command or script that owns it, and scripts/ship-check.sh reads them all.
 **Branch:** vulyk/web-onboarding
 **Checked:**
 **Council:**
+**Council:** RED round 1, 2026-10-12, at a51c9529, pack eaa9d4008b8e - red: 6
 **Shipped:**
