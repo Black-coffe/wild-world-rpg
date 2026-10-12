@@ -13,3 +13,4 @@
 - 2026-10-12T20:38:40Z · 04-council:open · round 1 opened, court at C:/laragon/www/mmorpg/.vulyk/court/web-onboarding/round-1 · next: dispatch:haiku,opus,review
 - 2026-10-12T20:52:45Z · 04-council:RED · round 1 verdict RED at a51c9529 pack eaa9d4008b8e · next: repair
 - 2026-10-12T20:52:49Z · 03-building · repair round 1: web-onboarding-05-repair-round-1.md · next: build:3
+- 2026-10-12T21:02:48Z · 04-council:open · round 2 opened, court at C:/laragon/www/mmorpg/.vulyk/court/web-onboarding/round-2, carried from round 1: haiku · next: dispatch:opus,review
