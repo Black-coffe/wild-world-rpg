@@ -54,7 +54,7 @@ B2 — не баг баланса: защитник стоял на базе с 
 
 ## Plan deltas
 
-**Approved:**
+**Approved:** Andrei, 2026-10-12
 **Briefed:**
 **Branch:**
 **Checked:**
