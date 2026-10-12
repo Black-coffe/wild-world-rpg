@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-12
+last-verified: 2026-10-12 (oct-pvp-clarity)
 
 # Scout report: Telegram-поверхность
 
@@ -78,7 +78,9 @@ outbound: `Services/Player`, `Services/World`, `Services/Craft*`, `Services/Base
 - **(w2-n7-combat, ADR-190) Журнал боёв, арена, рейтинг — рендереры ядер** `BattleJournalService`/`ArenaScreenService`
   (см. `pve-pvp.md`): `PVP/{BattleJournalAction,ArenaAction,DuelAction,PvpLadderAction}` и тумблер в `SettingsAction`.
   Маршруты `battles`, `battleLog` (`battleLog_<id>[_j]`), `arena`, `arenaDuel`, `duel`, `pvpLadder`, `duelsOpenOn|Off` —
-  `CallbackRoutes.php:128-129,478-490`. Вход «📜 Мои бои» — в «⚙️ Ещё» (`MoreSurfaceService.php:206`), на арене и в рейтинге.
+  `CallbackRoutes.php:128-129,478-490`. Карточка боя несёт блок «🧩 Почему так вышло»
+  (`BattleJournalAction::whyBlock()`, строки из `card['why']`, только экранирование; пусто → карточка прежняя;
+  в списке боёв блока нет) — `handlers/pvp/BattleJournalAction.md`, `pve-pvp.md`. Вход «📜 Мои бои» — в «⚙️ Ещё» (`MoreSurfaceService.php:206`), на арене и в рейтинге.
 
 ## Vault
 `mmorpg-vault/apps/telegram/index.md` · `tech-writing/services/CharacterProvisioningService.md`,

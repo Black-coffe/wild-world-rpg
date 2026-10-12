@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-08 (w2-n7-combat)
+last-verified: 2026-10-12 (oct-pvp-clarity)
 
 # Scout report: Публичный сайт wildworld.fun
 
@@ -85,6 +85,11 @@ outbound: модели постов, `Services/Web/TelegramLoginVerifier`, `Serv
 - Поход из веба стартует без `msg_id` → прогресс тика идёт в Telegram новыми сообщениями. Кнопка
   без нативного экрана идёт `op=bridge` через мост (`/go`, `/craft`+`botRoute`, `Base_b<id>`).
 - HUD: срок `Marching` — из `MarchService::status()['eta']`. Хуки шага/Похода с чатом — под `WebDelivery`-захватом.
+- `/battles/view/<id>` и `/play` `view=battle` рисуют блок «🧩 Почему так вышло» (`data-battle-why`; вьюхи
+  `site/battles/view.php`, `_play/native_battle.php` только экранируют). На `/battles/view` строки двухуровневые:
+  `BattlesController::whyFor()` — участник (вошёл, персонаж одна из сторон) видит стену/ограду/инициативу с числами,
+  остальные — одну строку без чисел; в `/play` и боте — только участник, полный набор. В списке боёв блока нет.
+  См. `pve-pvp.md`, `tech-writing/controllers/BattlesController.md`.
 - Публичный `/battles/view/<id>` показывает только `battle_type='PVP'` (`BattlesController.php:112`); PvE и `DUEL` — лишь
   участнику через `/play` и бота.
 - Сессия: ключи `account_id`, `character_id`, legacy `tg_user_id`; legacy-сессия апгрейдится в `current()`.
