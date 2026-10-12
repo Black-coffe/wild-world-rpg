@@ -21,7 +21,8 @@ use Config\WebPlay;
  * web-onboarding-02: колонка `screen` хранит `{rev, task_id, messages}` (старая форма — голый
  * список сообщений, читается как `rev = 0`, `task_id = null`). `rev` растёт на 1 при каждой записи,
  * меняющей экран; `task_id` — задача `in_work`, которую начало действие, показавшее этот экран.
- * Фоновая отправка в контексте этой задачи заменяет экран итогом ({@see replaceScreenForTask()}).
+ * Задача закончилась — при чтении состояния экран заменяется её итогом ({@see replaceScreenForTask()},
+ * зовёт {@see WebActService::current()}).
  *
  * @phpstan-type Button array{text:string, callback_data?:string, url?:string}
  * @phpstan-type Msg array{message_id:int, text:?string, caption:?string, parse_mode:?string, photo_url:?string, inline_keyboard:list<list<Button>>}

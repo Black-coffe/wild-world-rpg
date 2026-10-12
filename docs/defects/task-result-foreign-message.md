@@ -1,9 +1,9 @@
 ---
 id: task-result-foreign-message
 title: Итогом задачи на экран встаёт чужое фоновое сообщение
-status: text
-check:
-fixtures: []
+status: block
+check: php scripts/defects-task-result-foreign-check.php <arg>
+fixtures: [docs/defects/fixtures/task-result-foreign-message-original.json, docs/defects/fixtures/task-result-foreign-message-neighbour.json]
 keys: [итог задачи, чужие сообщения, по типу, первое сообщение после задачи]
 paths: ["app/Services/Web/WebTaskResultPicker.php", "app/Services/Web/WebScreenStore.php", "app/Services/Web/WebActService.php"]
 ---

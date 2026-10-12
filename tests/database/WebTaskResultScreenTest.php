@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Database;
 
-use App\Controllers\Worker;
 use App\Services\Logging\ActionOrigin;
+use App\Services\Onboarding\OnboardingChainCatalog;
+use App\Services\Onboarding\OnboardingHintCatalog;
 use App\Services\Logging\PlayerActionLogger;
 use App\Services\Logging\TelegramDeliveryProbe;
 use App\Services\Telegram\Request;
@@ -16,6 +17,7 @@ use App\Services\Web\VirtualChat;
 use App\Services\Web\VirtualIdentityService;
 use App\Services\Web\WebActService;
 use App\Services\Web\WebDelivery;
+use App\Services\Web\WebInboxService;
 use App\Services\Web\WebScreenStore;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Forge;
@@ -68,56 +70,12 @@ final class TaskScreenActService extends WebActService
     }
 }
 
-/** Worker с подменённым классом обработчика. */
-final class TaskContextWorker extends Worker
-{
-    public static string $handler = '';
-
-    /** @param array<string,mixed> $task */
-    public function run(array $task): void
-    {
-        $this->handleTask($task, ['name' => 'gather']);
-    }
-
-    protected function getHandlerClassName($taskName, ?string $explicitHandlerKey = null)
-    {
-        return self::$handler;
-    }
-}
-
-/** Обработчик: шлёт итог задачи в чат и запоминает контекст. */
-final class TaskResultSendingHandler
-{
-    public static int $chat = 0;
-
-    public static ?int $seen = null;
-
-    /** @param array<string,mixed> $task */
-    public function handle(array $task): void
-    {
-        self::$seen = WebDelivery::taskContext();
-        TaskResultSpyRequest::sendMessage(['chat_id' => self::$chat, 'text' => '✅ Сбор завершён: дерево ×3']);
-    }
-}
-
-/** Обработчик, который падает. */
-final class TaskResultThrowingHandler
-{
-    public static ?int $seen = null;
-
-    /** @param array<string,mixed> $task */
-    public function handle(array $task): void
-    {
-        self::$seen = WebDelivery::taskContext();
-
-        throw new \RuntimeException('boom');
-    }
-}
-
 /**
- * web-onboarding-02 — экран законченной задачи сам заменяется её итогом: действие `/play`,
- * начавшее задачу, помечает экран её id; фоновая отправка в контексте этой задачи (`Worker`)
- * заменяет экран; без контекста или в контексте другой задачи — только входящие.
+ * web-onboarding-02 — экран законченной задачи сам заменяется её итогом при чтении состояния:
+ * действие `/play`, начавшее задачу, помечает экран её id; `WebActService::current()` видит, что
+ * задача уже не `in_work`, и ставит на экран итог из входящих (`WebTaskResultPicker`: окно от
+ * `updated_at`, чужие по типу отброшены) или нейтральное «✅ … завершена — итог во входящих 🔔».
+ * Фоновые сообщения идут настоящим путём доставки (вне захвата → входящие); `Worker` не участвует.
  *
  * Схема — исполнением настоящих миграций.
  *
@@ -195,9 +153,7 @@ final class WebTaskResultScreenTest extends CIUnitTestCase
         ActionOrigin::reset();
         DeliveryContext::reset();
         WebDelivery::reset();
-        TaskResultSpyRequest::$calls      = [];
-        TaskResultSendingHandler::$seen   = null;
-        TaskResultThrowingHandler::$seen  = null;
+        TaskResultSpyRequest::$calls = [];
         $this->installProbeStub();
         service('cache')->save(self::FLAG_CACHE, ['v' => true, 't' => 'bool'], 60);
     }
@@ -232,9 +188,25 @@ final class WebTaskResultScreenTest extends CIUnitTestCase
         $this->assertSame(2, $store->revision($charId));
     }
 
+    public function testInWorkTaskLeavesScreenAndRev(): void
+    {
+        [$accountId, $charId, $chat, $tuId] = $this->virtualCharacter();
+        $store  = new WebScreenStore($this->conn);
+        $taskId = $this->actStartingTask($accountId, $charId, $chat, $tuId);
+        $screen = $store->state($charId)['screen'];
+        $rev    = $store->revision($charId);
+
+        TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'Рассылка во время задачи']);
+        $state = $this->service()->current($charId)['state'];
+
+        $this->assertSame($screen, $state['screen']);
+        $this->assertSame($rev, $store->revision($charId));
+        $this->assertSame($taskId, $store->screenTaskId($charId));
+    }
+
     // ── замена экрана итогом ─────────────────────────────────────────────
 
-    public function testTaskResultReplacesScreenWholeAndOldScreenGoesFirstToHistory(): void
+    public function testCompletedTaskResultReplacesScreenWholeAndOldScreenGoesFirstToHistory(): void
     {
         [$accountId, $charId, $chat, $tuId] = $this->virtualCharacter();
         $store  = new WebScreenStore($this->conn);
@@ -243,20 +215,25 @@ final class WebTaskResultScreenTest extends CIUnitTestCase
         $before = $store->state($charId);
         $rev    = $store->revision($charId);
 
-        WebDelivery::setTaskContext($taskId);
+        $this->complete($taskId);
         $r = TaskResultSpyRequest::sendPhoto([
             'chat_id'      => $chat,
             'photo'        => 'AgACAgIAAxkBAAIfile-id',
             'caption'      => '✅ Сбор завершён: дерево ×3, камень ×1',
             'reply_markup' => json_encode(['inline_keyboard' => [[['text' => '⛏ Ещё раз', 'callback_data' => 'gather']]]]),
         ]);
-        WebDelivery::setTaskContext(null);
-
         $this->assertTrue($r->isOk());
         $this->assertSame([], TaskResultSpyRequest::$calls, 'виртуальный чат в Telegram не уходит');
-        $after = $store->state($charId);
-        $this->assertCount(1, $after['screen']);
+        $rows = $this->inbox($charId);
+        $this->assertCount(1, $rows);
+        $inboxId = (int) $rows[0]['message_id'];
+        $this->assertSame($before['screen'], $store->state($charId)['screen'], 'до чтения экран не меняется');
+
+        $after = $this->service()->current($charId)['state'];
+
+        $this->assertSame([(new WebInboxService($this->conn))->findMessage($charId, $inboxId)], $after['screen'], 'сообщение входящих целиком');
         $msg = $after['screen'][0];
+        $this->assertSame($inboxId, $msg['message_id']);
         $this->assertNull($msg['text']);
         $this->assertSame('✅ Сбор завершён: дерево ×3, камень ×1', $msg['caption']);
         $this->assertSame([[['text' => '⛏ Ещё раз', 'callback_data' => 'gather']]], $msg['inline_keyboard']);
@@ -264,11 +241,8 @@ final class WebTaskResultScreenTest extends CIUnitTestCase
         $this->assertSame($before['history'], array_slice($after['history'], 1));
         $this->assertSame($rev + 1, $store->revision($charId));
         $this->assertNull($store->screenTaskId($charId));
+        $this->assertSame([$inboxId], $store->screenMessageIds($charId));
         $this->assertStringNotContainsString('Прервать', (string) json_encode($after['screen'], JSON_UNESCAPED_UNICODE));
-
-        $rows = $this->inbox($charId);
-        $this->assertCount(1, $rows);
-        $this->assertSame([(int) $rows[0]['message_id']], $store->screenMessageIds($charId), 'id на экране = id строки входящих');
     }
 
     public function testHistoryLimitHoldsOnReplacement(): void
@@ -283,99 +257,130 @@ final class WebTaskResultScreenTest extends CIUnitTestCase
         }
         $taskId = $this->actStartingTask($accountId, $charId, $chat, $tuId, $svc);
 
-        WebDelivery::setTaskContext($taskId);
+        $this->complete($taskId);
         TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'Итог']);
-        WebDelivery::setTaskContext(null);
+        $state = $svc->current($charId)['state'];
 
-        $state = (new WebScreenStore($this->conn, $config))->state($charId);
         $this->assertSame('Итог', $state['screen'][0]['text']);
         $this->assertCount(2, $state['history']);
         $this->assertSame(self::STARTED, $state['history'][0][0]['text']);
     }
 
-    public function testSendWithoutContextOrInOtherTaskContextLeavesScreen(): void
+    public function testChainStepInSameSecondWithSmallerIdStaysInInbox(): void
+    {
+        [$accountId, $charId, $chat, $tuId] = $this->virtualCharacter();
+        $taskId = $this->actStartingTask($accountId, $charId, $chat, $tuId);
+        $step   = OnboardingChainCatalog::completion(OnboardingChainCatalog::STEP_GATHER);
+        $this->assertNotNull($step);
+
+        // Порядок холодного прохода 2026-10-11: шаг «💧 Первый ресурс в кармане!» раньше итога добычи.
+        $this->complete($taskId);
+        TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => $step['text'], 'parse_mode' => 'Markdown', 'reply_markup' => $step['reply_markup']]);
+        TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => '⛏ Сбор ресурсов окончен! Добыто: дерево ×3']);
+        $rows = $this->inbox($charId);
+        $this->assertCount(2, $rows);
+        $this->conn->table('web_inbox')->where('character_id', $charId)->update(['created_at' => $rows[0]['created_at']]);
+
+        $result = $this->service()->current($charId);
+
+        $this->assertSame('⛏ Сбор ресурсов окончен! Добыто: дерево ×3', $result['state']['screen'][0]['text']);
+        $this->assertSame([(int) $rows[1]['message_id']], (new WebScreenStore($this->conn))->screenMessageIds($charId));
+        $this->assertSame(2, $result['unread'], 'шаг цепочки остаётся во входящих (плашка)');
+    }
+
+    public function testOnlyForeignInWindowWaitsThenGivesNeutralScreen(): void
     {
         [$accountId, $charId, $chat, $tuId] = $this->virtualCharacter();
         $store  = new WebScreenStore($this->conn);
         $taskId = $this->actStartingTask($accountId, $charId, $chat, $tuId);
         $screen = $store->state($charId)['screen'];
         $rev    = $store->revision($charId);
+        $step   = OnboardingChainCatalog::completion(OnboardingChainCatalog::STEP_GATHER);
+        $hint   = OnboardingHintCatalog::get(OnboardingHintCatalog::DAILY_TASKS);
+        $this->assertNotNull($step);
+        $this->assertNotNull($hint);
 
-        TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'Рассылка']);
-        WebDelivery::setTaskContext($taskId + 100);
-        TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'Чужая задача']);
-        WebDelivery::setTaskContext(null);
+        $this->complete($taskId);
+        TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => $step['text'], 'reply_markup' => $step['reply_markup']]);
+        TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => "🎖 *Новый титул!*\n\n🎖 *Новичок*\n", 'parse_mode' => 'Markdown']);
+        TaskResultSpyRequest::sendMessage(array_filter(['chat_id' => $chat, 'text' => $hint['text'], 'reply_markup' => $hint['reply_markup'] ?? null]));
 
-        $this->assertSame($screen, $store->state($charId)['screen']);
+        $this->service()->current($charId);
+        $this->assertSame($screen, $store->state($charId)['screen'], 'окно ещё идёт — итог может прийти');
         $this->assertSame($rev, $store->revision($charId));
-        $this->assertSame($taskId, $store->screenTaskId($charId));
-        $this->assertCount(2, $this->inbox($charId), 'обе — во входящих');
+
+        $this->shiftBack($charId, $taskId, (new WebPlay())->taskResultWindowSeconds + 1);
+        $state = $this->service()->current($charId)['state'];
+
+        $this->assertNeutral($state['screen']);
+        $this->assertSame($screen, $state['history'][0]);
+        $this->assertSame($rev + 1, $store->revision($charId));
+        $this->assertNull($store->screenTaskId($charId));
     }
 
-    public function testSecondSendInSameContextAfterReplacementLeavesScreen(): void
+    public function testMessageBeforeTaskEndOrAfterWindowIsNotTaken(): void
+    {
+        [$accountId, $charId, $chat, $tuId] = $this->virtualCharacter();
+        $taskId = $this->actStartingTask($accountId, $charId, $chat, $tuId);
+        $window = (new WebPlay())->taskResultWindowSeconds;
+
+        TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'До конца задачи']);
+        TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'После окна']);
+        [$early, $late] = array_map(static fn (array $r): int => (int) $r['id'], $this->inbox($charId));
+        $this->complete($taskId, $window + 30);
+        $this->conn->table('web_inbox')->where('id', $early)->update(['created_at' => date('Y-m-d H:i:s', time() - $window - 31)]);
+        $this->conn->table('web_inbox')->where('id', $late)->update(['created_at' => date('Y-m-d H:i:s', time() - 28)]);
+
+        $this->assertNeutral($this->service()->current($charId)['state']['screen']);
+    }
+
+    public function testInterruptedTaskGivesNeutralScreenAtOnce(): void
     {
         [$accountId, $charId, $chat, $tuId] = $this->virtualCharacter();
         $store  = new WebScreenStore($this->conn);
         $taskId = $this->actStartingTask($accountId, $charId, $chat, $tuId);
+        $rev    = $store->revision($charId);
 
-        WebDelivery::setTaskContext($taskId);
+        $this->conn->table('character_tasks')->where('id', $taskId)->update(['status' => 'interrupted', 'updated_at' => date('Y-m-d H:i:s')]);
+        TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'Сообщение после прерывания']);
+        $state = $this->service()->current($charId)['state'];
+
+        $this->assertNeutral($state['screen']);
+        $this->assertSame(self::STARTED, $state['history'][0][0]['text']);
+        $this->assertSame($rev + 1, $store->revision($charId));
+        $this->assertNull($store->screenTaskId($charId));
+    }
+
+    public function testRepeatedAndRacingReadsReplaceOnce(): void
+    {
+        [$accountId, $charId, $chat, $tuId] = $this->virtualCharacter();
+        $store  = new WebScreenStore($this->conn);
+        $taskId = $this->actStartingTask($accountId, $charId, $chat, $tuId);
+        $this->complete($taskId);
         TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'Итог']);
-        $rev = $store->revision($charId);
-        TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'Совет после итога']);
-        WebDelivery::setTaskContext(null);
 
-        $this->assertSame('Итог', $store->state($charId)['screen'][0]['text']);
+        $this->service()->current($charId);
+        $state = $store->state($charId);
+        $rev   = $store->revision($charId);
+        $this->service()->current($charId);
+        $this->assertSame($state, $store->state($charId), 'повторное чтение экран не трогает');
         $this->assertSame($rev, $store->revision($charId));
-        $this->assertCount(2, $this->inbox($charId));
+
+        // Параллельный читатель прочёл пометку до замены: под блокировкой строки он её уже не видит.
+        $stale = ['message_id' => 1, 'text' => 'Второй итог', 'caption' => null, 'parse_mode' => null, 'photo_url' => null, 'inline_keyboard' => []];
+        $this->assertFalse($store->replaceScreenForTask($charId, $taskId, $stale));
+        $this->assertSame($state, $store->state($charId));
+        $this->assertSame($rev, $store->revision($charId));
     }
 
-    public function testChainStepInSameMinuteGoesToInboxNotScreen(): void
+    public function testBootstrapWithSavedScreenAlsoReplaces(): void
     {
         [$accountId, $charId, $chat, $tuId] = $this->virtualCharacter();
-        $store  = new WebScreenStore($this->conn);
         $taskId = $this->actStartingTask($accountId, $charId, $chat, $tuId);
-
-        // Тот же тик: сначала шаг цепочки другой задачи, затем итог нашей, затем шаг вне задачи.
-        WebDelivery::setTaskContext($taskId + 1);
-        TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => '📜 Шаг цепочки: поговори с Роби']);
-        WebDelivery::setTaskContext($taskId);
+        $this->complete($taskId);
         TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'Итог сбора']);
-        WebDelivery::setTaskContext(null);
-        TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => '📜 Следующий шаг']);
 
-        $this->assertSame('Итог сбора', $store->state($charId)['screen'][0]['text']);
-        $this->assertCount(3, $this->inbox($charId));
-    }
-
-    // ── Worker ───────────────────────────────────────────────────────────
-
-    public function testWorkerSetsContextForHandleAndResultReplacesScreen(): void
-    {
-        [$accountId, $charId, $chat, $tuId] = $this->virtualCharacter();
-        $taskId = $this->actStartingTask($accountId, $charId, $chat, $tuId);
-        $this->conn->table('character_tasks')->where('id', $taskId)->update(['end_time' => date('Y-m-d H:i:s', time() - 60)]);
-
-        TaskResultSendingHandler::$chat = $chat;
-        TaskContextWorker::$handler     = TaskResultSendingHandler::class;
-        (new TaskContextWorker())->run($this->taskRow($taskId));
-
-        $this->assertSame($taskId, TaskResultSendingHandler::$seen);
-        $this->assertNull(WebDelivery::taskContext());
-        $store = new WebScreenStore($this->conn);
-        $this->assertSame('✅ Сбор завершён: дерево ×3', $store->state($charId)['screen'][0]['text']);
-        $this->assertSame([(int) $this->inbox($charId)[0]['message_id']], $store->screenMessageIds($charId));
-    }
-
-    public function testWorkerClearsContextWhenHandlerThrows(): void
-    {
-        [, $charId, , $tuId] = $this->virtualCharacter();
-        $taskId = $this->insertTask($charId, $tuId);
-
-        TaskContextWorker::$handler = TaskResultThrowingHandler::class;
-        (new TaskContextWorker())->run($this->taskRow($taskId));
-
-        $this->assertSame($taskId, TaskResultThrowingHandler::$seen);
-        $this->assertNull(WebDelivery::taskContext(), 'исключение в handle() не оставляет контекст следующей задаче');
+        $this->assertSame('Итог сбора', $this->service()->bootstrap($accountId, $charId)['state']['screen'][0]['text']);
     }
 
     // ── привязанный TG-игрок ─────────────────────────────────────────────
@@ -386,13 +391,13 @@ final class WebTaskResultScreenTest extends CIUnitTestCase
         $store  = new WebScreenStore($this->conn);
         $taskId = $this->actStartingTask($accountId, $charId, self::REAL_TG, $tuId);
 
-        WebDelivery::setTaskContext($taskId);
+        $this->complete($taskId);
         $r = TaskResultSpyRequest::sendMessage(['chat_id' => self::REAL_TG, 'text' => 'Итог сбора']);
-        WebDelivery::setTaskContext(null);
-
         $this->assertTrue($r->isOk());
         $this->assertCount(1, TaskResultSpyRequest::$calls, 'в Telegram ушло как раньше');
         $this->assertSame('Итог сбора', TaskResultSpyRequest::$calls[0][1]['text'] ?? null);
+
+        $this->service()->current($charId);
         $rows = $this->inbox($charId);
         $this->assertCount(1, $rows);
         $this->assertSame('mirror', $rows[0]['source']);
@@ -428,22 +433,30 @@ final class WebTaskResultScreenTest extends CIUnitTestCase
         [$accountId, $charId, $chat, $tuId] = $this->virtualCharacter();
         $taskId = $this->actStartingTask($accountId, $charId, $chat, $tuId);
 
-        WebDelivery::setTaskContext($taskId);
+        $this->complete($taskId);
         TaskResultSpyRequest::sendPhoto([
             'chat_id' => $chat,
             'photo'   => 'AgACAgIAAxkBAAIfile-id',
             'caption' => 'Сбор завершён. Добыто: дерево 3, камень 1. Персонаж свободен.',
         ]);
-        WebDelivery::setTaskContext(null);
+        $state = $this->service()->current($charId)['state'];
 
-        $state = (new WebScreenStore($this->conn))->state($charId);
         $this->assertNull($state['screen'][0]['photo_url'], 'фото не резолвится — экран без картинки');
-        helper(['url', 'form']);
-        $html = view('site/_play/state', ['state' => $state, 'alert' => null]);
-        // Текущий экран — до ленты истории (там прежний «начался» остаётся законно).
-        $current = strstr($html, 'class="play-history"', true);
-        $this->assertIsString($current);
+        $current = $this->renderCurrent($state);
         $this->assertStringContainsString('Сбор завершён. Добыто: дерево 3, камень 1. Персонаж свободен.', $current);
+        $this->assertStringNotContainsString('<img', $current);
+        $this->assertStringNotContainsString('Прервать', $current);
+    }
+
+    public function testNeutralScreenRendersFullMeaningInText(): void
+    {
+        [$accountId, $charId, $chat, $tuId] = $this->virtualCharacter();
+        $taskId = $this->actStartingTask($accountId, $charId, $chat, $tuId);
+        $this->conn->table('character_tasks')->where('id', $taskId)->update(['status' => 'interrupted']);
+
+        $current = $this->renderCurrent($this->service()->current($charId)['state']);
+
+        $this->assertStringContainsString('✅ Задача «Сбор» завершена — итог во входящих 🔔', $current);
         $this->assertStringNotContainsString('<img', $current);
         $this->assertStringNotContainsString('Прервать', $current);
     }
@@ -495,13 +508,40 @@ final class WebTaskResultScreenTest extends CIUnitTestCase
         return (int) $this->conn->insertID();
     }
 
-    /** @return array<string,mixed> */
-    private function taskRow(int $taskId): array
+    /** Задача закончилась `$ago` секунд назад (как `Worker`: `completed` + `updated_at` часами PHP). */
+    private function complete(int $taskId, int $ago = 0): void
     {
-        $row = $this->conn->table('character_tasks')->where('id', $taskId)->get()->getRowArray();
-        $this->assertIsArray($row);
+        $this->conn->table('character_tasks')->where('id', $taskId)->update([
+            'status' => 'completed', 'updated_at' => date('Y-m-d H:i:s', time() - $ago),
+        ]);
+    }
 
-        return $row;
+    /** Сдвинуть конец задачи и все входящие персонажа на `$seconds` в прошлое. */
+    private function shiftBack(int $charId, int $taskId, int $seconds): void
+    {
+        $this->conn->query('UPDATE character_tasks SET updated_at = updated_at - INTERVAL ? SECOND WHERE id = ?', [$seconds, $taskId]);
+        $this->conn->query('UPDATE web_inbox SET created_at = created_at - INTERVAL ? SECOND WHERE character_id = ?', [$seconds, $charId]);
+    }
+
+    /** @param list<array<string,mixed>> $screen */
+    private function assertNeutral(array $screen): void
+    {
+        $this->assertCount(1, $screen);
+        $this->assertSame('✅ Задача «Сбор» завершена — итог во входящих 🔔', $screen[0]['text']);
+        $this->assertSame([], $screen[0]['inline_keyboard'], 'без «❌ Прервать»');
+        $this->assertNull($screen[0]['photo_url']);
+    }
+
+    /** @param array<string,mixed> $state */
+    private function renderCurrent(array $state): string
+    {
+        helper(['url', 'form']);
+        $html = view('site/_play/state', ['state' => $state, 'alert' => null]);
+        // Текущий экран — до ленты истории (там прежний «начался» остаётся законно).
+        $current = strstr($html, 'class="play-history"', true);
+        $this->assertIsString($current);
+
+        return $current;
     }
 
     /** @return array{0:int, 1:int, 2:int, 3:int} аккаунт, персонаж, виртуальный чат, telegram_users.id */

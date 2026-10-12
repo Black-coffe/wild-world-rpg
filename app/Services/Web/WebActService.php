@@ -48,6 +48,9 @@ class WebActService
 
     public const FAILED_ALERT = 'Не получилось выполнить действие. Попробуй ещё раз.';
 
+    /** Текст экрана законченной задачи без найденного итога. */
+    public const TASK_DONE_TEXT = '✅ Задача «%s» завершена — итог во входящих 🔔';
+
     /** @var BaseConnection<object, object> */
     private BaseConnection $db;
 
@@ -119,7 +122,87 @@ class WebActService
      */
     public function current(int $characterId): array
     {
+        $this->settleTaskScreen($characterId);
+
         return $this->result($characterId, null);
+    }
+
+    /**
+     * web-onboarding-02: экран ждёт задачу, а она закончилась — экран заменяется её итогом.
+     *
+     * `completed` → итог из входящих ({@see WebTaskResultPicker}: окно от `updated_at` задачи, чужие
+     * по типу отброшены); итога нет, а окно ещё идёт — ждём (крон ставит `completed` до обработчика);
+     * окно прошло — нейтральный {@see TASK_DONE_TEXT}. `interrupted`/`cancelled` или строки нет —
+     * сразу нейтральный. `in_work`, `queued`, `paused` — экран не трогается. Замена под блокировкой
+     * строки состояния и только пока экран помечен этой задачей — повторное и параллельное чтение
+     * второй раз не меняет.
+     */
+    private function settleTaskScreen(int $characterId): void
+    {
+        $taskId = $this->store->screenTaskId($characterId);
+        if ($taskId === null) {
+            return;
+        }
+        $res  = $this->db->query(
+            'SELECT ct.status, ct.updated_at, t.name_rus'
+            . ' FROM character_tasks ct LEFT JOIN tasks t ON t.id = ct.task_id WHERE ct.id = ? AND ct.character_id = ?',
+            [$taskId, $characterId]
+        );
+        $task = $res instanceof ResultInterface ? $res->getRowArray() : null;
+        $status = is_array($task) && is_string($task['status'] ?? null) ? $task['status'] : null;
+        if (in_array($status, ['in_work', 'queued', 'paused'], true)) {
+            return;
+        }
+
+        $msg = null;
+        if (is_array($task) && $status === 'completed') {
+            $msg = (new WebTaskResultPicker($this->config))->pick($task, $this->inboxRowsSince($characterId, $task['updated_at'] ?? null));
+            // Часы PHP, как у писателей `updated_at` задачи и `web_inbox.created_at`.
+            $done = is_string($task['updated_at'] ?? null) ? strtotime($task['updated_at']) : false;
+            $age  = $done === false ? PHP_INT_MAX : time() - $done;
+            if ($msg === null && $age <= $this->config->taskResultWindowSeconds) {
+                return;
+            }
+        }
+        if ($msg === null) {
+            $name = is_array($task) && is_string($task['name_rus'] ?? null) && $task['name_rus'] !== '' ? $task['name_rus'] : 'Задача';
+            $msg  = [
+                'message_id'      => $this->store->nextMessageId($characterId),
+                'text'            => sprintf(self::TASK_DONE_TEXT, $name),
+                'caption'         => null,
+                'parse_mode'      => null,
+                'photo_url'       => null,
+                'inline_keyboard' => [],
+            ];
+        }
+        $this->store->replaceScreenForTask($characterId, $taskId, $msg);
+    }
+
+    /**
+     * Входящие персонажа, созданные не раньше `$since` (по порядку id).
+     *
+     * @return list<array{id:int, created_at:string, msg:Msg}>
+     */
+    private function inboxRowsSince(int $characterId, mixed $since): array
+    {
+        if (! is_string($since) || $since === '') {
+            return [];
+        }
+        $res = $this->db->query(
+            'SELECT id, created_at, payload FROM web_inbox WHERE character_id = ? AND created_at >= ? ORDER BY id',
+            [$characterId, $since]
+        );
+        $out = [];
+        foreach ($res instanceof ResultInterface ? $res->getResultArray() : [] as $row) {
+            $msg = is_string($row['payload'] ?? null) ? json_decode($row['payload'], true) : null;
+            if (! is_array($msg) || ! is_int($msg['message_id'] ?? null) || ! is_numeric($row['id'] ?? null) || ! is_string($row['created_at'] ?? null)) {
+                continue;
+            }
+            /** @var Msg $msg */
+            $out[] = ['id' => (int) $row['id'], 'created_at' => $row['created_at'], 'msg' => $msg];
+        }
+
+        return $out;
     }
 
     /**

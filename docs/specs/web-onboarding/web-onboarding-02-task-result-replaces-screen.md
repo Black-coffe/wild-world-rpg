@@ -1,8 +1,8 @@
 ---
 story: web-onboarding-02
 spec: web-onboarding
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: opus
@@ -114,6 +114,18 @@ Opus: нужно решить, какое из входящих сообщени
 - Пометка: экран сменился → `task_id` = новая задача действия или null; экран не сменился (только alert) → новая задача помечает, иначе пометка остаётся.
 - `app/Services/Web/WebActService.php`: снимок MAX(id) `character_tasks` до действия, после — новейшая `in_work` с id больше снимка.
 - Откачено: `WebDelivery::setTaskContext()`/замена в `toInbox()`, контекст в `Worker`. `tests/database/WebTaskResultScreenTest.php` писался под старую схему — переписать.
+
+Вторая сборка (замена при чтении):
+- `app/Services/Web/WebTaskResultPicker.php` (новый): `pick(task, rows)` — окно `[updated_at, +taskResultWindowSeconds]`, чужие по типу отброшены, первое по id; `foreignType(msg)` публичный.
+- Чужие типы и откуда сигнатура: шаг цепочки — клавиатура `OnboardingChainCatalog::completion()`; подсказка — первая строка текста каждой `OnboardingHintCatalog::all()`; совет дня — начало `TipService::renderTip()` до `#:`; мировое событие (`NotificationPolicy` старт/сводка) — кнопки нижнего ряда `EventMessageFormatter::buildEndKeyboard()` (mute).
+- Константы `FOREIGN_TEXT_PREFIXES` (построитель внутри `TaskHandlers/**`), сверка с исходником в `WebTaskResultPickerTest::testConstantPrefixesMatchSenderSource`: титул (`TitleCheckCron`), достижение (`AchievementCheckCron`), задания дня (`DailyTaskProgressHandler`), веха серии (`StreakMilestoneCron`), legacy-событие (`EventActivationHandler`), смена сезона (`SeasonalTransitionHandler`), рейтинг PvP (`PvpLadderWeeklyBroadcastHandler`), сводка радиста (`NodeAnnounceDigestHandler`), приём пищи (`FoodAndWaterConsumptionHandler`), предупреждение о здоровье (`LowHealthWarningHandler`).
+- Не включены: `OnboardingNudgeHandler`/`Day2NudgeHandler`/`ComebackNudgeHandler` (шлют только неактивным — не в минуту после итога активной задачи), `FactionNotificationHandler` (с 10 уровня). Квесты вне цепочки шлют свой текст — не фильтруются (итогом могут стать; пометил в CONCERNS).
+- `app/Services/Web/WebActService.php`: `current()` (и `bootstrap()` через него) зовёт `settleTaskScreen()`; `completed` → picker, нет итога и окно идёт — ждём (крон ставит `completed` до handle), окно прошло → нейтральный `TASK_DONE_TEXT` «✅ Задача «<name_rus>» завершена — итог во входящих 🔔»; `interrupted`/`cancelled`/строки нет → нейтральный сразу; `in_work`/`queued`/`paused` → не трогаем (paused — не «завершена», решение воркера). Возраст — часами PHP, как пишут `updated_at` и `web_inbox.created_at`.
+- Входящие читаются прямым SELECT `web_inbox` (нужен `id` строки; публичный `latest()` его не отдаёт), `WebInboxService` не тронут.
+- `app/Config/WebPlay.php`: `taskResultWindowSeconds = 120` (инфра).
+- `app/Services/Web/WebScreenStore.php`: только докблок (замена при чтении); `replaceScreenForTask()` переиспользован — проверка пометки под `FOR UPDATE` делает замену однократной.
+- Defect check: `scripts/defects-task-result-foreign-check.php`; фикстура несёт `"picker": "window_only"` (форма до фикса, как `first_strike` у дуэли) → exit 1 на обеих; без фикстуры гоняет те же данные настоящим picker'ом → exit 0. Picker без фильтра (временно `foreignType` → null): без аргумента exit 1 (`picked 1000000051 / 1000000061`), вернул — exit 0.
+- Скрипт ставит группу БД `tests` = MySQL как phpunit.xml.dist: бутстрап по умолчанию берёт SQLite3, а каталоги читают метки меню через GameSettings (сбой CI отдавал exit 0 — добавлен exception handler → exit 3).
 
 ## Findings
 - 2026-10-12 (Queen): закрытие `0111d083` недействительно — воркер первой сборки выполнил `close-story` уже после паузы

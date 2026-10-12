@@ -1,0 +1,10 @@
+{
+  "case": "Холодный проход 2026-10-11: шаг цепочки «💧 Первый ресурс в кармане!» пришёл в ту же секунду, что итог добычи, и id у него меньше. Форма до фикса — picker только по окну.",
+  "picker": "window_only",
+  "task": {"id": 7001, "status": "completed", "updated_at": "2026-10-11 14:05:00"},
+  "rows": [
+    {"id": 51, "created_at": "2026-10-11 14:05:00", "msg": {"message_id": 1000000051, "text": "💧 *Первый ресурс в кармане!*\n\nТеперь — *крафт*. Напиши «крафт» (или жми *«🔨 Крафт»* в нижнем меню) и собери *Повязку* — материалы для неё уже в твоём рюкзаке.\n\n_Мастерская для базовых вещей не нужна — крафт-хаб открывается сразу._\n\n🏆 +50 золота за шаг.", "caption": null, "parse_mode": "Markdown", "photo_url": null, "inline_keyboard": [[{"text": "🚀 Активные квесты", "callback_data": "activeQuests"}, {"text": "◀️ Я", "callback_data": "character"}]]}},
+    {"id": 52, "created_at": "2026-10-11 14:05:00", "msg": {"message_id": 1000000052, "text": "⛏ *Сбор ресурсов окончен!*\n\nДобыто: 🪵 Дерево ×3", "caption": null, "parse_mode": "Markdown", "photo_url": null, "inline_keyboard": [[{"text": "⛏ Добывать ещё", "callback_data": "gather"}, {"text": "🎒 Инвентарь", "callback_data": "inventory"}]]}}
+  ],
+  "expect_message_id": 1000000052
+}
