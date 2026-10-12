@@ -12,9 +12,8 @@ B2 — не баг баланса: защитник стоял на базе с 
 
 ## Assumptions
 - **Где виден блок.** В разборе боя участников: бот (`BattleJournalAction`) и `/play` (`native_battle.php`)
-  — оба через `BattleJournalService::card`. Публичная страница `/battles/view` блок про оборону **не**
-  получает: она открыта всем, и проценты стены и ограды рассказывали бы чужим, насколько укреплена база
-  (класс дефекта `record-exposed-beyond-participants`). Игрок, выложивший ссылку, всё равно видит блок у себя.
+  — оба через `BattleJournalService::card`. Публичная `/battles/view` — двухуровнево (ask 8, см. Plan deltas):
+  посторонним без чисел обороны, вошедшему участнику — полный блок.
 - **Факторы считаются из лога, а не пересимуляцией:** удачные удары — `luckyStrikeApplied`; смягчённые
   удары насмерть — раунды с `oneShotRoll < oneShotChance`, где `finalDamage < defenderHealthBefore`;
   срез стены — новое поле обороны; ограда — новое поле × число раундов, где она сработала (по факту из
@@ -42,8 +41,10 @@ B2 — не баг баланса: защитник стоял на базе с 
 ## Contracts
 - `BattleJournalService::card()` → `battle.why`: `list<string>` готовых строк без разметки (пустой
   список — блока нет). Рендеры только выводят, не считают.
-- `log_data.defense` (PVP, новые бои): `{wall_reduction_percent: float, fence_damage_total: float,
-  tower_initiative_percent: float, drone: bool}`; отсутствует у старых боёв.
+- `PvpOutcomeExplainer::explain(string $type, array $log, bool $forParticipant = true)`: `list<string>`;
+  `false` — без чисел стены, ограды и инициативы (публичная страница для постороннего).
+- `log_data.defense` (PVP, новые бои у базы): `{owner_id: int, wall_reduction_percent: float, fence_damage_total: float,
+  tower_initiative_percent: float, drone: bool}`; отсутствует у старых боёв и у боёв без профиля обороны.
 
 ## Integration gate
 `vendor/bin/phpunit --no-coverage --no-progress`
@@ -53,6 +54,17 @@ B2 — не баг баланса: защитник стоял на базе с 
 *(empty)*
 
 ## Plan deltas
+
+- 2026-10-12, story 01 · **Публичная страница — двухуровнево.** Поправка владельца: Torch0010 прислал скриншот
+  с публичной `/battles/view`, а план блок туда не ставил. Выбрано «Двухуровнево»: страница уже различает вошедшего
+  (`authContext()['characterId']`), участнику — полный блок, постороннему — без чисел обороны. Добавлен ask 8;
+  story 02 получает `BattlesController.php`, `site/battles/view.php`, `tests/database/BattlesPublicViewTest.php`.
+  Отвергнуто: «всем полностью» (раскрывает укреплённость чужой базы по номеру боя), «только участникам»
+  (Torch0010, скорее всего, смотрел без входа).
+- 2026-10-12, story 01 · **`log_data.defense` только при профиле обороны, не «нули» в каждом бою.** Билдер не
+  отличает PvP вне базы от дуэли (обе зовут оркестратор с `defense = null`), а различить их можно только правкой
+  `AttackPlayerAction`/`ArenaScreenService` вне Files. Для разбора «нули» и «нет поля» дают одно и то же — строк
+  про оборону нет. В контракт добавлен `owner_id`: при контратаке хозяин базы стоит в слоте атакующего.
 
 **Approved:** Andrei, 2026-10-12
 **Briefed:**
