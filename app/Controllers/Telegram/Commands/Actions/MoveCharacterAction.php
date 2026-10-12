@@ -8,7 +8,6 @@ use Longman\TelegramBot\Entities\ServerResponse;
 
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
-use App\Services\Player\PlayerStateService;
 use App\Services\World\MoveSurfaceService;
 
 /**
@@ -17,7 +16,8 @@ use App\Services\World\MoveSurfaceService;
  * ADR-150 Слайс 1: сам рендер поверхности ходьбы (карта 12×12 + компас-розетка)
  * вынесен в {@see \App\Services\World\MoveSurfaceService}, чтобы тот же экран
  * открывался и из нижней кнопки «🌍 Мир», и из slash `/go` без дрейфа. Здесь остаётся
- * резолв персонажа + гейты блокирующих задач (переезд/сбор/исследование).
+ * резолв персонажа + гейт переезда. Сбор и исследование открытию экрана не мешают —
+ * шаг во время них отклоняет {@see \App\Services\World\MoveService::step()}.
  *
  * Все последующие перемещения по кнопкам (move_dir_...) редактируют это сообщение.
  */
@@ -66,7 +66,7 @@ class MoveCharacterAction
             ]);
         }
 
-        // Проверяем, нет ли блокирующих задач (например, переезд, исследование, сбор)
+        // Переезд базы — блокирует (клетка игрока меняется)
         if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
             $character['id'],
             $this->callbackQuery->getId(),
@@ -76,20 +76,9 @@ class MoveCharacterAction
             return Request::emptyResponse();
         }
 
-        $playerStateService = new PlayerStateService();
-        if ($playerStateService->isGathering($character['id'])) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => "Вы заняты сбором ресурсов. Дождитесь завершения."
-            ]);
-        }
-        if ($playerStateService->isExploring($character['id'])) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => "Вы заняты исследованием территории. Дождитесь завершения."
-            ]);
-        }
-
+        // Сбор/исследование экран НЕ закрывают (oct-world-robot-fix, чат 2026-10-02): карту смотреть
+        // можно, как из нижней «🌍 Мир» (GenericmessageCommand::handleWorld). Шаг во время такой задачи
+        // отклоняет MoveService::step() → BUSY (задачи с parallel_execution_allowed = 0).
         // Рендер поверхности ходьбы — единый для move / «🌍 Мир» / /go.
         return (new MoveSurfaceService())->show($chatId, $character);
     }

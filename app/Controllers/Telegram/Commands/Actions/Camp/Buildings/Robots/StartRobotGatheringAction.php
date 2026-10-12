@@ -359,7 +359,10 @@ class StartRobotGatheringAction extends BaseAction
     /**
      * multibase-picker-09: база запуска робота — общий выбор для запуска и экрана робота
      * (`RobotGathererActivator`). Непокрытая база не выбирается никогда.
-     *  - игрок стоит на своей активной базе → она (нет Мастерской — `text` с отказом);
+     *  - игрок стоит на своей активной базе с Мастерской → она;
+     *  - стоит на своей базе без Мастерской (лагерь) → первая покрытая СВОЕЙ Вышкой база
+     *    с Мастерской, а если такой нет — его база + отказ (oct-world-robot-fix, чат 2026-09-24:
+     *    «с лагеря без построек не отправить добытчика по удалёнке с основной базы»);
      *  - иначе первая по `claimed_cells.id` база, покрытая СВОЕЙ Вышкой, с Мастерской;
      *  - покрытые есть, Мастерской нет ни на одной → первая покрытая + отказ;
      *  - покрытых нет → `cell=null`, текст `BaseScopeResolver::resolve()` (или прежний
@@ -375,23 +378,22 @@ class StartRobotGatheringAction extends BaseAction
             ->where('map_cell_id', $currentCell)
             ->where('status', 'active')
             ->first();
-        if (is_array($onBase)) {
-            $text = self::workshopAtBase($characterId, $currentCell) === null
-                ? self::noWorkshopOnBaseMessage(self::baseLabel($characterId, $currentCell))
-                : null;
-
-            return ['cell' => $currentCell, 'text' => $text];
+        if (is_array($onBase) && self::workshopAtBase($characterId, $currentCell) !== null) {
+            return ['cell' => $currentCell, 'text' => null];
         }
 
         $firstCovered = null;
         foreach (($tower ?? new CommunicationTowerCoverageService())->coverageByBase($characterId, $currentCell) as $coverage) {
-            if (! $coverage['isCovered']) {
+            if (! $coverage['isCovered'] || $coverage['cell'] === $currentCell) {
                 continue;
             }
             $firstCovered ??= $coverage['cell'];
             if (self::workshopAtBase($characterId, $coverage['cell']) !== null) {
                 return ['cell' => $coverage['cell'], 'text' => null];
             }
+        }
+        if (is_array($onBase)) {
+            return ['cell' => $currentCell, 'text' => self::noWorkshopOnBaseMessage(self::baseLabel($characterId, $currentCell))];
         }
         if ($firstCovered !== null) {
             return ['cell' => $firstCovered, 'text' => self::noWorkshopOnBaseMessage(self::baseLabel($characterId, $firstCovered))];

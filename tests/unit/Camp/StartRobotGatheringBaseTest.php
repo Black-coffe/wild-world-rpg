@@ -299,6 +299,38 @@ final class StartRobotGatheringBaseTest extends CIUnitTestCase
         $this->assertNoTask($charId);
     }
 
+    /**
+     * oct-world-robot-fix, чат 2026-09-24: «если разбиваешь лагерь, без построек, то с него не
+     * отправить добытчика по удаленке с основной базы, просит постройку мастерской». Стоит на
+     * лагере «Вторая» без построек; «Первая» с Мастерской покрывает его своей Вышкой.
+     */
+    public function testCampWithoutWorkshopLaunchesFromCoveredBaseWithWorkshop(): void
+    {
+        [$tgId, $charId] = $this->seedPlayer(200, [100], [100]);
+
+        $this->assertSame(['cell' => 100, 'text' => null], StartRobotGatheringAction::launchBase($charId, 200));
+
+        $caption = $this->launch($tgId);
+
+        $this->assertSame(100, $this->taskSettings($charId)['base_cell'] ?? null, 'запуск с покрытой базы с Мастерской');
+        $this->assertStringContainsString('Первая (10, 10)', $caption);
+        $this->assertStringNotContainsString('Вторая', $caption);
+    }
+
+    /**
+     * Соседняя форма: Вышка стоит на самом лагере, а база с Мастерской ничем не покрыта —
+     * лагерь сам себя не «покрывает» как запасной вариант, отказ называет лагерь, как раньше.
+     */
+    public function testCampWithoutWorkshopAndNoCoveredWorkshopRefusesNamingCamp(): void
+    {
+        [$tgId, $charId] = $this->seedPlayer(200, [100], [200]);
+
+        $text = $this->textOf((new StartRobotGatheringAction($this->cbq($tgId)))->handle());
+
+        $this->assertSame(StartRobotGatheringAction::noWorkshopOnBaseMessage('Вторая (20, 20)'), $text);
+        $this->assertNoTask($charId);
+    }
+
     public function testLaunchBaseHelperMatchesLaunchForActivatorScreen(): void
     {
         // RobotGathererActivator зовёт тот же launchBase(): та же база, что у запуска.

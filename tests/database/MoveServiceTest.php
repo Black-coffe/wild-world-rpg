@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Database;
 
+use App\Controllers\Telegram\Commands\Actions\MoveCharacterAction;
 use App\Controllers\Telegram\Commands\Actions\MoveCharacterToDirectionAction;
 use App\Services\World\MoveService;
 use CodeIgniter\Database\BaseConnection;
@@ -323,6 +324,43 @@ final class MoveServiceTest extends CIUnitTestCase
             $this->assertSame($expected['sent'], $this->sent, "запросы Bot API: {$case}");
             $this->assertSame($expected['row'], $this->row(), "персонаж после шага: {$case}");
             $this->assertSame($expected['explored'], $this->conn->table('explored_cells')->countAllResults(), "туман: {$case}");
+        }
+    }
+
+    /**
+     * oct-world-robot-fix (B1, чат 2026-10-02): «🌍 Мир» с экрана дрона (callback `move`) во время
+     * сбора/исследования открывает экран ходьбы, как нижнее меню, — но шаг с него отклоняется.
+     * Задачи заведены с `parallel_execution_allowed = 0`, как на проде и testbot (SELECT 2026-10-12):
+     * именно этот флаг держит запрет шага, поэтому он закреплён здесь (поправка владельца:
+     * «игрок, возможно, сможет ходить прямо во время сбора ресурсов»).
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testWorldButtonOpensSurfaceDuringGatherOrExploreButStepIsRefused(): void
+    {
+        foreach ([['Gather', 'Добыча ресурсов'], ['ExploreTheArea', 'Изучение местности']] as [$name, $nameRus]) {
+            $this->resetCase();
+            $this->task($name, $nameRus, 0);
+            $before = $this->row();
+
+            $this->sent = [];
+            $cb = new CallbackQuery([
+                'id'      => 'cbq-1',
+                'from'    => ['id' => self::TG, 'is_bot' => false, 'first_name' => 'Тест'],
+                'message' => ['message_id' => 77, 'date' => 0, 'chat' => ['id' => self::TG, 'type' => 'private']],
+                'data'    => 'move',
+            ]);
+            (new MoveCharacterAction($cb))->handle();
+            $texts = array_map(static fn (array $r): string => (string) ($r['text'] ?? ''), $this->sent);
+            $this->assertNotEmpty(array_filter($texts, static fn (string $t): bool => str_starts_with($t, 'Куда пойдём?')), "экран ходьбы открыт: {$name}");
+            $this->assertEmpty(array_filter($texts, static fn (string $t): bool => str_contains($t, 'Вы заняты')), "нет отказа «Вы заняты»: {$name}");
+
+            $this->sent = [];
+            $this->press('move_dir_east');
+            $texts = implode("\n", array_map(static fn (array $r): string => (string) ($r['text'] ?? ''), $this->sent));
+            $this->assertStringContainsString('Невозможно переместиться', $texts, "шаг отклонён: {$name}");
+            $this->assertStringContainsString("У вас идёт задача: {$nameRus}", $texts);
+            $this->assertSame($before, $this->row(), "клетка и статы не изменились: {$name}");
         }
     }
 
