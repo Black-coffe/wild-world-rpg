@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-12
+last-verified: 2026-10-13
 
 # Scout report: Онбординг, обучение, советы
 
@@ -10,7 +10,9 @@ last-verified: 2026-10-12
 старт, just-in-time подсказки, обучающая цепочка, справочник `/guide`, «Совет дня».
 
 ## Entry points
-- `app/Services/Onboarding/` — `ColdOpenGreetingService`, `ColdOpenSignalService`, `PolarStarService`,
+- `app/Services/Onboarding/` — **`ColdOpenWelcomeService`** (`build(CLIENT_BOT|CLIENT_WEB, $texts)` → список
+  `{role,text,parse_mode,inline_keyboard}`; рендерят `StartCommand::renderNewcomer` и `AccountRegister::seedFirstScreen`),
+  `ColdOpenGreetingService` (тексты/флаги), `ColdOpenSignalService`, `PolarStarService`,
   `NewbieGreeterService`, `NewbieAtmosphereService`, `StarterKitService`, `FirstShelterService`,
   `LuckyFindService`, `WinBeatService`, `BuildLockService`,
   `OnboardingChainService` + `OnboardingChainCatalog`,
@@ -54,6 +56,8 @@ outbound: почти все доменные сервисы (подсказки 
   Telegram отвечает «can't parse entities», рассылка не доходит, а просмотр уже записан. Правка существующего совета —
   data-миграция (`2026-12-19-100000_FixArmorResistancesTipMarkdown`): `tableExists('game_tips', false)` (без кэша) и
   builder (в тестах префикс таблиц `db_`), замена по точной фразе, идемпотентно.
+- Первый экран собирает только `ColdOpenWelcomeService`: бот — `menu_carrier` + секции + welcome; веб — всегда одно окно,
+  одна кнопка `move` без метки `cold`, бот-хвост «в нижнем меню» вырезан (`withoutNavHint`), `closingWeb()` без имени.
 - Эмодзи требуют `utf8mb4` у колонки; ловится только Tier-3 рендером.
 - Ни один tip/guide-текст не должен нести хрупкие числа баланса — они дрейфуют.
 - Reply-меню само не обновляется: только `/start` и `/menu` его пере-аттачат.

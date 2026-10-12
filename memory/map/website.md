@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-12 (oct-pvp-clarity)
+last-verified: 2026-10-13 (web-onboarding)
 
 # Scout report: Публичный сайт wildworld.fun
 
@@ -41,16 +41,18 @@ last-verified: 2026-10-12 (oct-pvp-clarity)
   «📋 Дела» `view=tasks` (`op=quest_start|quest_branch`, `quests-events-npc.md`). «🛒 Магазин» `view=shop`
   (`ResourceShopScreenService`; `op=sell|buy|bulk_sell`, опт с `token` плана) и «📦 Склад» `view=storage`
   (`BaseStorageService`; `op=storage_take|storage_put`) — w2-n6; `op=bridge` с `shop`/`baseStorageList` → нативно.
-  «⚔️ Бои» (w2-n7, `dock.php`): `view=battles` (`BattleJournalService::listFor`, лимит 20), `view=battle&id=` (карточка
-  с раундами; чужой бой — отказ без имён), `view=arena` (+`duel`=id последней дуэли) и `view=ladder` (+`f`=фракция) из
-  `ArenaScreenService`; `op=duel` (id соперника) и `op=duels_open` (`open=1|0`) — один раз на `intent_id`. Колбэки бота
-  `battles|battleLog_<id>|arena|pvpLadder…` идут нативно, в т.ч. из `/play/act` (`WebNativeScreenService::nativeRoute`,
-  `Play::battleScreen`); см. `pve-pvp.md`. Вьюхи `native_{battles,battle,arena}.php`.
+  «⚔️ Бои» (w2-n7): `view=battles|battle&id=|arena|ladder`, `op=duel|duels_open`; колбэки бота `battles|battleLog_<id>|
+  arena|pvpLadder…` идут нативно, в т.ч. из `/play/act` (`nativeRoute`, `Play::battleScreen`); см. `pve-pvp.md`.
+  **Онбординг (web-onboarding):** новый персонаж с сайта получает веб-приветствие первым экраном
+  (`AccountRegister::seedFirstScreen` → `ColdOpenWelcomeService` CLIENT_WEB → `WebScreenStore::seedFirstScreen`; затем
+  редирект `/play`, при выкл. флаге `/account`). Экран задачи: `applyCapture(…, $taskId)` помечает экран начатой задачей,
+  `WebActService::current()` → `settleTaskScreen` заменяет его итогом (`WebTaskResultPicker`, окно
+  `WebPlay::taskResultWindowSeconds`=120) или `TASK_DONE_TEXT`. Плашка `#play-banner` (`site/_play/banner`,
+  `WebInboxService::banner`, `WebPlay::bannerMax`=3); опрос `/play/inbox?rev=` отдаёт `banner_html`, `rev`, `screen_html`.
   Вьюхи `site/_play/native_*`, `hud`, `dock`, `state`; JS `wildworld-play.js` (`[data-ends-at]`, тик 1 с).
 - Публичная карта `/map` → `app/Controllers/Map.php`: цвета из `BiomePalette`, PNG `?v=filemtime`;
   вошедшему при `web.play_enabled` — «Играть отсюда» → `/play?view=map`.
-- Бот: `app/Controllers/Telegram/Commands/Actions/WebLinkCodeAction.php` (callback `webLinkCode`,
-  `/web`) → `LinkCodeService::issue`; `SITE_PATH = wildworld.fun/account/link`.
+- Бот: `Actions/WebLinkCodeAction.php` (callback `webLinkCode`, `/web`) → `LinkCodeService::issue`.
 
 ## Key types / contracts
 Стиль — «Найденная фотоплёнка», flat-stencil (ADR-062): **ноль** `border-radius`, `box-shadow`,
@@ -64,7 +66,9 @@ outbound: модели постов, `Services/Web/TelegramLoginVerifier`, `Serv
 
 ## Gotchas
 - Приватные поля персонажа показываются **только своему** персонажу.
-- Правка CSS требует бампа `?v=` в `meta.php` и синхронного обновления `ui-kit.html`.
+- Правка CSS требует бампа `?v=` в `meta.php` (сейчас `wildworld-ui.css?v=15`) и синхронного обновления `ui-kit.html`.
+- Итог задачи выбирается по времени и типу, не по метке: чужой фон (титулы, советы, хинты, события…) режется
+  `WebTaskResultPicker::foreignType`; новый фоновый отправитель в `app/TaskHandlers/**` → дописать `FOREIGN_TEXT_PREFIXES`.
 - Site-контент — прямой INSERT в `site_posts`; `draft` гасит публикацию; черновик — через `/redkollegiya`.
 - **Слияний аккаунтов нет (ADR-188 инв. 4):** код из бота в чужом аккаунте — отказ до траты кода
   (`LinkCodeService::link`); чужая OAuth/Telegram-identity — отказ.
@@ -92,7 +96,7 @@ outbound: модели постов, `Services/Web/TelegramLoginVerifier`, `Serv
   См. `pve-pvp.md`, `tech-writing/controllers/BattlesController.md`.
 - Публичный `/battles/view/<id>` показывает только `battle_type='PVP'` (`BattlesController.php:112`); PvE и `DUEL` — лишь
   участнику через `/play` и бота.
-- Сессия: ключи `account_id`, `character_id`, legacy `tg_user_id`; legacy-сессия апгрейдится в `current()`.
+- Сессия: ключи `account_id`, `character_id`, legacy `tg_user_id`; апгрейд legacy — в `current()`.
 
 ## Vault
 `mmorpg-vault/apps/website/index.md` · ADR-062, ADR-052, ADR-188 (поправка 2026-09-30), ADR-189, ADR-190 ·

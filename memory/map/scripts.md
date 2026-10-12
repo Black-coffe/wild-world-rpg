@@ -73,4 +73,6 @@ report-only gates (`ship-check`, `human-check`, `acceptance-log`, `scope-check`,
 - `scripts/defects-duel-knockout-check.php` (project check of `docs/defects/duel-outcome-not-decided-by-fight.md`) runs
   the real `DuelService::prepare/simulate` with a seeded `Mt19937` coin; also asserts challenger win share 47-53 % over
   4000 equal fights (fixture `...-first-strike.json`).
+- `scripts/defects-task-result-foreign-check.php` (card `docs/defects/task-result-foreign-message.md`) guards
+  `WebTaskResultPicker` against taking a foreign background message for a finished task's result.
 - `defects-check` "block" needs a non-empty `check:` and >= 2 fixtures, else the card is text.

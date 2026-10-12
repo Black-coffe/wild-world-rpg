@@ -23,7 +23,8 @@ last-verified: 2026-10-12 (oct-pvp-clarity)
   та же кнопка «🌐 Играть на сайте» в `SettingsAction::buildScreen()` (callback `webLinkCode`,
   маршрут в `app/Config/CallbackRoutes.php`).
 - `/start` создаёт персонажа через `App\Services\Player\CharacterProvisioningService::create()`
-  (общий путь с сайтом); в `StartCommand` осталась только UI-часть.
+  (общий путь с сайтом); в `StartCommand` осталась только UI-часть: `renderNewcomer()` шлёт модель
+  `ColdOpenWelcomeService` (`menu_carrier` получает reply-клавиатуру).
 - `app/Controllers/Telegram/Commands/Actions/` — ~54 action-handler'а (callback-кнопки).
 - `app/Controllers/Telegram/Commands/BaseCommand.php` и `BaseShiftingCommand.php` — базовые классы.
 - `app/Services/Notifications/MediaSender.php` — **единственная** точка отправки фото.
