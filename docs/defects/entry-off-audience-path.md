@@ -3,9 +3,9 @@ id: entry-off-audience-path
 title: Вход в фичу стоит только там, куда её аудитория не ходит
 status: block
 check: php scripts/defects-audience-surfaces-check.php <arg>
-fixtures: [docs/defects/fixtures/entry-off-audience-path-original.md, docs/defects/fixtures/entry-off-audience-path-neighbour.md]
+fixtures: [docs/defects/fixtures/entry-off-audience-path-original.md, docs/defects/fixtures/entry-off-audience-path-neighbour.md, docs/defects/fixtures/entry-off-audience-path-no-table.md]
 keys: [почти не заходят, вход только, можно войти только, не найдут, не дойдут]
-paths: ["app/Services/More/**", "app/Controllers/Telegram/Commands/Actions/**", "app/Views/site/_play/**", "docs/specs/*/plan.md", "docs/specs/*/brief.md"]
+paths: ["app/Services/More/**", "app/Controllers/Telegram/Commands/Actions/**", "app/Views/site/_play/**", "docs/specs/*/plan.md", "docs/specs/*/brief.md", "docs/specs/*/*-[0-9][0-9]-*.md"]
 ---
 
 # Вход в фичу стоит только там, куда её аудитория не ходит
@@ -17,6 +17,7 @@ discoverability всё сходилось, а основная аудитори�
 ## Цитаты владельца
 - 2026-10-08 · w2-n7-combat, план · вход в «📜 Мои бои» — «По выбранному варианту в журнал боёв «📜 Мои бои» можно войти только с арены и рейтинга PvP, а игроки, у которых есть PvE-бои, туда почти не заходят. Ті в курсе?»
 - 2026-10-12 · oct-pvp-clarity, story 01 в работе · блок «почему так вышло» — «Блок «почему так вышло» не появится на публичной странице боя на сайте, а Torch0010, похоже, прислал скриншот как раз с неё.»
+- 2026-10-12 · oct-pvp-clarity, после выпуска · сама проверка класса — «Новая проверка дефекта «вход не там, где аудитория» срабатывает, только если в плане есть таблица аудитории. Без таблицы она молча пропускает план.»
 
 ## Cause
 Точку входа выбирали по тематической близости (бои → арена), а не по тому, где бывают игроки, ради которых
@@ -28,5 +29,5 @@ discoverability всё сходилось, а основная аудитори�
 - Считать кнопку «по контексту» (под итогом события) единственным входом: нужен ещё постоянный вход на хабе, где эти игроки бывают.
 
 ## Можно
-- План player-фичи или объяснения несёт таблицу `## Audience surfaces` (что · где бывает аудитория, с доказательством: firehose, скриншот жалобы · где стоит вход). `php scripts/defects-audience-surfaces-check.php <plan.md>` падает, если поверхность аудитории не покрыта входом.
+- План player-фичи или объяснения несёт таблицу `## Audience surfaces` (что · где бывает аудитория, с доказательством: firehose, скриншот жалобы · где стоит вход). `php scripts/defects-audience-surfaces-check.php <plan.md|story.md>` падает, если поверхность аудитории не покрыта входом, **и если таблицы нет (или она пустая), а `## Files` плана или его story трогают игроцкую поверхность** (бот, сайт и `/play`, `/guide`, сиды советов). Выпущенный план (`**Shipped:**` заполнен) не судится.
 - Вход на тематическом экране (арена) в дополнение к входу на общем хабе («⚙️ Ещё») или на экране, который аудитория открывает сама.
