@@ -33,9 +33,12 @@
 
 ## Plan deltas
 
+- 2026-10-12 · story 01 · тесты B1 — в `tests/database/MoveServiceTest.php` вместо двух новых файлов в `tests/unit/World/`: там уже собрана схема из миграций, запись запросов Bot API и паритет отказов шага; отдельные файлы дублировали бы фикстуру. Отвергнуто: новые unit-файлы без БД (не дошли бы до реального `MoveService::step`).
+
 **Approved:**
 **Briefed:** via mini-brief, Andrei, 2026-10-12
-**Branch:**
+**Branch:** vulyk/oct-world-robot-fix
 **Checked:**
 **Council:**
+**Council:** GREEN round 1, 2026-10-12, at a0009099, pack 15728c02a72f
 **Shipped:**
