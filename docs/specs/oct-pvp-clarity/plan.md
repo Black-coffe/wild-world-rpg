@@ -81,3 +81,4 @@ B2 — не баг баланса: защитник стоял на базе с 
 **Council:** RED round 1, 2026-10-12, at d0051344, pack 0b277588caf1
 **Council:** GREEN round 2, 2026-10-12, at 2cbab686, pack d2265ee66d14
 **Shipped:**
+**Shipped:** v0.51.697, 2026-10-12, at da5b48b0 - merged to develop, publish pending
