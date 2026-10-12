@@ -164,4 +164,5 @@ the command or script that owns it, and scripts/ship-check.sh reads them all.
 **Checked:**
 **Council:**
 **Council:** RED round 1, 2026-10-12, at a51c9529, pack eaa9d4008b8e - red: 6
+**Council:** GREEN round 2, 2026-10-12, at 2e756416, pack d6fbf376d40d
 **Shipped:**
