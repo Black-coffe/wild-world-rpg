@@ -56,7 +56,7 @@ B2 — не баг баланса: защитник стоял на базе с 
 
 **Approved:** Andrei, 2026-10-12
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/oct-pvp-clarity
 **Checked:**
 **Council:**
 **Shipped:**
