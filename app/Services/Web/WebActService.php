@@ -135,7 +135,8 @@ class WebActService
      * окно прошло — нейтральный {@see TASK_DONE_TEXT}. `interrupted`/`cancelled` или строки нет —
      * сразу нейтральный. `in_work`, `queued`, `paused` — экран не трогается. Замена под блокировкой
      * строки состояния и только пока экран помечен этой задачей — повторное и параллельное чтение
-     * второй раз не меняет.
+     * второй раз не меняет. Задача-цепочка (следующий шаг — новая строка того же типа) судится по
+     * последнему шагу: пока он идёт, экран стоит.
      */
     private function settleTaskScreen(int $characterId): void
     {
@@ -144,11 +145,25 @@ class WebActService
             return;
         }
         $res  = $this->db->query(
-            'SELECT ct.status, ct.updated_at, t.name_rus'
+            'SELECT ct.status, ct.updated_at, ct.task_id, t.name_rus'
             . ' FROM character_tasks ct LEFT JOIN tasks t ON t.id = ct.task_id WHERE ct.id = ? AND ct.character_id = ?',
             [$taskId, $characterId]
         );
         $task = $res instanceof ResultInterface ? $res->getRowArray() : null;
+        // Цепочка шагов (Поход: каждый тик закрывает шаг и ставит следующий `in_work` того же типа):
+        // судьба экрана — по последнему шагу, а не по первому.
+        if (is_array($task) && is_numeric($task['task_id'] ?? null)) {
+            $res  = $this->db->query(
+                'SELECT ct.status, ct.updated_at, ct.task_id, t.name_rus'
+                . ' FROM character_tasks ct LEFT JOIN tasks t ON t.id = ct.task_id'
+                . ' WHERE ct.character_id = ? AND ct.id > ? AND ct.task_id = ? ORDER BY ct.id DESC LIMIT 1',
+                [$characterId, $taskId, (int) $task['task_id']]
+            );
+            $step = $res instanceof ResultInterface ? $res->getRowArray() : null;
+            if (is_array($step)) {
+                $task = $step;
+            }
+        }
         $status = is_array($task) && is_string($task['status'] ?? null) ? $task['status'] : null;
         if (in_array($status, ['in_work', 'queued', 'paused'], true)) {
             return;

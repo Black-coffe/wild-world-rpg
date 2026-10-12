@@ -1,7 +1,7 @@
 ---
 story: web-onboarding-05
-status: todo
-returned:
+status: done
+returned: DONE
 worker: worker-code
 model: opus
 wave: 3
@@ -49,6 +49,12 @@ ASK 6: RED - no bot lexicon on the web first screen - run: WebLexProbeTest (web 
 - tests/database/PlayInboxBannerTest.php
 - app/Controllers/AccountRegister.php
 - tests/database/WebFirstScreenTest.php
+
+## Implementation notes
+- app/Services/Onboarding/ColdOpenWelcomeService.php: buildWeb strips the bot nav tail «_Жми «…» в нижнем меню …_» from signal/greeter (provisioning adds it by the bot's single_screen flag; CharacterProvisioningService is outside Files, so stripped at the web renderer of the core).
+- app/Services/Web/WebActService.php: settleTaskScreen judges a chained task by its newest later step of the same task type (character_tasks.task_id); while that step is in_work/queued/paused the screen stays.
+- tests: ColdOpenWelcomeServiceTest gets the single_screen=0 nav-tail case (both fit and oversized); WebTaskResultScreenTest gets the finding's repro (A completed 3 min ago + B in_work -> screen kept; B completed + result -> result replaces).
+- Decision: chain = same task type with a higher id; rejected "any later active task" (an unrelated task would freeze the screen) and retagging the screen (extra store API).
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress`

@@ -89,6 +89,25 @@ final class ColdOpenWelcomeServiceTest extends CIUnitTestCase
         }
     }
 
+    public function testWebDropsBotNavTailAddedWhenBotSingleScreenIsOff(): void
+    {
+        // Форма ColdOpenSignalService / NewbieGreeterService при withNavHint = !single_screen (флаг по умолчанию 0).
+        $texts = [
+            'spawned'    => true,
+            'singleScreen' => false,
+            'starterKit' => self::KIT,
+            'signal'     => self::SIGNAL . "\n\n_Жми «🌍 Мир» в нижнем меню и иди к метке 🎯._",
+            'greeter'    => self::GREET . "\n\n_Жми «🌍 Мир» в нижнем меню, дойди до выжившего и нажми «👤 Незнакомец»._",
+        ];
+
+        foreach ([$texts, ['starterKit' => str_repeat('Длинный паёк. ', 400)] + $texts] as $variant) {
+            $all = implode("\n", array_column($this->web($variant), 'text'));
+            $this->assertDoesNotMatchRegularExpression('/ниже|нижн\w* меню/iu', $all);
+            $this->assertStringContainsString(self::SIGNAL, $all);
+            $this->assertStringContainsString(self::GREET, $all);
+        }
+    }
+
     public function testWebIsMediaOffAndMarkdownSafe(): void
     {
         $variants = [

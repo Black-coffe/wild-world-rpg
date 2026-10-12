@@ -136,6 +136,10 @@ class ColdOpenWelcomeService
             ],
         ];
 
+        // Пайка кладёт навигационный хвост по бот-флагу «одно окно»; веб — всегда одно окно.
+        $texts['signal']  = self::withoutNavHint($texts['signal']);
+        $texts['greeter'] = self::withoutNavHint($texts['greeter']);
+
         $composed = $this->greeting->composeWelcome([
             $this->greeting->greetingSingleScreen(),
             $texts['starterKit'],
@@ -163,6 +167,20 @@ class ColdOpenWelcomeService
         ];
 
         return $messages;
+    }
+
+    /**
+     * Убирает бот-хвост «_Жми «…» в нижнем меню …_» (ColdOpenSignalService / NewbieGreeterService,
+     * `withNavHint`): в вебе нижнего меню-клавиатуры нет.
+     */
+    private static function withoutNavHint(?string $text): ?string
+    {
+        if ($text === null) {
+            return null;
+        }
+        $stripped = preg_replace('/\n*_Жми «[^»\n]*» в нижнем меню[^\n]*_\s*$/u', '', $text);
+
+        return is_string($stripped) ? $stripped : $text;
     }
 
     /** Легаси-приветствие (121 слово), пока `start_greeting` выключен. Байт в байт как в StartCommand до переноса. */

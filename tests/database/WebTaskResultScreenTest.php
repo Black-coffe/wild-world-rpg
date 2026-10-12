@@ -288,6 +288,29 @@ final class WebTaskResultScreenTest extends CIUnitTestCase
         $this->assertSame(2, $result['unread'], 'шаг цепочки остаётся во входящих (плашка)');
     }
 
+    public function testChainedTaskNextStepInWorkLeavesScreen(): void
+    {
+        [$accountId, $charId, $chat, $tuId] = $this->virtualCharacter();
+        $store  = new WebScreenStore($this->conn);
+        $taskId = $this->actStartingTask($accountId, $charId, $chat, $tuId);
+        $screen = $store->state($charId)['screen'];
+        $rev    = $store->revision($charId);
+
+        // Поход: тик закрыл шаг A давно и поставил шаг B `in_work`, правя то же сообщение.
+        $this->complete($taskId, 180);
+        $next = $this->insertTask($charId, $tuId);
+        $state = $this->service()->current($charId)['state'];
+
+        $this->assertSame($screen, $state['screen'], 'цепочка идёт — экран похода стоит');
+        $this->assertSame($rev, $store->revision($charId));
+        $this->assertSame($taskId, $store->screenTaskId($charId));
+
+        // Последний шаг закончился, итог пришёл — экран заменяется им.
+        $this->complete($next);
+        TaskResultSpyRequest::sendMessage(['chat_id' => $chat, 'text' => 'Итог похода']);
+        $this->assertSame('Итог похода', $this->service()->current($charId)['state']['screen'][0]['text']);
+    }
+
     public function testOnlyForeignInWindowWaitsThenGivesNeutralScreen(): void
     {
         [$accountId, $charId, $chat, $tuId] = $this->virtualCharacter();
