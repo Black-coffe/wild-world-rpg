@@ -71,4 +71,5 @@ B2 — не баг баланса: защитник стоял на базе с 
 **Branch:** vulyk/oct-pvp-clarity
 **Checked:**
 **Council:**
+**Council:** RED round 1, 2026-10-12, at d0051344, pack 0b277588caf1
 **Shipped:**
