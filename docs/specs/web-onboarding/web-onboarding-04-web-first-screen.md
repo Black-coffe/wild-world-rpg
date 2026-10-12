@@ -1,8 +1,8 @@
 ---
 story: web-onboarding-04
 spec: web-onboarding
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: sonnet
@@ -65,5 +65,9 @@ Telegram-id»; `docs/specs/web-onboarding/recon.md` → оба раздела.
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- AccountRegister: createCharacter сеет экран из CLIENT_WEB ядра (только при spawned), док из BotMenuService::mainReplyKeyboard(), редирект /play при web.play_enabled, иначе /account; сбой засева — одна error-строка.
+- WebScreenStore::seedFirstScreen(id, messages, dock=[]): message_id из аллокатора, только при пустых screen/history, rev+1, task_id null; иначе false.
+- Бот-лексика: тест идёт с onboarding.cold_open_v2.single_screen ON (как на проде); при OFF create() даёт хвост «в нижнем меню» в тексте встречающего, а CharacterProvisioningService вне Files.
+- Тап «первый шаг»: тест проверяет, что callback move по message_id засеянного сообщения принят act(); настоящий move-handler в тесте не гонялся (runPipeline заглушён).
 
 ## Findings

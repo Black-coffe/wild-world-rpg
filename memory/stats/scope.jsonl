@@ -324,3 +324,12 @@
 {"ts":"2026-10-12T18:00:03Z","story":"web-onboarding-01-cold-open-core","declared":7,"changed":7,"out_of_scope":0}
 {"ts":"2026-10-12T18:15:28Z","story":"web-onboarding-01-cold-open-core","declared":7,"changed":7,"out_of_scope":0}
 {"ts":"2026-10-12T18:24:07Z","story":"web-onboarding-02-task-result-replaces-screen","declared":10,"changed":10,"out_of_scope":0}
+{"ts":"2026-10-12T18:37:27Z","story":"web-onboarding-03-new-message-banner","declared":10,"changed":10,"out_of_scope":2}
+{"ts":"2026-10-12T18:55:12Z","story":"web-onboarding-03-new-message-banner","declared":10,"changed":10,"out_of_scope":2}
+{"ts":"2026-10-12T19:04:17Z","story":"web-onboarding-03-new-message-banner","declared":10,"changed":10,"out_of_scope":2}
+{"ts":"2026-10-12T19:18:00Z","story":"web-onboarding-04-web-first-screen","declared":3,"changed":5,"out_of_scope":2}
+{"ts":"2026-10-12T19:35:32Z","story":"web-onboarding-03-new-message-banner","declared":10,"changed":10,"out_of_scope":2}
+{"ts":"2026-10-12T20:00:43Z","story":"web-onboarding-03-new-message-banner","declared":10,"changed":10,"out_of_scope":2}
+{"ts":"2026-10-12T20:07:19Z","story":"web-onboarding-04-web-first-screen","declared":3,"changed":5,"out_of_scope":2}
+{"ts":"2026-10-12T20:07:22Z","story":"web-onboarding-03-new-message-banner","declared":10,"changed":10,"out_of_scope":2}
+{"ts":"2026-10-12T20:21:30Z","story":"web-onboarding-04-web-first-screen","declared":3,"changed":5,"out_of_scope":2}

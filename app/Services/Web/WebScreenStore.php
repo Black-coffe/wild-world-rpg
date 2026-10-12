@@ -142,6 +142,49 @@ class WebScreenStore
     }
 
     /**
+     * web-onboarding-04: первый экран при создании персонажа. Пишет `messages` (модель ядра
+     * приветствия: text, parse_mode, inline_keyboard; `message_id` выдаёт тот же аллокатор, что и
+     * у захвата) и док, только если экран и история пусты. `rev` растёт на 1, `task_id = null`.
+     * False — состояние уже есть, ничего не записано.
+     *
+     * @param list<array{text: string, parse_mode: ?string, inline_keyboard: list<list<Button>>}> $messages
+     * @param list<list<string>>                                                                  $dock
+     */
+    public function seedFirstScreen(int $characterId, array $messages, array $dock = []): bool
+    {
+        if ($messages === []) {
+            return false;
+        }
+        $this->ensureRow($characterId);
+
+        return $this->guarded($characterId, function (array $state, int $rev) use ($characterId, $messages, $dock): bool {
+            if ($state['screen'] !== [] || $state['history'] !== []) {
+                return false;
+            }
+            $screen = [];
+            foreach ($messages as $m) {
+                $screen[] = [
+                    'message_id'      => $this->nextMessageId($characterId),
+                    'text'            => $m['text'],
+                    'caption'         => null,
+                    'parse_mode'      => $m['parse_mode'],
+                    'photo_url'       => null,
+                    'inline_keyboard' => $m['inline_keyboard'],
+                ];
+            }
+            $this->db->table('web_play_state')->where('character_id', $characterId)->update([
+                'screen'     => self::encodeScreen($screen, $rev + 1, null),
+                'history'    => '[]',
+                'dock'       => json_encode($dock, JSON_UNESCAPED_UNICODE),
+                'input'      => null,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+
+            return true;
+        });
+    }
+
+    /**
      * Итог задачи на экран: если текущий экран помечен задачей `$taskId`, он уходит в историю, а
      * экраном становится `$msg` целиком. Пометка снимается, `rev` растёт. False — экран помечен не
      * этой задачей (или строки нет), ничего не записано.
