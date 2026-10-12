@@ -1,8 +1,8 @@
 ---
 story: oct-pvp-clarity-01
 spec: oct-pvp-clarity
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 model: sonnet
@@ -55,5 +55,28 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+
+- **B2 — задумано, не баг.** Оркестратор только сообщает применённое: `simulateFight` возвращает `defense`
+  (`owner_id`, срез стены, ограда по факту — сколько HP реально снято, вышка+дрон). Формулы, `GameBalance`,
+  `DefenseStructureService` не тронуты; `AttackPlayerActionFixtureFenceTest` и тесты оркестратора зелёные,
+  порядок `mt_rand` прежний.
+- **`log_data.defense` пишется только при профиле обороны**, а не «нули в каждом бою»: билдер не отличает PvP вне
+  базы от дуэли (обе зовут оркестратор с `defense = null`), различить можно только правкой
+  `AttackPlayerAction`/`ArenaScreenService` вне Files. Для разбора «нули» и «нет поля» одинаковы — строк про
+  оборону нет. В контракт добавлен `owner_id`: при контратаке хозяин базы стоит в слоте атакующего (plan.md → Plan deltas).
+- `drone` — DB-чтение `DefenseStructureService::combatDroneActiveBonusPercent` сразу после боя, через
+  инжектируемый `\Closure` в конструкторе билдера (ошибка → `false`).
+- **`PvpOutcomeExplainer::explain($type, $log, $forParticipant = true)`** — строки без разметки; потолки Силы
+  из `PvpFormulaService::computeStatsBonus` (точка насыщения / `statsBonusFactor`) и `GameBalance::levelDiffCap`,
+  ×1.5 — `luckyStrikeDamageMult`; своих чисел в коде нет (тест подменяет `GameBalance` и видит новые числа).
+- **Поправка владельца на сборке** (публичная `/battles/view`): режим `$forParticipant = false` — без чисел
+  стены, ограды, инициативы, одна строка «бой шёл у базы X». Story 02 расширена, ask 8 в брифе, цитата — в
+  `docs/defects/entry-off-audience-path.md`.
+- `BattleJournalService::card()` → `battle.why`; `listFor` его не несёт.
+- Тесты: `PvpOutcomeExplainerTest` (8: бой 75134, числа из GameBalance, старый бой, посторонний, контратака,
+  дуэль/PvE/битый, ровный бой, без разметки); `PvpBattleLogBuilderTest` +3 (настоящий бой оркестратора у базы);
+  `BattleJournalServiceTest` +2.
+- Tech-writing: `PvpBattleLogBuilder`, `BattleJournalService` обновлены; `PvpRoundOrchestrator` (ноты не было) и
+  `PvpOutcomeExplainer` созданы; `services/index.md`.
 
 ## Findings

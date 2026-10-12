@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Entities\BattleLogEntity;
 use App\Models\BattleLogModel;
 use App\Models\CharacterModel;
+use App\Services\PVE\PvpOutcomeExplainer;
 use App\Services\Web\AccountSession;
 use CodeIgniter\Controller;
 use CodeIgniter\HTTP\RedirectResponse;
@@ -131,6 +132,8 @@ class BattlesController extends Controller
         $base    = rtrim(base_url(), '/');
         $auth    = $this->authContext();
 
+        $why     = self::whyFor($log, $auth['characterId']);
+
         return view('site/battles/view', [
             'battle'   => $battle,
             'createdAt' => $this->dateStr($battle->created_at),
@@ -145,6 +148,7 @@ class BattlesController extends Controller
             'tgName'      => $auth['name'],
             'botUsername' => $auth['botUsername'],
             'myCharId'    => $auth['characterId'],
+            'why'         => $why,
             'meta'     => [
                 'title'       => "Бой #{$battle->id} — {$attName} против {$defName} — Wild World",
                 'description' => 'Детальный разбор PvP-боя: уровни, параметры, экипировка и ход схватки по раундам.',
@@ -157,6 +161,29 @@ class BattlesController extends Controller
                 ],
             ],
         ]);
+    }
+
+    /**
+     * oct-pvp-clarity-02 — «почему так вышло» двухуровнево. Участник боя (вошёл на сайт, и его персонаж — одна из
+     * сторон) видит стену, ограду и инициативу с числами; любой другой зритель — без чисел обороны базы
+     * (`record-exposed-beyond-participants`). Сырой `log_data.defense` во вьюху не идёт — только готовые строки.
+     *
+     * @param array<mixed> $log
+     * @return list<string>
+     */
+    public static function whyFor(array $log, int $viewerCharacterId, ?PvpOutcomeExplainer $explainer = null): array
+    {
+        $chars = is_array($log['characters'] ?? null) ? $log['characters'] : [];
+        $ids   = [];
+        foreach (['attacker', 'defender'] as $side) {
+            $p = is_array($chars[$side] ?? null) ? $chars[$side] : [];
+            if (is_numeric($p['id'] ?? null)) {
+                $ids[] = (int) $p['id'];
+            }
+        }
+        $participant = $viewerCharacterId > 0 && in_array($viewerCharacterId, $ids, true);
+
+        return ($explainer ?? new PvpOutcomeExplainer())->explain('PVP', $log, $participant);
     }
 
     /**

@@ -169,7 +169,7 @@ final class BattleJournalServiceTest extends CIUnitTestCase
             ['n' => 4, 'attacker' => 'Сова', 'defender' => 'Ворон', 'damage' => 2.36, 'hp_after' => 0.01, 'lucky' => false, 'mine' => false],
             ['n' => 5, 'attacker' => 'Ворон', 'defender' => 'Сова', 'damage' => 12.6, 'hp_after' => 2.36, 'lucky' => false, 'mine' => true],
             ['n' => 6, 'attacker' => 'Сова', 'defender' => 'Ворон', 'damage' => 0.0, 'hp_after' => 0.04, 'lucky' => false, 'mine' => false],
-        ]]);
+        ], 'why' => []]);
 
         $this->assertStringContainsString('1. Ворон → Сова: −0.01 (осталось 1000 HP)', $text);
         $this->assertStringContainsString('2. Сова → Ворон: −0.04 (осталось 0.4 HP)', $text);
@@ -207,6 +207,72 @@ final class BattleJournalServiceTest extends CIUnitTestCase
             ['inline_keyboard' => [[['text' => '📜 Разбор боя', 'callback_data' => 'battleLog_42']]]],
             PveNotificationSender::keyboard(42)
         );
+    }
+
+    /**
+     * oct-pvp-clarity-01: карточка PvP несёт `why` из `PvpOutcomeExplainer`; список и дуэль — нет.
+     */
+    public function testPvpCardCarriesWhyFromDefenseAndListDoesNot(): void
+    {
+        $log            = json_decode($this->pvpLog(self::OTHER, 'Bob', self::ME, 'San', 4), true);
+        $log['defense'] = ['owner_id' => self::ME, 'wall_reduction_percent' => 40.0, 'fence_damage_total' => 12.0, 'tower_initiative_percent' => 0.0, 'drone' => false];
+        $id   = $this->insert('PVP', self::OTHER, self::ME, self::ME, (string) json_encode($log, JSON_UNESCAPED_UNICODE));
+        $duel = $this->insert('DUEL', self::ME, self::OTHER, self::ME, (string) json_encode($log, JSON_UNESCAPED_UNICODE));
+        $svc  = new BattleJournalService();
+
+        $why = $svc->card(self::ME, $id)['battle']['why'] ?? null;
+        $this->assertIsArray($why);
+        $this->assertStringContainsString('Стена базы срезала каждый удар по хозяину базы (San) на 40%', implode("
+", $why));
+        $this->assertStringContainsString('с нападавшего (Bob) 12 HP', implode("
+", $why));
+
+        $this->assertSame([], $svc->card(self::ME, $duel)['battle']['why'] ?? null);
+        foreach ($svc->listFor(self::ME, 10) as $entry) {
+            $this->assertArrayNotHasKey('why', $entry);
+        }
+    }
+
+    public function testOldPvpCardWithoutDefenseAndBrokenLogGiveNoDefenseLines(): void
+    {
+        $old    = $this->insert('PVP', self::OTHER, self::ME, self::ME, $this->pvpLog(self::OTHER, 'Bob', self::ME, 'San', 4));
+        $broken = $this->insert('PVP', self::OTHER, self::ME, self::ME, '{not json');
+        $svc    = new BattleJournalService();
+
+        $this->assertSame([], $svc->card(self::ME, $old)['battle']['why'] ?? null, 'ровный бой без обороны — блока нет');
+        $this->assertSame([], $svc->card(self::ME, $broken)['battle']['why'] ?? null);
+    }
+
+    /**
+     * oct-pvp-clarity-02: блок «почему» в карточке бота — экранирован, до раундов, в лимите Telegram; пустой — нет блока.
+     */
+    public function testBotCardShowsWhyBlockEscapedAndWithinLimit(): void
+    {
+        $evil           = 'Kill_er*<b>&Bob</b>';
+        $log            = json_decode($this->pvpLog(self::OTHER, $evil, self::ME, 'San', 150), true);
+        $log['characters']['attacker']['level']    = 504;
+        $log['characters']['attacker']['strength'] = 1149;
+        $log['characters']['defender']['level']    = 120;
+        $log['defense'] = ['owner_id' => self::ME, 'wall_reduction_percent' => 40.0, 'fence_damage_total' => 39.0, 'tower_initiative_percent' => 12.0, 'drone' => true];
+        foreach ($log['rounds'] as $i => $r) {
+            $log['rounds'][$i]['luckyStrikeApplied'] = $r['attacker'] === 'San' && $i < 20;
+        }
+        $id   = $this->insert('PVP', self::OTHER, self::ME, self::ME, (string) json_encode($log, JSON_UNESCAPED_UNICODE));
+        $card = (new BattleJournalService())->card(self::ME, $id)['battle'] ?? null;
+        $this->assertIsArray($card);
+        $this->assertGreaterThanOrEqual(4, count($card['why']));
+
+        $text = BattleJournalAction::renderCard($card);
+        $this->assertStringContainsString("🧩 <b>Почему так вышло</b>\n🧱 Стена базы срезала", $text);
+        $this->assertStringContainsString('(Kill_er*&lt;b&gt;&amp;Bob&lt;/b&gt;) 39 HP', $text, 'имя в строке блока экранировано под HTML');
+        $this->assertStringNotContainsString('<b>&Bob', $text);
+        $this->assertLessThan((int) strpos($text, "\n1. "), (int) strpos($text, 'Почему так вышло'), 'блок до раундов');
+        $this->assertLessThanOrEqual(4096, mb_strlen($text));
+        $this->assertLessThanOrEqual(4096, intdiv(strlen((string) mb_convert_encoding($text, 'UTF-16LE', 'UTF-8')), 2), 'лимит Telegram в UTF-16');
+
+        $card['why'] = [];
+        $this->assertStringNotContainsString('Почему так вышло', BattleJournalAction::renderCard($card));
+        $this->assertSame('', BattleJournalAction::whyBlock([]));
     }
 
     private function insert(string $type, int $p1, int $p2, int $winner, string $log): int

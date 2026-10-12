@@ -5,6 +5,11 @@ declare(strict_types=1);
 namespace Tests\Database;
 
 use App\Services\PVE\PvpBattleLogBuilder;
+use App\Services\PVE\PvpDamageCalculator;
+use App\Services\PVE\PvpEquipmentRepository;
+use App\Services\PVE\PvpFormulaService;
+use App\Services\PVE\PvpRoundOrchestrator;
+use Config\GameBalance;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 
@@ -101,5 +106,65 @@ final class PvpBattleLogBuilderTest extends CIUnitTestCase
         $this->assertNull($log['characters']['attacker']['health_after']);
         $this->assertNull($log['characters']['defender']['health_after']);
         $this->assertNull($log['outcome']['winnerId']);
+    }
+
+    /**
+     * oct-pvp-clarity-01: настоящий бой оркестратора у базы защитника → `log_data.defense` с фактом.
+     * Ограда считается по факту: сколько HP атакующий потерял сверх ударов защитника.
+     */
+    public function testFightAtBaseWritesDefenseFromOrchestratorFacts(): void
+    {
+        $repo = $this->createMock(PvpEquipmentRepository::class);
+        $repo->method('getEquippedWeapon')->willReturn(null);
+        $repo->method('getEquippedOutfitsWithDetails')->willReturn([]);
+        $repo->method('getMapCell')->willReturn(['coordinate_x' => 0, 'coordinate_y' => 0]);
+        $cfg  = new GameBalance();
+        $orch = new PvpRoundOrchestrator(new PvpDamageCalculator(new PvpFormulaService($cfg), $repo, $cfg), new PvpFormulaService($cfg), $cfg);
+
+        $att = $this->attacker();
+        $def = $this->defender();
+        $def['level'] = 7; // равные уровни: ни удачного удара, ни удара насмерть
+        $profile = ['owner_id' => 999992, 'damage_reduction' => 0.4, 'fence_damage' => 5, 'initiative_bonus' => 0.08, 'structure_ids' => [1, 2]];
+
+        mt_srand(42);
+        $fight = $orch->simulateFight($att, $def, ['name' => 'Леса', 'id' => 1], $profile);
+        $log   = (new PvpBattleLogBuilder(null, null, null, null, null, static fn (int $id): bool => $id === 999992))
+            ->build($att, $def, $fight, 'Леса');
+
+        $this->assertArrayHasKey('defense', $log);
+        $this->assertSame(999992, $log['defense']['owner_id']);
+        $this->assertSame(40.0, $log['defense']['wall_reduction_percent']);
+        $this->assertSame(8.0, $log['defense']['tower_initiative_percent']);
+        $this->assertTrue($log['defense']['drone']);
+
+        // Ограда бьёт после каждого удара по хозяину базы, который он пережил; последний её удар
+        // может быть срезан остатком здоровья атакующего.
+        $fenceRounds = 0;
+        foreach ($fight['roundLogs'] as $r) {
+            if ($r['defender'] === 'Защитник' && (float) $r['defenderHealthAfter'] > 0.0) {
+                $fenceRounds++;
+            }
+        }
+        $this->assertGreaterThan(0, $fenceRounds);
+        $this->assertLessThanOrEqual($fenceRounds * 5.0, $log['defense']['fence_damage_total']);
+        $this->assertGreaterThan(($fenceRounds - 1) * 5.0, $log['defense']['fence_damage_total']);
+    }
+
+    public function testFightWithoutDefenseProfileHasNoDefenseField(): void
+    {
+        $fr = $this->fightResult() + ['defense' => null];
+        $log = (new PvpBattleLogBuilder())->build($this->attacker(), $this->defender(), $fr, 'Леса');
+        $this->assertArrayNotHasKey('defense', $log, 'дуэль и бой вне базы — без поля обороны');
+    }
+
+    public function testDefenseProfileWithoutStructuresWritesZerosAndNoDrone(): void
+    {
+        $fr = $this->fightResult() + ['defense' => ['owner_id' => 999992, 'wall_reduction_percent' => 0.0, 'fence_damage_total' => 0.0, 'tower_initiative_percent' => 0.0]];
+        $log = (new PvpBattleLogBuilder(null, null, null, null, null, static fn (int $id): bool => false))
+            ->build($this->attacker(), $this->defender(), $fr, 'Леса');
+        $this->assertSame(
+            ['owner_id' => 999992, 'wall_reduction_percent' => 0.0, 'fence_damage_total' => 0.0, 'tower_initiative_percent' => 0.0, 'drone' => false],
+            $log['defense']
+        );
     }
 }

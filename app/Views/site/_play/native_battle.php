@@ -7,6 +7,8 @@
  * Дуэль помечена «без потерь». Чужой или несуществующий бой ядро не отдаёт — карточка отвечает одним и тем же
  * отказом, без имён. Всё текстом, без картинок; id персонажа в разметку не идут.
  *
+ * oct-pvp-clarity-02: блок «🧩 Почему так вышло» из `card.why` — только вывод через `esc()`, ничего не считает.
+ *
  * @var array<string, mixed> $battle
  * @var list<list<string>>   $dock
  * @var string|null          $alert
@@ -41,6 +43,7 @@ $go = static function (string $view, string $text, string $class = 'play-kb-btn'
 };
 
 $rounds = $card !== null && is_array($card['rounds'] ?? null) ? $card['rounds'] : [];
+$why    = $card !== null && is_array($card['why'] ?? null) ? array_values(array_filter($card['why'], 'is_string')) : [];
 $at     = $card !== null && is_string($card['at'] ?? null) && $card['at'] !== '' ? strtotime($card['at']) : false;
 ?>
 <div class="play-shell is-native">
@@ -68,6 +71,17 @@ $at     = $card !== null && is_string($card['at'] ?? null) && $card['at'] !== ''
                 </dl>
                 <?php if (($card['duel'] ?? false) === true): ?>
                     <p class="play-native-note">🤺 Дуэль — без потерь: здоровье, опыт и ресурсы не меняются.</p>
+                <?php endif ?>
+
+                <?php if ($why !== []): ?>
+                    <section class="play-native-section" aria-label="Почему так вышло" data-battle-why>
+                        <h3 class="play-native-subtitle is-plain">🧩 Почему так вышло</h3>
+                        <ul class="play-craft-reqs">
+                            <?php foreach ($why as $line): ?>
+                                <li class="play-craft-req"><span class="play-craft-req-name"><?= esc($line) ?></span></li>
+                            <?php endforeach ?>
+                        </ul>
+                    </section>
                 <?php endif ?>
 
                 <section class="play-native-section" aria-label="Разбор по раундам">

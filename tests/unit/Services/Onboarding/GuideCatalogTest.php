@@ -302,6 +302,40 @@ final class GuideCatalogTest extends CIUnitTestCase
         $this->assertDoesNotMatchRegularExpression('/\d/u', $body, 'Раздел «⚔️ Бой и PvE» не должен называть числа баланса.');
     }
 
+    /**
+     * oct-pvp-clarity-03 (B2/Q1 из чата): раздел «🛡 Нападение на базу» объясняет, что решает исход у чужой базы,
+     * что южная зона закрыта для нападений, и где смотреть «🧩 Почему так вышло». Без чисел баланса.
+     */
+    public function testStandoffSectionExplainsOutcomeSouthZoneAndWhyBlock(): void
+    {
+        $section = GuideCatalog::find('standoff');
+        $this->assertNotNull($section);
+
+        $body = $section['body'];
+        foreach (['Что решает исход у чужой базы', 'стена срезает', 'колючая ограда', 'Высокий уровень здесь не гарантия', 'удачным ударом', 'В южной зоне нападать нельзя', 'на базы там тоже не нападают', '📜 Разбор боя → 🧩 Почему так вышло'] as $needle) {
+            $this->assertStringContainsString($needle, $body, "Раздел «🛡 Нападение на базу» не упоминает «{$needle}».");
+        }
+        $this->assertDoesNotMatchRegularExpression('/\d/u', $body, 'Раздел не должен называть числа баланса.');
+        $this->assertStringNotContainsString('ломать', $body, 'Маяки и базы не ломают — их перехватывают/атакуют.');
+    }
+
+    /**
+     * oct-pvp-clarity-03: совет «У чужой базы уровень не гарантия» — категория «бой», без цифр, парные `*`, идемпотентен.
+     */
+    public function testPvpBaseOutcomeTipMigrationIsSafe(): void
+    {
+        $src = (string) file_get_contents(APPPATH . 'Database/Migrations/2026-12-20-100000_SeedPvpBaseOutcomeTip.php');
+        $this->assertSame(1, preg_match('/\$content = (.+?);\n/su', $src, $m));
+        $content = (string) preg_replace("/'\s*\.\s*'/u", '', $m[1]);
+
+        $this->assertStringContainsString("'tip_type'   => 'бой'", $src);
+        $this->assertStringContainsString("where('title_en', \$titleEn)", $src, 'идемпотентность по title_en');
+        $this->assertDoesNotMatchRegularExpression('/\d/u', $content, 'в совете нет чисел баланса');
+        $this->assertSame(0, substr_count($content, '*') % 2, 'парные * под legacy Markdown');
+        $this->assertStringNotContainsString('_', $content);
+        $this->assertStringContainsString('🧩 Почему так вышло', $content);
+    }
+
     // ── Сервис рендера ──────────────────────────────────────────────────────
 
     public function testIndexExposesButtonForEverySection(): void

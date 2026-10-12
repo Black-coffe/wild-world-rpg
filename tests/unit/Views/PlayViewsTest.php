@@ -672,6 +672,27 @@ final class PlayViewsTest extends CIUnitTestCase
     }
 
     /**
+     * oct-pvp-clarity-02: блок «почему так вышло» на `/play` — из `card.why`, экранирован; пустой — разметки нет.
+     */
+    public function testWebBattleCardShowsWhyBlockEscaped(): void
+    {
+        $card = ['id' => 9, 'type' => 'PVP', 'duel' => false, 'me' => 'San', 'opponent' => 'Bob', 'result' => 'win', 'at' => '2026-10-12 00:55:00', 'rounds_total' => 1, 'rounds' => [
+            ['n' => 1, 'attacker' => 'Bob', 'defender' => 'San', 'damage' => 19.58, 'hp_after' => 80.42, 'lucky' => false, 'mine' => false],
+        ], 'why' => ['🧱 Стена базы срезала каждый удар по хозяину базы (San) на 40%.', '🌵 Колючая ограда сняла с нападавшего (<b>Bob</b>) 39 HP.']];
+        $raw = view('site/_play/native_battle', ['battle' => ['card' => $card, 'arena_on' => true], 'dock' => []]);
+
+        $this->assertStringContainsString('data-battle-why', $raw);
+        $this->assertStringContainsString('🧩 Почему так вышло', $raw);
+        $this->assertStringContainsString('(&lt;b&gt;Bob&lt;/b&gt;) 39 HP', $raw, 'строка через esc()');
+        $this->assertStringNotContainsString('<b>Bob</b>', $raw);
+
+        $card['why'] = [];
+        $this->assertStringNotContainsString('data-battle-why', view('site/_play/native_battle', ['battle' => ['card' => $card, 'arena_on' => true], 'dock' => []]));
+        unset($card['why']);
+        $this->assertStringNotContainsString('data-battle-why', view('site/_play/native_battle', ['battle' => ['card' => $card, 'arena_on' => true], 'dock' => []]));
+    }
+
+    /**
      * duel-baseline-weapon-02: веб-карточка форматирует урон и остаток так же, как бот (`BattleJournalAction::num`):
      * меньше 1 — двумя знаками, а не «−0».
      */
