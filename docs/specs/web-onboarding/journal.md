@@ -6,3 +6,4 @@
 - 2026-10-11T21:25:47Z · driver · driver released · next: paused
 - 2026-10-11T21:25:47Z · paused · владелец: story 02 не трогает общий Worker — замена залипшего экрана на веб-стороне · next: paused
 - 2026-10-11T21:28:52Z · 03-building · plan delta: story 02 web-side, Worker untouched · next: owner correction; Worker.php/WebDelivery.php reverted; resume rebuilds 01 and 02
+- 2026-10-12T07:00:25Z · 03-building · story 02 reopened · next: close-story ran after PAUSE (worker in flight, 21:33Z) and committed the pre-delta design as 0111d083; status back to todo

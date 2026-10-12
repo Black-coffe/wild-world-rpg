@@ -1,7 +1,7 @@
 ---
 story: web-onboarding-02
 spec: web-onboarding
-status: done
+status: todo
 returned:
 tier: 3
 worker: worker-code
@@ -116,3 +116,8 @@ Opus: нужно решить, какое из входящих сообщени
 - Откачено: `WebDelivery::setTaskContext()`/замена в `toInbox()`, контекст в `Worker`. `tests/database/WebTaskResultScreenTest.php` писался под старую схему — переписать.
 
 ## Findings
+- 2026-10-12 (Queen): закрытие `0111d083` недействительно — воркер первой сборки выполнил `close-story` уже после паузы
+  и после plan delta, закоммитив работу под старый замысел (контекст задачи в `Worker`). Story переоткрыта. Из коммита
+  остаются как заготовка `WebScreenStore.php` (`rev`/`task_id`/`revision()`/`screenMessageIds()`) и пометка задачи в
+  `WebActService.php`; `tests/database/WebTaskResultScreenTest.php` проверяет откаченный `WebDelivery::setTaskContext`/
+  `Worker` — переписать под замену при чтении и `WebTaskResultPicker`.
