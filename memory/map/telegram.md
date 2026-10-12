@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-08
+last-verified: 2026-10-12
 
 # Scout report: Telegram-поверхность
 
@@ -65,8 +65,9 @@ outbound: `Services/Player`, `Services/World`, `Services/Craft*`, `Services/Base
   Новый `<= 0`-guard на пути уведомления молча теряет сообщение web-only игроку.
 - `/play`-действие: `BridgeClient` ставит только `WebActService` (и снимает в `finally`); Worker/cron/
   CLI — никогда. Guard-срабатывание (`[VirtualChatGuard]` error) = обход слоя (а), дефект.
-- Текст `/web` (`WebLinkCodeAction`) с 2026-09-25 говорит «выйди из другого входа и введи код» —
-  прежнее обещание привязать чужой вход снято.
+- **(oct-world-robot-fix) `move` (`MoveCharacterAction`) отказывает только при переезде** (`checkRelocationAndBlock`);
+  Сбор/Исследование экран «🌍 Мир» не закрывают — шаг блокирует `MoveService::step()` → `BUSY` (задачи с
+  `parallel_execution_allowed=0`). Гейт «занят» в экран возвращать нельзя. Нота: `tech-writing/handlers/MoveCharacterAction.md`.
 - **(w2-n4-base, ADR-190) Экраны базы/стройки/апгрейда — рендереры ядра** (`BaseScreenService`,
   `BuildOrderService`, `BuildingUpgradeService`; см. `bases.md`): логику в action-handler'ы не возвращать —
   её же рисует веб `/play`. Апгрейд-confirm: `confirm_upgrade_building_<id>_l<N>[_b<id>]`, без `_l` — перезапрос.
@@ -78,8 +79,6 @@ outbound: `Services/Player`, `Services/World`, `Services/Craft*`, `Services/Base
   (см. `pve-pvp.md`): `PVP/{BattleJournalAction,ArenaAction,DuelAction,PvpLadderAction}` и тумблер в `SettingsAction`.
   Маршруты `battles`, `battleLog` (`battleLog_<id>[_j]`), `arena`, `arenaDuel`, `duel`, `pvpLadder`, `duelsOpenOn|Off` —
   `CallbackRoutes.php:128-129,478-490`. Вход «📜 Мои бои» — в «⚙️ Ещё» (`MoreSurfaceService.php:206`), на арене и в рейтинге.
-- Бот не вешает второго персонажа на аккаунт: если аккаунт с этой telegram-identity уже владеет
-  веб-персонажем, бот-персонаж получает свежий аккаунт без identity (`attachBotCharacter`).
 
 ## Vault
 `mmorpg-vault/apps/telegram/index.md` · `tech-writing/services/CharacterProvisioningService.md`,

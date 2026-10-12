@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-09-27
+last-verified: 2026-10-12
 
 # Scout report: Мир и карта (Services/World)
 
@@ -42,6 +42,8 @@ outbound: модели мира, `Services/Player` (позиция, вес), `Se
   (бот: кнопки/сообщение, веб: под картой). Коды отказа `relocation`/`busy` — Markdown.
 - `MarchService::start()` пишет `msg_chat_id`/`msg_id` в саму вставку `character_tasks` — только если их
   передал бот. Поход из веба без них → `MarchingTaskHandler` на каждом тике шлёт НОВОЕ сообщение в TG.
+- Экран «🌍 Мир» (`move`, `MoveSurfaceService::show`) открывается и во время Сбора/Исследования; отказ идёт только
+  из `MoveService::step()` → `busy` (`parallel_execution_allowed=0`), см. `telegram.md`.
 - Прирост за шаг — GameSettings `world.move.stat_per_step` (0.02) / `world.move.xp_per_step` (0.03),
   миграция `2026-12-13-100000_SeedMoveStepGainSettings`; цена шага — `world.move.*_cost_base`.
 - Статики `MarchAction::clampOrderToCap/vehicleHookBlock/routeEtaMinutes` и

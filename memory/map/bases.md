@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-08
+last-verified: 2026-10-12
 
 # Scout report: Базы, лагерь, постройки
 
@@ -35,7 +35,10 @@ last-verified: 2026-10-08
   `depositOne()`/`depositAll()`, `carriedResources()`; коды `ok|off_base|bad_resource|not_carried|missing|short|empty|failed`.
   Рендереры: `Storage\BaseStorageListAction`/`BaseStorageDepositAction`, веб `view=storage`. Склад — на персонажа, не на базу.
 - `HangarAction` (`hangar`[`_b<id>`]), робот `StartRobotGatheringAction` / `CompleteRobotGatheringHandler`
-  (`task_settings.base_cell`).
+  (`task_settings.base_cell`). `StartRobotGatheringAction::launchBase()` — выбор базы запуска (общий с `RobotGathererActivator`):
+  на своей базе с Мастерской → она; на своей базе БЕЗ Мастерской (лагерь) → первая другая база с Мастерской, покрытая
+  своей Вышкой (`coverageByBase`, своя клетка пропускается), иначе отказ `noWorkshopOnBaseMessage` с именем лагеря
+  (oct-world-robot-fix). Нота: `tech-writing/handlers/robots/RobotGatheringReachScreens.md`.
 - `app/Services/BuildingEffects/` (`BuildingEffectLines` — строка эффекта), `app/Services/Housing/`; TaskHandlers `app/TaskHandlers/Built/`,
   `BaseLifecycleHandler.php`, `TaxCollectionHandler.php`; таблица `character_buildings`.
 
