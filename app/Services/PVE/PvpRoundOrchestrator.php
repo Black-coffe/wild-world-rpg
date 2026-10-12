@@ -98,6 +98,8 @@ final class PvpRoundOrchestrator
         $firstName   = $attacker['name'];
         $damageBoost = 1.0;
         $isFirstHit  = true;
+        // oct-pvp-clarity: ограда по факту (сколько HP она реально сняла), для лога боя.
+        $fenceTotal  = 0.0;
 
         while ($attacker['health'] > 0 && $defender['health'] > 0 && $round < $maxRounds) {
             $round++;
@@ -174,7 +176,9 @@ final class PvpRoundOrchestrator
                 && $curDefenderId === $defense['owner_id']
                 && $defense['fence_damage'] > 0
             ) {
+                $fenceBefore        = $attacker['health'];
                 $attacker['health'] = max(0, $attacker['health'] - $defense['fence_damage']);
+                $fenceTotal        += $fenceBefore - $attacker['health'];
                 if ($attacker['health'] <= 0) {
                     $loser  = $attacker;
                     $winner = $defender;
@@ -199,6 +203,7 @@ final class PvpRoundOrchestrator
                 'winner'        => null,
                 'loser'         => null,
                 'roundLogs'     => $roundLogs,
+                'defense'       => self::defenseReport($defense, $fenceTotal),
             ];
         }
 
@@ -221,6 +226,35 @@ final class PvpRoundOrchestrator
             'winner'        => $winner,
             'loser'         => $loser,
             'roundLogs'     => $roundLogs,
+            'defense'       => self::defenseReport($defense, $fenceTotal),
+        ];
+    }
+
+    /**
+     * oct-pvp-clarity: что оборона базы фактически дала в этом бою — для `log_data.defense`.
+     * Только сообщает уже применённое; на расчёт и порядок `mt_rand` не влияет. Без профиля — null
+     * (дуэли и бои вне базы ходят сюда с `$defense = null`).
+     *
+     * `tower_initiative_percent` — итоговый множитель инициативы профиля (вышка + боевой дрон,
+     * уже под общим потолком).
+     *
+     * @param array<string, mixed>|null $defense
+     * @return array{owner_id:int, wall_reduction_percent:float, fence_damage_total:float, tower_initiative_percent:float}|null
+     */
+    private static function defenseReport(?array $defense, float $fenceTotal): ?array
+    {
+        if ($defense === null) {
+            return null;
+        }
+        $owner = $defense['owner_id'] ?? null;
+        $wall  = $defense['damage_reduction'] ?? null;
+        $init  = $defense['initiative_bonus'] ?? null;
+
+        return [
+            'owner_id'                 => is_numeric($owner) ? (int) $owner : 0,
+            'wall_reduction_percent'   => is_numeric($wall) ? round((float) $wall * 100, 2) : 0.0,
+            'fence_damage_total'       => round($fenceTotal, 2),
+            'tower_initiative_percent' => is_numeric($init) ? round((float) $init * 100, 2) : 0.0,
         ];
     }
 

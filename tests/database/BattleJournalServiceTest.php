@@ -209,6 +209,40 @@ final class BattleJournalServiceTest extends CIUnitTestCase
         );
     }
 
+    /**
+     * oct-pvp-clarity-01: карточка PvP несёт `why` из `PvpOutcomeExplainer`; список и дуэль — нет.
+     */
+    public function testPvpCardCarriesWhyFromDefenseAndListDoesNot(): void
+    {
+        $log            = json_decode($this->pvpLog(self::OTHER, 'Bob', self::ME, 'San', 4), true);
+        $log['defense'] = ['owner_id' => self::ME, 'wall_reduction_percent' => 40.0, 'fence_damage_total' => 12.0, 'tower_initiative_percent' => 0.0, 'drone' => false];
+        $id   = $this->insert('PVP', self::OTHER, self::ME, self::ME, (string) json_encode($log, JSON_UNESCAPED_UNICODE));
+        $duel = $this->insert('DUEL', self::ME, self::OTHER, self::ME, (string) json_encode($log, JSON_UNESCAPED_UNICODE));
+        $svc  = new BattleJournalService();
+
+        $why = $svc->card(self::ME, $id)['battle']['why'] ?? null;
+        $this->assertIsArray($why);
+        $this->assertStringContainsString('Стена базы срезала каждый удар по хозяину базы (San) на 40%', implode("
+", $why));
+        $this->assertStringContainsString('с нападавшего (Bob) 12 HP', implode("
+", $why));
+
+        $this->assertSame([], $svc->card(self::ME, $duel)['battle']['why'] ?? null);
+        foreach ($svc->listFor(self::ME, 10) as $entry) {
+            $this->assertArrayNotHasKey('why', $entry);
+        }
+    }
+
+    public function testOldPvpCardWithoutDefenseAndBrokenLogGiveNoDefenseLines(): void
+    {
+        $old    = $this->insert('PVP', self::OTHER, self::ME, self::ME, $this->pvpLog(self::OTHER, 'Bob', self::ME, 'San', 4));
+        $broken = $this->insert('PVP', self::OTHER, self::ME, self::ME, '{not json');
+        $svc    = new BattleJournalService();
+
+        $this->assertSame([], $svc->card(self::ME, $old)['battle']['why'] ?? null, 'ровный бой без обороны — блока нет');
+        $this->assertSame([], $svc->card(self::ME, $broken)['battle']['why'] ?? null);
+    }
+
     private function insert(string $type, int $p1, int $p2, int $winner, string $log): int
     {
         $this->conn->table('battle_logs')->insert([

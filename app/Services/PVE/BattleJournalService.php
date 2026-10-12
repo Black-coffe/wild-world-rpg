@@ -23,9 +23,13 @@ use Config\Database;
  * `luckyStrikeApplied`). Битый или пустой JSON — карточка с итогом без раундов, не ошибка. Полный дамп
  * персонажа, который PvE кладёт в `characters.player`, наружу не выходит: модель берёт только имена.
  *
+ * oct-pvp-clarity: карточка несёт `why` — строки «почему так вышло» от `PvpOutcomeExplainer` (стена,
+ * ограда, удачные удары, смягчённые удары насмерть, потолки). Без разметки; пустой список — блока нет.
+ * Только PvP; список боёв (`listFor`) его не несёт.
+ *
  * @phpstan-type Round array{n: int, attacker: string, defender: string, damage: float, hp_after: float|null, lucky: bool, mine: bool}
  * @phpstan-type Entry array{id: int, type: string, duel: bool, me: string, opponent: string, result: string, at: string, rounds_total: int}
- * @phpstan-type Card array{id: int, type: string, duel: bool, me: string, opponent: string, result: string, at: string, rounds_total: int, rounds: list<Round>}
+ * @phpstan-type Card array{id: int, type: string, duel: bool, me: string, opponent: string, result: string, at: string, rounds_total: int, rounds: list<Round>, why: list<string>}
  */
 final class BattleJournalService
 {
@@ -46,12 +50,15 @@ final class BattleJournalService
     /** @var BaseConnection<object, object> */
     private BaseConnection $db;
 
+    private PvpOutcomeExplainer $explainer;
+
     /**
      * @param BaseConnection<object, object>|null $db
      */
-    public function __construct(?BaseConnection $db = null)
+    public function __construct(?BaseConnection $db = null, ?PvpOutcomeExplainer $explainer = null)
     {
-        $this->db = $db ?? Database::connect();
+        $this->db        = $db ?? Database::connect();
+        $this->explainer = $explainer ?? new PvpOutcomeExplainer();
     }
 
     /**
@@ -80,7 +87,7 @@ final class BattleJournalService
         $out = [];
         foreach ($res->getResultArray() as $row) {
             $card = $this->build($row, $characterId);
-            unset($card['rounds']);
+            unset($card['rounds'], $card['why']);
             $out[] = $card;
         }
 
@@ -182,6 +189,7 @@ final class BattleJournalService
             'at'           => is_string($row['created_at'] ?? null) ? $row['created_at'] : '',
             'rounds_total' => count($rounds),
             'rounds'       => $rounds,
+            'why'          => $this->explainer->explain($type, $log),
         ];
     }
 

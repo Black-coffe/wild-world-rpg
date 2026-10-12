@@ -21,6 +21,10 @@ use App\Models\WeaponModel;
  *
  * Backward-compatible: старые бои остаются v1 (без новых полей); веб-вьюха покажет «—».
  * health_after берётся из fightResult winner/loser по id (для normal); exhausted → null.
+ *
+ * oct-pvp-clarity: `defense` — что оборона базы фактически дала в бою (из `fightResult['defense']`
+ * оркестратора): `{owner_id, wall_reduction_percent, fence_damage_total, tower_initiative_percent, drone}`.
+ * Пишется, только когда профиль обороны был (дуэли и бои вне базы его не получают); старые бои — без поля.
  */
 final class PvpBattleLogBuilder
 {
@@ -29,19 +33,32 @@ final class PvpBattleLogBuilder
     private CharactersOutfitsModel $charOutfits;
     private OutfitModel $outfits;
     private MapModel $map;
+    /** @var \Closure(int): bool */
+    private \Closure $droneActive;
 
+    /**
+     * @param (\Closure(int): bool)|null $droneActive активен ли боевой дрон у владельца базы
+     */
     public function __construct(
         ?CharactersWeaponsModel $charWeapons = null,
         ?WeaponModel $weapons = null,
         ?CharactersOutfitsModel $charOutfits = null,
         ?OutfitModel $outfits = null,
-        ?MapModel $map = null
+        ?MapModel $map = null,
+        ?\Closure $droneActive = null
     ) {
         $this->charWeapons = $charWeapons ?? new CharactersWeaponsModel();
         $this->weapons     = $weapons ?? new WeaponModel();
         $this->charOutfits = $charOutfits ?? new CharactersOutfitsModel();
         $this->outfits     = $outfits ?? new OutfitModel();
         $this->map         = $map ?? new MapModel();
+        $this->droneActive = $droneActive ?? static function (int $ownerId): bool {
+            try {
+                return (new DefenseStructureService())->combatDroneActiveBonusPercent($ownerId) > 0;
+            } catch (\Throwable $e) {
+                return false; // дрон — деталь лога; не роняем бой
+            }
+        };
     }
 
     /**
@@ -58,7 +75,7 @@ final class PvpBattleLogBuilder
         $winnerId = $this->idOf($fightResult['winner'] ?? null);
         $loserId  = $this->idOf($fightResult['loser'] ?? null);
 
-        return [
+        $log = [
             'version'    => 2,
             'biome'      => $biomeName,
             'characters' => [
@@ -71,6 +88,32 @@ final class PvpBattleLogBuilder
                 'winnerId' => $winnerId,
                 'loserId'  => $loserId,
             ],
+        ];
+
+        $defense = $this->defenseBlock($fightResult['defense'] ?? null);
+        if ($defense !== null) {
+            $log['defense'] = $defense;
+        }
+
+        return $log;
+    }
+
+    /**
+     * @return array{owner_id:int, wall_reduction_percent:float, fence_damage_total:float, tower_initiative_percent:float, drone:bool}|null
+     */
+    private function defenseBlock(mixed $raw): ?array
+    {
+        if (! is_array($raw)) {
+            return null;
+        }
+        $owner = is_numeric($raw['owner_id'] ?? null) ? (int) $raw['owner_id'] : 0;
+
+        return [
+            'owner_id'                 => $owner,
+            'wall_reduction_percent'   => $this->num($raw['wall_reduction_percent'] ?? null) ?? 0.0,
+            'fence_damage_total'       => $this->num($raw['fence_damage_total'] ?? null) ?? 0.0,
+            'tower_initiative_percent' => $this->num($raw['tower_initiative_percent'] ?? null) ?? 0.0,
+            'drone'                    => $owner > 0 && ($this->droneActive)($owner),
         ];
     }
 
