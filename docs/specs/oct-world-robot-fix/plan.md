@@ -42,3 +42,4 @@
 **Council:**
 **Council:** GREEN round 1, 2026-10-12, at a0009099, pack 15728c02a72f
 **Shipped:**
+**Shipped:** v0.51.696, 2026-10-12, at 0d48fed4 - merged to develop, tag v0.51.696 pushed (prod deploy running); preprod Tier-3 webhook smoke green: B1 live_move_used=1 + cell unchanged during Gather, B3 base_cell=330454 from camp
