@@ -34,7 +34,7 @@
 
 **Approved:**
 **Briefed:** via mini-brief, Andrei, 2026-10-25
-**Branch:**
+**Branch:** vulyk/w-reg-text-fixes
 **Checked:**
 **Council:**
 **Shipped:**
