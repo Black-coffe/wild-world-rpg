@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-08
+last-verified: 2026-10-25
 
 # Scout report: Квесты, события, NPC
 
@@ -20,7 +20,12 @@ last-verified: 2026-10-08
   `NpcRelationService.php`; TaskHandlers `app/TaskHandlers/NPC/`.
 
 ## Key types / contracts
-`objective_type` квестов включает `collect_resource` и `building_level` (ADR-088).
+`objective_type` квестов включает `collect_resource` и `building_level` (ADR-088), а также
+`gather_resource` (w-reg-honest-water): считает только добытое завершённой добычей, не лежащее в рюкзаке.
+Журнал — `Services/Quest/GatheredResourceLedger` (`hasActiveObjective`/`record`/`gatheredTotal`): строки
+`action_log` `action_name=gathered_resource`, `description="<resources.id>:<qty>"`; тип принят в
+`QuestChainService.php:84` и `QuestObjectiveHandler.php:107,229-236`. Отметка пишется, только пока у персонажа
+активен незавершённый шаг с этой целью; шаги, активные до выкатки, считают с нуля. Нота: `tech-writing/services/GatheredResourceLedger.md`.
 Диалог NPC обязан быть ветвящимся: одиночная пара «вопрос-ответ» диалогом не считается.
 
 ## Dependencies

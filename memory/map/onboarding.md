@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-13
+last-verified: 2026-10-25
 
 # Scout report: Онбординг, обучение, советы
 
@@ -68,6 +68,10 @@ outbound: почти все доменные сервисы (подсказки 
 - Путь к маякам: раздел `teleport` и хинт `beacon_crafted` ведут «🏠 База» → «📡 Маяки» (старый дрейф
   «маяки на экране 🧑 Я» исправлен). Правь путь в тексте вместе с любой правкой навигации.
   `beacon_crafted` и `first_long_march` — без level-ceiling, в отличие от newbie-funnel хинтов.
+- Шаг «Дары пустоши» (`OnboardingChainCatalog::STEP_GATHER`, `OnboardingChainCatalog.php:92`) — цель `gather_resource`
+  (добытая вода по `GatheredResourceLedger`), а не `collect_resource`: стартовый паёк (10 воды) больше не закрывает шаг.
+  `PolarStarService` (`COUNTABLE`, `:39`; счёт `:157-162`) считает ту же цель. БД `quests` переведена миграцией
+  `2026-10-25-120000_ReseedOnbStepGatherObjective` (идемпотентна, значения из каталога; `down()` возвращает `collect_resource`).
 - Раздел `nav` называет «🏠 База» с иконкой, а `base`/`craft` берут подпись через `{$base}`.
 
 ## Vault

@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-08-19
+last-verified: 2026-10-25
 
 # Scout report: Админка и баланс
 
@@ -32,6 +32,8 @@ outbound: почти все модели; `GameSettings` читают все д�
   (SQL мимо UI обходит audit-trail).
 - Новая таблица или player-колонка без записи в `WipeManifest` роняет
   `tests/unit/Config/WipeManifestCoverageTest` и блокирует деплой.
+- `FunnelAnalyticsService::EXTENDED_TYPES` (`:29`) перечисляет `objective_type`, попадающие в воронку квестов; включает
+  `gather_resource` (w-reg-honest-water). Новый тип цели без правки этого списка выпадает из воронки.
 - Дизайн-система админки — «Quiet Premium» (`.aui-*`), не публичный flat-стиль.
 - Админка под правило UX-Discoverability **не подпадает** — это не player-interaction.
 
