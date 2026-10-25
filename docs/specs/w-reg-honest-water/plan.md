@@ -46,3 +46,4 @@
 **Council:**
 **Council:** GREEN round 1, 2026-10-25, at 3b8b9870, pack f9d9b2ab0ee5
 **Shipped:**
+**Shipped:** v0.51.700, 2026-10-25, at 21a712fe - merged to develop, publish pending; ship-check stage-03 conflict line is against dead master (bindings), merge into develop was clean
