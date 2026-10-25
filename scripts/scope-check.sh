@@ -41,6 +41,9 @@ if [ -z "$STORY" ] || [ ! -f "$STORY" ]; then
   exit 0
 fi
 
+# shellcheck source=scripts/lib.sh
+. "$(dirname "$0")/lib.sh"   # is_paperwork_path
+
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "scope-check: not a git repo" >&2; exit 0; }
 cd "$ROOT" || exit 0
 
@@ -62,6 +65,7 @@ matches_any() { # matches_any <file> <newline-separated patterns> - declared pat
   local file="$1" pattern
   while IFS= read -r pattern; do
     [ -z "$pattern" ] && continue
+    [ "$file" = "$pattern" ] && return 0   # literal first: `app/[id]/page.tsx` names itself
     case "$pattern" in */) case "$file" in "$pattern"*) return 0 ;; esac ;; esac
     # shellcheck disable=SC2254
     case "$file" in $pattern) return 0 ;; esac
@@ -82,32 +86,32 @@ fi
 
 # --- what actually changed ---------------------------------------------------
 if [ -n "$RANGE" ]; then
-  CHANGED="$(git diff --name-only "$RANGE" 2>/dev/null)"
+  CHANGED="$(git -c core.quotePath=false diff --name-only "$RANGE" 2>/dev/null)"
 else
-  CHANGED="$(git diff --name-only HEAD 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null)"
+  # quotePath off: a non-ASCII name must come back as itself to match its `## Files` line.
+  CHANGED="$(git -c core.quotePath=false diff --name-only HEAD 2>/dev/null; git -c core.quotePath=false ls-files --others --exclude-standard 2>/dev/null)"
 fi
 # The story file rides along with every per-story commit (its status line changes) -
 # drop it from the measurement entirely so each entry reflects code, not bookkeeping.
+# So does this script's own ledger: a second run in the same tree would count it.
 STORY_REL="${STORY#./}"
-CHANGED="$(printf '%s\n' "$CHANGED" | grep -v '^$' | grep -Fxv "$STORY_REL" | sort -u)"
+CHANGED="$(printf '%s\n' "$CHANGED" | grep -v '^$' | grep -Fxv -e "$STORY_REL" -e memory/stats/scope.jsonl | sort -u)"
 
-# The hive's jsonl ledgers (memory/stats/*.jsonl: anomalies, ship, council, scope, ...) ride the
-# cycle's own verbs on their own schedule - a `--record` or a hook can leave one dirty in the tree
-# before a story starts - never a story's own edit. Drop them from the diff too, unless the story
-# itself names one under '## Files' (same reasoning as the story-file exclusion above).
-# (mmorpg evolve 2026-09-29: was anomalies.jsonl only; a leftover ship.jsonl scored every story of
-# w2-n4-tails2 and w2-n4-tails-03 as out of scope.)
-# skills.json joins them (owner, 2026-10-08, reversing story 12): skill-usage-counter.sh rewrites it
-# on every Skill call, so every solo build's /vulyk-build dirtied it - 7 of 7 scope rows in the week
-# to 2026-10-08 were skills.json alone, a scope_breach rate of 100% that carried no signal.
-LEDGERS="$(printf '%s\n' "$CHANGED" | grep -E '^memory/stats/([^/]+\.jsonl|skills\.json)$')"
-while IFS= read -r ledger; do
-  [ -z "$ledger" ] && continue
-  printf '%s\n' "$DECLARED" | grep -Fxq "$ledger" && continue
-  CHANGED="$(printf '%s\n' "$CHANGED" | grep -Fxv "$ledger")"
+# Paperwork (is_paperwork_path, lib.sh - the hive's own .claude/vulyk-paperwork globs too) is
+# written by the cycle and its hooks on their own schedule, never a story's own edit: drop it
+# from the diff, unless the story itself names it under '## Files'. skills.json included: the
+# owner reversed A18 on 2026-10-16 (ADR-010 amendment) - the Skill counter rewrites it nearly
+# every turn, so counting it flagged almost every story.
+KEPT=""
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  is_paperwork_path "$file" && ! matches_any "$file" "$DECLARED" && continue
+  KEPT="${KEPT}${file}
+"
 done <<EOF
-$LEDGERS
+$CHANGED
 EOF
+CHANGED="$(printf '%s' "$KEPT" | grep -v '^$')"
 
 # Siblings (working tree only): every other story file of this spec that is not `done`.
 if [ -z "$RANGE" ]; then

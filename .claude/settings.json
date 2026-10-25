@@ -50,6 +50,10 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/defects-inject.sh\" reset"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/ysk-offer.sh\""
           }
         ]
       }
@@ -111,6 +115,15 @@
             "statusMessage": "Wipe-coverage: не миграция ли это…"
           }
         ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/defect-intake.sh\" answer"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -125,7 +138,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|WebFetch|WebSearch|Agent|mcp__.*",
         "hooks": [
           {
             "type": "command",
@@ -144,7 +157,6 @@
     }
   },
   "enabledPlugins": {
-    "litopys@litopys": true,
-    "cc-plugin-you-should-know@builtin": true
+    "litopys@litopys": true
   }
 }

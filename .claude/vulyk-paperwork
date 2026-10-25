@@ -1,0 +1,5 @@
+# Бумага улья сверх встроенного списка lib.sh (is_paperwork_path). Апгрейд этот файл не трогает.
+# mmorpg evolve 2026-09-29: доказательство preprod-смоука после GREEN не делает вердикт STALE.
+docs/specs/*/smoke-*.md
+# mmorpg evolve 2026-09-29: любой jsonl-леджер (watcher, ...) — не выход за объём story.
+memory/stats/*.jsonl

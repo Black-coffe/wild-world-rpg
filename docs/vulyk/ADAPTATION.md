@@ -178,7 +178,7 @@ grep -L "context_guard"       .claude/commands/vulyk-handoff.md
 ls .claude/hooks/handoff.*        # должно быть пусто
 grep -c "handoff.sh" .claude/settings.json   # должно быть 0
 grep -c "memory/learnings" scripts/lib.sh                                 # должно быть ≥1 (§10; в ванили 0.24.0 — 2)
-grep -c 'smoke-\*.md|' scripts/lib.sh; grep -c 'LEDGERS=' scripts/scope-check.sh; grep -c 'first word of each command' scripts/wave-check.sh   # по 1 (evolve 2026-09-29)
+grep -c 'smoke-\*.md' .claude/vulyk-paperwork; grep -c 'memory/stats/\*.jsonl' .claude/vulyk-paperwork; grep -c 'first word of each command' scripts/wave-check.sh   # по 1 (с 0.34 бумага — в .claude/vulyk-paperwork, апгрейд его не трогает)
 ls .claude/agents/drone-acceptance.md    # должно отсутствовать: упразднён в 0.12.0, но --upgrade не удаляет
 ```
 
@@ -187,7 +187,7 @@ ls .claude/agents/drone-acceptance.md    # должно отсутствоват
 Плюс две проверки, добавленные после 0.10.0:
 
 ```bash
-bash scripts/top-model.sh --explain | sed -n 2p   # должно быть "decided by: constitution" (§5.1)
+bash scripts/top-model.sh --explain | sed -n 2p   # должно быть "decided by: constitution" (§5.1); с 0.34 пин в CLAUDE.vulyk.md
 ls .claude/rules/example-api.md                   # должно отсутствовать (см. ниже)
 ```
 
@@ -498,3 +498,22 @@ preamble, Compact, Where things live — взят почти дословно, �
 «Обслуживание улья». Выброшены: Five Laws/frontier-model/token-economy/memory-protocol/evolution в старой редакции,
 история 0.12.0. В блок Commands добавлена строка `Defect library gate`. 37.9 KB → 25.5 KB. Ручной остаток §16
 закрыт.
+
+## 18. Апгрейд 0.26.0 → 0.34.0 (25.10.2026, по слову владельца)
+
+Конституция **не** заменялась (ваниль 12.8 KB против нашей 25.7 KB: `## Project bindings` уехал бы в бэкап).
+Руками:
+
+- **Закон 6** — формулировка 0.32 (never / allowed / how-to); в `## Where things live` — дерево правил и `always.md`.
+- **Пин гейта переехал в `CLAUDE.vulyk.md`.** Новый `top-model.sh` читает `TOP_MODEL = …` только из
+  `CLAUDE.vulyk.md`; пин в `CLAUDE.md` перестал работать, и машинный профиль `opus-builds`
+  (`~/.claude/vulyk-model-profile`) поднял гейт до Fable. Решение владельца: гейт — Opus пином, профиль не
+  трогаем; ревью и слепые места совета по `opus-builds` идут на Fable.
+- **`scripts/lib.sh`, `scripts/scope-check.sh`** взяты из поставки целиком; наши две правки (§6: `smoke-*.md` и все
+  `memory/stats/*.jsonl` — бумага) перенесены в `.claude/vulyk-paperwork`, который апгрейд не трогает. Из таблицы
+  §6 эти строки больше не откатываются.
+- **`/vulyk-handoff`** — оставлена наша версия (`context_guard.py`), `.vulyk-new` удалён. `handoff.*` апгрейд
+  уже сам держит удалёнными (0.29: «kept deleted»).
+- **`settings.json`** снова пересохранён с `\uXXXX` — переписан с `ensure_ascii=False`; по сути добавлены хуки
+  `ysk-offer.sh` и `defect-intake.sh answer`, матчер `defects-inject.sh` расширен, `you-should-know` снят.
+- `docs/defects/INDEX.md` сгенерирован (`scripts/defects-index.sh`); `.claude/rules/example-api.md` удалён.

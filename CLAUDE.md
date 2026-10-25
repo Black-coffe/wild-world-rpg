@@ -4,8 +4,8 @@ Telegram-MMORPG «Wild World» на CodeIgniter 4 + longman/telegram-bot: исс
 PvE, базы, PvP в персистентном мире через чат. Три поверхности в одном репо: бот, сайт
 `wildworld.fun`, админка.
 
-**Модель верхней касты: `TOP_MODEL = opus`.** Строка стоит здесь, а не в `CLAUDE.vulyk.md`:
-`scripts/top-model.sh` читает первое вхождение пина только в этом файле. Opus держим сознательно
+**Модель верхней касты: Opus.** Сам пин `TOP_MODEL = opus` с VULYK 0.34 стоит в `CLAUDE.vulyk.md`:
+`scripts/top-model.sh` читает его только там. Opus держим сознательно
 (вне 30-дневного retention Fable, вдвое дешевле). Проверка: `bash scripts/top-model.sh --explain`
 → `decided by: constitution`.
 

@@ -17,10 +17,38 @@ Commit the result with this one line, run as written. It prints the counts for y
 to commit a `CONSOLIDATED.md` that lost more than half its entries or bytes. gc runs unattended, so a collapsed
 rewrite would otherwise go unseen. On a refusal, show the owner the diff and commit nothing.
 
-`f=memory/learnings/CONSOLIDATED.md; e0=$(git show HEAD:$f 2>/dev/null | grep -cE '^[0-9]+\. '); b0=$(git show HEAD:$f 2>/dev/null | wc -c); e1=$(grep -cE '^[0-9]+\. ' $f 2>/dev/null); b1=$(cat $f 2>/dev/null | wc -c); echo "CONSOLIDATED.md: entries $((e0))→$((e1)), bytes $((b0))→$((b1))"; if [ $((b0)) -gt 0 ] && { [ $((e1*2)) -lt $((e0)) ] || [ $((b1*2)) -lt $((b0)) ]; }; then echo "gc: refused - CONSOLIDATED.md lost more than half"; git diff --stat -- $f; else git add memory/learnings memory/memory.md && git commit -m "chore(memory): gc" -- memory/learnings memory/memory.md; fi`
+`f=memory/learnings/CONSOLIDATED.md; e0=$(git show HEAD:$f 2>/dev/null | grep -cE '^[0-9]+\. '); b0=$(git show HEAD:$f 2>/dev/null | wc -c); e1=$(grep -cE '^[0-9]+\. ' $f 2>/dev/null); b1=$(cat $f 2>/dev/null | wc -c); echo "CONSOLIDATED.md: entries $((e0))→$((e1)), bytes $((b0))→$((b1))"; if [ $((b0)) -gt 0 ] && { [ $((e1*2)) -lt $((e0)) ] || [ $((b1*2)) -lt $((b0)) ]; }; then echo "gc: refused - CONSOLIDATED.md lost more than half"; git diff --stat -- $f; else git add memory/learnings ':(icase)memory/memory.md' && git commit -m "chore(memory): gc" -- memory/learnings ':(icase)memory/memory.md'; fi`
 
-The pathspec keeps `memory/stats/` and anything else staged out of it. Nothing changed: no commit.
+The pathspec keeps `memory/stats/` and anything else staged out of it; `:(icase)` takes the index as
+`memory.md` or `MEMORY.md`. Nothing changed: no commit.
 
 Nobody has to remember this command: the SessionStart brief says `maintenance due: gc (...)` when stub
 learnings exist or 10+ raw ones wait, and the Queen runs it after the owner's task, on the default branch
 with a clean tree, then tells the owner in one line what changed, including the `CONSOLIDATED.md` counts.
+
+## `memory` mode: one-off triage of private memory into cards
+
+Private auto memory (`~/.claude/projects/<slug>/memory/`) is outside the repo and the `librarian` has no shell, so
+the main session does every step itself. Never dispatch a subagent for it: personal files are never opened by one.
+
+1. Run `bash "${CLAUDE_PROJECT_DIR}/scripts/memory-triage.sh"`. It lists `path<TAB>type<TAB>first heading` and
+   writes nothing. `no private memory: <dir>` → say so in one line and stop.
+2. Read each listed file.
+3. Propose three heaps in one table, one row per file: **card** (a project rule: Never / Allowed / How-to),
+   **personal / stays** (servers, access, people, the owner's style, anything with client data: stays in private
+   memory), **delete** (stale, done, or a duplicate of an existing card: `bash scripts/defects-index.sh --grep <word>`).
+   For a card row also give the target `docs/defects/<area>/<id>.md` (or an existing card it joins), the branch and
+   the retold line.
+4. Ask once with AskUserQuestion: the recommended list first, marked recommended; the other options are a changed
+   list or no.
+5. On no, or a changed list: redo the table from the owner's answer and ask again. Nothing is written before a yes.
+6. On yes, write the cards. A card made from memory is retold, never an owner quote: no `## Owner quotes` line, and a
+   `## Source` section with one line per file: `- YYYY-MM-DD · auto memory <file> · retold, not a quote`.
+7. Run `bash scripts/leak-check.sh <card>` on each new or changed card. A hit: rewrite the line without the internal
+   name, or move the file to the personal heap; no card is committed with a hit.
+8. Delete each moved and each dropped file from the private memory dir, and their index lines: `bash
+   scripts/memory-triage.sh --index-lines <dir>/MEMORY.md <file>...` prints exactly the lines to remove from that
+   `MEMORY.md`. Personal files stay, with their lines.
+9. Run `bash scripts/defects-index.sh`, then commit the cards and the index with `chore(defects): memory triage`.
+   The commit message names counts, never a personal file or its content.
+10. Report one line: cards written, files deleted from private memory, files kept.

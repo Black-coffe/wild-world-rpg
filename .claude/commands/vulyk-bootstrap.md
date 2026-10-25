@@ -19,9 +19,10 @@ task. A no is recorded as the Profile row `| Bootstrap | declined <date> |`, whi
      a person reaches the running thing (a URL and a test login, a CLI entry point, a browser runner's
      quiet command), or `none: library only`; a filled row adds the black-box seat at Tier 3-4.
      *Release / deploy* names the default branch, how a version is published and who presses the
-     button; `/vulyk-ship` prints it and never presses it.
+     button; `/vulyk-ship` prints it and never presses it. *Owner language* is the one reports and
+     questions to the owner come in (`--quick`: the language the owner writes in), `en` when unsure.
    - Top model: run `bash scripts/top-model.sh --explain`, show the owner what the plan resolved to and
-     why, and leave `TOP_MODEL = auto` unless question 13 asked for a deliberate pin (then write the
+     why, and leave `TOP_MODEL = auto` unless question 15 asked for a deliberate pin (then write the
      alias in its place). Then run `bash scripts/top-model.sh --apply` whatever the answer: it pins the
      Queen's own session in the gitignored `.claude/settings.local.json`, so the session runs on the
      model the ladder assumes rather than the account default.
@@ -34,8 +35,13 @@ task. A no is recorded as the Profile row `| Bootstrap | declined <date> |`, whi
      runner), write that instead of a plausible command, since a verification that always exits 0 is
      worse than an admitted gap. Name the full suite in its own row: the reviewer runs it once per
      round.
-   - Conventions tied to paths go into `.claude/rules/<area>.md` with a `paths:` frontmatter list, not
-     into the constitution, which every agent that loads it pays for on every turn.
+   - Court setup: question 7's install step goes verbatim into `.claude/vulyk-setup` (a bash script; it
+     runs with the court as its working directory and `VULYK_ROOT`, `VULYK_COURT` set, capped at 300 s).
+     Run it once in a scratch checkout before committing it. "None" writes no file. The installer never
+     ships or touches this file (`docs/cycle.md`, stage 05).
+   - Conventions tied to paths go into `.claude/rules/<area>.md` with a `paths:` frontmatter list (shape:
+     `templates/rule-example.md`), not into the constitution, which every agent that loads it pays for
+     on every turn.
 3. Prune the roster. Delete agents that cannot apply here (for example `worker-test` without a test
    runner, and say so in the summary) and adjust tool lists to the stack. The council seats are the
    ones whose removal is never silent: if this project cannot be run and observed at all (no *Client

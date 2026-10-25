@@ -4,7 +4,7 @@ This project runs on VULYK (ADR-170). The main session is the Queen: she plans, 
 agents for large work and integrates. Procedures live in the `/vulyk-*` commands.
 
 Этот файл — **КАК** (тиры, касты, совет, модели, цикл); `CLAUDE.md` — **ЧТО** (канон и предметные правила 1–10),
-и при конфликте выигрывает `CLAUDE.md`. Каркас ниже совпадает с поставкой 0.21.1 почти дословно, чтобы следующий
+и при конфликте выигрывает `CLAUDE.md`. Каркас ниже совпадает с поставкой 0.21.1 (Закон 6 — с 0.34.0) почти дословно, чтобы следующий
 апгрейд сводился диффом; всё проектное — в `## Project bindings`. Что в самой рамке у нас не ванильное и что
 возвращать после `/vulyk-update` — `docs/vulyk/ADAPTATION.md`. Документы рамки (`cycle.md`, `model-cascade.md`,
 `token-economy.md`, ADR рамки) в наш репо не ставятся: они в `~/.vulyk/src/docs/`.
@@ -16,7 +16,7 @@ agents for large work and integrates. Procedures live in the `/vulyk-*` commands
 3. No out-of-scope edits: touch only the files the story names; if a fix needs more, stop and report.
 4. Surface tradeoffs: say what you chose, what you rejected and why, in a sentence or two.
 5. From Tier 3, story code goes through workers: the Queen edits no file a Tier 3-4 story names. At Tier 0-2 she builds herself.
-6. An owner's correction joins its defect class in `docs/defects/` as a verbatim quote. A class code can check gets a failing `check:` with the original case and a neighbour-form fixture in the same work (inside a Tier 3-4 story naming the file: the next repair story); a repeated class without one is debt that fails `scripts/defects-check.sh`. A check that only warns is not a check.
+6. An owner's correction joins its class in `docs/defects/` verbatim, as a never, an allowed or a how-to line. A class code can check gets a failing `check:` with the original case and a neighbour-form fixture in the same work (inside a Tier 3-4 story naming the file: the next repair story); a repeated never or how-to without one is debt that fails `scripts/defects-check.sh`. A check that only warns is not a check.
 
 Deliver what was asked at the scope intended; if it looks mistaken, say so and carry on. Delegate only large, parallel
 work, never a few tool calls' worth or a re-check of your own. Size plans, stories and reports to the task. Do not tell
@@ -44,7 +44,7 @@ Tier 2-4 plans stop for the owner's approval (`**Approved:**`) unless `/vulyk-pl
 ## Models and effort
 
 Route by family, never by version: Sonnet executes (workers, scout, docs drone, clerk), Opus orchestrates and judges (the Queen, planner, reviewers, council, coverage, librarian), Haiku runs the clerk only. The family that builds never judges. A repair story after a RED round climbs to Opus.
-**Гейт у нас тоже Opus, а не Fable:** пин `TOP_MODEL` стоит в `CLAUDE.md` (не здесь: `scripts/top-model.sh` берёт первое вхождение, и `CLAUDE.md` читается первым); проверка — `bash scripts/top-model.sh --explain` → `decided by: constitution`. Fable у нас только второй ревьюер Tier 4 (это же печатает `--explain`).
+**Гейт у нас тоже Opus, а не Fable: `TOP_MODEL = opus`.** С 0.34 `scripts/top-model.sh` читает пин только из этого файла и ставит его выше машинного профиля моделей (`~/.claude/vulyk-model-profile`); профиль `opus-builds` при этом всё ещё отдаёт Fable ревью и слепые места совета (решение владельца 2026-10-25: гейт пином, профиль не трогаем). Проверка — `bash scripts/top-model.sh --explain` → `decided by: constitution`.
 Model floor: no dispatch below `scripts/lib.sh` `model_floor`; always the newest of each family. `bash scripts/top-model.sh --floor` checks the config, telemetry `model_below_floor` what really ran.
 Pass it as `model:` only on the Tier 4 review, `lead-architect`, the Tier 4 `queen-planner` and a missed story's retry.
 Effort lives in agent frontmatter. Не переключай `/model`, `/effort` и fast mode посреди сессии: это заново оплачивает весь закэшированный префикс; модель субагента задаёт его frontmatter или параметр dispatch.
@@ -114,7 +114,7 @@ walls hit; open questions to the owner. Drop file contents, diffs, command outpu
 
 ## Where things live
 
-Specs, stories, study reports: `docs/specs/<slug>/` · defect classes: `docs/defects/` · path rules: `.claude/rules/`.
+Specs, stories, study reports: `docs/specs/<slug>/` · defect classes (дерево правил: «Нельзя» / «Можно» / «Как надо», с 0.32): `docs/defects/` · path rules: `.claude/rules/` (`always.md` грузится всегда, ≤40 строк).
 `memory/memory.md` indexes the map: a hint to verify, written only by `drone-docs` and `librarian`.
 Решения и доменные знания у нас живут не там, где у ванили, — см. таблицу в `## Project bindings`.
 
