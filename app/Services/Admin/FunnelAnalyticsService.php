@@ -26,7 +26,7 @@ final class FunnelAnalyticsService
     private const QUEST_ACTIVATION = '2026-06-02 09:33:00';
 
     /** objective_type расширенных квестов ADR-088 (NEW-бакет). */
-    private const EXTENDED_TYPES = "('collect_resource','building_level','level_milestone','npc_kills')";
+    private const EXTENDED_TYPES = "('collect_resource','gather_resource','building_level','level_milestone','npc_kills')";
 
     /** Активация ADR-097 (faction-choice nudge: value-prop + 1000💰 + анти-спам) на проде. */
     private const FACTION_NUDGE_ACTIVATION = '2026-06-04 00:00:00';

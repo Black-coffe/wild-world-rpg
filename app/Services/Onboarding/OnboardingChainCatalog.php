@@ -23,7 +23,8 @@ namespace App\Services\Onboarding;
  * ONBOARDING-COVERAGE). Самодостаточна в тексте (media-off инвариант).
  *
  * Объектив-типы шагов (все onboarding-only, гейтятся onboarding.quest_chain.enabled):
- *   explore_cells (always-on) / collect_resource / level_milestone (ADR-088) /
+ *   explore_cells (always-on) / gather_resource (W-REG F6, добытое по отметкам
+ *   {@see \App\Services\Quest\GatheredResourceLedger}) / level_milestone (ADR-088) /
  *   craft_any / claim_base / open_base_screen / any_building / sell_any —
  *   onboarding-специфичные добавлены в
  *   {@see \App\TaskHandlers\Quests\QuestObjectiveHandler::objectiveMet()};
@@ -85,12 +86,14 @@ class OnboardingChainCatalog
             [
                 'title_en'         => self::STEP_GATHER,
                 'title_ru'         => 'Дары пустоши',
-                'goal'             => 'собери 5 единиц воды',
-                'objective_type'   => 'collect_resource',
+                'goal'             => 'добудь 5 единиц воды',
+                // W-REG F6: считается ДОБЫТОЕ (отметки добычи), а не вода в рюкзаке — иначе
+                // стартовый паёк закрывал шаг до первой добычи.
+                'objective_type'   => 'gather_resource',
                 'objective_target' => 'Water',
                 'objective_qty'    => 5,
                 'reward'           => 150,
-                'description'      => 'Без ресурсов не выжить. Собери 5 единиц воды — самый частый и нужный ресурс. Жми кнопки добычи на клетке, где есть вода.',
+                'description'      => 'Без ресурсов не выжить. Добудь 5 единиц воды — самый частый и нужный ресурс. Жми кнопки добычи на клетке, где есть вода. Засчитывается только добытое: вода из стартового пайка в счёт не идёт.',
                 'done_text'        => "💧 *Первый ресурс в кармане!*\n\n"
                     . "Теперь — *крафт*. Напиши «крафт» (или жми *«{$craft}»* в нижнем меню) и собери *Повязку* — материалы для неё уже в твоём рюкзаке.\n\n"
                     . "_Мастерская для базовых вещей не нужна — крафт-хаб открывается сразу._",

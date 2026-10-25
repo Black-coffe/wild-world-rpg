@@ -36,7 +36,7 @@ class PolarStarService
      * Объектив-типы с осмысленным числовым прогрессом «X/Y» (накопительный счётчик).
      * Остальные онбординг-типы — one-shot («сделай это действие»), дробь не показываем.
      */
-    private const COUNTABLE = ['explore_cells', 'collect_resource', 'level_milestone', 'char_level', 'npc_kills'];
+    private const COUNTABLE = ['explore_cells', 'collect_resource', 'gather_resource', 'level_milestone', 'char_level', 'npc_kills'];
 
     /** Killswitch S4: показывать полярную звезду. Default false → dormant. */
     public function enabled(): bool
@@ -153,6 +153,13 @@ class PolarStarService
                     ->get();
                 $sumRow = $sumRes === false ? null : $sumRes->getRowArray();
                 return is_array($sumRow) && is_numeric($sumRow['total'] ?? null) ? (int) $sumRow['total'] : 0;
+
+            case \App\Services\Quest\GatheredResourceLedger::OBJECTIVE_TYPE:
+                // W-REG F6: добытое (отметки добычи), не вода в рюкзаке.
+                if (! is_string($target) || $target === '') {
+                    return 0;
+                }
+                return (new \App\Services\Quest\GatheredResourceLedger())->gatheredTotal($charId, $target);
 
             default:
                 return 0;

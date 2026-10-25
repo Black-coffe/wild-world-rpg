@@ -10,6 +10,7 @@ use App\Models\ClaimedCellModel;
 use App\Models\ResourceModel;
 use App\Services\Player\Progression\EarlyProgressionService;
 use App\Services\Player\VehicleActivationService;
+use App\Services\Quest\GatheredResourceLedger;
 use App\Services\Telegram\Request;
 use App\Services\Telegram\TelegramBridge;
 use App\Services\World\VehicleEffectsService;
@@ -52,6 +53,7 @@ class GatherResultPersister
     private ClaimedCellModel $claimedCellModel;
     private BaseStorageModel $baseStorageModel;
     private ResourceModel $resourceModel;
+    private GatheredResourceLedger $gatheredLedger;
 
     public function __construct(
         private ?CharacterResourceModel $characterResourceModel = null,
@@ -60,7 +62,8 @@ class GatherResultPersister
         ?VehicleEffectsService $vehicleEffects = null,
         ?ClaimedCellModel $claimedCellModel = null,
         ?BaseStorageModel $baseStorageModel = null,
-        ?ResourceModel $resourceModel = null
+        ?ResourceModel $resourceModel = null,
+        ?GatheredResourceLedger $gatheredLedger = null
     ) {
         $this->characterResourceModel = $characterResourceModel ?? new CharacterResourceModel();
         // ADR-138 (S3): XP за добычу новичку (level<cap). Dormant → gatherXpEarned()=0.0 = легаси.
@@ -70,6 +73,7 @@ class GatherResultPersister
         $this->claimedCellModel  = $claimedCellModel ?? new ClaimedCellModel();
         $this->baseStorageModel  = $baseStorageModel ?? new BaseStorageModel();
         $this->resourceModel     = $resourceModel ?? new ResourceModel();
+        $this->gatheredLedger    = $gatheredLedger ?? new GatheredResourceLedger();
     }
 
     /**
@@ -94,10 +98,32 @@ class GatherResultPersister
             // внутри → dormant = identity (byte-equivalent). Stat-gain per-entry → не меняется.
             $foundResources = (new \App\Services\PVE\TributeService())->collectOnGather($character, $foundResources);
             $cargoNote      = $this->writeCharacterResources($foundResources, $character, $foldCargoNote);
+            $this->recordGathered($character, $foundResources);
         }
         $this->bumpCharacterStats($character, $foundResources);
 
         return $cargoNote;
+    }
+
+    /**
+     * W-REG F6: отметка «добыто» для цели `gather_resource` (шаг «Дары пустоши»). Пишется
+     * пост-подать (то, что реально легло игроку: рюкзак + доля на склад базы) и только пока
+     * у персонажа активна такая цель. Побочная запись — добычу не валит.
+     *
+     * @param array<string, mixed>|\App\Entities\CharacterEntity              $character
+     * @param array<int, array{resource_id: int, amount: int, type?: string}> $foundResources
+     */
+    protected function recordGathered(array|\App\Entities\CharacterEntity $character, array $foundResources): void
+    {
+        $charId = $this->intField($character, 'id');
+        try {
+            if (! $this->gatheredLedger->hasActiveObjective($charId)) {
+                return;
+            }
+            $this->gatheredLedger->record($charId, $this->chatIdFor($character), $foundResources);
+        } catch (Throwable $e) {
+            log_message('warning', '[GatherResultPersister] gathered mark failed: ' . $e->getMessage());
+        }
     }
 
     /**

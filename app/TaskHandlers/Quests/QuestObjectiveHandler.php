@@ -104,6 +104,7 @@ class QuestObjectiveHandler extends BaseTaskHandler
             $types[] = 'building_level';
             $types[] = 'level_milestone';
             $types[] = 'npc_kills';
+            $types[] = \App\Services\Quest\GatheredResourceLedger::OBJECTIVE_TYPE;
         }
 
         // ADR-103 Слой 2: онбординг-шаги (title_en LIKE OnbStep%) обрабатываются при
@@ -224,6 +225,15 @@ class QuestObjectiveHandler extends BaseTaskHandler
                     return false;
                 }
                 return $this->resourceCount($db, $cid, $target) >= $qty;
+
+            case \App\Services\Quest\GatheredResourceLedger::OBJECTIVE_TYPE:
+                // W-REG F6: ДОБЫТЬ ≥qty ресурса завершённой добычей (отметки в action_log),
+                // а не владеть им — стартовый паёк и прочие поступления не считаются.
+                $target = $row['objective_target'] ?? null;
+                if (!is_string($target) || $target === '') {
+                    return false;
+                }
+                return (new \App\Services\Quest\GatheredResourceLedger())->gatheredTotal($cid, $target) >= $qty;
 
             case 'building_level':
                 // ADR-088: построить/прокачать здание (buildings.name_en = target) до ур.≥qty.

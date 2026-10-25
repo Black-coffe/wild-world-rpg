@@ -92,8 +92,8 @@ final class PolarStarServiceTest extends CIUnitTestCase
     {
         $svc = new FakePolarStarService();
         $svc->active   = OnboardingChainCatalog::STEP_GATHER;
-        $svc->progress = ['collect_resource' => 3];
-        $this->assertSame('🎯 *Сейчас:* собери 5 единиц воды (3/5)', $svc->line(1));
+        $svc->progress = ['gather_resource' => 3];
+        $this->assertSame('🎯 *Сейчас:* добудь 5 единиц воды (3/5)', $svc->line(1));
     }
 
     public function testLevelMilestoneRendersLevelFraction(): void
@@ -108,8 +108,8 @@ final class PolarStarServiceTest extends CIUnitTestCase
     {
         $svc = new FakePolarStarService();
         $svc->active   = OnboardingChainCatalog::STEP_GATHER;
-        $svc->progress = ['collect_resource' => -5];
-        $this->assertSame('🎯 *Сейчас:* собери 5 единиц воды (0/5)', $svc->line(1));
+        $svc->progress = ['gather_resource' => -5];
+        $this->assertSame('🎯 *Сейчас:* добудь 5 единиц воды (0/5)', $svc->line(1));
     }
 
     // ── One-shot типы: без дроби ──────────────────────────────────────────────

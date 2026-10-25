@@ -41,7 +41,8 @@
 
 **Approved:** Andrei, 2026-10-25
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/w-reg-honest-water
 **Checked:**
 **Council:**
+**Council:** GREEN round 1, 2026-10-25, at 3b8b9870, pack f9d9b2ab0ee5
 **Shipped:**

@@ -1,8 +1,8 @@
 ---
 story: w-reg-honest-water-01
 spec: w-reg-honest-water
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 wave: 1
@@ -34,6 +34,8 @@ blocked_by: []
 - app/Services/Admin/FunnelAnalyticsService.php
 - app/Database/Migrations/2026-10-25-120000_ReseedOnbStepGatherObjective.php
 - tests/database/GatheredResourceLedgerTest.php
+- tests/unit/Services/Onboarding/PolarStarServiceTest.php
+- tests/unit/Services/Onboarding/OnboardingChainServiceTest.php
 
 ## Non-goals
 - Не трогать `collect_resource` для остальных квестов — он остаётся «владеть в рюкзаке».
@@ -57,5 +59,20 @@ memory/map/onboarding.md — цепочка и `PolarStarService`; `GatherResult
 `vendor/bin/phpunit --no-coverage --no-progress`
 
 ## Implementation notes
+- `GatheredResourceLedger` (новый): `hasActiveObjective()` (незавершённый активный квест с `gather_resource`),
+  `record()` — одна строка `action_log` на ресурс (`gathered_resource`, `description = "<resources.id>:<qty>"`,
+  `Completed`, `chat_id` = telegram_id владельца или NULL), `gatheredTotal()` — сумма по отметкам ресурса.
+- `GatherResultPersister::persist()` после подати и зачисления зовёт `recordGathered()`: гейт активной цели,
+  потом запись; ошибка логируется warning-ом и добычу не валит. Пишется пост-подать сумма (рюкзак + склад).
+  Робот-добытчик сюда не ходит (единственный caller — `GatherTaskHandler`, он же путь веба).
+- `QuestObjectiveHandler`: тип добавлен в список расширенных (`quests.extended_enabled`) и в `objectiveMet`;
+  онбординг-шаг обрабатывается при `onboarding.quest_chain.enabled` через префикс `OnbStep`, как раньше.
+- `PolarStarService`: `gather_resource` в COUNTABLE + ветка `progressCount` → «🎯 Сейчас (X/5)» = добытое.
+- Каталог: goal «добудь 5 единиц воды», описание называет добычу и говорит, что паёк не в счёт (без эмодзи —
+  `quests.description` utf8mb3). `done_text` не менялся: теперь он приходит только после реальной добычи.
+- Миграция-ресид берёт тип/цель/кол-во/описание из каталога (идемпотентно), `down()` → `collect_resource`.
+- Вне исходного `## Files` (прямое следствие смены типа шага): два unit-теста ждали `collect_resource` и
+  «собери 5» — обновлены на `gather_resource` / «добудь 5». Добавлены в `## Files`.
+- Ask 4 выполняется сам собой: до выкатки отметок нет, счёт с нуля.
 
 ## Findings

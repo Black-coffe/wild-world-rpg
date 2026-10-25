@@ -74,7 +74,7 @@ final class OnboardingChainServiceTest extends CIUnitTestCase
     public function testChainUsesOnboardingObjectiveTypes(): void
     {
         $types = array_column(OnboardingChainCatalog::steps(), 'objective_type');
-        foreach (['explore_cells', 'collect_resource', 'craft_any', 'claim_base', 'open_base_screen', 'any_building', 'sell_any', 'level_milestone'] as $t) {
+        foreach (['explore_cells', 'gather_resource', 'craft_any', 'claim_base', 'open_base_screen', 'any_building', 'sell_any', 'level_milestone'] as $t) {
             $this->assertContains($t, $types, "Цепочка не содержит шаг типа {$t}.");
         }
     }
