@@ -39,3 +39,4 @@
 **Council:**
 **Council:** GREEN round 1, 2026-10-25, at 59a80a1f, pack 0f8f8a3b0c21
 **Shipped:**
+**Shipped:** v0.51.699, 2026-10-25, at 5eae8534 - merged to develop; preprod smoke green; tag v0.51.699

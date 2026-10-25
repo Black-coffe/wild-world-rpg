@@ -33,3 +33,4 @@
 {"ts":"2026-10-12T11:11:53Z","spec":"oct-world-robot-fix","version":"v0.51.696","head":"0d48fed4","pack":"15728c02a72f","note":"merged to develop, tag v0.51.696 pushed (prod deploy running); preprod Tier-3 webhook smoke green: B1 live_move_used=1 + cell unchanged during Gather, B3 base_cell=330454 from camp"}
 {"ts":"2026-10-12T12:50:27Z","spec":"oct-pvp-clarity","version":"v0.51.697","head":"da5b48b0","pack":"d2265ee66d14","note":"merged to develop, publish pending"}
 {"ts":"2026-10-12T21:45:05Z","spec":"web-onboarding","version":"v0.51.698","head":"c282351c","pack":"d6fbf376d40d","note":"merged to develop, publish pending"}
+{"ts":"2026-10-25T14:14:25Z","spec":"w-reg-text-fixes","version":"v0.51.699","head":"5eae8534","pack":"0f8f8a3b0c21","note":"merged to develop; preprod smoke green; tag v0.51.699"}
