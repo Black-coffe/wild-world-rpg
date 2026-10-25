@@ -144,6 +144,9 @@ final class AccountRegistrationTest extends CIUnitTestCase
 
         $body = $this->bodyOf($this->withSession(['account_id' => $accountId])->get('account/character'));
         $this->assertStringContainsString('name="name"', $body);
+        // F15 (W-REG): под пустым полем — правило, а не отказ.
+        $this->assertStringContainsString(esc(NameService::ruleHintPlain()), $body);
+        $this->assertStringNotContainsString('не соответствует', $body);
 
         $result = $this->withSession(['account_id' => $accountId])->post('account/character', ['name' => 'Web_Hero']);
         $result->assertRedirectTo('/account');

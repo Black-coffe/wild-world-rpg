@@ -47,6 +47,19 @@ class NameService
         return preg_match(self::NAME_PATTERN, $name) === 1;
     }
 
+    /**
+     * Само правило без «Имя не соответствует правилам» — подсказка под пустым полем сайта.
+     * До ввода фраза-отказ читается как ошибка (холодный проход W-REG, F15); отказ после
+     * неверного ввода остаётся {@see ruleMessagePlain()}. Источник один — RULE_MESSAGE.
+     */
+    public static function ruleHintPlain(): string
+    {
+        $plain = self::ruleMessagePlain();
+        $pos   = mb_strpos($plain, ': ');
+
+        return $pos === false ? $plain : mb_substr($plain, $pos + 2);
+    }
+
     /** {@see RULE_MESSAGE} без Markdown-разметки и эмодзи — для HTML-страниц сайта. */
     public static function ruleMessagePlain(): string
     {

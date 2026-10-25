@@ -171,7 +171,7 @@ class AccountRegister extends BaseController
             'closed'   => false,
             'error'    => null,
             'name'     => '',
-            'ruleText' => NameService::ruleMessagePlain(),
+            'ruleText' => NameService::ruleHintPlain(),
             'botLink'  => config(Social::class)->botStart('src_site_register'),
             'meta'     => self::meta('Новый персонаж — Wild World', 'account/character'),
         ]);

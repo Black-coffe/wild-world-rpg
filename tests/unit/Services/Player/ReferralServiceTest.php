@@ -80,6 +80,8 @@ final class ReferralServiceTest extends CIUnitTestCase
     {
         $t = ReferralService::notifyText();
         $this->assertStringContainsString('Зовущий', $t);
+        // F9 (W-REG): «🎖 Титулы» живёт в хабе «📊 Прогресс» карточки, путь называет хаб.
+        $this->assertStringContainsString('«' . \App\Services\Player\ProfileHubService::HUB_PROGRESS_LABEL . '» → «🎖 Титулы»', $t);
         $this->assertSame(0, substr_count($t, '*') % 2);
         $this->assertSame(0, substr_count($t, '_') % 2);
     }
