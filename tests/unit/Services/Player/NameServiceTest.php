@@ -84,4 +84,15 @@ final class NameServiceTest extends CIUnitTestCase
             [str_repeat('я', 21)], // >20 code points
         ];
     }
+
+    /** F15 (W-REG): подсказка до ввода — само правило; фраза-отказ — только в ошибке после ввода. */
+    public function testRuleHintIsTheRuleWithoutTheRefusal(): void
+    {
+        $hint = NameService::ruleHintPlain();
+
+        $this->assertStringNotContainsString('не соответствует', $hint);
+        $this->assertStringStartsWith('3–20 символов', $hint);
+        $this->assertStringEndsWith($hint, NameService::ruleMessagePlain());
+        $this->assertStringContainsString('Имя не соответствует правилам', NameService::ruleMessagePlain());
+    }
 }

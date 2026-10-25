@@ -124,7 +124,7 @@ class TitleCheckCron extends BaseTaskHandler
             $name = is_string($t['name'] ?? null) ? $t['name'] : '';
             $msg .= "{$icon} *{$name}*\n";
         }
-        $msg .= "\n_Выбрать активный титул — «🎖 Титулы» в карточке Персонажа._";
+        $msg .= "\n_Выбрать активный титул — карточка Персонажа → «" . \App\Services\Player\ProfileHubService::HUB_PROGRESS_LABEL . "» → «🎖 Титулы»._";
 
         $this->safeSendMessage($chatId, $msg, ['parse_mode' => 'Markdown']);
     }

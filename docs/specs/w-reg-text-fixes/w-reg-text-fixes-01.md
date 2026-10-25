@@ -1,8 +1,8 @@
 ---
 story: w-reg-text-fixes-01
 spec: w-reg-text-fixes
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 1
 worker: worker-code
 wave: 1
@@ -45,5 +45,9 @@ memory/map/onboarding.md, memory/map/website.md — разделы про соз
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/Player/NameServiceTest.php`
 
 ## Implementation notes
+- F9: `ReferralService::notifyText()` и `TitleCheckCron` — «карточка Персонажа → «` . HUB_PROGRESS_LABEL . `» → «🎖 Титулы»»; путь сверен с `CharacterSheetService:331` (хаб на карточке) и `ProfileHubService::progressButtons` («🎖 Титулы» внутри). «🔗 Мой профиль» из отчёта — url-кнопка на веб-профиль, не вход в титулы.
+- F10: пять строк `**…**` → `*…*`, тексты дословно прежние.
+- F15: `NameService::ruleHintPlain()` — `ruleMessagePlain()` после «: »; `AccountRegister` подаёт его в `ruleText`; ошибка после ввода не тронута.
+- Тесты: unit `NameServiceTest::testRuleHintIsTheRuleWithoutTheRefusal`, `ReferralServiceTest` (путь через хаб), database `AccountRegistrationTest` (подсказка на пустой форме) и `TitleServiceTest` — зелёные; phpstan по тронутым файлам — 0 ошибок. Tech-writing — vault `tech-writing: w-reg-text-fixes`.
 
 ## Findings
