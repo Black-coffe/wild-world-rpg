@@ -81,7 +81,7 @@ final class QuestChainService
         // Только НОВЫЕ расширенные типы (ADR-088). char_level/craft_item исключены намеренно:
         // их используют этапы цепочек и demo branch-point (char_level root) — их нельзя
         // делать manual-startable. Майлстоуны роста = отдельный тип level_milestone.
-        if (!is_string($type) || !in_array($type, ['collect_resource', 'building_level', 'level_milestone', 'npc_kills'], true)) {
+        if (!is_string($type) || !in_array($type, ['collect_resource', 'gather_resource', 'building_level', 'level_milestone', 'npc_kills'], true)) {
             return false;
         }
         return $this->prerequisiteOf($quest) === null;
