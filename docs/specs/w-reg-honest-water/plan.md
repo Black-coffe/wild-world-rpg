@@ -41,7 +41,7 @@
 
 **Approved:** Andrei, 2026-10-25
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/w-reg-honest-water
 **Checked:**
 **Council:**
 **Shipped:**
