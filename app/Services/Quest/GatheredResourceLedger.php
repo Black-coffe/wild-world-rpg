@@ -54,6 +54,9 @@ class GatheredResourceLedger
             return;
         }
 
+        // Builder-insert не ставит метки времени (в отличие от ActionLogModel), а активность
+        // персонажа читается по action_log.created_at — время пишем явно.
+        $now  = date('Y-m-d H:i:s');
         $rows = [];
         foreach ($foundResources as $res) {
             $rid    = (int) $res['resource_id'];
@@ -68,6 +71,8 @@ class GatheredResourceLedger
                 'action_name'   => self::EVENT,
                 'action_status' => 'Completed',
                 'description'   => "{$rid}:{$amount}",
+                'created_at'    => $now,
+                'updated_at'    => $now,
             ];
         }
         if ($rows !== []) {

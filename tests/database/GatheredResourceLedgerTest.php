@@ -105,6 +105,9 @@ final class GatheredResourceLedgerTest extends CIUnitTestCase
         $this->assertIsArray($row);
         $this->assertSame(GatheredResourceLedger::EVENT, $row['action_name']);
         $this->assertSame('555', (string) $row['chat_id']);
+        // Смоук на testbot: insertBatch через builder оставлял created_at = NULL, а активность
+        // (PlayerDetectionService, RelocateAbandonedCharacters) читается по action_log.created_at.
+        $this->assertNotNull($row['created_at']);
     }
 
     public function testNoMarkWithoutActiveGatherObjective(): void
