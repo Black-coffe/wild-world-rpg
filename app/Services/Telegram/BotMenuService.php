@@ -320,7 +320,7 @@ class BotMenuService
     {
         return Request::sendMessage([
             'chat_id'      => $chatId,
-            'text'         => "🧭 Нижнее меню возвращено.\n\n"
+            'text'         => "🧭 Меню возвращено.\n\n"
                 . 'Кнопки внизу экрана: ' . self::replyButtonsLine() . ".\n"
                 . "_Если их не видно — нажми значок «☰» справа от поля ввода._",
             'parse_mode'   => 'Markdown',
