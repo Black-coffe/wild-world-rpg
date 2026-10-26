@@ -36,3 +36,4 @@ none
 **Council:**
 **Council:** GREEN round 1, 2026-10-26, at c26abcb6, pack d1d30c571ba1
 **Shipped:**
+**Shipped:** v0.51.706, 2026-10-26, at 544c4ec5 - merged to develop, publish pending
