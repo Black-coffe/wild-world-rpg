@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-13 (web-onboarding)
+last-verified: 2026-10-26 (w-reg-site-funnel)
 
 # Scout report: Публичный сайт wildworld.fun
 
@@ -24,7 +24,10 @@ last-verified: 2026-10-13 (web-onboarding)
   `GOOGLE_/YANDEX_OAUTH_CLIENT_ID|SECRET`, пусто = «недоступно»). Фильтр `accountThrottle` →
   `app/Filters/AccountThrottleFilter.php` на POST `link`, `character`, `identity/N/unlink`. `Config\Accounts`.
   Флаг `web.open_registration` (default false) гейтит `/account/register|character` и создание аккаунта
-  первым OAuth-входом.
+  первым OAuth-входом. **W-REG.1:** тот же флаг (через `AccountRegister::registrationOpen()`, :143) задаёт
+  копирайт главной (`Front::index` → `registrationOpen`), `/about` (`startDoors`, `Front.php:269`) и `account_login`
+  (`AccountAuth.php:60`); partial `site/_start_doors` («две двери»: Telegram `Social::botStart` / `/play`) подключают
+  `home.php` и `page.php` с `doorsSource` `src_site_home|about`. Тесты: `tests/database/SiteFunnelTest.php`.
 - **Удалено (нет файлов):** `AccountPassword`, `Services/Web/AccountAuthService`, `PasswordResetService`,
   вьюха `site/account_reset.php`. **Редиректы:** `account/reset` и `account/reset/(:segment)` →
   `account/login` (`Routes.php:255-256`, `addRedirect`).
