@@ -35,4 +35,10 @@ none
 **Branch:** vulyk/w-reg-banner-fit
 **Checked:**
 **Council:**
+**Council:** ESCALATE round 1, 2026-10-26, at 8580165b, pack a4c87b275913
 **Shipped:**
+
+## Needs a human
+- reason: ceiling · round 1 · 2026-10-26
+- ask 1: BLOCK by the reviewer - see docs/specs/w-reg-banner-fit/council/round-1/review.md
+- seats: docs/specs/w-reg-banner-fit/council/round-1/
