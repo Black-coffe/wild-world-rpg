@@ -1,8 +1,8 @@
 ---
 story: s4-webhook-fail-closed-01
 spec: s4-webhook-fail-closed
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 1
 worker: worker-code
 wave: 1
@@ -37,5 +37,10 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Controllers/Telegram/BotControllerWebhookSecretTest.php`
 
 ## Implementation notes
+- `BotController::webhookSecretVerdict()` — чистый статический вердикт; `webhook()` зовёт его до `getBody()`, CRITICAL при
+  пустом секрете в production (значение секрета в лог не идёт), warning при несовпадении — как было.
+- Тест: 4 случая + source-гейт «вердикт до разбора тела, старого `if (!empty($expected))` нет»; на старом контроллере красный.
+- `.env.example`: секрет обязателен в production. Прод/preprod: секрет 64 симв., `production` — сверено чтением.
+- Tech-writing `controllers/BotController.md` обновлена (vault). `RelocationConfirmOutcomeTest` падает локально и без правки (схема тест-БД).
 
 ## Findings
