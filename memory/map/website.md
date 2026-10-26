@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-26 (w-reg-polish)
+last-verified: 2026-10-26 (w-reg-banner)
 
 # Scout report: Публичный сайт wildworld.fun
 
@@ -51,7 +51,7 @@ last-verified: 2026-10-26 (w-reg-polish)
   редирект `/play`, при выкл. флаге `/account`). Экран задачи: `applyCapture(…, $taskId)` помечает экран начатой задачей,
   `WebActService::current()` → `settleTaskScreen` заменяет его итогом (`WebTaskResultPicker`, окно
   `WebPlay::taskResultWindowSeconds`=120) или `TASK_DONE_TEXT`. Плашка `#play-banner` (`site/_play/banner`,
-  `WebInboxService::banner`, `WebPlay::bannerMax`=3); опрос `/play/inbox?rev=` отдаёт `banner_html`, `rev`, `screen_html`.
+  `WebInboxService::banner`, `WebPlay::bannerMax`=3); сообщения — свёрнутые `<details class="play-banner-item" data-message-id>`, summary = первая непустая строка text/caption ≤80 симв., запасной «Сообщение»; JS держит `open` при замене плашки и раз на id раскрывает новейшее при ≥768 px (`wildworld-play.js?v=5`); опрос `/play/inbox?rev=` отдаёт `banner_html`, `rev`, `screen_html`.
   Вьюхи `site/_play/native_*`, `hud`, `dock`, `state`; JS `wildworld-play.js` (`[data-ends-at]`, тик 1 с).
 - Публичная карта `/map` → `app/Controllers/Map.php`: цвета из `BiomePalette`, PNG `?v=filemtime`;
   вошедшему при `web.play_enabled` — «Играть отсюда» → `/play?view=map`.
@@ -69,7 +69,7 @@ outbound: модели постов, `Services/Web/TelegramLoginVerifier`, `Serv
 
 ## Gotchas
 - Приватные поля персонажа показываются **только своему** персонажу.
-- Правка CSS требует бампа `?v=` в `meta.php` (сейчас `wildworld-ui.css?v=15`) и синхронного обновления `ui-kit.html`.
+- Правка CSS требует бампа `?v=` в `meta.php` (сейчас `wildworld-ui.css?v=17`) и синхронного обновления `ui-kit.html`.
 - Итог задачи выбирается по времени и типу, не по метке: чужой фон (титулы, советы, хинты, события…) режется
   `WebTaskResultPicker::foreignType`; новый фоновый отправитель в `app/TaskHandlers/**` → дописать `FOREIGN_TEXT_PREFIXES`.
 - Site-контент — прямой INSERT в `site_posts`; `draft` гасит публикацию; черновик — через `/redkollegiya`.
