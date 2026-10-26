@@ -127,6 +127,38 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
         $this->assertCount(0, $svc->sent);
     }
 
+    /** W-REG.3 (F11): цепочка идёт, но до шага «база» не дошла → подсказка о базе молчит. */
+    public function testFirstBaseTipWaitsForChainBaseStep(): void
+    {
+        $newbie = ['id' => 1, 'level' => 1, 'daily_tips_enabled' => 1];
+        foreach ([['OnbStepMove'], ['OnbStepMove', 'OnbStepGather'], ['OnbStepMove', 'OnbStepGather', 'OnbStepCraft']] as $titles) {
+            $svc = new FakeHintService();
+            $svc->chainTitles = $titles;
+            $this->assertFalse($svc->maybeSendFirstBaseTip($newbie, 100), implode(',', $titles));
+            $this->assertCount(0, $svc->sent);
+        }
+    }
+
+    /** W-REG.3 (F11): шаг «база» назначен (или пройден, цепочка ушла дальше) → подсказка шлётся. */
+    public function testFirstBaseTipSendsOnChainBaseStep(): void
+    {
+        $newbie = ['id' => 1, 'level' => 1, 'daily_tips_enabled' => 1];
+        foreach ([['OnbStepMove', 'OnbStepGather', 'OnbStepCraft', 'OnbStepClaimBase'], ['OnbStepOpenBase']] as $titles) {
+            $svc = new FakeHintService();
+            $svc->chainTitles = $titles;
+            $this->assertTrue($svc->maybeSendFirstBaseTip($newbie, 100), implode(',', $titles));
+            $this->assertCount(1, $svc->sent);
+        }
+    }
+
+    /** W-REG.3 (F11): без шагов цепочки — гейт прежний (подсказка на ходу). */
+    public function testChainReachedBaseWithoutChainIsTrue(): void
+    {
+        $this->assertTrue(OnboardingHintService::chainReachedBase([]));
+        $this->assertFalse(OnboardingHintService::chainReachedBase(['OnbStepCraft']));
+        $this->assertTrue(OnboardingHintService::chainReachedBase(['OnbStepClaimBase']));
+    }
+
     public function testExistingBaseSuppresses(): void
     {
         $svc = new FakeHintService();
@@ -898,6 +930,8 @@ final class FakeHintService extends OnboardingHintService
     public bool $workshopOwned = false;
     public bool $greenhouseOwned = false;
     public bool $arsenalOwned = false;
+    /** @var list<string> W-REG.3: title_en шагов цепочки персонажа ([] = цепочки нет) */
+    public array $chainTitles = [];
     /** @var array<string, mixed>|null фейковый персонаж для loadCharacter-seam */
     public ?array $fakeCharacter = null;
     /** @var array<string, int> per-key значения gsInt (E20: окно automation-хинта) */
@@ -923,6 +957,11 @@ final class FakeHintService extends OnboardingHintService
     protected function hasActiveBase(int $charId): bool
     {
         return $this->baseExists;
+    }
+
+    protected function chainStepTitles(int $charId): array
+    {
+        return $this->chainTitles;
     }
 
     protected function ownsRoboticsWorkshop(int $charId): bool

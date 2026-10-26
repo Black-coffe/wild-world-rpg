@@ -1,8 +1,8 @@
 ---
 story: w-reg-polish-02
 spec: w-reg-polish
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 wave: 1
@@ -53,5 +53,9 @@ blocked_by: []
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- Fallback «не понял» (`GenericmessageCommand`): «_Кнопки пропали? Нажми_ /menu _или_ /start _— они вернутся внизу экрана. В Telegram все команды ещё и под значком «☰» у поля ввода._». Ответ на /menu (`BotMenuService::sendMainMenu`): «…— в Telegram нажми значок «☰»…».
+- `/guide` раздел `nav` (`GuideCatalog`): кроме «☰» и «нижней панели» там была «постоянная панель из шести кнопок… шесть *мест*» (в доке `/play` их восемь) — та же соседняя форма, правлено здесь же: «постоянные кнопки… *места*», «Если кнопок внизу экрана не видно», «Команду можно просто набрать в поле ввода. В Telegram они ещё и под значком «☰»…», «возврат к кнопкам внизу экрана».
+- Проверка: шаблоны «нижн* панел*», «☰» в литерале без «Telegram» (`/^(?![\s\S]*Telegram)[\s\S]*☰/u`), счёт кнопок теперь ловит и «шести/семи/восьми кноп». Дерево — ok (1091 файл); прежние версии трёх файлов дают 6 срабатываний; фикстура соседней формы дописана (`fallbackHint()`: оба новых случая), обе фикстуры падают; `defects-check.sh` GREEN.
+- `tests/_support/Community/provenance-corpus.php` НЕ правился: это замороженный срез корпуса на 2026-08-26 (шапка файла: обновление — отдельная story), проверка его не сканирует. `CommunityGuardTest` зелёный.
 
 ## Findings
