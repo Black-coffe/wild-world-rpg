@@ -36,6 +36,7 @@ none
 **Checked:**
 **Council:**
 **Council:** ESCALATE round 1, 2026-10-26, at 8580165b, pack a4c87b275913
+**Council:** GREEN round 2, 2026-10-26, at 680579d7, pack 4567e3271483
 **Shipped:**
 
 ## Needs a human

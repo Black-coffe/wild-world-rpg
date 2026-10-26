@@ -7,3 +7,4 @@
 - 2026-10-26T19:05:04Z · 04-council:ESCALATE · reopened after round 1, ceiling now 2 · next: repair
 - 2026-10-26T19:05:07Z · 03-building · repair round 1: w-reg-banner-fit-02-repair-round-1.md · next: build:2
 - 2026-10-26T19:05:31Z · 04-council:open · round 2 opened, no court (no blind seat required) · next: dispatch:review
+- 2026-10-26T19:17:00Z · 04-council:GREEN · round 2 verdict GREEN at 680579d7 pack 4567e3271483 · next: green
