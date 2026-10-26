@@ -43,3 +43,4 @@ none
 - reason: ceiling · round 1 · 2026-10-26
 - ask 1: BLOCK by the reviewer - see docs/specs/w-reg-banner-fit/council/round-1/review.md
 - seats: docs/specs/w-reg-banner-fit/council/round-1/
+**Shipped:** v0.51.705, 2026-10-26, at 41d5ec67 - merged to develop, publish pending
