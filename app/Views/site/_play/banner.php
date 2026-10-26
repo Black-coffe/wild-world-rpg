@@ -4,6 +4,8 @@
  * целиком (текст или подпись к фото, все кнопки). Рендерится сервером при загрузке страницы и в
  * JSON `banner_html` опроса `/play/inbox`. Кнопки — те же формы `/play/act` с `message_id`, что и
  * во входящих; «✕ Скрыть» — форма POST `/play/inbox/read` (без JS работает через PRG).
+ * W-REG.5: каждое сообщение свёрнуто в строку `<details>` (первая строка текста или подписи, иначе
+ * «Сообщение»), тап раскрывает его целиком — плашка не съедает первый экран телефона.
  *
  * @var list<array<string,mixed>> $items
  * @var int                       $more
@@ -14,6 +16,22 @@ use App\Services\Web\TelegramMarkupRenderer;
 $list   = is_array($items ?? null) ? $items : [];
 $more   = is_int($more ?? null) && $more > 0 ? $more : 0;
 $actUrl = base_url('play/act');
+
+/** W-REG.5: первая непустая строка текста или подписи без разметки, не длиннее 80 символов. */
+$summary = static function (string $text, string $caption, ?string $parse): string {
+    foreach ([$text, $caption] as $src) {
+        $html  = preg_replace('~<br\s*/?>~i', "\n", TelegramMarkupRenderer::toHtml($src, $parse)) ?? '';
+        $plain = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        foreach (preg_split('~\R~u', $plain) ?: [] as $line) {
+            $line = trim($line);
+            if ($line !== '') {
+                return mb_strimwidth($line, 0, 80, '…', 'UTF-8');
+            }
+        }
+    }
+
+    return 'Сообщение';
+};
 ?>
 <div id="play-banner" class="play-banner" aria-live="polite"<?= $list === [] && $more === 0 ? ' hidden' : '' ?>>
 <?php if ($list !== [] || $more > 0): ?>
@@ -40,7 +58,9 @@ $actUrl = base_url('play/act');
         $messageId = is_int($msg['message_id'] ?? null) ? $msg['message_id'] : null;
         $rows      = is_array($msg['inline_keyboard'] ?? null) ? $msg['inline_keyboard'] : [];
         ?>
-        <article class="play-msg play-banner-msg"<?= $messageId !== null ? ' data-message-id="' . $messageId . '"' : '' ?>>
+        <details class="play-banner-item"<?= $messageId !== null ? ' data-message-id="' . $messageId . '"' : '' ?>>
+        <summary class="play-banner-summary"><span class="play-banner-line"><?= esc($summary($text, $caption, $parse)) ?></span></summary>
+        <article class="play-msg play-banner-msg">
             <?php if ($photo !== null || $caption !== ''): ?>
                 <figure class="play-msg-figure">
                     <?php if ($photo !== null): ?><img src="<?= esc($photo, 'attr') ?>" alt="" loading="lazy"><?php endif ?>
@@ -75,6 +95,7 @@ $actUrl = base_url('play/act');
                 </div>
             <?php endif ?>
         </article>
+        </details>
     <?php endforeach ?>
     <?php if ($more > 0): ?>
         <p class="play-banner-more">ещё <?= $more ?> — во входящих 🔔</p>

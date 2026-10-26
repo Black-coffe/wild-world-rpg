@@ -17,7 +17,9 @@
      без JS вкладки остаются якорями к полкам, строка поиска скрыта.
    web-onboarding-03: плашка новых сообщений (#play-banner) приходит в `banner_html` опроса; опрос шлёт
    `rev` экрана, и при расхождении сервер отдаёт `screen_html` — мостовой экран заменяется без перезагрузки;
-   «✕ Скрыть» (POST /play/inbox/read) убирает плашку на месте.
+   «✕ Скрыть» (POST /play/inbox/read) убирает плашку на месте. W-REG.5: сообщения плашки — свёрнутые
+   <details>; при замене плашки раскрытые по data-message-id остаются раскрытыми; на ≥768 px самое
+   новое раскрыто (без JS — всё свёрнуто).
    W2.N3-03: таймеры очереди крафта (#play-state [data-ends-at]) тикают тем же тиком, что HUD.
    ============================================================ */
 (() => {
@@ -61,13 +63,33 @@
 
   const banner = () => document.getElementById('play-banner');
 
+  /* W-REG.5: на ≥768 px самое новое сообщение плашки раскрыто — один раз на message_id, чтобы
+     закрытое игроком опрос не раскрывал снова. На телефоне всё свёрнуто. */
+  const wideBanner = window.matchMedia ? window.matchMedia('(min-width: 768px)') : null;
+  const autoOpened = new Set();
+  const openNewest = (box) => {
+    if (!box || !wideBanner || !wideBanner.matches) return;
+    const first = box.querySelector('details[data-message-id]');
+    if (!first || autoOpened.has(first.dataset.messageId)) return;
+    autoOpened.add(first.dataset.messageId);
+    first.open = true;
+  };
+  openNewest(banner());
+
   const setBanner = (html) => {
     const current = banner();
     if (!current || typeof html !== 'string' || html === '') return;
     const tpl = document.createElement('template');
     tpl.innerHTML = html.trim();
     const next = tpl.content.firstElementChild;
-    if (next && next.id === 'play-banner') current.replaceWith(next);
+    if (!next || next.id !== 'play-banner') return;
+    // W-REG.5: раскрытое игроком сообщение остаётся раскрытым после замены плашки опросом.
+    current.querySelectorAll('details[open][data-message-id]').forEach((el) => {
+      const same = next.querySelector('details[data-message-id="' + CSS.escape(el.dataset.messageId || '') + '"]');
+      if (same) same.open = true;
+    });
+    openNewest(next);
+    current.replaceWith(next);
   };
 
   const clearBanner = () => {

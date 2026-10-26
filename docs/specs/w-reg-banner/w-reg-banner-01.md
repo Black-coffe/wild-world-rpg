@@ -1,8 +1,8 @@
 ---
 story: w-reg-banner-01
 spec: w-reg-banner
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 1
 worker: worker-code
 wave: 1
@@ -46,5 +46,12 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress tests/database/PlayInboxBannerTest.php`
 
 ## Implementation notes
+- `banner.php`: каждое сообщение в `<details class="play-banner-item" data-message-id>`; summary — первая непустая строка
+  `text`, иначе `caption` (через `TelegramMarkupRenderer::toHtml` → strip_tags, `<br>` = перенос), `mb_strimwidth` 80, «Сообщение».
+- CSS `.play-banner-item/-summary/-line` (▸/▾, nowrap+ellipsis, 44 px) в `wildworld-ui.css` и инлайн в `ui-kit.html`
+  (образец: одно раскрытое, одно свёрнутое); `?v=17` CSS, `?v=5` JS.
+- JS: `setBanner` переносит `open` по `data-message-id`; `openNewest` раскрывает самое новое на ≥768 px один раз на id
+  (решение владельца в сборке, plan deltas). JS PHPUnit не покрывает — проверка на Tier-2 смоуке preprod.
+- Тест `testBannerMessagesAreCollapsedToOneLineSummary`: Markdown-разметка срезана, ведущая пустая строка пропущена, fallback.
 
 ## Findings
