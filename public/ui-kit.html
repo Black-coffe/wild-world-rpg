@@ -1692,6 +1692,15 @@ section.block:first-of-type { border-top: 0; }
 .play-banner-close:hover { border-color: var(--accent); color: var(--accent); }
 .play-banner-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .play-banner-more { margin: 0; font-size: 13px; color: var(--text-muted); }
+.play-banner-item { min-width: 0; background: var(--bg-elev-1); border: 1px solid var(--border); }
+.play-banner-summary { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 44px; padding: 8px 10px; list-style: none; font-size: 14px; color: var(--text); cursor: pointer; }
+.play-banner-summary::-webkit-details-marker { display: none; }
+.play-banner-summary::before { content: "▸"; flex: none; font-family: var(--font-mono); color: var(--accent); }
+.play-banner-item[open] > .play-banner-summary::before { content: "▾"; }
+.play-banner-summary:hover { color: var(--accent); }
+.play-banner-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.play-banner-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.play-banner-item > .play-banner-msg { border: 0; border-top: 1px solid var(--border); }
 .play-alert .btn { align-self: flex-end; }
 
 /* Замок / заглушка: фича недоступна и почему */
@@ -2364,10 +2373,17 @@ section.block:first-of-type { border-top: 0; }
             <span class="play-banner-title">Новое сообщение</span>
             <form action="#play" method="post"><button class="play-banner-close" type="submit">✕ Скрыть</button></form>
           </div>
-          <article class="play-msg play-banner-msg">
-            <div class="play-msg-text"><b>✅ Шаг обучения закрыт.</b> Награда: 20 золота. Следующий шаг: собери воду.</div>
-            <div class="play-kb"><div class="play-kb-row"><form action="#play" method="post"><button class="play-kb-btn" type="submit">Дальше</button></form></div></div>
-          </article>
+          <details class="play-banner-item" open>
+            <summary class="play-banner-summary"><span class="play-banner-line">✅ Шаг обучения закрыт. Награда: 20 золота. Следующий шаг: собери воду.</span></summary>
+            <article class="play-msg play-banner-msg">
+              <div class="play-msg-text"><b>✅ Шаг обучения закрыт.</b> Награда: 20 золота. Следующий шаг: собери воду.</div>
+              <div class="play-kb"><div class="play-kb-row"><form action="#play" method="post"><button class="play-kb-btn" type="submit">Дальше</button></form></div></div>
+            </article>
+          </details>
+          <details class="play-banner-item">
+            <summary class="play-banner-summary"><span class="play-banner-line">🌾 Урожай на базе созрел — собери, пока не сгнил.</span></summary>
+            <article class="play-msg play-banner-msg"><div class="play-msg-text">🌾 Урожай на базе созрел — собери, пока не сгнил.</div></article>
+          </details>
           <p class="play-banner-more">ещё 2 — во входящих 🔔</p>
         </div>
 

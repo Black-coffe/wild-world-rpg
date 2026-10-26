@@ -232,6 +232,28 @@ final class PlayInboxBannerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('Входящее 1<', $html);
     }
 
+    public function testBannerMessagesAreCollapsedToOneLineSummary(): void
+    {
+        [$session, $charId] = $this->virtualCharacter();
+        $this->withSession($session)->get('play')->assertStatus(200);
+        $inbox = new WebInboxService($this->conn);
+
+        $marked               = $this->msg(51, "\n*Урожай созрел* на базе\nВторая строка про грядки");
+        $marked['parse_mode'] = 'Markdown';
+        $inbox->append($charId, $marked, 'virtual');
+
+        $photoOnly              = $this->msg(52, '');
+        $photoOnly['text']      = null;
+        $photoOnly['photo_url'] = '/uploads/web/missing.jpg';
+        $inbox->append($charId, $photoOnly, 'virtual');
+
+        $html = $this->body($this->withSession($session)->get('play'));
+        $this->assertStringContainsString('<details class="play-banner-item" data-message-id="51">', $html);
+        $this->assertMatchesRegularExpression('~<summary class="play-banner-summary"><span class="play-banner-line">Урожай созрел на базе</span></summary>~u', $html, 'первая непустая строка без разметки');
+        $this->assertStringContainsString('Вторая строка про грядки', $html, 'полный текст под строкой, без JS');
+        $this->assertMatchesRegularExpression('~data-message-id="52">\s*<summary class="play-banner-summary"><span class="play-banner-line">Сообщение</span>~u', $html, 'ни текста, ни подписи — «Сообщение»');
+    }
+
     public function testMessageAlreadyOnScreenIsNotInBanner(): void
     {
         [$session, $charId] = $this->virtualCharacter();
