@@ -3,6 +3,7 @@
 .claude/agents/cycle-clerk.md
 .claude/agents/drone-coverage.md
 .claude/agents/drone-docs.md
+.claude/agents/drone-horizon.md
 .claude/agents/drone-scout.md
 .claude/agents/lead-architect.md
 .claude/agents/lead-review.md
