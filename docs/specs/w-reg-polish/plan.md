@@ -51,7 +51,7 @@
 
 **Approved:** Andrei, 2026-10-26
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/w-reg-polish
 **Checked:**
 **Council:**
 **Shipped:**
