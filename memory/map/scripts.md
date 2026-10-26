@@ -1,5 +1,5 @@
 # Scout report: scripts/
-last-verified: 2026-10-11
+last-verified: 2026-10-26 (w-reg-bot-lexicon)
 
 ## Purpose
 Every deterministic (model-free) gate and helper VULYK's cycle runs on (framework 0.24.0 since
@@ -75,4 +75,6 @@ report-only gates (`ship-check`, `human-check`, `acceptance-log`, `scope-check`,
   4000 equal fights (fixture `...-first-strike.json`).
 - `scripts/defects-task-result-foreign-check.php` (card `docs/defects/task-result-foreign-message.md`) guards
   `WebTaskResultPicker` against taking a foreign background message for a finished task's result.
+- `scripts/defects-bot-lexicon-check.php` (card `docs/defects/bot-lexicon-in-web.md`): tokenizer over string literals in
+  `app/` (+ tip seeds after `2026-12-21-100000`); Telegram-only phrases fail unless in its `ALLOWED` list with a reason.
 - `defects-check` "block" needs a non-empty `check:` and >= 2 fixtures, else the card is text.
