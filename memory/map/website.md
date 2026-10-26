@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-26 (w-reg-site-funnel)
+last-verified: 2026-10-26 (w-reg-polish)
 
 # Scout report: Публичный сайт wildworld.fun
 
@@ -100,6 +100,10 @@ outbound: модели постов, `Services/Web/TelegramLoginVerifier`, `Serv
 - Публичный `/battles/view/<id>` показывает только `battle_type='PVP'` (`BattlesController.php:112`); PvE и `DUEL` — лишь
   участнику через `/play` и бота.
 - Сессия: ключи `account_id`, `character_id`, legacy `tg_user_id`; апгрейд legacy — в `current()`.
+
+- 375 px `/play` и главная: блок `@media (max-width: 480px)` в `wildworld-ui.css` после правил HUD
+  (`section.block:has(#play-root)` без отступа, HUD 3 колонки, док 4 колонки) и `h1.h-display` 8.5vw;
+  `ui-kit.html` держит встроенную копию — править оба, бампать `?v=` в `_layout/meta.php`.
 
 ## Vault
 `mmorpg-vault/apps/website/index.md` · ADR-062, ADR-052, ADR-188 (поправка 2026-09-30), ADR-189, ADR-190 ·

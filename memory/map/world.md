@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-12
+last-verified: 2026-10-26 (w-reg-polish)
 
 # Scout report: Мир и карта (Services/World)
 
@@ -53,6 +53,10 @@ outbound: модели мира, `Services/Player` (позиция, вес), `Se
 - Баланс Похода целиком вынесен в `GameSettings` под ключи `world.march.*` — магических чисел быть
   не должно.
 - После мини-события Похода игрок возвращается кнопкой на карту, а не в меню.
+
+- Хвост хода: `cargo` без дрона — пустой `text` + кнопка `🔒 Карго-дрон` (бот текст хвоста не выводит,
+  веб `native_map.php` пустой текст пропускает). Ход новичка читает `quest_steps`/`quests` (гейт `first_base`) —
+  DB-тест хода обязан строить эти таблицы (`MoveServiceTest`).
 
 ## Vault
 `mmorpg-vault/apps/world/index.md` · `tech-writing/services/{LiveMapService,MoveService,MarchService}.md` ·

@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-26 (w-reg-bot-lexicon)
+last-verified: 2026-10-26 (w-reg-polish)
 
 # Scout report: Онбординг, обучение, советы
 
@@ -19,6 +19,8 @@ last-verified: 2026-10-26 (w-reg-bot-lexicon)
   `OnboardingHintService` + `OnboardingHintCatalog` (13 ключей: first_base, first_move, first_build,
   first_craft, daily_tasks, automation, greenhouse, first_boss_sighting, first_storage_open,
   armor_no_arsenal, first_march, beacon_crafted, first_long_march),
+  (`first_base` ждёт шага цепочки `OnbStepClaimBase`, если у персонажа есть шаги `OnbStep*` —
+  `OnboardingHintService::chainReachedBase`; без цепочки — на любом ходе),
   `GuideService` + **`GuideCatalog`** (источник истины `/guide`; API: `sections()`, `find()`,
   `nextKey()`, `GROUPS` = start/mid/end/meta; 35 разделов на 2026-09-30).
 - Советы: `app/Services/Player/TipService.php` (`pickForCharacter` → `recordView` → `serveTip` →
