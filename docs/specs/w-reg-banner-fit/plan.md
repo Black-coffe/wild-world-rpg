@@ -32,7 +32,14 @@ none
 
 **Approved:**
 **Briefed:** via mini-brief, Andrei, 2026-10-26
-**Branch:**
+**Branch:** vulyk/w-reg-banner-fit
 **Checked:**
 **Council:**
+**Council:** ESCALATE round 1, 2026-10-26, at 8580165b, pack a4c87b275913
+**Council:** GREEN round 2, 2026-10-26, at 680579d7, pack 4567e3271483
 **Shipped:**
+
+## Needs a human
+- reason: ceiling · round 1 · 2026-10-26
+- ask 1: BLOCK by the reviewer - see docs/specs/w-reg-banner-fit/council/round-1/review.md
+- seats: docs/specs/w-reg-banner-fit/council/round-1/

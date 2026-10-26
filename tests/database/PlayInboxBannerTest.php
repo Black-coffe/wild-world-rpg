@@ -252,6 +252,7 @@ final class PlayInboxBannerTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('~<summary class="play-banner-summary"><span class="play-banner-line">Урожай созрел на базе</span></summary>~u', $html, 'первая непустая строка без разметки');
         $this->assertStringContainsString('Вторая строка про грядки', $html, 'полный текст под строкой, без JS');
         $this->assertMatchesRegularExpression('~data-message-id="52">\s*<summary class="play-banner-summary"><span class="play-banner-line">Сообщение</span>~u', $html, 'ни текста, ни подписи — «Сообщение»');
+        $this->assertStringContainsString('wildworld-play.js?v=6', $html, 'w-reg-banner-fit: новый JS не застрянет в кэше');
     }
 
     public function testMessageAlreadyOnScreenIsNotInBanner(): void

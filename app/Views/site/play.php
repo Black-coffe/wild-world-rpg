@@ -68,5 +68,5 @@ $countLabel  = $unreadCount > 99 ? '99+' : ($unreadCount > 0 ? (string) $unreadC
 
 <?= $this->endSection() ?>
 <?= $this->section('scripts') ?>
-<script src="<?= base_url('assets/js/wildworld-play.js') ?>?v=5" defer></script>
+<script src="<?= base_url('assets/js/wildworld-play.js') ?>?v=6" defer></script>
 <?= $this->endSection() ?>
