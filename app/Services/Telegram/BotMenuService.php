@@ -322,7 +322,7 @@ class BotMenuService
             'chat_id'      => $chatId,
             'text'         => "🧭 Меню возвращено.\n\n"
                 . 'Кнопки внизу экрана: ' . self::replyButtonsLine() . ".\n"
-                . "_Если их не видно — нажми значок «☰» справа от поля ввода._",
+                . "_Если их не видно — в Telegram нажми значок «☰» справа от поля ввода._",
             'parse_mode'   => 'Markdown',
             'reply_markup' => self::mainReplyKeyboard(),
         ]);

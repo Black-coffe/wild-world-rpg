@@ -226,8 +226,8 @@ class GenericmessageCommand extends SystemCommand
             'parse_mode' => 'Markdown',
             'text'       => "Не понял команду.\n\n"
                 . 'Используй кнопки внизу экрана: ' . \App\Services\Telegram\BotMenuService::replyButtonsLine() . ".\n\n"
-                . "_Меню пропало? Нажми_ /menu _или_ /start _— нижняя панель вернётся. "
-                . "Все команды также доступны через значок «☰» рядом с полем ввода._",
+                . "_Кнопки пропали? Нажми_ /menu _или_ /start _— они вернутся внизу экрана. "
+                . "В Telegram все команды ещё и под значком «☰» у поля ввода._",
         ]);
     }
 
