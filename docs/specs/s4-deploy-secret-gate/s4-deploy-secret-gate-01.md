@@ -18,7 +18,7 @@ blocked_by: []
 ## Files
 - deploy/check-webhook-secret.sh
 - deploy/post-deploy.sh
-- tests/unit/Deploy/CheckWebhookSecretTest.php
+- tests/unit/CheckWebhookSecretGateTest.php
 - app/Controllers/Telegram/BotController.php
 
 ## Non-goals
@@ -34,7 +34,7 @@ blocked_by: []
 - [ ] `post-deploy.sh` зовёт гейт до `composer install` и до переключения симлинка.
 
 ## Verification
-`vendor/bin/phpunit --no-coverage --no-progress tests/unit/Deploy/CheckWebhookSecretTest.php`
+`vendor/bin/phpunit --no-coverage --no-progress tests/unit/CheckWebhookSecretGateTest.php`
 
 ## Implementation notes
 
