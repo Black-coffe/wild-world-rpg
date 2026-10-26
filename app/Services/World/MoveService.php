@@ -420,7 +420,9 @@ class MoveService
         if ($drones->cargoIsEnabled()) {
             $events[] = $this->ownsItem($characterId, 'DroneCargo')
                 ? self::event('cargo', 'Карго-дрон под рукой.', '🚚 Карго-дрон', 'cargoDroneList')
-                : self::event('cargo', 'Карго-дрона пока нет.', '🔒 Карго-дрон', 'cargoDroneLocked');
+                // W-REG.3 (F12): без текста — строка «дрона пока нет» шумела на каждом шаге новичка;
+                // lock-кнопка остаётся (правило #4), объяснение — в CargoDroneLockedAction.
+                : self::event('cargo', '', '🔒 Карго-дрон', 'cargoDroneLocked');
 
             $hasStorage = (new \App\Models\BaseStorageModel())->where('character_id', $characterId)->countAllResults();
             if ($hasStorage > 0) {

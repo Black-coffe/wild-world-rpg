@@ -1,8 +1,8 @@
 ---
 story: w-reg-polish-01
 spec: w-reg-polish
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 wave: 1
@@ -51,5 +51,8 @@ blocked_by: []
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- `OnboardingHintService::maybeSendFirstBaseTip` — новый гейт после «базы нет»: `chainReachedBase(chainStepTitles($charId))`. `chainReachedBase` (public static, чистая) — пустой список → true; иначе true, если есть шаг с позицией ≥ `OnbStepClaimBase` (`OnboardingChainCatalog::position`). Seam `chainStepTitles` — `quest_steps` ⋈ `quests` по `title_en LIKE 'OnbStep%'`, активные и закрытые.
+- `MoveService` — у события `cargo` без дрона текст пустой; бот текст хвоста не выводит (только кнопки), веб (`native_map.php:255`) пустой текст пропускает и рисует одну кнопку.
+- Тесты: 3 новых в `OnboardingHintServiceTest` (`FakeHintService::$chainTitles`); `MoveServiceTest` — ожидание `text => ''` и миграции `quests`/`quest_steps` в схему теста (гейт читает их на ходу). Соседи `DemolishBuilding`/`March`/`PlayViewController` зелёные.
 
 ## Findings

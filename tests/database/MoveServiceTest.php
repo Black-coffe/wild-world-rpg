@@ -60,11 +60,15 @@ final class MoveServiceTest extends CIUnitTestCase
         '2024-04-16-122053_CreateCraftedItemsLogTable',
         '2026-05-29-500000_W3aCreateBaseStorage',
         '2026-05-19-100000_CreateGameSettingsTable',
+        // W-REG.3 (F11): гейт подсказки «первая база» читает шаги цепочки обучения.
+        '2024-04-26-121416_CreateQuestsTable',
+        '2024-04-26-192334_CreateQuestStepsTable',
     ];
 
     private const TABLES = [
         'biomes', 'map', 'telegram_users', 'characters', 'action_log', 'tasks', 'character_tasks', 'explored_cells',
         'claimed_cells', 'crafted_items', 'crafted_items_log', 'base_storage', 'game_settings', 'npc_spawns',
+        'quests', 'quest_steps',
     ];
 
     private const ENV = ['telegram.API_KEY' => '123456:TEST_TOKEN', 'telegram.BOT_USERNAME' => 'wildworldtest_bot'];
@@ -412,7 +416,7 @@ final class MoveServiceTest extends CIUnitTestCase
         $this->assertEqualsWithDelta(0.1, $out['cost']['health'], 1e-9);
         $this->assertEqualsWithDelta(3.35, $out['cost']['tired'], 1e-9);
         $this->assertSame([[
-            'type' => 'cargo', 'text' => 'Карго-дрона пока нет.',
+            'type' => 'cargo', 'text' => '',
             'buttons' => [['text' => '🔒 Карго-дрон', 'callback_data' => 'cargoDroneLocked']],
         ]], $out['events']);
     }

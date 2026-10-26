@@ -61,6 +61,12 @@ class OnboardingHintService
             return false;
         }
 
+        // W-REG.3 (F11) — подсказка не обгоняет цепочку обучения: у кого цепочка идёт, ждём
+        // шага «база» (OnbStepClaimBase или дальше). Нет ни одного шага — гейт прежний.
+        if (! $this->chainReachedBase($this->chainStepTitles($charId))) {
+            return false;
+        }
+
         return $this->maybeSend($character, $chatId, OnboardingHintCatalog::FIRST_BASE);
     }
 
@@ -442,6 +448,52 @@ class OnboardingHintService
             'action_status' => 'Completed',
             'description'   => 'ADR-103 contextual onboarding hint',
         ]);
+    }
+
+    /**
+     * W-REG.3 (F11) — дошла ли цепочка обучения до шага про базу. Пустой список (цепочки у
+     * персонажа нет: killswitch выключен, уровень выше потолка, не назначили) → true.
+     *
+     * @param list<string> $titles title_en шагов цепочки, назначенных персонажу
+     */
+    public static function chainReachedBase(array $titles): bool
+    {
+        if ($titles === []) {
+            return true;
+        }
+        $basePos = OnboardingChainCatalog::position(OnboardingChainCatalog::STEP_CLAIM_BASE) ?? 0;
+        foreach ($titles as $title) {
+            if ((OnboardingChainCatalog::position($title) ?? 0) >= $basePos) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * title_en шагов цепочки обучения (активных и закрытых), назначенных персонажу.
+     * Overridable seam для тестов (без DB).
+     *
+     * @return list<string>
+     */
+    protected function chainStepTitles(int $charId): array
+    {
+        $res = \Config\Database::connect()->table('quest_steps qs')
+            ->select('q.title_en')
+            ->join('quests q', 'q.id = qs.quest_id')
+            ->where('qs.character_id', $charId)
+            ->like('q.title_en', OnboardingChainCatalog::PREFIX, 'after')
+            ->get();
+
+        $titles = [];
+        foreach ($res === false ? [] : $res->getResultArray() as $row) {
+            if (is_string($row['title_en'] ?? null)) {
+                $titles[] = $row['title_en'];
+            }
+        }
+
+        return $titles;
     }
 
     protected function hasActiveBase(int $charId): bool
