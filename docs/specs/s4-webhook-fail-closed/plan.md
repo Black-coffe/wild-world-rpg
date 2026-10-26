@@ -37,3 +37,4 @@ none
 **Council:**
 **Council:** GREEN round 1, 2026-10-26, at f8decb01, pack 7f5b1da2b237
 **Shipped:**
+**Shipped:** v0.51.706, 2026-10-26, at e7897146 - merged to develop, publish pending (вместе с s4-deploy-secret-gate)

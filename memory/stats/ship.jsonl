@@ -40,3 +40,4 @@
 {"ts":"2026-10-26T13:19:39Z","spec":"w-reg-polish","version":"v0.51.703","head":"8c081251","pack":"0490116846b7","note":"merged to develop, publish pending"}
 {"ts":"2026-10-26T18:23:53Z","spec":"w-reg-banner","version":"v0.51.704","head":"8b02ec22","pack":"53f71b4b9213","note":"merged to develop, publish pending"}
 {"ts":"2026-10-26T19:17:11Z","spec":"w-reg-banner-fit","version":"v0.51.705","head":"41d5ec67","pack":"4567e3271483","note":"merged to develop, publish pending"}
+{"ts":"2026-10-26T19:44:18Z","spec":"s4-webhook-fail-closed","version":"v0.51.706","head":"e7897146","pack":"7f5b1da2b237","note":"merged to develop, publish pending (вместе с s4-deploy-secret-gate)"}
