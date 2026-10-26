@@ -35,3 +35,4 @@
 {"ts":"2026-10-12T21:45:05Z","spec":"web-onboarding","version":"v0.51.698","head":"c282351c","pack":"d6fbf376d40d","note":"merged to develop, publish pending"}
 {"ts":"2026-10-25T14:14:25Z","spec":"w-reg-text-fixes","version":"v0.51.699","head":"5eae8534","pack":"0f8f8a3b0c21","note":"merged to develop; preprod smoke green; tag v0.51.699"}
 {"ts":"2026-10-25T21:02:40Z","spec":"w-reg-honest-water","version":"v0.51.700","head":"21a712fe","pack":"f9d9b2ab0ee5","note":"merged to develop, publish pending; ship-check stage-03 conflict line is against dead master (bindings), merge into develop was clean"}
+{"ts":"2026-10-26T09:28:44Z","spec":"w-reg-site-funnel","version":"v0.51.701","head":"00fda8ba","pack":"4c5f300d92b5","note":"merged to develop, publish pending; override: строка 03 OPEN — конфликт с master, а дефолт у нас develop (CLAUDE.vulyk.md: строку ship-check про master игнорировать), merge-tree с develop чистый"}

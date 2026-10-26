@@ -38,3 +38,4 @@
 **Council:**
 **Council:** GREEN round 1, 2026-10-26, at 26c92fb7, pack 4c5f300d92b5
 **Shipped:**
+**Shipped:** v0.51.701, 2026-10-26, at 00fda8ba - merged to develop, publish pending; override: строка 03 OPEN — конфликт с master, а дефолт у нас develop (CLAUDE.vulyk.md: строку ship-check про master игнорировать), merge-tree с develop чистый
