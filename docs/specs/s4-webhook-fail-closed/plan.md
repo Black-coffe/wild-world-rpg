@@ -32,7 +32,7 @@ none
 
 **Approved:**
 **Briefed:** via mini-brief, Andrei, 2026-10-26
-**Branch:**
+**Branch:** vulyk/s4-webhook-fail-closed
 **Checked:**
 **Council:**
 **Shipped:**
