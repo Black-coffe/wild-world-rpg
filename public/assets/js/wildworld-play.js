@@ -19,7 +19,7 @@
    `rev` экрана, и при расхождении сервер отдаёт `screen_html` — мостовой экран заменяется без перезагрузки;
    «✕ Скрыть» (POST /play/inbox/read) убирает плашку на месте. W-REG.5: сообщения плашки — свёрнутые
    <details>; при замене плашки раскрытые по data-message-id остаются раскрытыми; на ≥768 px самое
-   новое раскрыто (без JS — всё свёрнуто).
+   новое раскрыто, если экран игры остаётся в верхних ¾ окна (замер и после загрузки фото; без JS — всё свёрнуто).
    W2.N3-03: таймеры очереди крафта (#play-state [data-ends-at]) тикают тем же тиком, что HUD.
    ============================================================ */
 (() => {
@@ -74,8 +74,15 @@
     const first = box.querySelector('details[data-message-id]');
     if (!first || autoOpened.has(first.dataset.messageId)) return;
     autoOpened.add(first.dataset.messageId);
+    let touched = false;
+    first.querySelector('summary')?.addEventListener('click', () => { touched = true; }, { once: true });
+    const fit = () => {
+      if (!touched && first.open && stateBox.getBoundingClientRect().top + window.scrollY > window.innerHeight * 0.75) first.open = false;
+    };
     first.open = true;
-    if (stateBox.getBoundingClientRect().top + window.scrollY > window.innerHeight * 0.75) first.open = false;
+    fit();
+    // Фото (loading="lazy", без размеров) на замере ещё 0 px — меряем снова, когда оно догрузится.
+    first.querySelectorAll('img').forEach((img) => { if (!img.complete) img.addEventListener('load', fit, { once: true }); });
   };
   openNewest(banner());
 
