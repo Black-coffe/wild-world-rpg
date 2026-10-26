@@ -1,8 +1,8 @@
 ---
 story: w-reg-bot-lexicon-02
 spec: w-reg-bot-lexicon
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 wave: 2
@@ -60,6 +60,7 @@ blocked_by: [w-reg-bot-lexicon-01]
 - tests/unit/Services/Telegram/FinalGridLabelsRoutedTest.php
 - tests/unit/Services/Telegram/NavMenuRefreshServiceTest.php
 - tests/unit/Services/World/GatherOnCompassSurfaceTest.php
+- phpstan-baseline.neon
 
 ## Non-goals
 - Не вводить двух версий текста по клиенту (`VirtualChat::is`) — выбор владельца: одна фраза.
@@ -82,5 +83,13 @@ blocked_by: [w-reg-bot-lexicon-01]
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
+- 26 литералов переписаны: «в нижнем меню» → «внизу экрана» (кнопка — своей подписью), «клавиатуры ниже» → «кнопками ниже», «экран бота» → «следующий экран» / «кнопка ниже» / «отдельным экраном», «Шесть кнопок — шесть мест» → «Каждая кнопка внизу — своё место».
+- `/команды` остаются: текст `/…` из поля ввода `/play` получает сущность `bot_command` (`SyntheticUpdateFactory.php:62-65`), longman роутит его в `BaseCommand`/`GoCommand`/`CraftCommand`; живой POST — в Tier-3 смоуке.
+- `ColdOpenWelcomeService::withoutNavHint` — регэксп под новую фразу, поведение в вебе прежнее (хвост срезается).
+- Оставлены (в веб не уходят, пойдут в исключения story 03): `MenuCommand::$description`, `BotMenuService` описания `setMyCommands` для `start`/`menu`.
+- `phpstan-baseline.neon`: снята запись `sendCampCreatedWithBuildingsMsg` `$restoredNames` — story 01 типизировала параметр, запись стала `ignore.unmatched` (файл дописан в `## Files`).
+- Не в классе, но замечено: fallback «не понял» дальше говорит «значок «☰» рядом с полем ввода» — в вебе такого значка нет. Кандидат в W-REG.3.
+- Тесты: ожидания в `ColdOpenWelcomeServiceTest`, `OnboardingNavLabelConsistencyTest`, `MoveServiceTest`, `LiveMapServiceTest` обновлены. Локальный `tests/unit` даёт 3–10 ошибок от протёкшей схемы `wildworld_tests` (FK `crafted_items_log_task_id_foreign`), к текстам не относятся.
+- Ноты vault: GuideCatalog, OnboardingHintCatalog, OnboardingChainService, ColdOpen{Signal,Welcome}Service, Newbie{Atmosphere,Greeter}Service, CraftShopGate, BotMenuService, NavMenuRefreshService, MoveSurfaceService, GenericmessageCommand, WebNativeScreenService.
 
 ## Findings

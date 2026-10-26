@@ -121,7 +121,7 @@ class MoveSurfaceService
      */
     protected function renderMapText(array $model, TextMapService $textMapService): string
     {
-        $text = "Куда пойдём? Выберите направление с клавиатуры ниже:
+        $text = "Куда пойдём? Выберите направление кнопками ниже:
 
 ";
 

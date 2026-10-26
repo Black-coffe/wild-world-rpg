@@ -278,7 +278,7 @@ class NewbieGreeterService
         // Метка кнопки — из BotMenuService, НЕ хардкодом (см. ColdOpenSignalService).
         $world = \App\Services\Telegram\BotMenuService::worldButtonLabel();
 
-        return $text . "\n\n_Жми «{$world}» в нижнем меню, дойди до выжившего и нажми «👤 Незнакомец»._";
+        return $text . "\n\n_Жми «{$world}» внизу экрана, дойди до выжившего и нажми «👤 Незнакомец»._";
     }
 
     // ── Резолверы зависимостей / хелперы ─────────────────────────────────────
