@@ -8,6 +8,7 @@ use App\Models\TaskModel;
 use App\Models\CharacterTaskModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\BuildingModel;
+use App\Services\Bases\BaseCallbackSuffix;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -75,6 +76,8 @@ class CampCreateConfirmAction extends BaseAction
             'status'          => 'active',
         ];
         $claimedCellModel->save($newCampData);
+        $insertId  = $claimedCellModel->getInsertID();
+        $newBaseId = is_numeric($insertId) ? (int) $insertId : 0;
 
         // 5. Теперь проверяем, есть ли завершённая задача "BaseRelocation"
         //    c непустым task_settings (где хранится список построек).
@@ -85,7 +88,7 @@ class CampCreateConfirmAction extends BaseAction
         // Если нет такой записи в tasks, просто завершаем
         if (!$relocationTask) {
             // Сообщение об успехе (без восстановления построек)
-            return $this->sendCampCreatedMsg($chatId, $mapRow['coordinate_x'], $mapRow['coordinate_y']);
+            return $this->sendCampCreatedMsg($chatId, $mapRow['coordinate_x'], $mapRow['coordinate_y'], $newBaseId);
         }
 
         $relocationTaskId = $relocationTask['id'];
@@ -102,7 +105,7 @@ class CampCreateConfirmAction extends BaseAction
         // Если не нашли, тоже завершаем
         if (!$relocationRow) {
             // Сообщение об успехе (без восстановления построек)
-            return $this->sendCampCreatedMsg($chatId, $mapRow['coordinate_x'], $mapRow['coordinate_y']);
+            return $this->sendCampCreatedMsg($chatId, $mapRow['coordinate_x'], $mapRow['coordinate_y'], $newBaseId);
         }
 
         // 6) Если мы тут, значит есть запись с task_settings
@@ -110,7 +113,7 @@ class CampCreateConfirmAction extends BaseAction
         $decoded = json_decode($json, true);
         if (empty($decoded['character_buildings']) || !is_array($decoded['character_buildings'])) {
             // Если нет массива построек — тоже завершаем
-            return $this->sendCampCreatedMsg($chatId, $mapRow['coordinate_x'], $mapRow['coordinate_y']);
+            return $this->sendCampCreatedMsg($chatId, $mapRow['coordinate_x'], $mapRow['coordinate_y'], $newBaseId);
         }
 
         $buildingsArray = $decoded['character_buildings'];
@@ -166,50 +169,79 @@ class CampCreateConfirmAction extends BaseAction
             $chatId,
             $mapRow['coordinate_x'],
             $mapRow['coordinate_y'],
-            $restoredNames
+            $restoredNames,
+            $newBaseId
         );
+    }
+
+    /**
+     * W-REG.2 (F8): текст и кнопки экрана «Лагерь разбит» — один источник для обоих вариантов.
+     * Без кнопок экран был тупиком; ряд «🏠 База» · «🏗 Строить» ведёт дальше в обоих клиентах.
+     *
+     * @param list<array<string, mixed>>|null $restoredNames null — лагерь без переезда
+     * @return array{text: string, reply_markup: array{inline_keyboard: list<list<array{text: string, callback_data: string}>>}}
+     */
+    public static function campCreatedMessage(int|string $coordX, int|string $coordY, ?array $restoredNames, int $baseId): array
+    {
+        $text = "Ты успешно разбил лагерь на клетке (X={$coordX}, Y={$coordY}).\n";
+
+        if ($restoredNames === null) {
+            $text .= 'Теперь это твоя база!';
+        } else {
+            $text .= "Все *сооружения* из переезда сохранены и восстановлены!\n\n";
+            if ($restoredNames === []) {
+                $text .= 'Похоже, что никаких зданий не было перенесено.';
+            } else {
+                $text .= "Перенесены здания:\n";
+                foreach ($restoredNames as $b) {
+                    $lvl   = is_scalar($b['level'] ?? null) ? (string) $b['level'] : '1';
+                    $bName = is_scalar($b['name'] ?? null) ? (string) $b['name'] : '???';
+                    $text .= "• {$bName}, уровень {$lvl}\n";
+                }
+            }
+        }
+
+        $text = rtrim($text) . "\n\nЧто дальше: «🏗 Строить» — Склад, Теплица и другие постройки; «🏠 База» — экран базы.";
+
+        return [
+            'text'         => $text,
+            'reply_markup' => ['inline_keyboard' => [[
+                ['text' => '🏠 База', 'callback_data' => 'Base'],
+                ['text' => '🏗 Строить', 'callback_data' => $baseId > 0 ? BaseCallbackSuffix::append('Build', $baseId) : 'Build'],
+            ]]],
+        ];
     }
 
     /**
      * Отправляет обычное сообщение: лагерь разбит без восстановления зданий.
      */
-    private function sendCampCreatedMsg(int $chatId, int $coordX, int $coordY): ServerResponse
+    private function sendCampCreatedMsg(int $chatId, int|string $coordX, int|string $coordY, int $baseId): ServerResponse
     {
-        $text = "Ты успешно разбил лагерь на клетке (X={$coordX}, Y={$coordY}).\n"
-            . "Теперь это твоя база!";
+        $msg = self::campCreatedMessage($coordX, $coordY, null, $baseId);
 
         return Request::sendMessage([
-            'chat_id'    => $chatId,
-            'text'       => $text,
-            'parse_mode' => 'Markdown'
+            'chat_id'      => $chatId,
+            'text'         => $msg['text'],
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => $msg['reply_markup'],
         ]);
     }
 
     /**
      * Отправляет сообщение: лагерь разбит и здания восстановлены.
      * Выводим список построек (название + уровень).
+     *
+     * @param list<array<string, mixed>> $restoredNames
      */
     private function sendCampCreatedWithBuildingsMsg(
         int $chatId,
-        int $coordX,
-        int $coordY,
-        array $restoredNames
+        int|string $coordX,
+        int|string $coordY,
+        array $restoredNames,
+        int $baseId
     ): ServerResponse
     {
-        // Формируем текстовое содержимое
-        $text = "Ты успешно разбил лагерь на клетке (X={$coordX}, Y={$coordY}).\n"
-            . "Все *сооружения* из переезда сохранены и восстановлены!\n\n";
-
-        if (empty($restoredNames)) {
-            $text .= "Похоже, что никаких зданий не было перенесено.";
-        } else {
-            $text .= "Перенесены здания:\n";
-            foreach ($restoredNames as $b) {
-                $lvl   = $b['level'] ?? 1;
-                $bName = $b['name']  ?? '???';
-                $text .= "• {$bName}, уровень {$lvl}\n";
-            }
-        }
+        $msg = self::campCreatedMessage($coordX, $coordY, $restoredNames, $baseId);
 
         // Путь к картинке (файл: public/uploads/telegram/camp/new_camp.png — см. Config\ImageRegistry «camp/new_camp»)
         $imagePath = base_url('uploads/telegram/camp/new_camp.png');
@@ -217,8 +249,9 @@ class CampCreateConfirmAction extends BaseAction
         return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile($imagePath),
-            'caption'      => $text,
+            'caption'      => $msg['text'],
             'parse_mode'   => 'Markdown',
+            'reply_markup' => $msg['reply_markup'],
         ]);
     }
 

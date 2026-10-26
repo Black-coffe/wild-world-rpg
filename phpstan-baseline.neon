@@ -1974,11 +1974,6 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/CampCreateConfirmAction.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCreateConfirmAction\:\:sendCampCreatedWithBuildingsMsg\(\) has parameter \$restoredNames with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/CampCreateConfirmAction.php
 
 		-
 			message: '#^Parameter \#1 \$id of method CodeIgniter\\BaseModel\:\:find\(\) expects int\|list\<int\|string\>\|string\|null, mixed given\.$#'

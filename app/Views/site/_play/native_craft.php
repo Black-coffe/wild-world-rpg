@@ -240,7 +240,7 @@ $locks = array_values(array_filter($benches, static fn (mixed $b): bool => is_ar
                                     <button class="play-kb-btn" type="submit">🛠️ Крафт</button>
                                 </form>
                             <?php elseif ($shortage !== null): ?>
-                                <p class="play-native-hint">Сырья не хватает даже на одну штуку — экран бота покажет, чего не хватает и где это взять или купить.</p>
+                                <p class="play-native-hint">Сырья не хватает даже на одну штуку — кнопка ниже покажет, чего не хватает и где это взять или купить.</p>
                                 <div class="play-kb-grid">
                                     <form action="<?= esc($viewUrl, 'attr') ?>" method="post"><?= csrf_field() ?><input type="hidden" name="op" value="bridge"><input type="hidden" name="intent_id" value="<?= bin2hex(random_bytes(16)) ?>"><input type="hidden" name="data" value="<?= esc($str($shortage['callback_data'] ?? ''), 'attr') ?>"><button class="play-kb-btn" type="submit"><?= esc($str($shortage['text'] ?? '')) ?></button></form>
                                 </div>

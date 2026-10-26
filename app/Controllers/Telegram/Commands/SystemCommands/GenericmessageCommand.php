@@ -225,7 +225,7 @@ class GenericmessageCommand extends SystemCommand
             'chat_id'    => $chatId,
             'parse_mode' => 'Markdown',
             'text'       => "Не понял команду.\n\n"
-                . 'Используй нижнее меню: ' . \App\Services\Telegram\BotMenuService::replyButtonsLine() . ".\n\n"
+                . 'Используй кнопки внизу экрана: ' . \App\Services\Telegram\BotMenuService::replyButtonsLine() . ".\n\n"
                 . "_Меню пропало? Нажми_ /menu _или_ /start _— нижняя панель вернётся. "
                 . "Все команды также доступны через значок «☰» рядом с полем ввода._",
         ]);

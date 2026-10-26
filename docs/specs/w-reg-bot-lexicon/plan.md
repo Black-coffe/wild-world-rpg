@@ -43,7 +43,8 @@
 
 **Approved:** Andrei, 2026-10-26
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/w-reg-bot-lexicon
 **Checked:**
 **Council:**
+**Council:** GREEN round 1, 2026-10-26, at 4f6d2901, pack 356d6d5b349a
 **Shipped:**

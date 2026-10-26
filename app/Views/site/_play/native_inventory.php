@@ -53,7 +53,7 @@ foreach ($items as $item) {
                 <div class="play-lock" data-inv-state="empty">
                     <span class="play-lock-title">Рюкзак пуст</span>
                     <span class="play-lock-why">Здесь появится всё, что ты несёшь: добытые ресурсы и созданные предметы.</span>
-                    <span class="play-lock-path">Ресурсы: «<?= esc(BotMenuService::menuLabel('me')) ?>» → «🧑‍🌾 Действия 🛠️» → добыча на клетке. Предметы: «<?= esc(BotMenuService::menuLabel('craft')) ?>» в нижнем меню.</span>
+                    <span class="play-lock-path">Ресурсы: «<?= esc(BotMenuService::menuLabel('me')) ?>» → «🧑‍🌾 Действия 🛠️» → добыча на клетке. Предметы: «<?= esc(BotMenuService::menuLabel('craft')) ?>» внизу экрана.</span>
                 </div>
             <?php else: ?>
                 <div class="play-inv-search" data-inv-search-row hidden>

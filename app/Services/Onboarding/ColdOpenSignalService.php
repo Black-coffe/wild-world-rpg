@@ -362,7 +362,7 @@ class ColdOpenSignalService
         // «🗺 Карту»», а после ADR-150 такой кнопки в нижнем меню не осталось.
         $world = \App\Services\Telegram\BotMenuService::worldButtonLabel();
 
-        return $text . "\n\n_Жми «{$world}» в нижнем меню и иди к метке 🎯._";
+        return $text . "\n\n_Жми «{$world}» внизу экрана и иди к метке 🎯._";
     }
 
     public function buildFoundText(int $gold, int $resourceId, int $resourceQty): string

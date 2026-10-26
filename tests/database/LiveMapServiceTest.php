@@ -84,7 +84,7 @@ final class LiveMapServiceTest extends CIUnitTestCase
 ";
 
     /** Текст «🌍 Мир» бота до правки, world_hub=off (снят с прежнего кода). */
-    private const SURFACE_PLAIN = 'Куда пойдём? Выберите направление с клавиатуры ниже:' . "\n"
+    private const SURFACE_PLAIN = 'Куда пойдём? Выберите направление кнопками ниже:' . "\n"
         . "\n"
         . 'Легенда:' . "\n"
         . '🙎‍♂️ — игрок' . "\n"
@@ -131,7 +131,7 @@ final class LiveMapServiceTest extends CIUnitTestCase
     private const KEYBOARD_PLAIN = '[[{"text":"↖️ Сев-Запад","callback_data":"move_dir_northwest"},{"text":"⬆️ Север","callback_data":"move_dir_north"},{"text":"↗️ Сев-Восток","callback_data":"move_dir_northeast"}],[{"text":"⬅️ Запад","callback_data":"move_dir_west"},{"text":"🏠 База","callback_data":"Base"},{"text":"🧑‍🌾 🛠️","callback_data":"characterActions"},{"text":"➡️ Восток","callback_data":"move_dir_east"}],[{"text":"↙️ Юго-Запад","callback_data":"move_dir_southwest"},{"text":"⬇️ Юг","callback_data":"move_dir_south"},{"text":"↘️ Юго-Восток","callback_data":"move_dir_southeast"}],[{"text":"🗺️ Поход","callback_data":"march"}],[{"text":"🌍 Остров живёт","callback_data":"island"}]]';
 
     /** Текст «🌍 Мир» бота до правки, world_hub=on (снят с прежнего кода). */
-    private const SURFACE_HUB = 'Куда пойдём? Выберите направление с клавиатуры ниже:' . "\n"
+    private const SURFACE_HUB = 'Куда пойдём? Выберите направление кнопками ниже:' . "\n"
         . "\n"
         . 'От 🙎‍♂️ до 🏕 = 2 ходов ↗️' . "\n"
         . "\n"

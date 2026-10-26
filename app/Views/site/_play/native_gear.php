@@ -60,8 +60,8 @@ $equippedNames = static function (array $items): string {
 };
 
 $sections = [
-    [EquipmentLoadoutService::KIND_WEAPON, '⚔️ Оружие', $weapons, 'Оружия пока нет — его создают крафтом: «' . BotMenuService::menuLabel('craft') . '» в нижнем меню.'],
-    [EquipmentLoadoutService::KIND_ARMOR, '👕 Броня / Одежда', $armor, 'Брони пока нет — её создают крафтом: «' . BotMenuService::menuLabel('craft') . '» в нижнем меню.'],
+    [EquipmentLoadoutService::KIND_WEAPON, '⚔️ Оружие', $weapons, 'Оружия пока нет — его создают крафтом: «' . BotMenuService::menuLabel('craft') . '» внизу экрана.'],
+    [EquipmentLoadoutService::KIND_ARMOR, '👕 Броня / Одежда', $armor, 'Брони пока нет — её создают крафтом: «' . BotMenuService::menuLabel('craft') . '» внизу экрана.'],
 ];
 ?>
 <div class="play-shell is-native">

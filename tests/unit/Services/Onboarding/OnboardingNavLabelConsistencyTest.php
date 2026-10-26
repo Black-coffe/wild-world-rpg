@@ -101,7 +101,7 @@ final class OnboardingNavLabelConsistencyTest extends CIUnitTestCase
         $text = (new ColdOpenSignalService())->buildSignalNarrative('к северу', '⬆️');
 
         $this->assertStringContainsString(BotMenuService::worldButtonLabel(), $text);
-        $this->assertStringContainsString('нижнем меню', $text);
+        $this->assertStringContainsString('внизу экрана', $text);
         $this->assertSame(0, substr_count($text, '*') % 2, 'непарные *');
         $this->assertSame(0, substr_count($text, '_') % 2, 'непарные _');
     }
@@ -134,8 +134,8 @@ final class OnboardingNavLabelConsistencyTest extends CIUnitTestCase
         $signal  = (new ColdOpenSignalService())->buildSignalNarrative('к северу', '⬆️', false);
         $greeter = (new NewbieGreeterService())->buildGreeterNarrative('к северу', '⬆️', false);
 
-        $this->assertStringNotContainsString('нижнем меню', $signal);
-        $this->assertStringNotContainsString('нижнем меню', $greeter);
+        $this->assertStringNotContainsString('внизу экрана', $signal);
+        $this->assertStringNotContainsString('внизу экрана', $greeter);
 
         // Смысл секции при этом не теряется (media-off: текст самодостаточен).
         $this->assertStringContainsString('🎯', $signal);

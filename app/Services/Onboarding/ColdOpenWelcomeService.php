@@ -170,7 +170,7 @@ class ColdOpenWelcomeService
     }
 
     /**
-     * Убирает бот-хвост «_Жми «…» в нижнем меню …_» (ColdOpenSignalService / NewbieGreeterService,
+     * Убирает бот-хвост «_Жми «…» внизу экрана …_» (ColdOpenSignalService / NewbieGreeterService,
      * `withNavHint`): в вебе нижнего меню-клавиатуры нет.
      */
     private static function withoutNavHint(?string $text): ?string
@@ -178,7 +178,7 @@ class ColdOpenWelcomeService
         if ($text === null) {
             return null;
         }
-        $stripped = preg_replace('/\n*_Жми «[^»\n]*» в нижнем меню[^\n]*_\s*$/u', '', $text);
+        $stripped = preg_replace('/\n*_Жми «[^»\n]*» внизу экрана[^\n]*_\s*$/u', '', $text);
 
         return is_string($stripped) ? $stripped : $text;
     }

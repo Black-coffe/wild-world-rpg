@@ -1,8 +1,8 @@
 ---
 story: w-reg-bot-lexicon-03
 spec: w-reg-bot-lexicon
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 wave: 3
@@ -29,6 +29,8 @@ blocked_by: [w-reg-bot-lexicon-02]
 - docs/defects/INDEX.md
 - docs/defects/fixtures/bot-lexicon-in-web-original.php
 - docs/defects/fixtures/bot-lexicon-in-web-neighbour.php
+- app/Services/Onboarding/GuideCatalog.php
+- app/Services/Telegram/BotMenuService.php
 
 ## Non-goals
 - Не править старые миграции (они уже применены).
@@ -50,5 +52,9 @@ blocked_by: [w-reg-bot-lexicon-02]
 `bash scripts/defects-check.sh`
 
 ## Implementation notes
+- SELECT на testbot 2026-10-26: 5 советов — `FirstShelter`, `WorldHubNav`, `TasksHubNav`, `BattleJournal` («в нижнем меню»), `NavGridFinal` («Шесть кнопок…» в `content` и `title_ru`). Миграция `FixBotLexiconInTips` — адресный `str_replace` по `title_en`, без совпадения не пишет; `down()` — обратная замена. Применится деплоем на preprod; SELECT после — в смоуке.
+- Проверка `scripts/defects-bot-lexicon-check.php`: токенайзер (литералы + inline-HTML), 4 паттерна, `ALLOWED` = 3 описания команд Telegram. На дереве — ok (1091 файл); обе фикстуры падают; файл, где фраза только в комментарии, — проходит.
+- Проверка нашла то, что пропустил мой поиск в story 02 (он был чувствителен к регистру): «Нижнее меню →» в `GuideCatalog` (раздел referral) и «🧭 Нижнее меню возвращено» в `BotMenuService` (ответ на /menu). Исправлены здесь, оба файла дописаны в `## Files`.
+- `docs/defects/INDEX.md` перегенерирован `defects-index.sh`; `defects-check.sh` — GREEN.
 
 ## Findings
