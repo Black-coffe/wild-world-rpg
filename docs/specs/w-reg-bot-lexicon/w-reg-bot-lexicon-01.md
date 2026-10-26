@@ -1,8 +1,8 @@
 ---
 story: w-reg-bot-lexicon-01
 spec: w-reg-bot-lexicon
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 wave: 1
@@ -40,5 +40,7 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Camp/CampCreatedMessageTest.php`
 
 ## Implementation notes
+- `CampCreateConfirmAction::campCreatedMessage()` — публичный статический сборщик текста и `reply_markup` для обоих вариантов; id новой базы — `getInsertID()` после `save`. Тип `restoredNames` ослаблен до `list<array<string,mixed>>` (phpstan: старые данные mixed).
+- Тест `tests/unit/Camp/CampCreatedMessageTest.php`: 3 случая (без переезда, 14 зданий ≤1024, переезд без зданий → голый `Build`). Нота vault `handlers/camp/CampCreateConfirmAction.md` создана.
 
 ## Findings
