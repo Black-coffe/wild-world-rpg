@@ -5,10 +5,13 @@
  * @var list<array<string,mixed>> $latest
  * @var list<array{key:string,title:string,count:int}> $wikiSections
  * @var list<array<string,mixed>> $factions
+ * @var bool $registrationOpen W-REG.1: открыт `web.open_registration` — вторая дверь, браузер
  */
 $social = config('Social');
 $tg     = $social->botStart('src_site_home');
 $group  = $social->groupLink;
+$open   = ($registrationOpen ?? false) === true;
+$play   = base_url('play');
 
 $features = [
     ['🗺', 'Исследование',     'Открывай клетки карты, рассеивай туман войны и находи редкие локации и стратегические объекты.'],
@@ -26,16 +29,19 @@ $features = [
         <div>
             <div class="row gap-1">
                 <span class="stamp">Сводка · Wild World</span>
-                <span class="badge mono">текстовая MMORPG · Telegram</span>
+                <span class="badge mono">текстовая MMORPG · <?= $open ? 'Telegram · браузер' : 'Telegram' ?></span>
             </div>
             <h1 class="h-display">Мир рухнул.<br>Твоя&nbsp;история — только&nbsp;начинается.</h1>
-            <p class="lead">Огромный открытый мир 100×100&nbsp;км. Исследуй земли, добывай ресурсы, крафти снаряжение, строй базу, вступай во фракции и сражайся с другими выжившими — прямо в чате Telegram.</p>
+            <p class="lead">Огромный открытый мир 100×100&nbsp;км. Исследуй земли, добывай ресурсы, крафти снаряжение, строй базу, вступай во фракции и сражайся с другими выжившими — <?= $open ? 'в&nbsp;чате Telegram или в&nbsp;браузере.' : 'прямо в чате Telegram.' ?></p>
             <div class="row mt-3">
                 <a class="btn primary lg" href="<?= esc($tg, 'attr') ?>" target="_blank" rel="noopener">▶ Играть в Telegram</a>
+                <?php if ($open): ?>
+                    <a class="btn primary lg" href="<?= esc($play, 'attr') ?>">▶ Играть в браузере</a>
+                <?php endif ?>
                 <a class="btn lg" href="<?= base_url('wiki') ?>">Изучить мир</a>
             </div>
             <div class="meta">
-                <span><b>Платформа</b> — Telegram</span>
+                <span><b>Платформа</b> — <?= $open ? 'Telegram и&nbsp;браузер' : 'Telegram' ?></span>
                 <span><b>Жанр</b> — MMORPG · постапок · текст</span>
                 <span><b>P2W</b> — нет, прогресс за&nbsp;время и&nbsp;решения</span>
             </div>
@@ -161,16 +167,29 @@ $features = [
 </section>
 <?php endif ?>
 
+<?php if ($open): ?>
+    <!-- КАК НАЧАТЬ (W-REG.1) -->
+    <?= view('site/_start_doors', ['doorsSource' => 'src_site_home']) ?>
+<?php endif ?>
+
 <!-- CTA -->
 <section class="block">
     <div class="container">
         <div class="cta">
             <div>
                 <span class="kicker">Сводка из&nbsp;Wild World</span>
-                <h2 class="mb-0">Готов выжить?<br>Запусти бота&nbsp;— и&nbsp;через минуту ты&nbsp;в&nbsp;мире.</h2>
-                <p class="lead mt-2">Никаких регистраций. Никакого P2W. Только Telegram, ты&nbsp;и&nbsp;100×100&nbsp;км пустоши.</p>
+                <?php if ($open): ?>
+                    <h2 class="mb-0">Готов выжить?<br>Запусти бота или открой игру в&nbsp;браузере&nbsp;— через минуту ты&nbsp;в&nbsp;мире.</h2>
+                    <p class="lead mt-2">Никакого P2W. Telegram или браузер, ты&nbsp;и&nbsp;100×100&nbsp;км пустоши.</p>
+                <?php else: ?>
+                    <h2 class="mb-0">Готов выжить?<br>Запусти бота&nbsp;— и&nbsp;через минуту ты&nbsp;в&nbsp;мире.</h2>
+                    <p class="lead mt-2">Никаких регистраций. Никакого P2W. Только Telegram, ты&nbsp;и&nbsp;100×100&nbsp;км пустоши.</p>
+                <?php endif ?>
                 <div class="row mt-3">
                     <a class="btn primary lg" href="<?= esc($tg, 'attr') ?>" target="_blank" rel="noopener">▶ Играть в Telegram</a>
+                    <?php if ($open): ?>
+                        <a class="btn primary lg" href="<?= esc($play, 'attr') ?>">▶ Играть в браузере</a>
+                    <?php endif ?>
                     <a class="btn lg" href="<?= esc($group, 'attr') ?>" target="_blank" rel="noopener">💬 Сообщество</a>
                 </div>
             </div>
