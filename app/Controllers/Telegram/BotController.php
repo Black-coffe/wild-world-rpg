@@ -19,6 +19,19 @@ class BotController extends Controller
     }
 
     /**
+     * S4 — пускать ли апдейт по секрет-заголовку. Пустой секрет пропускает проверку только
+     * вне production; заданный сверяется `hash_equals` (пустой/чужой заголовок → false).
+     */
+    public static function webhookSecretVerdict(string $expected, string $received, string $environment): bool
+    {
+        if ($expected === '') {
+            return $environment !== 'production';
+        }
+
+        return hash_equals($expected, $received);
+    }
+
+    /**
      * Обрабатывает входящие обновления от Telegram.
      *
      * F0.9 — верификация заголовка X-Telegram-Bot-API-Secret-Token.
@@ -36,20 +49,8 @@ class BotController extends Controller
      *      curl -X POST https://api.telegram.org/bot<TOKEN>/setWebhook \
      *           -d "url=https://bot.wildworld.fun/telegram/webhook" \
      *           -d "secret_token=<random_64_chars>"
+     *   Деплой без секрета в production не переключает релиз: `deploy/check-webhook-secret.sh`.
      */
-    /**
-     * S4 — пускать ли апдейт по секрет-заголовку. Пустой секрет пропускает проверку только
-     * вне production; заданный сверяется `hash_equals` (пустой/чужой заголовок → false).
-     */
-    public static function webhookSecretVerdict(string $expected, string $received, string $environment): bool
-    {
-        if ($expected === '') {
-            return $environment !== 'production';
-        }
-
-        return hash_equals($expected, $received);
-    }
-
     public function webhook()
     {
         $expected = getenv('telegram.WEBHOOK_SECRET');

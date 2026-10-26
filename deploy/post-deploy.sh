@@ -32,6 +32,9 @@ if [[ ! -f "$SHARED/.env" ]]; then
     exit 1
 fi
 
+# S4 — без секрета вебхука production отклоняет все апдейты; не переключаем релиз.
+bash "$NEW_RELEASE/deploy/check-webhook-secret.sh" "$SHARED/.env"
+
 cd "$NEW_RELEASE"
 
 echo ">>> [post-deploy] composer install"

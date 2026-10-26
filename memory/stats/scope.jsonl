@@ -358,3 +358,4 @@
 {"ts":"2026-10-26T18:48:18Z","story":"w-reg-banner-fit-01","declared":3,"changed":3,"out_of_scope":0}
 {"ts":"2026-10-26T19:05:21Z","story":"w-reg-banner-fit-02-repair-round-1","declared":3,"changed":1,"out_of_scope":0}
 {"ts":"2026-10-26T19:32:45Z","story":"s4-webhook-fail-closed-01","declared":3,"changed":3,"out_of_scope":0}
+{"ts":"2026-10-26T19:46:18Z","story":"s4-deploy-secret-gate-01","declared":4,"changed":4,"out_of_scope":0}
