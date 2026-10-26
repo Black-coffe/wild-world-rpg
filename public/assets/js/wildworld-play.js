@@ -64,7 +64,9 @@
   const banner = () => document.getElementById('play-banner');
 
   /* W-REG.5: на ≥768 px самое новое сообщение плашки раскрыто — один раз на message_id, чтобы
-     закрытое игроком опрос не раскрывал снова. На телефоне всё свёрнуто. */
+     закрытое игроком опрос не раскрывал снова. На телефоне всё свёрнуто.
+     w-reg-banner-fit: раскрытое остаётся, только если верх экрана игры не ниже ¾ окна — замер
+     по живой раскладке, поэтому box должен уже стоять в DOM. */
   const wideBanner = window.matchMedia ? window.matchMedia('(min-width: 768px)') : null;
   const autoOpened = new Set();
   const openNewest = (box) => {
@@ -73,6 +75,7 @@
     if (!first || autoOpened.has(first.dataset.messageId)) return;
     autoOpened.add(first.dataset.messageId);
     first.open = true;
+    if (stateBox.getBoundingClientRect().top + window.scrollY > window.innerHeight * 0.75) first.open = false;
   };
   openNewest(banner());
 
@@ -88,8 +91,8 @@
       const same = next.querySelector('details[data-message-id="' + CSS.escape(el.dataset.messageId || '') + '"]');
       if (same) same.open = true;
     });
-    openNewest(next);
     current.replaceWith(next);
+    openNewest(next);
   };
 
   const clearBanner = () => {

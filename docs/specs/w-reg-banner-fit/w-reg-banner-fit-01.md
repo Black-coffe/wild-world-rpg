@@ -1,8 +1,8 @@
 ---
 story: w-reg-banner-fit-01
 spec: w-reg-banner-fit
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 1
 worker: worker-code
 wave: 1
@@ -36,5 +36,8 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress tests/database/PlayInboxBannerTest.php`
 
 ## Implementation notes
+- `openNewest`: раскрыть → замер `stateBox.getBoundingClientRect().top + scrollY` против `innerHeight*0.75` → свернуть,
+  если ниже; `autoOpened` помечается до замера, повторно не пробует. `#play-state` меняет только `innerHTML` — ссылка живая.
+- `setBanner`: `replaceWith` перед `openNewest`, чтобы замер шёл по живой раскладке. JS `?v=6`, тест страницы на `?v=6`.
 
 ## Findings
