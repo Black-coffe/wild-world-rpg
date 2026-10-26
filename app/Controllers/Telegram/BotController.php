@@ -26,8 +26,10 @@ class BotController extends Controller
      * прислал тот же токен в заголовке. Если значения не совпадают — 403.
      * Без этого любой, кто узнал webhook URL, мог постить fake updates.
      *
-     * Если переменная не задана (legacy / dev) — проверка пропускается,
-     * чтобы не сломать существующие установки. Чтобы включить:
+     * S4 — fail-closed: в production без секрета вебхук отклоняет КАЖДЫЙ апдейт (403 +
+     * CRITICAL в лог) — иначе забытый секрет молча открывает поддельные апдейты. Пропуск
+     * без секрета остался только в development/testing (локальная разработка, тесты).
+     * Решение — {@see webhookSecretVerdict()}. Чтобы включить:
      *   1) сгенерировать random-токен и положить в .env как
      *      telegram.WEBHOOK_SECRET = '<random_64_chars>'
      *   2) переустановить webhook у бота:
@@ -35,15 +37,31 @@ class BotController extends Controller
      *           -d "url=https://bot.wildworld.fun/telegram/webhook" \
      *           -d "secret_token=<random_64_chars>"
      */
+    /**
+     * S4 — пускать ли апдейт по секрет-заголовку. Пустой секрет пропускает проверку только
+     * вне production; заданный сверяется `hash_equals` (пустой/чужой заголовок → false).
+     */
+    public static function webhookSecretVerdict(string $expected, string $received, string $environment): bool
+    {
+        if ($expected === '') {
+            return $environment !== 'production';
+        }
+
+        return hash_equals($expected, $received);
+    }
+
     public function webhook()
     {
         $expected = getenv('telegram.WEBHOOK_SECRET');
-        if (!empty($expected)) {
-            $received = $this->request->getHeaderLine('X-Telegram-Bot-API-Secret-Token');
-            if (!hash_equals($expected, $received)) {
+        $expected = is_string($expected) ? $expected : '';
+        $received = $this->request->getHeaderLine('X-Telegram-Bot-API-Secret-Token');
+        if (!self::webhookSecretVerdict($expected, $received, ENVIRONMENT)) {
+            if ($expected === '') {
+                log_message('critical', '[Bot.webhook] telegram.WEBHOOK_SECRET не задан в production — апдейт отклонён (S4 fail-closed)');
+            } else {
                 log_message('warning', '[Bot.webhook] secret_token mismatch — отклонено');
-                return $this->response->setStatusCode(403)->setBody('forbidden');
             }
+            return $this->response->setStatusCode(403)->setBody('forbidden');
         }
 
         $rawBody = $this->request->getBody();
