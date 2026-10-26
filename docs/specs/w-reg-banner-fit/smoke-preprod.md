@@ -15,3 +15,7 @@
 - Консоль: ошибок и warn нет; issue Chrome «Lazy-loaded images should have explicit dimensions» — у `<img>` плашки и
   входящих нет размеров (с web-onboarding-03), не регрессия; хвост.
 - Уборка: подпись 455 восстановлена из бэкапа (349), `tmp_smoke_455` удалена, `read_at` возвращён, токен удалён, вкладка закрыта.
+
+## Прод (v0.51.705, run 40386410571 success, релиз 21:24)
+
+Сверка чтением: главная 200, `wildworld-play.js?v=6` несёт повторный замер (`img.complete`); ERROR/CRITICAL после деплоя — 0 (кроме «bot was blocked by the user»).
