@@ -43,7 +43,7 @@
 
 **Approved:** Andrei, 2026-10-26
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/w-reg-bot-lexicon
 **Checked:**
 **Council:**
 **Shipped:**
