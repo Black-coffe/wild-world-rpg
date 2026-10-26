@@ -49,6 +49,8 @@ class Front extends BaseController
             'latest'       => $posts->publishedFeed(6),
             'wikiSections' => $wiki->sections(),
             'factions'     => $wiki->factions(),
+            // W-REG.1: две двери (Telegram и браузер) — только при открытой регистрации.
+            'registrationOpen' => AccountRegister::registrationOpen(),
             'meta'         => $this->meta(
                 'Wild World — постапокалиптическая текстовая MMORPG в Telegram',
                 'Выживай в огромном открытом мире: исследуй земли, добывай ресурсы, крафти снаряжение, строй базу, вступай во фракции и сражайся — прямо в Telegram.',
@@ -263,6 +265,8 @@ class Front extends BaseController
         return view('site/page', [
             'page'        => $page,
             'breadcrumbs' => $breadcrumbs,
+            // W-REG.1: блок «Как начать» на /about — только при открытой регистрации.
+            'startDoors'  => $slug === 'about' && AccountRegister::registrationOpen(),
             'meta'        => $this->meta(
                 $this->pageTitle($seoTitle, $title),
                 $metaDesc !== '' ? $this->metaDescription($metaDesc) : $title . ' — Wild World.',

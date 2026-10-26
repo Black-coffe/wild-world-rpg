@@ -1,7 +1,8 @@
 ---
 story: w-reg-site-funnel-01
 spec: w-reg-site-funnel
-status: todo
+status: done
+returned: DONE
 tier: 1
 worker: worker-code
 wave: 1
@@ -44,5 +45,12 @@ memory/map/website.md — «Аккаунты», «Игра на сайте», Go
 `vendor/bin/phpunit --no-coverage --no-progress tests/database/SiteFunnelTest.php`
 
 ## Implementation notes
+- Флаг — готовый `AccountRegister::registrationOpen()`; `Front::home` подаёт `registrationOpen`, `Front::renderPage` — `startDoors` (slug `about` и флаг), `AccountAuth::render` — `registrationOpen`. Вьюхи GameSettings не зовут.
+- `site/_start_doors.php` — общий блок «Как начать» (Telegram / браузер, подсказка про `/web` для играющих); метка бота `src_site_home` / `src_site_about`. Только существующие классы (`section-head`, `kicker`, `card stack`, `label`, `btn primary`, `provider-note`), без inline-стилей и JS — `ui-kit.html` не меняется.
+- Главная при флаге: бейдж и «Платформа» — Telegram и браузер, lead «в чате Telegram или в браузере», «▶ Играть в браузере» (`/play`) в hero и CTA, CTA без «Никаких регистраций… Только Telegram». При выключенном флаге текст и кнопки прежние.
+- Вход при флаге: первым — карточка «Новый в Wild World» (Google/Яндекс создаст аккаунт, дальше имя персонажа) с кнопками OAuth; во второй карточке OAuth-кнопок нет (без дублей), код из бота — «Уже играешь в Telegram?». Плашки ошибки/инфо вынесены над сеткой в обоих режимах — единственное видимое изменение при выключенном флаге (текст тот же).
+- «Играть в браузере» при открытой регистрации, но выключенном `web.play_enabled` ведёт на заглушку `/play`: W-REG.4 включает оба флага.
+- Тест `tests/database/SiteFunnelTest.php` (2 теста: флаг off / on), `AccountAuthTest` зелёный; phpstan по контроллерам — 0. Локальный `wildworld_tests` держал пустой огрызок `characters` (4 колонки) от другого теста — удалён, после этого `AccountAuthTest` зелёный.
+- Tech-writing: vault `54a4c1b` — новая нота `controllers/Front.md`, `AccountControllers.md` (строка `/account/login` исправлена: POST `attempt` удалён ещё 30.09).
 
 ## Findings

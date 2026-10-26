@@ -10,10 +10,12 @@
  * @var string|null $error
  * @var string|null $notice
  * @var string      $botUsername
+ * @var bool        $registrationOpen W-REG.1: первым блоком — новичку, Google/Яндекс создаст аккаунт
  */
 $error       = is_string($error ?? null) ? $error : null;
 $notice      = is_string($notice ?? null) ? $notice : null;
 $botUsername = is_string($botUsername ?? null) ? $botUsername : '';
+$open        = ($registrationOpen ?? false) === true;
 ?>
 <?= $this->extend('site/layout') ?>
 <?= $this->section('content') ?>
@@ -25,17 +27,25 @@ $botUsername = is_string($botUsername ?? null) ? $botUsername : '';
             <div class="desc">Один аккаунт на все способы входа: Telegram, Google или Яндекс. Паролей у сайта нет.</div>
         </div>
 
-        <div class="grid grid-2">
-            <div class="card stack">
-                <?php if ($error !== null): ?>
-                    <div class="notice error" role="alert"><span class="notice-title">Ошибка</span><?= esc($error) ?></div>
-                <?php endif ?>
-                <?php if ($notice !== null): ?>
-                    <div class="notice info" role="status"><span class="notice-title">Инфо</span><?= esc($notice) ?></div>
-                <?php endif ?>
+        <?php if ($error !== null): ?>
+            <div class="notice error" role="alert"><span class="notice-title">Ошибка</span><?= esc($error) ?></div>
+        <?php endif ?>
+        <?php if ($notice !== null): ?>
+            <div class="notice info" role="status"><span class="notice-title">Инфо</span><?= esc($notice) ?></div>
+        <?php endif ?>
 
+        <?php if ($open): ?>
+            <div class="card stack" data-login-new>
+                <div class="label">Новый в Wild World</div>
+                <p class="mb-0">Войди через Google или Яндекс&nbsp;— аккаунт создастся при первом входе. Дальше придумаешь имя персонажа, и&nbsp;он появится в&nbsp;мире.</p>
+                <?= view('site/account_oauth_buttons', ['oauthMode' => 'login', 'oauthLinked' => []]) ?>
+            </div>
+        <?php endif ?>
+
+        <div class="grid grid-2<?= $open ? ' mt-3' : '' ?>">
+            <div class="card stack">
                 <div class="label">Войти кодом из бота</div>
-                <p class="mb-0">Играешь в Telegram? Отправь боту команду /web — он даст одноразовый код. Введи его на сайте, и ты войдёшь в своего персонажа. Этот путь работает всегда.</p>
+                <p class="mb-0"><?= $open ? 'Уже играешь в Telegram?' : 'Играешь в Telegram?' ?> Отправь боту команду /web — он даст одноразовый код. Введи его на сайте, и ты войдёшь в своего персонажа. Этот путь работает всегда.</p>
                 <div class="auth-actions">
                     <a class="btn primary" href="<?= esc(base_url('account/link'), 'attr') ?>">Ввести код из бота</a>
                 </div>
@@ -53,8 +63,10 @@ $botUsername = is_string($botUsername ?? null) ? $botUsername : '';
                     </div>
                 <?php endif ?>
 
-                <div class="label">Войти через Google или Яндекс</div>
-                <?= view('site/account_oauth_buttons', ['oauthMode' => 'login', 'oauthLinked' => []]) ?>
+                <?php if (! $open): ?>
+                    <div class="label">Войти через Google или Яндекс</div>
+                    <?= view('site/account_oauth_buttons', ['oauthMode' => 'login', 'oauthLinked' => []]) ?>
+                <?php endif ?>
             </div>
         </div>
     </div>

@@ -56,6 +56,8 @@ class AccountAuth extends BaseController
             'error'       => null,
             'notice'      => null,
             'botUsername' => is_string($rawBot) ? ltrim($rawBot, '@') : '',
+            // W-REG.1: при открытой регистрации вход первым делом говорит новичку про Google/Яндекс.
+            'registrationOpen' => AccountRegister::registrationOpen(),
             'meta'        => self::meta(),
         ]);
     }
