@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-12
+last-verified: 2026-10-26 (w-reg-bot-lexicon)
 
 # Scout report: Базы, лагерь, постройки
 
@@ -25,6 +25,8 @@ last-verified: 2026-10-12
   `Player/BuildingUpgrade/BuildingUpgradeApplier`, проверка — `BuildingUpgradeValidator`.
 - `app/Services/Bases/` — также `BaseLifecycleService`, `BaseLimitService`, `BaseCheckService`,
   `CampCheckService`, `BaseLocationResolver`, `BaseCallbackSuffix`, `BaseScopeResolver`.
+- **«Лагерь разбит»** — `Camp\CampCreateConfirmAction::campCreatedMessage(x, y, ?restoredNames, baseId)` (static,
+  оба варианта: с переездом и без): текст + «что дальше» + ряд `Base` · `Build_b<baseId>`; тест `tests/unit/Camp/CampCreatedMessageTest.php`.
 - **`BaseCallbackSuffix`** — кодек `<callback>_b<claimed_cells.id>`: `append()` (`\LengthException`
   >64 байт), `split()` по `/_b(\d+)$/`. Роутер суффикс не снимает — каждый обработчик сам.
 - **`BaseScopeResolver`** — `resolve(charId, cell)`: cell / `no_bases` / `ambiguous`, под сигналом — первая
