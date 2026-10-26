@@ -1,8 +1,8 @@
 ---
 story: s4-deploy-secret-gate-01
 spec: s4-deploy-secret-gate
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 1
 worker: worker-code
 wave: 1
@@ -37,5 +37,12 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/CheckWebhookSecretGateTest.php`
 
 ## Implementation notes
+- `deploy/check-webhook-secret.sh`: awk берёт последнее незакомментированное значение ключа (пробелы, кавычки, `` срезаны);
+  production + пусто → stderr без значения, exit 1. `post-deploy.sh` зовёт его сразу после проверки `.env` — до composer и
+  переключения симлинка; общий для бота и сайта.
+- Тест `tests/unit/CheckWebhookSecretGateTest.php` гоняет скрипт настоящим bash на фикстурах (пусто, закомментировано, нет
+  строки + CRLF, задан, development) + порядок в `post-deploy.sh`; без вызова в post-deploy краснеет.
+- Гейт прогнан по `~/shared/.env` прода и preprod (stdin, только чтение): exit 0 на обоих.
+- Докблок `webhook()` вернулся к методу (минор ревью S4).
 
 ## Findings
