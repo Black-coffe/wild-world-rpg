@@ -66,7 +66,7 @@ Answers 2): здоровье, усталость, атрибуты и золот
 
 ## Verification
 
-`vendor/bin/phpunit --no-coverage --no-progress tests/database/IntentApplierRelativeDeltasTest.php && vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/Events/IntentApplierTest.php && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+`vendor/bin/phpunit --no-coverage --no-progress tests/database/IntentApplierRelativeDeltasTest.php && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
 ## Implementation notes
 
@@ -78,7 +78,7 @@ Answers 2): здоровье, усталость, атрибуты и золот
 - Сюрприз: `red_reason` в кавычках не находился `stamp-red` — кавычки убраны (как в -02/-03/-04).
 - Хвост (Non-goals, не чинил): `applyTaskExtension()` `:211-213` — та же абсолютная запись со снимка (`end_time` прочитан → `+N minutes` → записан целиком); относительная форма — `end_time = end_time + INTERVAL ? MINUTE`.
 
-- Королева 28.10 (plan delta): baseline снят `aebbd7a3`. `## Files` расширен `tests/unit/Services/Events/IntentApplierTest.php` — он закрепляет старую запись со снимка (подмена `CharacterModel::update()`); переписать его под `adjust()`/относительную запись, сохранив смысл четырёх проверок (пол 0.01 здоровья, накопление золота, атрибуты, ресурсы), без ослабления. Затем close-story.
+- Королева 28.10 (plan delta): baseline снят `aebbd7a3`. `## Files` расширен `tests/unit/Services/Events/IntentApplierTest.php` — он закрепляет старую запись со снимка (подмена `CharacterModel::update()`); переписать его под `adjust()`/относительную запись, сохранив смысл четырёх проверок (пол 0.01 здоровья, накопление золота, атрибуты, ресурсы), без ослабления. Прогнать его отдельно (`vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/Events/IntentApplierTest.php`) до close-story; в `## Verification` он не добавлен — набор red-квитанции не меняется.
 
 ## Findings
 

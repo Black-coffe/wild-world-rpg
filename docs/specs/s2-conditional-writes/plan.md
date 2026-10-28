@@ -175,7 +175,7 @@ PoC, позеленевший от правки (вероятны `GapAuditTest:
 
 ## Plan deltas
 
-**2026-10-28 · волна 2, story 06.** `tests/unit/Services/Events/IntentApplierTest.php` (3 из 4 красные) закреплял запись со снимка через подмену `CharacterModel::update()` — ту самую форму, которую чинит F16; добавлен в `## Files` и `## Verification` story 06. Устаревшие записи `phpstan-baseline.neon` по `IntentApplier.php` сняты Королевой (`aebbd7a3`, по правилу Assumptions). Story 05 закрыта после baseline без правок кода.
+**2026-10-28 · волна 2, story 06.** `tests/unit/Services/Events/IntentApplierTest.php` (3 из 4 красные) закреплял запись со снимка через подмену `CharacterModel::update()` — ту самую форму, которую чинит F16; добавлен в `## Files` story 06 (не в `## Verification`: иначе меняется набор, запечатанный red-квитанцией; его прогонит полный набор совета). Устаревшие записи `phpstan-baseline.neon` по `IntentApplier.php` сняты Королевой (`aebbd7a3`, по правилу Assumptions). Story 05 закрыта после baseline без правок кода.
 
 <!--
 The lines below are the cycle's confirmation markers (docs/cycle.md); each placeholder is replaced by
