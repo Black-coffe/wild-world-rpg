@@ -1,7 +1,7 @@
 ---
 story: s2-conditional-writes-13
-status: todo
-returned:
+status: done
+returned: DONE
 worker: worker-code
 model: opus
 wave: 5
@@ -84,3 +84,7 @@ Queen decisions (2026-10-29, ответ на NEEDS_CONTEXT):
 `vendor/bin/phpunit --no-coverage --no-progress tests/database/TeleportUseTransactionTest.php && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Transport/VehicleActivationServiceTest.php && vendor/bin/phpunit --no-coverage --no-progress tests/unit/Transport/DeathBreaksVehicleTest.php && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/TaskHandlers/CompleteRobotGatheringBaseTest.php && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+
+## Implementation notes
+- tests/unit/TaskHandlers/CompleteRobotGatheringBaseTest.php: `seedTask` seeds `status => 'completed'`, as Worker's atomic claim leaves it before handle(); handler untouched (ask 10 kept).
+- The status assertion at :191 now checks the handler does not overwrite the claimed status; standalone file green (5 tests).

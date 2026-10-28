@@ -155,7 +155,9 @@ final class CompleteRobotGatheringBaseTest extends CIUnitTestCase
             'character_id'     => $charId,
             'telegram_user_id' => $tgUid,
             'task_id'          => 1,
-            'status'           => 'in_work',
+            // s2-conditional-writes F24: статус `in_work → completed` пишет Worker атомарным
+            // claim'ом до вызова handle(); хендлер его больше не пишет — засеваем уже claimed.
+            'status'           => 'completed',
             'start_time'       => date('Y-m-d H:i:s', time() - 2 * 3600),
             'end_time'         => date('Y-m-d H:i:s', time() - 1),
             'task_settings'    => $settings === null ? null : json_encode($settings),
