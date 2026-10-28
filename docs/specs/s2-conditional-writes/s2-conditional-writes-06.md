@@ -1,8 +1,8 @@
 ---
 story: s2-conditional-writes-06
 spec: s2-conditional-writes
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 wave: 2
@@ -79,6 +79,8 @@ Answers 2): здоровье, усталость, атрибуты и золот
 - Хвост (Non-goals, не чинил): `applyTaskExtension()` `:211-213` — та же абсолютная запись со снимка (`end_time` прочитан → `+N minutes` → записан целиком); относительная форма — `end_time = end_time + INTERVAL ? MINUTE`.
 
 - Королева 28.10 (plan delta): baseline снят `aebbd7a3`. `## Files` расширен `tests/unit/Services/Events/IntentApplierTest.php` — он закрепляет старую запись со снимка (подмена `CharacterModel::update()`); переписать его под `adjust()`/относительную запись, сохранив смысл четырёх проверок (пол 0.01 здоровья, накопление золота, атрибуты, ресурсы), без ослабления. Прогнать его отдельно (`vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/Events/IntentApplierTest.php`) до close-story; в `## Verification` он не добавлен — набор red-квитанции не меняется.
+- `tests/unit/Services/Events/IntentApplierTest.php` переписан: двойник `CharacterStatsService` (6-й аргумент) подменяет только `mutate()`, настоящая математика `adjust()`/`clamp()` идёт над «свежими» значениями; `CharacterModel::update()` бросает исключение, если applier пишет статы по-старому. Четыре проверки сохранены; золото теперь проверяется от свежего значения (снимок 500, в БД 700, +1500 → 2200). 4/4 зелёные.
+- Baseline снят Королевой в `aebbd7a3`, так что пункты из Findings про phpstan закрыты.
 
 ## Findings
 
