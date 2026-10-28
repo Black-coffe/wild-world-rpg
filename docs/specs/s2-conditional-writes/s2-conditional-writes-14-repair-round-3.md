@@ -1,7 +1,7 @@
 ---
 story: s2-conditional-writes-14
-status: todo
-returned:
+status: done
+returned: DONE
 worker: worker-code
 model: opus
 wave: 6
@@ -73,3 +73,10 @@ No brief ask is RED in round 3 - the findings below are the whole task.
 `vendor/bin/phpunit --no-coverage --no-progress tests/database/TeleportUseTransactionTest.php && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Transport/VehicleActivationServiceTest.php && vendor/bin/phpunit --no-coverage --no-progress tests/unit/Transport/DeathBreaksVehicleTest.php && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/TaskHandlers/CompleteRobotGatheringBaseTest.php && vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+
+## Implementation notes
+- No app code changed: finding 1 is the shared `wildworld_tests` being used by two processes at once, not a code defect.
+- tests/database/PlantCropSeedConditionalWriteTest.php: the character and telegram user now get explicit random ids. Surprise: on the DB state the suite leaves behind, `characters` had been recreated (id restarts at 1) while an orphan `character_resources` row (char 1, BerrySeeds, qty 4) let the conditional decrement succeed, so the first close-story run failed; it was a non-hermetic test, not the action.
+- tests/database/GoldDecrementIfAtLeastTest.php: the character_factions insert no longer writes `joined_at` (the service never reads it). A narrower `character_factions` left by another test lacked the column, so close-story run 2 errored.
+- Solo full suite `vendor/bin/phpunit --no-coverage --no-progress` re-run 2026-10-29 with no other PHPUnit process started by this worker: exit 0, Tests: 5062, Assertions: 47302, Skipped: 10, 0 errors, 0 failures, 08:13.
+- PlayControllerTest / PlayInboxBannerTest green inside that solo run, which confirms the round-3 errors were schema-state collisions.

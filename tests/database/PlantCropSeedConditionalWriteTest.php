@@ -239,8 +239,12 @@ final class PlantCropSeedConditionalWriteTest extends CIUnitTestCase
     public function testStaleSeedSnapshotRefusesPlantingWithoutTaskRow(): void
     {
         $tgId  = random_int(730_000_000, 739_999_999);
-        $tgUid = $this->insertTracked('telegram_users', ['telegram_id' => $tgId]);
+        // Явные случайные id: `characters`/`telegram_users` бывают пересозданы соседними тестами
+        // (AUTO_INCREMENT снова с 1), а общие `character_resources`/`character_tasks` хранят их
+        // осиротевшие строки — с id=1 списание попадало бы в чужое семя.
+        $tgUid = $this->insertTracked('telegram_users', ['id' => random_int(900_000_000, 999_999_999), 'telegram_id' => $tgId]);
         $charId = $this->insertTracked('characters', [
+            'id' => random_int(900_000_000, 999_999_999),
             'telegram_user_id' => $tgUid, 'gold' => 0, 'health' => 100, 'tired' => 100,
         ]);
 

@@ -183,8 +183,9 @@ final class GoldDecrementIfAtLeastTest extends CIUnitTestCase
         $deposit   = $svc->depositGold();
         $factionId = 2;
         $charId    = $this->insertCharacter($deposit);
+        // Без joined_at: сервис его не читает, а общую character_factions соседние тесты создают и узкой.
         $this->insert('character_factions', [
-            'character_id' => $charId, 'faction_id' => $factionId, 'joined_at' => date('Y-m-d H:i:s'),
+            'character_id' => $charId, 'faction_id' => $factionId,
         ]);
 
         $project = $svc->getOrCreateProject($factionId);

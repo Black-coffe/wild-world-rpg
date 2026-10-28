@@ -374,3 +374,6 @@
 {"ts":"2026-10-28T21:24:57Z","story":"s2-conditional-writes-09","declared":5,"changed":5,"out_of_scope":0}
 {"ts":"2026-10-28T22:17:47Z","story":"s2-conditional-writes-12-repair-round-1","declared":37,"changed":6,"out_of_scope":0}
 {"ts":"2026-10-28T22:46:29Z","story":"s2-conditional-writes-13-repair-round-2","declared":38,"changed":1,"out_of_scope":0}
+{"ts":"2026-10-28T23:08:27Z","story":"s2-conditional-writes-14-repair-round-3","declared":38,"changed":0,"out_of_scope":0}
+{"ts":"2026-10-28T23:10:24Z","story":"s2-conditional-writes-14-repair-round-3","declared":38,"changed":1,"out_of_scope":0}
+{"ts":"2026-10-28T23:11:58Z","story":"s2-conditional-writes-14-repair-round-3","declared":38,"changed":2,"out_of_scope":0}
