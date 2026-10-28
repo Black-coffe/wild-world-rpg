@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controllers\Telegram\Commands\Actions\Drone;
 
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\WriteOutcome;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -12,8 +14,9 @@ use App\Services\Telegram\Request;
  *
  * Шаги (DB transaction):
  *   1. Re-validate killswitch / on-base / drone instance / charge / robots non-empty / gold.
- *   2. foreach robot in eligible: UPDATE crafted_items_log SET durability_count = base_durability.
- *   3. UPDATE characters SET gold = gold - cumulative_gold.
+ *   2. characters.gold — decrementIfAtLeast(cumulative_gold) ДО ремонта (s2-conditional-writes-03);
+ *      отказ → откат, ни один робот не тронут.
+ *   3. foreach robot in eligible: UPDATE crafted_items_log SET durability_count = base_durability.
  *   4. UPDATE drone log row SET durability_count -= drain.
  *
  * All-or-nothing: при провале tx ничего не списывается.
@@ -62,19 +65,17 @@ class RepairDroneRunAction extends RepairDroneBaseAction
             return $this->errReply($chatId, "Не хватает {$need} 🪙 для batch-ремонта.");
         }
 
-        $db = \Config\Database::connect();
-        $db->transStart();
-
-        foreach ($robots as $r) {
-            $this->logModel->update($r['logId'], ['durability_count' => $r['base']]);
-        }
-        $db->table('characters')->where('id', $characterId)->decrement('gold', $cumulative);
         $newCharge = max(0, $charge - $drain);
-        $this->logModel->update($droneLogId, ['durability_count' => $newCharge]);
-
-        $db->transComplete();
-
-        if ($db->transStatus() === false) {
+        $outcome   = $this->applyBatchRepair($characterId, $robots, $cumulative, $droneLogId, $newCharge);
+        if ($outcome === 'refused') {
+            // Тот же текст отказа, что у проверки выше; недостача — по свежему чтению (только для текста).
+            $query    = \Config\Database::connect()->table('characters')->select('gold')->where('id', $characterId)->get();
+            $fresh    = $query !== false ? $query->getRowArray() : null;
+            $freshRaw = is_array($fresh) ? ($fresh['gold'] ?? null) : null;
+            $need     = $cumulative - (is_numeric($freshRaw) ? (int) $freshRaw : 0);
+            return $this->errReply($chatId, 'Не хватает ' . max(1, $need) . ' 🪙 для batch-ремонта.');
+        }
+        if ($outcome === 'failed') {
             log_message('error', "[RepairDroneRun] tx fail for character {$characterId}");
             return $this->errReply($chatId, 'Ошибка при batch-ремонте. Попробуй ещё раз.');
         }
@@ -116,6 +117,58 @@ class RepairDroneRunAction extends RepairDroneBaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * s2-conditional-writes-03 (F9, ADR-181) — запись batch-ремонта. Порядок перевёрнут: золото
+     * списывается ОДНОЙ условной записью `decrementIfAtLeast` ДО прочности роботов и заряда дрона.
+     * Раньше прочность писалась первой, а `decrement('gold')` — безусловно после: при золоте,
+     * ушедшем между проверкой и оплатой, роботы чинились, а баланс уходил в минус. На отказе
+     * ни один робот пакета не тронут. Транзакция завершается ровно один раз, исход — по возврату.
+     *
+     * @param list<array{logId:int,nameRus:string,current:int,base:int,goldCost:int}> $robots
+     *
+     * @return 'applied'|'refused'|'failed'
+     */
+    public function applyBatchRepair(int $characterId, array $robots, int $cumulative, int $droneLogId, int $newCharge): string
+    {
+        $db          = \Config\Database::connect();
+        $depthBefore = $db->transDepth;
+        $db->transStart();
+
+        try {
+            if ($cumulative > 0) {
+                $paid = (new ConditionalWriteService($db))->decrementIfAtLeast('characters', $characterId, 'gold', $cumulative);
+                if ($paid !== WriteOutcome::Applied) {
+                    $db->transRollback();
+                    if ($depthBefore === 0) {
+                        $db->resetTransStatus();
+                    }
+                    if ($paid === WriteOutcome::Missing) {
+                        log_message('error', "[RepairDroneRun] персонаж {$characterId} не найден при списании золота batch-ремонта");
+                    }
+                    return 'refused';
+                }
+            }
+
+            foreach ($robots as $r) {
+                $this->logModel->update($r['logId'], ['durability_count' => $r['base']]);
+            }
+            $this->logModel->update($droneLogId, ['durability_count' => $newCharge]);
+
+            $committed = $db->transComplete();
+            if (! $committed && $depthBefore === 0) {
+                $db->resetTransStatus();
+            }
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            if ($depthBefore === 0) {
+                $db->resetTransStatus();
+            }
+            throw $e;
+        }
+
+        return $committed ? 'applied' : 'failed';
     }
 
     private function errReply(int $chatId, string $msg): ServerResponse
