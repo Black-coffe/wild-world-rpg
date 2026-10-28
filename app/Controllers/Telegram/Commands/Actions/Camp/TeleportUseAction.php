@@ -7,7 +7,10 @@ use App\Services\Player\TeleportUse\TeleportExecutor;
 use App\Services\Player\TeleportUse\TeleportItemConsumer;
 use App\Services\Player\TeleportUse\TeleportUseMessageFormatter;
 use App\Services\Player\TeleportUse\TeleportUseValidator;
+use App\Models\CharacterModel;
 use App\Services\Tasks\ActiveTasksService;
+use CodeIgniter\Database\BaseConnection;
+use Config\Database;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -17,14 +20,63 @@ class TeleportUseAction extends BaseAction
     private TeleportUseMessageFormatter $formatter;
     private TeleportExecutor $executor;
     private TeleportItemConsumer $itemConsumer;
+    /** @var BaseConnection<object, object> */
+    private BaseConnection $db;
 
-    public function __construct($callbackQuery)
+    /**
+     * s2-conditional-writes-11 — `$executor` — шов для теста (двойник перемещения);
+     * по умолчанию списание и перемещение идут через одно соединение `$this->db`.
+     */
+    public function __construct($callbackQuery, ?TeleportExecutor $executor = null)
     {
         parent::__construct($callbackQuery);
+        $this->db           = Database::connect();
         $this->validator    = new TeleportUseValidator();
         $this->formatter    = new TeleportUseMessageFormatter();
-        $this->executor     = new TeleportExecutor();
-        $this->itemConsumer = new TeleportItemConsumer();
+        $this->executor     = $executor ?? new TeleportExecutor(new CharacterModel($this->db));
+        $this->itemConsumer = new TeleportItemConsumer($this->db);
+    }
+
+    /**
+     * s2-conditional-writes-11 (ask 12) — CAS заряда и перемещение в одной транзакции:
+     * transBegin → списание → перемещение → transCommit. Отказ CAS (null/false) — откат
+     * без перемещения; исключение перемещения — откат, заряд на месте, `error` в лог.
+     * Транзакция завершается ровно один раз на каждом пути; исход — по возврату, не по
+     * transStatus().
+     *
+     * @param callable(): (int|bool|null) $charge
+     * @param callable(): void            $move
+     * @return array{status: 'moved'|'refused'|'failed', charged: int|bool|null}
+     */
+    private function chargeAndMove(callable $charge, callable $move): array
+    {
+        $this->db->transBegin();
+
+        try {
+            $charged = $charge();
+            if ($charged !== null && $charged !== false) {
+                $move();
+            }
+        } catch (\Throwable $e) {
+            $this->db->transRollback();
+            log_message('error', '[TeleportUse] перемещение не удалось, заряд возвращён откатом: {msg}', ['msg' => $e->getMessage()]);
+
+            return ['status' => 'failed', 'charged' => null];
+        }
+
+        if ($charged === null || $charged === false) {
+            $this->db->transRollback();
+
+            return ['status' => 'refused', 'charged' => $charged];
+        }
+
+        if (!$this->db->transCommit()) {
+            log_message('error', '[TeleportUse] commit списания заряда и перемещения не прошёл');
+
+            return ['status' => 'failed', 'charged' => null];
+        }
+
+        return ['status' => 'moved', 'charged' => $charged];
     }
 
     public function handle(): ServerResponse
@@ -168,17 +220,23 @@ class TeleportUseAction extends BaseAction
         $ctx = $result['context'];
         // exploit-fix-08 (F7) — CAS по снимку: телепорт только после подтверждённого списания.
         // Устаревший снимок (второй тап по тому же результату validate*()) отдаёт null — заряд
-        // не списан, персонаж остаётся на месте.
-        $newDurability = $this->itemConsumer->consumeBackpack($ctx['backpackLog'], $ctx['customData']);
-        if ($newDurability === null) {
+        // не списан, персонаж остаётся на месте. s2-conditional-writes-11 — списание и
+        // перемещение в одной транзакции: сбой перемещения откатывает списание.
+        $out = $this->chargeAndMove(
+            fn (): ?int => $this->itemConsumer->consumeBackpack($ctx['backpackLog'], $ctx['customData']),
+            fn () => $this->executor->teleport((int) $character['id'], $ctx['claimedCell'], $ctx['mapRow']),
+        );
+        if ($out['status'] === 'refused') {
             return $this->sendFormatted($this->formatter->error(
                 'Рюкзак телепорта уже использован — заряд списан другим запросом. Попробуй ещё раз.',
                 true
             ));
         }
-        $this->executor->teleport((int) $character['id'], $ctx['claimedCell'], $ctx['mapRow']);
+        if ($out['status'] === 'failed' || !is_int($out['charged'])) {
+            return $this->sendFormatted($this->formatter->baseNotFound());
+        }
 
-        return $this->sendFormatted($this->formatter->successBackpack($newDurability));
+        return $this->sendFormatted($this->formatter->successBackpack($out['charged']));
     }
 
     /**
@@ -223,15 +281,21 @@ class TeleportUseAction extends BaseAction
         // exploit-fix-08 (F7, EA-duplication-02) — CAS по снимку: списание идёт ПЕРЕД
         // перемещением, и перемещение выполняется только при подтверждённом списании.
         // Устаревший снимок (второй тап по тому же результату validate*()) отдаёт false —
-        // заряд не списан, персонаж остаётся на месте.
-        $charged = $this->itemConsumer->consumePortable($ctx['portableItem'], $ctx['portableLog']);
-        if (!$charged) {
+        // заряд не списан, персонаж остаётся на месте. s2-conditional-writes-11 — списание и
+        // перемещение в одной транзакции: сбой перемещения откатывает списание.
+        $out = $this->chargeAndMove(
+            fn (): bool => $this->itemConsumer->consumePortable($ctx['portableItem'], $ctx['portableLog']),
+            fn () => $this->executor->teleport((int) $character['id'], $ctx['claimedCell'], $ctx['mapRow']),
+        );
+        if ($out['status'] === 'refused') {
             return $this->sendFormatted($this->formatter->error(
                 'Портативный телепорт уже использован — заряд списан другим запросом. Попробуй ещё раз.',
                 true
             ));
         }
-        $this->executor->teleport((int) $character['id'], $ctx['claimedCell'], $ctx['mapRow']);
+        if ($out['status'] === 'failed') {
+            return $this->sendFormatted($this->formatter->baseNotFound());
+        }
 
         return $this->sendFormatted($this->formatter->successPortable());
     }
