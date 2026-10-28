@@ -12,3 +12,4 @@
 - 2026-10-28T22:18:35Z · 04-council:open · round 2 opened, court at C:/laragon/www/mmorpg/.vulyk/court/s2-conditional-writes/round-2 · next: dispatch:haiku,opus,review
 - 2026-10-28T22:43:38Z · 04-council:RED · round 2 verdict RED at 5f60495e pack fa4a0b78582d · next: repair
 - 2026-10-28T22:43:43Z · 03-building · repair round 2: s2-conditional-writes-13-repair-round-2.md · next: build:5
+- 2026-10-28T22:47:56Z · 04-council:open · round 3 opened, court at C:/laragon/www/mmorpg/.vulyk/court/s2-conditional-writes/round-3, carried from round 2: haiku · next: dispatch:opus,review
