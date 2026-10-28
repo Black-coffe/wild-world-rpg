@@ -1,7 +1,7 @@
 ---
 story: s2-conditional-writes-12
-status: todo
-returned:
+status: done
+returned: DONE
 worker: worker-code
 model: opus
 wave: 4
@@ -35,6 +35,15 @@ Queen decisions (2026-10-29, ответ на NEEDS_CONTEXT):
 - Решение владельца (4): `TeleportUseAction.php` — откат перемещения не отвечает `baseNotFound()`; честный текст сбоя перемещения, заряд на месте.
 - Ask 14 НЕ задача воркера: ROADMAP — Королева на шипе, tech-writing — drone-docs (идёт). Игнорировать.
 - `red: required` снят Королевой: ремонт — фикстуры, `require_once`, тексты отказа; новой логики записи нет, запечатывать нечего. Проверка — `## Verification`.
+
+## Implementation notes
+- tests/database/PlantCropSeedConditionalWriteTest.php: `require_once` миграции CreateTasksTable перед `new CreateTasksTable` (finding 1); одиночный прогон зелёный на стенде без `tasks`.
+- tests/unit/Transport/VehicleActivationServiceTest.php: шаблоны 'cart'->'LightCart', 'snowmobile'->'Snowmobile' (ключи транспорта -> настоящие name_eng); MedKit-тест переписан на ожидание отказа F22 (`activate()` false, `resolveActive()` null); `seedChargesFull('cart', ...)` оставлен — там ключ GameSettings.
+- Тот же файл: tearDown дропает свои урезанные таблицы, как DeathBreaksVehicleTest — иначе урезанная `characters` (без `gold`) утекала и строка 1 Verification падала «Unknown column 'gold'» после прогона строки 12.
+- tests/unit/Transport/DeathBreaksVehicleTest.php: фикстура 'cart'->'LightCart'. Сервис F22 не тронут.
+- NpcActionChoiceAction / NpcDialogueAction: `fight()` с `ok=false` -> `summary` сервиса или «NPC уже исчез.», а не «ты отступил»; три места (attack/kill, fight, provoke). `rob()` уже отдаёт `gone` + GONE_LINE.
+- TeleportUseAction: откат перемещения (`status=failed`) в рюкзаке и портативном -> «Перемещение не удалось — заряд остался на месте. Попробуй ещё раз.» вместо `baseNotFound()`.
+- Ask 14 по решению Королевы не тронут (ROADMAP / tech-writing — не воркера).
 
 ## Files
 - app/Controllers/Telegram/Commands/Actions/Camp/Buildings/Greenhouse/PlantCropActionStart.php

@@ -189,6 +189,9 @@ final class PlantCropSeedConditionalWriteTest extends CIUnitTestCase
             )
         ");
         if (! $db->tableExists('tasks')) {
+            // Файлы миграций не автозагружаются: класс подключается явно, иначе на стенде без `tasks`
+            // тест падает «Class not found» до первого assert'а.
+            require_once APPPATH . 'Database/Migrations/2024-03-22-111828_CreateTasksTable.php';
             $forge = Database::forge('tests');
             (new CreateTasksTable($forge instanceof Forge ? $forge : null))->up();
             $this->createdTables[] = 'tasks';

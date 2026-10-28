@@ -79,6 +79,11 @@ final class NpcActionChoiceAction extends BaseAction
             case 'attack':
             case 'kill':
                 $r    = $svc->fight($playerId, $spawnId);
+                if (! $r['ok']) {
+                    // Бой не состоялся (спавн уже съеден гонкой / ушёл) — не «ты отступил».
+                    $gone = $r['summary'] ?? '';
+                    return $this->finish($gone !== '' ? $gone : 'NPC уже исчез.', $inMarch);
+                }
                 $won  = ($r['won'] ?? false) === true;
                 $text = $won
                     ? '⚔️ Ты одолел противника. Пустошь стала на одного тише.'

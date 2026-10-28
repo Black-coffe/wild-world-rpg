@@ -37,6 +37,9 @@ class TeleportUseAction extends BaseAction
         $this->itemConsumer = new TeleportItemConsumer($this->db);
     }
 
+    /** Откат перемещения (s2-conditional-writes-11): честный текст сбоя, заряд не списан. */
+    private const MOVE_FAILED_TEXT = 'Перемещение не удалось — заряд остался на месте. Попробуй ещё раз.';
+
     /**
      * s2-conditional-writes-11 (ask 12) — CAS заряда и перемещение в одной транзакции:
      * transBegin → списание → перемещение → transCommit. Отказ CAS (null/false) — откат
@@ -233,7 +236,7 @@ class TeleportUseAction extends BaseAction
             ));
         }
         if ($out['status'] === 'failed' || !is_int($out['charged'])) {
-            return $this->sendFormatted($this->formatter->baseNotFound());
+            return $this->sendFormatted($this->formatter->error(self::MOVE_FAILED_TEXT, true));
         }
 
         return $this->sendFormatted($this->formatter->successBackpack($out['charged']));
@@ -294,7 +297,7 @@ class TeleportUseAction extends BaseAction
             ));
         }
         if ($out['status'] === 'failed') {
-            return $this->sendFormatted($this->formatter->baseNotFound());
+            return $this->sendFormatted($this->formatter->error(self::MOVE_FAILED_TEXT, true));
         }
 
         return $this->sendFormatted($this->formatter->successPortable());
