@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\WriteOutcome;
 use CodeIgniter\Model;
 
 /**
@@ -33,24 +35,36 @@ class CharacterRuinLootModel extends Model
         return is_string($v) && $v !== '' ? $v : null;
     }
 
-    /** Upsert last_looted_at=$when для пары (character, ruin). */
-    public function touch(int $characterId, int $settlementId, string $when): void
+    /**
+     * s2-conditional-writes-04 (F10, ADR-181): резерв кулдауна пары (character, ruin) одной условной
+     * записью — ДО выдачи лута. Строка есть → `UPDATE … WHERE last_looted_at IS NULL OR
+     * last_looted_at <= $readyBefore` + `affectedRows`; строки нет → `insertUnique` по
+     * UNIQUE(character_id, settlement_id), дубль (`Refused`) = кулдаун уже взят другим запросом.
+     * Обе даты — PHP-часы вызывающего (`$now`, `$readyBefore = $now − cooldown`).
+     *
+     * @return bool true — окно зарезервировано (last_looted_at = $now), false — кулдаун
+     */
+    public function reserveCooldown(int $characterId, int $settlementId, string $now, string $readyBefore): bool
     {
-        $row = $this->where('character_id', $characterId)
-            ->where('settlement_id', $settlementId)
-            ->first();
-        $id  = is_array($row) ? ($row['id'] ?? null) : null;
-
-        if (is_numeric($id)) {
-            $this->update((int) $id, ['last_looted_at' => $when]);
-
-            return;
+        $table = $this->db->prefixTable($this->table);
+        $this->db->query(
+            "UPDATE {$table} SET last_looted_at = ?, updated_at = ?"
+            . ' WHERE character_id = ? AND settlement_id = ?'
+            . ' AND (last_looted_at IS NULL OR last_looted_at <= ?)',
+            [$now, $now, $characterId, $settlementId, $readyBefore]
+        );
+        if ($this->db->affectedRows() > 0) {
+            return true;
         }
 
-        $this->insert([
+        $outcome = (new ConditionalWriteService($this->db))->insertUnique($this->table, [
             'character_id'   => $characterId,
             'settlement_id'  => $settlementId,
-            'last_looted_at' => $when,
+            'last_looted_at' => $now,
+            'created_at'     => $now,
+            'updated_at'     => $now,
         ]);
+
+        return $outcome === WriteOutcome::Applied;
     }
 }
