@@ -1,14 +1,15 @@
 ---
 story: s2-conditional-writes-10
 spec: s2-conditional-writes
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 wave: 3
 blocked_by: []
 red: required
-red_reason: "bulk sale committed although increaseGold refused, or withdraw-all issued the storage twice"
+red_reason: bulk sale committed although increaseGold refused, or withdraw-all issued the storage twice
+red_verified_at: 2026-10-28T21:18:22Z e11e6bbbe34e9876c2042a1526215a8a98875dd8c359de7f3c42ed74af95d9ef
 ---
 
 # Опт: `bulkSellResources` читает исход `increaseGold`; регресс-тест двойного «Забрать всё»
@@ -69,4 +70,30 @@ string $confirmToken)`, `FOR UPDATE`, токен); `memory/map/bases.md` → Ent
 
 ## Implementation notes
 
+- `ResourceTradeService.php`: конструктор `__construct(?CharacterModel $characterModel = null)` — шов теста, существующие вызывающие без аргументов не меняются.
+- `bulkSellResources`: `increaseGold` `false` идёт в ту же ветку, что `$bankFailed` → `transRollback` + существующий текст «Не удалось выполнить оптовую продажу, попробуйте ещё раз.»; новых текстов нет.
+- `BulkSellIncreaseGoldRefusalTest`: двойник `CharacterModel` с `increaseGold() === false`; проверяет ресурсы, золото, пустой банк, `transDepth === 0`.
+- `BaseStorageWithdrawAllOnceTest`: подкласс `BaseStorageModel` записывает `findAll()` первого `withdrawAll` и воспроизводит их второму (устаревший снимок); выдача держится на условном `withdrawRow` — зелёный без правки продового кода.
+- Неожиданность: `stamp-red` сравнивает `red_reason` как есть, вместе с кавычками YAML; кавычки сняты.
+
 ## Findings
+
+## Red receipt
+- command: vendor/bin/phpunit --no-coverage --no-progress tests/database/BulkSellIncreaseGoldRefusalTest.php && vendor/bin/phpunit --no-coverage --no-progress tests/database/BaseStorageWithdrawAllOnceTest.php && vendor/bin/phpstan analyse --memory-limit=512M --no-progress
+- exit: 1
+- tests: e11e6bbbe34e9876c2042a1526215a8a98875dd8c359de7f3c42ed74af95d9ef (tests/database/BaseStorageWithdrawAllOnceTest.php, tests/database/BulkSellIncreaseGoldRefusalTest.php)
+- impl: c38db7fc4587200b5674ee216dd9c92774a2fec6e6aa94521ef1077266736e9c
+- stamped: 2026-10-28T21:18:22Z
+
+```
+There was 1 failure:
+
+1) Tests\Database\BulkSellIncreaseGoldRefusalTest::testIncreaseGoldRefusalRollsBackWholeSale
+bulk sale committed although increaseGold refused, or withdraw-all issued the storage twice
+Failed asserting that true is false.
+
+C:\laragon\www\mmorpg\tests\database\BulkSellIncreaseGoldRefusalTest.php:109
+
+[37;41mFAILURES![0m
+[37;41mTests: 1[0m[37;41m, Assertions: 1[0m[37;41m, Failures: 1[0m[37;41m, PHPUnit Deprecations: 1[0m[37;41m.[0m
+```
