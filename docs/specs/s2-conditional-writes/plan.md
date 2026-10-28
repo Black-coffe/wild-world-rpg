@@ -187,6 +187,7 @@ a marker: the scripts read the first line that does.
 **Branch:** vulyk/s2-conditional-writes
 **Checked:** <written by scripts/human-check.sh>
 **Council:** ESCALATE round 1, 2026-10-28, at 5c6b09f0, pack 189875507fef - red: 14,15
+**Council:** RED round 2, 2026-10-28, at 5f60495e, pack fa4a0b78582d - red: 14
 **Shipped:** <written by scripts/ship-check.sh --record>
 
 ## Needs a human
