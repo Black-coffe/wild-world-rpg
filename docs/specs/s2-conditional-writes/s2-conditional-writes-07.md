@@ -41,6 +41,8 @@ red_reason: "non-transport item was activated as a vehicle"
 
 ## Map slice
 
+- Recon до волны 1 (Q4, 28.10): вызывающий `VehicleAction.php:75-77` на `false` показывает `activationFailed()` (`:110-122`, один текст на все причины, тест `Tests\Unit\Transport\VehicleScreenRenderTest`) — текст не меняем. Внимание: `tests/unit/Transport/VehicleActivationServiceTest.php` (`:197-297`) и `DeathBreaksVehicleTest.php:174` активируют фикстуры — если их предмет не транспорт, тест покраснеет от правки: это `WALL` с перечнем, а не правка чужого теста. `VehicleActivationService.php:34-36` упоминает фолбэк по каталогу для не-транспорта — сверить, что правка его не ломает.
+
 `memory/map/player.md` → Entry points (`Services/Player`, инъекция `BaseConnection` — принятый паттерн), Key types
 (`CharacterEntity` — не массив). Форма теста — `plan.md` → `## Contracts`.
 

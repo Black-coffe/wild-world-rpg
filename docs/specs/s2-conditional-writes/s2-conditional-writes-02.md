@@ -46,6 +46,8 @@ red_reason: "reward granted while spawn lock was busy or after the spawn was con
 
 ## Map slice
 
+- Recon до волны 1 (Q1, 28.10): `PvEService::attack()` (`:66`) не берёт `GET_LOCK`/`NamedLock` и не открывает транзакцию; `AutoPveHandler` (`app/TaskHandlers/NPC/AutoPveHandler.php`) `NpcInteractionService` не зовёт. Правило «один лок на запрос» держится — форма плана в силе.
+
 `memory/map/pve-pvp.md` → Gotchas (последний пункт: `fight()` double call и `npc_spawns` без блокировки; «Награда
 только победившему»); `memory/map/quests-events-npc.md` → Entry points (NPC). Контракт `NamedLock`, порядок
 лок → транзакция → работа → освобождение и форма теста с вторым соединением — `plan.md` → `## Contracts`.

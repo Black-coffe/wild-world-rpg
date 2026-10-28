@@ -46,6 +46,8 @@ red_reason: "teleport charge consumed although the move failed"
 
 ## Map slice
 
+- Recon до волны 1 (Q5, 28.10): `TeleportExecutor::teleport()` (`:41-51`) транзакций не открывает; при `$statDeltas !== []` зовёт `CharacterStatsService::adjust()`, который сам делает `transBegin`/`transCommit`/`transRollback` (`CharacterStatsService.php:86,101,126,130`). Внутри внешней транзакции CI4 это только счётчик глубины: внутренний `transRollback` НЕ откатывает — внешний код обязан откатиться сам, если `adjust()` вернул `null` или бросил. `revealAround` (`ExploredCellsModel.php:28`) ни `TeleportExecutor`, ни `TeleportUseAction` не зовут — пункт бэклога про него неактуален.
+
 `memory/map/player.md` → Entry points (`TeleportUse/`: назначение — выбранная активная база), Gotchas («ЗАКРЫТО …
 exploit-fix-08, F7»: CAS по снимку, `bool`/`?int`, инлайн). Правило «транзакция завершается ровно один раз, исход по
 возврату» и форма теста — `plan.md` → `## Contracts`.

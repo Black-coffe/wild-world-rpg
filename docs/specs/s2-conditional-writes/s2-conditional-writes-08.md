@@ -42,6 +42,8 @@ red_reason: "death roulette processed a candidate while the run lock was busy"
 
 ## Map slice
 
+- Recon до волны 1 (Q2, 28.10): в `DeathService.php`, `DeathRouletteHandler.php` и `Services/Player/Death/{LootProcessor,PlayerRespawner,DeathPenaltyCalculator,InsuranceCalculator}.php` нет `GET_LOCK`/`NamedLock`/`withLock` — лок на прогон ни во что не вкладывается.
+
 `memory/map/tasks-worker.md` → Entry points (`Config\Tasks` recurring vs `Worker`), Gotchas (три слоя защиты от
 гонок, `telegram()` в тестах); `memory/map/player.md` → Entry points (`DeathService` + `Death/`). Контракт
 `NamedLock` и тест с вторым соединением — `plan.md` → `## Contracts`.

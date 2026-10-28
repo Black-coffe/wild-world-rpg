@@ -46,6 +46,8 @@ last_looted_at < <now - cd>)` + `affectedRows`; строки нет → `insertU
 
 ## Map slice
 
+- Recon до волны 1 (Q6, 28.10): `AnomalyLootAction.php:49` идёт целиком через `RuinLootService::loot()`; единственный `touch()` — `RuinLootService.php:157`. `CharacterRuinLootModel::touch()` — read-then-insert/update (`first()` `:39-42`, затем `update`/`insert` `:45/:50`). UNIQUE(`character_id`,`settlement_id`) есть (`2026-07-03-110000_CreateCharacterRuinLootTable.php:28`) — `insertUnique` для первого лута применим.
+
 `memory/memory.md` → Unmapped territory (`Services/Settlement` среза не имеет — читать сервис адресно);
 `memory/map/bases.md` → Gotchas («Старт стройки (ADR-181)» как образец условного списания). Контракт примитива,
 инлайн-CAS по произвольному предикату и форма теста — `plan.md` → `## Contracts`.

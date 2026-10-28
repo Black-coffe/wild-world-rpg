@@ -50,6 +50,8 @@ red_reason: "interrupt penalty applied twice, or robot award lost a concurrent i
 
 ## Map slice
 
+- Recon до волны 1 (Q3, 28.10): обработчики роботов вызывает только `Worker` (`Worker.php:322-323` карта, клейм `:101-109` до `handle()` `:124`); прочие упоминания — комментарии и тексты GameSettings. Избыточную запись статуса убрать (форма плана), `transitionIfCurrent` не нужен.
+
 `memory/map/tasks-worker.md` → Gotchas («Worker ставит статус `completed` ДО вызова `handle()`», три слоя защиты,
 `telegram()` в тестах, `task_settings` не в миграциях — рукописный DDL в фикстуре); `memory/map/bases.md` → Entry
 points (`StartRobotGatheringAction` / `CompleteRobotGatheringHandler`). Контракт и форма теста — `plan.md` → `## Contracts`.
