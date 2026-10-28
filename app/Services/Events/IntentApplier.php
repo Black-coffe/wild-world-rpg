@@ -9,6 +9,9 @@ use App\Models\CharacterResourceModel;
 use App\Models\CharacterTaskModel;
 use App\Models\ResourceModel;
 use App\Models\TaskModel;
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\WriteOutcome;
+use App\Services\Player\CharacterStatsService;
 
 /**
  * F7.3 — застосовує EffectResult intents до DB.
@@ -30,6 +33,7 @@ final class IntentApplier
         private CharacterTaskModel $charTaskModel,
         private ResourceModel $resourceModel,
         private TaskModel $taskModel,
+        private CharacterStatsService $statsService = new CharacterStatsService(),
     ) {
     }
 
@@ -46,33 +50,42 @@ final class IntentApplier
 
         // ============================================================
         // 1. Health / Tired / Gold / Attribute deltas
+        //    s2-conditional-writes-06 (F16): дельтой через CharacterStatsService::adjust()
+        //    (FOR UPDATE от свежих значений), не абсолютом со снимка $character —
+        //    два события от одного снимка складываются, золото зажато ≥ 0 дефолтом
+        //    сервиса; здоровье/усталость/атрибуты — пол 0.01, как было.
         // ============================================================
-        $update = [];
+        $deltas = [];
+        $bounds = [];
 
-        if (($result['health_delta'] ?? 0) !== 0) {
-            $newHealth         = max(0.01, (float)$character['health'] + (float)$result['health_delta']);
-            $update['health']  = $newHealth;
+        $healthDelta = $result['health_delta'] ?? 0;
+        if (is_numeric($healthDelta) && (float)$healthDelta != 0.0) {
+            $deltas['health'] = (float)$healthDelta;
+            $bounds['health'] = ['min' => 0.01];
         }
 
-        if (($result['tired_delta'] ?? 0) !== 0) {
-            $newTired         = max(0.01, (float)$character['tired'] + (float)$result['tired_delta']);
-            $update['tired']  = $newTired;
+        $tiredDelta = $result['tired_delta'] ?? 0;
+        if (is_numeric($tiredDelta) && (float)$tiredDelta != 0.0) {
+            $deltas['tired'] = (float)$tiredDelta;
+            $bounds['tired'] = ['min' => 0.01];
         }
 
-        if (($result['gold_delta'] ?? 0) !== 0) {
-            $update['gold'] = (int)$character['gold'] + (int)$result['gold_delta'];
+        $goldDelta = $result['gold_delta'] ?? 0;
+        if (is_numeric($goldDelta) && (int)$goldDelta !== 0) {
+            $deltas['gold'] = (int)$goldDelta;
         }
 
-        foreach (($result['attribute_deltas'] ?? []) as $attr => $delta) {
-            if (!isset($character[$attr])) {
+        $attributeDeltas = $result['attribute_deltas'] ?? [];
+        foreach (is_array($attributeDeltas) ? $attributeDeltas : [] as $attr => $delta) {
+            if (!is_string($attr) || !is_numeric($delta) || !isset($character[$attr])) {
                 continue;
             }
-            $newVal         = max(0.01, (float)$character[$attr] + (float)$delta);
-            $update[$attr]  = $newVal;
+            $deltas[$attr] = (float)$delta;
+            $bounds[$attr] = ['min' => 0.01];
         }
 
-        if (!empty($update)) {
-            $this->charModel->update($charId, $update);
+        if ($deltas !== []) {
+            $this->statsService->adjust($charId, $deltas, $bounds);
         }
 
         // ============================================================
@@ -140,21 +153,42 @@ final class IntentApplier
         $resource = $candidates[array_rand($candidates)];
         $amount   = (int)($intent['amount'] ?? 1);
 
+        if ($amount <= 0) {
+            return;
+        }
+
+        $resourceIdRaw = $resource['id'];
+        $resourceId    = is_numeric($resourceIdRaw) ? (int)$resourceIdRaw : 0;
+        if ($resourceId <= 0) {
+            return;
+        }
+
+        // F16: относительная запись — строку только находим (какую из дублей),
+        // количество не читаем: `quantity = quantity + ?` по id; строки нет — вставка.
         $existing = $this->charResourceModel
             ->where('id_characters', $charId)
-            ->where('id_resources', $resource['id'])
+            ->where('id_resources', $resourceId)
             ->first();
 
-        if ($existing) {
-            $this->charResourceModel->update($existing['id'], [
-                'quantity' => (int)$existing['quantity'] + $amount,
-            ]);
-        } else {
-            $this->charResourceModel->insert([
-                'id_characters' => $charId,
-                'id_resources'  => $resource['id'],
-                'quantity'      => $amount,
-            ]);
+        $existingId = is_array($existing) && is_numeric($existing['id'] ?? null) ? (int)$existing['id'] : 0;
+        $writer     = new ConditionalWriteService();
+        if ($existingId > 0
+            && $writer->increment('character_resources', ['id' => $existingId], 'quantity', $amount) === WriteOutcome::Applied
+        ) {
+            return;
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $outcome = $writer->insertUnique('character_resources', [
+            'id_characters' => $charId,
+            'id_resources'  => $resourceId,
+            'quantity'      => $amount,
+            'created_at'    => $now,
+            'updated_at'    => $now,
+        ]);
+        if ($outcome === WriteOutcome::Refused) {
+            // Строку вставил соседний запрос между first() и вставкой — начислить в неё.
+            $writer->increment('character_resources', ['id_characters' => $charId, 'id_resources' => $resourceId], 'quantity', $amount);
         }
     }
 
@@ -167,15 +201,29 @@ final class IntentApplier
             ->where('id_characters', $charId)
             ->findAll();
 
+        $db    = \Config\Database::connect();
+        $table = $db->prefixTable('character_resources');
+
         foreach ($resources as $r) {
+            if (!is_array($r) || !is_numeric($r['quantity'] ?? null) || !is_numeric($r['id'] ?? null)) {
+                continue;
+            }
             $oldQty = (int)$r['quantity'];
             if ($oldQty <= 1) {
                 continue;
             }
-            $loss   = (int)ceil($oldQty * ($percent / 100.0));
-            $newQty = max(1, $oldQty - $loss);
+            // Величина потери — как была (ceil % от прочитанного, не ниже остатка 1);
+            // запись — относительное списание, зажатое в SQL: устаревшее чтение
+            // не уводит остаток ниже 0 и не перетирает чужую запись в ту же строку.
+            $loss = min((int)ceil($oldQty * ($percent / 100.0)), $oldQty - 1);
+            if ($loss <= 0) {
+                continue;
+            }
 
-            $this->charResourceModel->update($r['id'], ['quantity' => $newQty]);
+            $db->query(
+                "UPDATE {$table} SET quantity = quantity - LEAST(quantity, ?), updated_at = ? WHERE id = ?",
+                [$loss, date('Y-m-d H:i:s'), (int)$r['id']]
+            );
         }
     }
 
