@@ -99,8 +99,15 @@ final class VehicleActivationService
      */
     public function activate(int $characterId, int $logId): bool
     {
-        $owns = $this->fetchOwnedRow($characterId, $logId) !== null;
-        if (! $owns) {
+        $row = $this->fetchOwnedRow($characterId, $logId);
+        if ($row === null) {
+            return false;
+        }
+
+        // F22: только предмет, резолвящийся в ключ транспорта; иначе — false до любой записи.
+        $rawKey     = $row['name_eng'] ?? null;
+        $vehicleKey = VehicleEffectsService::keyForItemNameEng(is_string($rawKey) ? $rawKey : '');
+        if ($vehicleKey === null || $vehicleKey === '') {
             return false;
         }
 
