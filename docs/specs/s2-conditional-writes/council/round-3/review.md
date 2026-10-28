@@ -1,0 +1,14 @@
+<!-- seat: review · model: claude-fable-5-1 · round: 3 · head: 1880a060 · pack: d1ee5fb37683 · attempt: 1 · recorded: 2026-10-28T22:59:35Z · verdict: BLOCK -->
+VERDICT: BLOCK
+MODEL: claude-fable-5-1
+SUITE: FAIL 505s
+
+## Critical
+1. tests/database/PlayControllerTest.php [regression] the full suite `vendor/bin/phpunit --no-coverage --no-progress` must exit 0 on a `wildworld_tests` no other process touches (ask 15): this run exits 2 (Tests: 5062, Errors: 6, Failures: 0) on 5 PlayControllerTest and 1 PlayInboxBannerTest errors that are all schema-state (`Table 'game_settings' already exists` at 00:48+ then `wildworld_tests.game_settings doesn't exist` in the same class, `telegram_users doesn't exist`, `Unknown column 'default_value_text'`, `biomes already exists`), none in a file the diff touches, both files green standalone right after (`vendor/bin/phpunit --no-coverage --no-progress tests/database/PlayControllerTest.php` -> OK 23 tests; `... tests/database/PlayInboxBannerTest.php` -> OK 9 tests); the diff 5f60495e..1880a060 changes one code line (a seed value in tests/unit/TaskHandlers/CompleteRobotGatheringBaseTest.php:160), so no base-side `file:line` makes this a true regression; the measured cause is the round-3 opus seat running 27 per-file PHPUnit invocations against the same shared `wildworld_tests` inside this suite's window (its report .vulyk/reports/s2-conditional-writes/round-3/opus.attempt-1.md written 00:56:01, suite ran 00:48:15-00:56:40) - the round-2 review already required the repair's full-suite proof to come from a clean, un-shared `wildworld_tests`; reported as the rules require (non-zero suite = FAIL/BLOCK), and `scripts/human-check.sh` is the owner's override if a solo clean run is green.
+## Major
+None.
+## Minor
+- Round-2 Critical is fixed: tests/unit/TaskHandlers/CompleteRobotGatheringBaseTest.php:160 seeds the task `status => 'completed'` exactly as Worker's atomic claim leaves it before `handle()` (app/Controllers/Worker.php:101-104), the handler is untouched (ask 10 kept; it never reads the task status, only building `active` at :129/:137), and the file is green standalone (Tests: 5, Assertions: 22).
+- Ask 14 ROADMAP half is now in: S2 removed from §2 (queue renumbered 1-7) and from §4 Трек S, one row under §6 (ROADMAP.md:299); the tech-writing half was judged present by the round-2 opus seat and is outside this round's diff.
+- Ask 15 baseline unchanged: tests/exploit-poc per file -> GapAudit 1F, MultiAccount 3F, TaskExclusivity 3F (the 7 pre-spec reds), RepeatedHandler 1 ERROR `explored_cells doesn't exist` (same local-stand environment error as round 2); phpstan L9 `[OK] No errors`; `bash scripts/defects-check.sh` GREEN (6 blocking checks).
+- Story 13 dropped `red: required` by the Queen's recorded decision (existing-test repair, no new write logic), so no red receipt is owed.
