@@ -26,12 +26,20 @@ mechanically by `cycle.sh repair`.
   model line. Each quotes its
   `## Requirements` verbatim from `brief.md` (`trace-check.sh` matches them literally). A story you
   cannot tie to a quote is speculative: cut it, or list it as an assumption for the owner.
-- Each story names its files, acceptance criteria, a `## Verification` taken from the constitution's
-  `## Commands` table, and the map slice sections a worker should load. `## Files` lists every place
-  the change must reach: callers, tests, fixtures, config, exports.
-- A story that adds a branch, a loop, a parser, or handling of money, security or data writes names the
-  test that fails when that logic breaks: a test file in its `## Files`, or a `worker-test` story in a
-  later wave. One such test, not coverage; a trivial change names none.
+- Each story names its files, acceptance criteria, a `## Verification` taken from the rows of the constitution's
+  `## Commands` table that carry no `round-only` mark (close-story exit 2 `verification is round-only` refuses a marked one), and the map slice sections a worker should load. `## Files` lists every place
+  the change must reach: callers, tests, fixtures, config, exports. The symbol-map output in your brief is a
+  source for it: `exact` lines plus a `textual <N> not shown` count per section. An `exact` line goes into
+  `## Files` when the change reaches it; an importer that keeps working unchanged stays out. A non-zero
+  count under `tests` or `importers` is a recon question for `drone-scout` when the story's change could
+  reach an unnamed caller, never a guess.
+- A story that adds a branch, a loop, a parser, or handling of money, security or data writes is marked
+  `red: required` in its frontmatter (you mark it; the builder does not). It names the test that fails
+  when that logic breaks as a test file in its own `## Files`, and that path appears in its
+  `## Verification`, so `stamp-red` seals it; prefill `red_reason:` when you know the assertion text the
+  test prints on failure. A marked story gets no `worker-test` story in a later wave: its test is in the
+  same story. An unmarked story that wants a test may still name one in its `## Files` or in a
+  `worker-test` story in a later wave. One such test, not coverage; a trivial change names none.
 - Plan the concurrency: every story gets `wave:` and `blocked_by:`. Stories in one wave run in
   parallel in one tree, so their `## Files` must be disjoint; resolve overlap here by merging stories,
   moving the shared file into an earlier story, or sequencing with `blocked_by`.

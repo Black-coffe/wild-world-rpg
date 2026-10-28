@@ -31,6 +31,12 @@
 #   verify-cell - a `## Verification` segment that is not a `## Commands` cell of the
 #                constitution (CLAUDE.vulyk.md if present, else CLAUDE.md): close-story
 #                refuses to run it, so the gap surfaces here at plan time, not mid-build
+#   verify-round-only - a `## Verification` segment matching a `## Commands` row whose Purpose
+#                cell carries `round-only` (a slow suite only the council round runs):
+#                close-story refuses it with exit 2, so the story needs a faster row
+#   red-no-test - a story marked `red: required` whose verification names no path under its
+#                `## Files`: stamp-red has no test to seal (lib.sh sealed_tests)
+#   red-value  - a `red:` value other than `required`: a typo would otherwise read as unmarked
 #
 # Limits, stated rather than hidden: a verification command that names NO path (a whole
 # suite) cannot be judged here, and a path that resolves but is simply the wrong file
@@ -192,7 +198,7 @@ PATHS_EOF
       # never a scope path - it exists in the tree, so it used to turn every full-suite line
       # into a verify-gap (mmorpg evolve 2026-09-29: w2-n4-base, w2-n4-tails, w2-n4-tails2).
       args="$(printf '%s\n' "$verify" | grep -v '^repeat:' | sed 's/ && /\n/g' | sed -E 's/^[[:space:]]*[^[:space:]]+//')"
-      for tok in $(printf '%s\n' "$args" | tr ' \t' '\n\n' | grep '/' | grep -v '^-' | tr -d "\"'" | grep -v '^$'); do
+      for tok in $(verify_path_tokens "$args" | grep '/'); do
         case "$tok" in
           *[*?[]*) cmd_paths="${cmd_paths}${tok}
 " ;;
@@ -224,17 +230,36 @@ CMDP_EOF
       while IFS= read -r vl; do
         [ -n "$vl" ] || continue
         [ "$vl" = "none — reviewed by lead-review" ] && continue
-        command_cell_exists "$CONSTITUTION" "$vl" && continue
+        if command_cell_exists "$CONSTITUTION" "$vl"; then
+          command_cell_round_only "$CONSTITUTION" "$vl" && report "verify-round-only: $id $vl"
+          continue
+        fi
         while IFS= read -r seg; do
           [ -n "$seg" ] || continue
-          command_cell_exists "$CONSTITUTION" "$seg" \
-            || report "verify-cell: $id's verification '$seg' is not a ## Commands cell of $(basename "$CONSTITUTION") - close-story will refuse to run it"
+          if command_cell_exists "$CONSTITUTION" "$seg"; then
+            command_cell_round_only "$CONSTITUTION" "$seg" && report "verify-round-only: $id $seg"
+          else
+            report "verify-cell: $id's verification '$seg' is not a ## Commands cell of $(basename "$CONSTITUTION") - close-story will refuse to run it"
+          fi
         done <<SEG_EOF
 $(verification_segments "$vl")
 SEG_EOF
       done <<VL_EOF
 $(printf '%s\n' "$verify" | awk -F': *' '$1 !~ /^repeat$/')
 VL_EOF
+    fi
+  fi
+
+  # 4. red-receipt: a marked story must seal a test (lib.sh sealed_tests, the set stamp-red seals);
+  #    a `red:` value other than `required` is a typo, never a silent unmark. Frontmatter only (0.40.1):
+  #    a body line `red: ...` marks nothing, as in cycle.sh's fm_red.
+  if awk 'NR == 1 && /^---[[:space:]]*$/ { i = 1; next } i && /^---[[:space:]]*$/ { exit } i && /^red:/ { m = 1; exit } END { exit !m }' "$f"; then
+    redv="$(fm "$f" red | sed 's/[[:space:]]*$//')"
+    if [ "$redv" = required ]; then
+      [ -n "$(sealed_tests "$verify" "$declared")" ] \
+        || report "red-no-test: $id - marked red: required, but its ## Verification names no path under its ## Files: stamp-red has no test to seal"
+    else
+      report "red-value: $id $redv - only 'required' marks a story; this value leaves it unmarked"
     fi
   fi
 

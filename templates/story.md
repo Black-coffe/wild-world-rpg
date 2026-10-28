@@ -17,6 +17,9 @@ blocked_by: []          # story ids that must be `done` first, e.g. [<slug>-01].
                         # must be strictly later than the wave of every story it names here.
                         # `manual:<id>` names a hand step (a paid generation, an owner upload): the
                         # driver stops until `cycle.sh manual-done docs/specs/<slug> <id>` records it.
+# red: required         # set by the planner for a branch, loop, parser, money, security or data write; uncomment to mark
+# red_reason:           # the expected failure text, written by the builder before `stamp-red`
+# red_verified_at:      # written by `cycle.sh stamp-red`, never by hand
 ---
 
 <!--
@@ -81,6 +84,8 @@ working. A suite that skips its tests when a service or variable is missing exit
 green it never earned: name a command that fails instead (strict skips, or a check for the service).
 
 The command must be able to fail for this story: its scope has to reach the paths under `## Files`.
+Never name a row marked `round-only`: wave-check reports a segment of one, and close-story refuses it (exit 2).
+Name the part of that suite that covers `## Files` instead.
 `wave-check.sh` reports the obvious gap, but not an ignore file (`.prettierignore`,
 `testPathIgnorePatterns`, a lint excludes list) that removes exactly these files - check that here.
 
@@ -96,4 +101,6 @@ a 1-in-5 flake about two times in three. If you do not know the rate, say so in
 
 ## Findings
 <!-- a repair story arrives with the round's findings here, verbatim - each is a condition to satisfy.
-     The builder appends here only on a wall or a question: what was tried, best hypothesis. -->
+     The builder appends here only on a wall or a question: what was tried, best hypothesis.
+     On a `red: required` story, `cycle.sh stamp-red` appends `## Red receipt` at the end of the file
+     and `close-story` refuses a marked story without it. -->

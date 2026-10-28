@@ -42,7 +42,8 @@ driver_refused
 driver_relaunched
 scope_breach
 sessionend_llm
-model_below_floor"
+model_below_floor
+fable_limit_fallback"
 
 MODELS="fable
 opus
@@ -155,7 +156,12 @@ hive_id() {
 # 0.0.0 is an honest answer for a dogfooding row.
 vulyk_version() {
   local v=""
-  [ -f "$ROOT/.claude/vulyk-version" ] && v="$(tr -d ' \r\n' < "$ROOT/.claude/vulyk-version")"
+  if [ -f "$ROOT/.claude/vulyk-version" ]; then
+    v="$(tr -d ' \r\n' < "$ROOT/.claude/vulyk-version")"
+  elif [ -f "$ROOT/install.sh" ] && [ -f "$ROOT/VERSION" ]; then
+    # The VULYK repository itself: VERSION is its own version. A hive's product VERSION is not.
+    v="$(tr -d ' \r\n' < "$ROOT/VERSION")"
+  fi
   case "$v" in
     [0-9]*.[0-9]*.[0-9]*) printf '%s' "$v" ;;
     *) printf '0.0.0' ;;

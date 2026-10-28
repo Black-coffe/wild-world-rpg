@@ -83,7 +83,7 @@ Quiet variants only: their output is resent every turn. A story's `## Verificati
 | Purpose | Command |
 |---|---|
 | Single test file | `vendor/bin/phpunit --no-coverage --no-progress tests/<Path>Test.php` |
-| Full test suite | `vendor/bin/phpunit --no-coverage --no-progress` |
+| Full suite / build (round-only) | `vendor/bin/phpunit --no-coverage --no-progress` |
 | Lint / static analysis | `vendor/bin/phpstan analyse --memory-limit=512M --no-progress` |
 | Migrations syntax | `git ls-files 'app/Database/Migrations/*.php' \| xargs -n1 php -l > /dev/null` |
 | Build / typecheck | none — PHP ничего не собирает; ближайший эквивалент типчека это phpstan-строка выше |

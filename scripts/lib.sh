@@ -101,6 +101,23 @@ marker() { # marker <plan.md> <Name> -> prints the line's value, empty if absent
   printf '%s' "$v"
 }
 
+# The one staleness rule for a recorded verdict (post-037-tails): is a check given at <head-sha>
+# against <pack-fp> still about this pack at this commit? ship-check.sh (both stage-05 branches)
+# and human-check.sh --check call it, so an ACCEPTED override can never skip the rule the
+# no-council branch applies. Pack first; a <head-sha>..HEAD range that is paperwork_only stays
+# current, so /vulyk-ship's own release-paperwork commit does not stale the gate.
+verdict_stale() { # verdict_stale <spec-dir> <head-sha> <pack-fp> -> CURRENT (0) | STALE (pack) | STALE (commit) (1)
+  local root now was
+  [ "$3" = "$(pack_fingerprint "$1")" ] || { echo "STALE (pack)"; return 1; }
+  case "$2" in ''|-*) echo "STALE (commit)"; return 1 ;; esac   # never hand git an option
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "STALE (commit)"; return 1; }
+  now="$(git -C "$root" rev-parse --verify -q 'HEAD^{commit}' 2>/dev/null)"
+  was="$(git -C "$root" rev-parse --verify -q "$2^{commit}" 2>/dev/null)"
+  if [ -n "$now" ] && [ "$was" = "$now" ]; then echo "CURRENT"; return 0; fi
+  if [ -n "$was" ] && paperwork_only "$root" "$was" "$now"; then echo "CURRENT"; return 0; fi
+  echo "STALE (commit)"; return 1
+}
+
 # The one `## Asks` parser: cycle.sh counts and quotes the items (asks_count, ask_item) and
 # trace-check.sh traces story quotes to them, so the two can never read a different list. Asks
 # written only as `> ` quotes once passed trace-check, counted zero in cycle.sh and stopped
@@ -177,6 +194,27 @@ EOF
   return 1
 }
 
+command_cell_round_only() { # command_cell_round_only <constitution> <command> -> 0 iff <command>
+  # matches (command_cell_exists' rule) the Command cell of a `## Commands` row whose Purpose cell
+  # carries `round-only`: a slow suite only the council round runs. A command found in a marked row
+  # and an unmarked one is round-only. The marked rows alone are fed to command_cell_exists.
+  [ -f "$1" ] || return 1
+  local marked rc
+  marked="$(mktemp)" || return 1
+  awk '
+    /^## Commands[[:space:]]*$/ { inblock=1; print; next }
+    /^##[[:space:]]/            { if (inblock) exit }
+    inblock && /^\|/ {
+      line = $0; sub(/^\|/, "", line)
+      i = index(line, "|"); if (!i) next
+      if (substr(line, 1, i - 1) ~ /(^|[^[:alnum:]_-])round-only($|[^[:alnum:]_-])/) print
+    }
+  ' "$1" > "$marked"
+  command_cell_exists "$marked" "$2"; rc=$?
+  rm -f "$marked"
+  return "$rc"
+}
+
 verification_segments() { # verification_segments <line> -> one &&-separated segment per line
   # (R11/C-4): every segment of a ## Verification line that is not itself a cell must be one.
   local rest="$1" seg
@@ -186,6 +224,51 @@ verification_segments() { # verification_segments <line> -> one &&-separated seg
       *) printf '%s\n' "$rest"; break ;;
     esac
   done
+}
+
+verify_path_tokens() { # verify_path_tokens <verification-text> -> each whitespace-separated token of
+  # its lines but `repeat:`, an option (`-x`) dropped, quotes stripped, one per line. Lifted from
+  # wave-check.sh's verify-gap tokeniser (red-receipt): it and sealed_tests below read one parse.
+  printf '%s\n' "$1" | grep -v '^repeat:' | tr ' \t' '\n\n' | grep -v '^-' | tr -d "\"'" | grep -v '^$'
+}
+
+sealed_tests() { # sealed_tests <verification-text> <files-text> -> the red-receipt sealed set: every
+  # literal token (no glob character) of the verification that equals a `## Files` entry or matches
+  # a `## Files` glob, sorted, deduplicated. A quoted glob such as `'*.sh'` is never sealed.
+  local tok d
+  verify_path_tokens "$1" | while IFS= read -r tok; do
+    case "$tok" in *[*?[]*) continue ;; esac
+    while IFS= read -r d; do
+      [ -n "$d" ] || continue
+      case "$d" in
+        *[*?[]*)
+          # shellcheck disable=SC2254
+          case "$tok" in $d) printf '%s\n' "$tok"; break ;; esac ;;
+        *) [ "$tok" = "$d" ] && { printf '%s\n' "$tok"; break; } ;;
+      esac
+    done <<EOF
+$2
+EOF
+  done | LC_ALL=C sort -u
+}
+
+sha256_tool() { # sha256_tool -> `sha256sum`, else `shasum -a 256`, else nothing (exit 1)
+  if command -v sha256sum >/dev/null 2>&1; then printf 'sha256sum'
+  elif command -v shasum >/dev/null 2>&1; then printf 'shasum -a 256'
+  else return 1; fi
+}
+
+set_hash() { # set_hash <path>... -> 64 hex chars: each file's sha256 in the order given (a missing
+  # file contributes the literal `missing <path>`), that listing hashed once more. Exit 1 with no tool.
+  local tool p h
+  tool="$(sha256_tool)" || return 1
+  for p in "$@"; do
+    if [ -f "$p" ]; then
+      h="$($tool < "$p")"; printf '%s  %s\n' "${h%% *}" "$p"
+    else
+      printf 'missing %s\n' "$p"
+    fi
+  done | $tool | cut -c1-64
 }
 
 profile_value() { # profile_value <constitution> <field> -> the value cell of the table row whose
