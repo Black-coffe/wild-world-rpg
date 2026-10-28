@@ -65,7 +65,6 @@ class CompleteRobotExplorationHandler extends BaseTaskHandler
     public function handle(array $task = []): void
     {
         // 1) Подключаем модели
-        $characterTaskModel      = new CharacterTaskModel();
         $characterModel          = new CharacterModel();
         $characterBuildingModel  = new CharacterBuildingModel();
         $mapModel                = new MapModel();
@@ -74,8 +73,8 @@ class CompleteRobotExplorationHandler extends BaseTaskHandler
         $biomeWorldObjectMapModel= new \App\Models\BiomeWorldObjectMapModel();
         $worldObjectModel        = new WorldObjectModel();
 
-        // 2) Ставим задаче статус = 'completed'
-        $characterTaskModel->update($task['id'], ['status' => 'completed']);
+        // 2) Статус задачи не пишем: Worker уже атомарно перевёл её `in_work → completed`
+        // до вызова handle() (s2-conditional-writes F24; единственный вызывающий — Worker).
 
         // 3) Получаем персонажа и Telegram-данные
         $character = $characterModel->find($task['character_id']);
