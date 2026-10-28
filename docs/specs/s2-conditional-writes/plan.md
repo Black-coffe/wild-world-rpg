@@ -182,7 +182,7 @@ a marker: the scripts read the first line that does.
 -->
 **Approved:** владелец, 2026-10-28 («да»; строка Assumptions «добытого не изымаем» подтверждена)
 **Briefed:** <written by scripts/cycle.sh briefed>
-**Branch:** <written by /vulyk-build before wave 1>
+**Branch:** vulyk/s2-conditional-writes
 **Checked:** <written by scripts/human-check.sh>
 **Council:** <written by scripts/cycle.sh judge/escalate>
 **Shipped:** <written by scripts/ship-check.sh --record>
