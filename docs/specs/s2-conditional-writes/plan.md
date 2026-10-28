@@ -186,5 +186,13 @@ a marker: the scripts read the first line that does.
 **Briefed:** <written by scripts/cycle.sh briefed>
 **Branch:** vulyk/s2-conditional-writes
 **Checked:** <written by scripts/human-check.sh>
-**Council:** <written by scripts/cycle.sh judge/escalate>
+**Council:** ESCALATE round 1, 2026-10-28, at 5c6b09f0, pack 189875507fef - red: 14,15
 **Shipped:** <written by scripts/ship-check.sh --record>
+
+## Needs a human
+- reason: suite-timeout · round 1 · 2026-10-28
+- ask 14: RED - see docs/specs/s2-conditional-writes/council/round-1/*.md for evidence
+- ask 15: RED - see docs/specs/s2-conditional-writes/council/round-1/*.md for evidence
+- ask 1: BLOCK by the reviewer - see docs/specs/s2-conditional-writes/council/round-1/review.md
+- suite: 606 s, budget 590 s - raise VULYK_SUITE_TIMEOUT or cut the suite
+- seats: docs/specs/s2-conditional-writes/council/round-1/
