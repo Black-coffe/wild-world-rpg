@@ -19,6 +19,9 @@ use App\Services\PVE\EffectService;
 use App\Services\PVE\EquipmentService;
 use App\Services\PVE\RewardService;
 use App\Services\Player\PvEService;
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\NamedLock;
+use App\Services\Db\WriteOutcome;
 use Psr\Log\NullLogger;
 
 /**
@@ -31,6 +34,8 @@ use Psr\Log\NullLogger;
  */
 final class NpcInteractionService
 {
+    private const GONE_LINE = 'NPC уже исчез.';
+
     private GameSettingsService $settings;
     private NpcSpawnModel $spawns;
     private NpcModel $npcs;
@@ -104,7 +109,10 @@ final class NpcInteractionService
     /** ADR-089 Phase 6: NPC сбегает (провокация + слабее) — спавн исчезает. */
     public function npcFlees(int $spawnId): void
     {
-        $this->consumeSpawn($spawnId);
+        $spawn = $this->spawns->find($spawnId);
+        if (is_array($spawn)) {
+            $this->consumeSpawn($spawnId, $spawn);
+        }
     }
 
     /**
@@ -307,13 +315,30 @@ final class NpcInteractionService
     /**
      * Грабёж: RNG-шанс. Успех → золото (one-shot, спавн уходит). Провал → бой.
      *
+     * s2-conditional-writes-02 (F8, ADR-181 п. 4): проверка спавна, перевод в «мёртв» и
+     * выдача идут под именованным локом `npc_spawn_<spawnId>`; лок занят или спавн уже
+     * мёртв → «NPC уже исчез.» без наград. Спавн списывается условной записью ДО золота.
+     *
      * @return array{outcome:string, gold?:int, line:string, fight?:array<string,mixed>}
      */
     public function rob(int $playerId, int $spawnId): array
     {
-        $spawn = $this->spawns->find($spawnId);
-        if (! is_array($spawn)) {
-            return ['outcome' => 'gone', 'line' => 'NPC уже исчез.'];
+        $result = (new NamedLock())->withLock(
+            self::spawnLockName($spawnId),
+            fn (): array => $this->robUnlocked($playerId, $spawnId)
+        );
+
+        return $result ?? ['outcome' => 'gone', 'line' => self::GONE_LINE];
+    }
+
+    /**
+     * @return array{outcome:string, gold?:int, line:string, fight?:array<string,mixed>}
+     */
+    private function robUnlocked(int $playerId, int $spawnId): array
+    {
+        $spawn = $this->aliveSpawn($spawnId);
+        if ($spawn === null) {
+            return ['outcome' => 'gone', 'line' => self::GONE_LINE];
         }
         $npcIdRaw = $spawn['npc_id'] ?? null;
         $npcId    = is_numeric($npcIdRaw) ? (int) $npcIdRaw : 0;
@@ -326,14 +351,17 @@ final class NpcInteractionService
             $min  = $this->intSetting('npc.rob_gold_min', 50);
             $max  = $this->intSetting('npc.rob_gold_max', 200);
             $gold = $min >= $max ? $min : mt_rand($min, $max);
+            // Выдача только после подтверждённого перевода спавна в «мёртв» (ADR-181).
+            if (! $this->consumeSpawn($spawnId, $spawn)) {
+                return ['outcome' => 'gone', 'line' => self::GONE_LINE];
+            }
             $this->characters->increaseGold($playerId, $gold);
-            $this->consumeSpawn($spawnId);
 
             return ['outcome' => 'success', 'gold' => $gold, 'line' => $this->line($npcId, 'rob_success')];
         }
 
-        // Провал → NPC даёт отпор: запускаем бой.
-        $fight = $this->fight($playerId, $spawnId);
+        // Провал → NPC даёт отпор: бой под тем же локом (вложенный лок запрещён, ADR-181 п. 4).
+        $fight = $this->fightUnlocked($playerId, $spawnId);
 
         return ['outcome' => 'fail', 'line' => $this->line($npcId, 'rob_fail'), 'fight' => $fight];
     }
@@ -343,18 +371,34 @@ final class NpcInteractionService
      * (он сам обновляет игрока, начисляет награды, инкрементит npc_kills и шлёт уведомление).
      * Здесь дополнительно убираем спавн при победе игрока.
      *
+     * s2-conditional-writes-02 (F8): проверка спавна, бой и перевод спавна в «мёртв» — под
+     * локом `npc_spawn_<spawnId>`; лок занят → `ok=false` («NPC уже исчез.») без боя и наград.
+     *
      * @return array{ok:bool, won?:bool, summary?:string}
      */
     public function fight(int $playerId, int $spawnId): array
+    {
+        $result = (new NamedLock())->withLock(
+            self::spawnLockName($spawnId),
+            fn (): array => $this->fightUnlocked($playerId, $spawnId)
+        );
+
+        return $result ?? ['ok' => false, 'summary' => self::GONE_LINE];
+    }
+
+    /**
+     * @return array{ok:bool, won?:bool, summary?:string}
+     */
+    private function fightUnlocked(int $playerId, int $spawnId): array
     {
         // CharacterModel возвращает CharacterEntity (ArrayAccess); attack() принимает её напрямую.
         $player = $this->characters->find($playerId);
         if (! $player instanceof \App\Entities\CharacterEntity) {
             return ['ok' => false];
         }
-        $spawn = $this->spawns->find($spawnId);
-        if (! is_array($spawn)) {
-            return ['ok' => false];
+        $spawn = $this->aliveSpawn($spawnId);
+        if ($spawn === null) {
+            return ['ok' => false, 'summary' => self::GONE_LINE];
         }
 
         $pCellRaw = $player['cell_number'] ?? null;
@@ -374,7 +418,7 @@ final class NpcInteractionService
         $won           = is_object($winner) && isset($winner->name) && $winner->name === $playerName;
 
         if ($won) {
-            $this->consumeSpawn($spawnId);
+            $this->consumeSpawn($spawnId, $spawn);
         }
 
         $summaryRaw = $result['message'] ?? null;
@@ -382,12 +426,58 @@ final class NpcInteractionService
         return ['ok' => true, 'won' => $won, 'summary' => is_string($summaryRaw) ? $summaryRaw : ''];
     }
 
-    /** Убираем спавн (победа/успешный грабёж) — как AutoPveHandler. */
-    private function consumeSpawn(int $spawnId): void
+    private static function spawnLockName(int $spawnId): string
     {
-        $this->spawns->update($spawnId, ['status' => 'dead']);
-        $this->spawns->delete($spawnId);
-        $this->spawns->db->query('DELETE FROM npc_spawns WHERE id = ?', [$spawnId]);
+        return 'npc_spawn_' . $spawnId;
+    }
+
+    /**
+     * Спавн, перечитанный под локом, если он есть и ещё не мёртв.
+     *
+     * @return array<int|string,mixed>|null
+     */
+    private function aliveSpawn(int $spawnId): ?array
+    {
+        $spawn = $this->spawns->find($spawnId);
+        if (! is_array($spawn) || ($spawn['status'] ?? null) === 'dead') {
+            return null;
+        }
+
+        return $spawn;
+    }
+
+    /**
+     * Убираем спавн (победа/успешный грабёж) — как AutoPveHandler. Перевод в «мёртв» —
+     * условная запись из статуса, прочитанного под локом; `false` = спавн уже исчез
+     * (`Refused`/`Missing`), выдавать нечего.
+     *
+     * @param array<int|string,mixed> $spawn
+     */
+    private function consumeSpawn(int $spawnId, array $spawn): bool
+    {
+        $status = $spawn['status'] ?? null;
+        $db     = $this->spawns->db;
+
+        if (is_string($status) && $status !== 'dead') {
+            $outcome = (new ConditionalWriteService($db))
+                ->transitionIfCurrent('npc_spawns', $spawnId, 'status', $status, 'dead');
+            $applied = match ($outcome) {
+                WriteOutcome::Applied => true,
+                WriteOutcome::Refused => false,
+                WriteOutcome::Missing => false,
+            };
+            if (! $applied) {
+                return false;
+            }
+            $db->query('DELETE FROM npc_spawns WHERE id = ?', [$spawnId]);
+
+            return true;
+        }
+
+        // Статуса нет (NULL) — условие держит сам DELETE: строку удаляет только один вызов.
+        $db->query('DELETE FROM npc_spawns WHERE id = ?', [$spawnId]);
+
+        return $db->affectedRows() > 0;
     }
 
     private function buildPveService(): PvEService
