@@ -190,7 +190,6 @@ a marker: the scripts read the first line that does.
 **Council:** RED round 2, 2026-10-28, at 5f60495e, pack fa4a0b78582d - red: 14
 **Council:** RED round 3, 2026-10-28, at a7980df6, pack d1ee5fb37683
 **Council:** GREEN round 4, 2026-10-28, at 0ee55a61, pack 5d70e9874782
-**Shipped:** <written by scripts/ship-check.sh --record>
 
 ## Needs a human
 - reason: suite-timeout · round 1 · 2026-10-28
@@ -199,3 +198,4 @@ a marker: the scripts read the first line that does.
 - ask 1: BLOCK by the reviewer - see docs/specs/s2-conditional-writes/council/round-1/review.md
 - suite: 606 s, budget 590 s - raise VULYK_SUITE_TIMEOUT or cut the suite
 - seats: docs/specs/s2-conditional-writes/council/round-1/
+**Shipped:** v0.51.707, 2026-10-29, at ffe96b9c - merged to develop, publish pending
