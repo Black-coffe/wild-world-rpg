@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-11
+last-verified: 2026-10-29
 
 # Scout report: Слой данных (модели, миграции, сущности)
 
@@ -19,7 +19,8 @@ last-verified: 2026-10-11
   `transitionIfCurrent`, `increment`, `insertUnique` — три исхода `WriteOutcome`, не `bool`) и
   `NamedLock` (`GET_LOCK` non-blocking, `withLock()`). Единый дом правила «списание — условный
   `UPDATE` с проверкой `affectedRows`, не read-then-write». Подробность —
-  `mmorpg-vault/tech-writing/services/ConditionalWriteService.md`.
+  `mmorpg-vault/tech-writing/services/ConditionalWriteService.md`. Имена локов: `npc_spawn_<id>`
+  (`NpcInteractionService.php:431`), `death_roulette` (`DeathRouletteHandler.php:39`); `CharacterRuinLootModel` — тоже под ADR-181.
 
 - **Аккаунты (ADR-188, миграции `2026-12-10-1000{01,02,03,10,20}`)**: `accounts`,
   `account_identities` (UNIQUE `provider,subject`), `account_tokens`, `account_link_codes`;

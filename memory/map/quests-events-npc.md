@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-25
+last-verified: 2026-10-29
 
 # Scout report: Квесты, события, NPC
 
@@ -53,6 +53,11 @@ outbound: ресурсы, статы, `Services/Notifications`, `GameSettings`.
 
 - `DailyTaskService` `d_battle_win` считает победы только в `battle_logs` с `battle_type IN ('PVE','PVP')`
   (`DailyTaskService.php:102-107`); дуэль арены (`DUEL`, w2-n7) задание не двигает — не фармится по согласию.
+
+- **(s2-conditional-writes, ADR-181) Условная запись ДО эффекта.** NPC: лок `npc_spawn_<spawnId>`
+  (`NpcInteractionService.php:326,381,431`), `npc_spawns` -> `dead` через `transitionIfCurrent` (`:462`);
+  `NpcActionChoiceAction`/`NpcDialogueAction` его не обходят. `IntentApplier` пишет через
+  `ConditionalWriteService` (`IntentApplier.php:304`). Награду/ресурс не выдавать до успешной записи.
 
 ## Vault
 `mmorpg-vault/apps/quests/index.md` · `mmorpg-vault/apps/events/index.md` · `mmorpg-vault/apps/npc/index.md`

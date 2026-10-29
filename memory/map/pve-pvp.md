@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-12
+last-verified: 2026-10-29
 
 # Scout report: Бой (Services/PVE — и PvE, и PvP)
 
@@ -126,8 +126,9 @@ outbound: `Services/Player` (статы, смерть, дебаффы), моде
   Нота: `mmorpg-vault/tech-writing/services/{PvpOutcomeExplainer,PvpRoundOrchestrator,PvpBattleLogBuilder,BattleJournalService}.md`.
 - PvP «не работал никогда» (ADR-164): 0 боёв из 7641 — прежде чем считать ветку живой, SELECT по таблице боёв.
 - `effect_log` фиксирует и лечение: запись ≠ вред. Умножающий бонус бывает невидим: `round(1 × 1.55) = 1`.
-- `NpcInteractionService::fight()` двойной вызов на `spawnId` отвергается `find()` (`:355-357`), но
-  read-then-write без блокировки `npc_spawns` остался (exploit-audit #6, 🟠).
+- **ЗАКРЫТО (s2-conditional-writes, ADR-181).** `NpcInteractionService::fight()`/выдача идут под
+  `NamedLock` `npc_spawn_<spawnId>` (`NpcInteractionService.php:326,381,431`), лок занят → «NPC уже исчез.»
+  без боя; смерть спавна — `transitionIfCurrent('npc_spawns', …, 'dead')` (`:462-463`). Эффект после условной записи.
 
 ## Vault
 `mmorpg-vault/apps/pve/index.md`

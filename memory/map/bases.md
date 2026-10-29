@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-26 (w-reg-bot-lexicon)
+last-verified: 2026-10-29
 
 # Scout report: Базы, лагерь, постройки
 
@@ -80,6 +80,8 @@ outbound: ресурсы, `GameSettings`, `Services/Coverage`, `Services/Onboard
 - **ОТКРЫТО, descoped (EA-economy-04, `docs/specs/exploit-audit/REPORT.md` #3)**: объём покупки сырья
   (`ResourceTradeService::buyResource()`) не ограничен — арбитраж между тиками `ResourceBankUpdateHandler`;
   PoC `EconomyLimitsTest::testSingleUnguardedPurchasePumpsSellPriceAboveOriginalBuyPrice` красный намеренно.
+- **(s2-conditional-writes, ADR-181)** `Greenhouse/PlantCropActionStart`, `Robots/RobotRepairConfirmAction`,
+  `RuinLootService` (`:174`) — условная запись до эффекта; робот-handler'ы статус задачи не пишут (`tasks-worker.md`).
 - Опт-продажа ресурсов (`bulkSellResources`) требует токен превью — см. `player.md`.
 
 ## Vault

@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-25
+last-verified: 2026-10-29
 
 # Scout report: Игрок (Services/Player)
 
@@ -67,6 +67,10 @@ outbound: модели `app/Models/*`, `Services/GameSettings`, `Services/Notifi
   кнопки без токена отвечают «Кнопка устарела». Карточка `docs/defects/confirm-repeats-irreversible.md`,
   проверка `scripts/defects-confirm-once-check.php`. Ловушка (review minor, не исправлена): `FOR UPDATE` на JOIN
   блокирует и общие строки каталога `resources`, не только рюкзак игрока.
+- **(s2-conditional-writes F22) `VehicleActivationService::activate()`** (`:100,107-108`) работает только с
+  предметом, чей `name_eng` — реальное имя транспорта (`LightCart` и т.п.), не ключ; иначе `false` до любой
+  записи. `RuinLootService`/`FactionProjectService`/`ResourceTradeService` пишут через `ConditionalWriteService`
+  (`RuinLootService.php:174`); `UsePharmacyAction`, `TeleportUseAction` — условное списание до эффекта (ADR-181).
 - `Gather/GatherResultPersister` (w-reg-honest-water) после добычи зовёт `GatheredResourceLedger` (`:109-123`): сначала
   `hasActiveObjective($charId)`, и лишь при активном шаге `gather_resource` пишет отметку (`record`) — у ветеранов
   `action_log` не растёт. Ledger опционален в конструкторе (`?GatheredResourceLedger`, по умолчанию `new`). См. `quests-events-npc.md`.

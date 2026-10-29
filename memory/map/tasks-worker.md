@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-08
+last-verified: 2026-10-29
 
 # Scout report: Фоновая обработка (cron → Worker → TaskHandlers)
 
@@ -36,6 +36,11 @@ outbound: почти все доменные сервисы + `Services/Notifica
   создающий `new Telegram('invalid','invalid')`, которая сама бросала то же исключение, что ловилась
   (класс-баг, закрыт `cron-delivery-integrity-01`; подробности — `memory/map/telegram.md`, нота
   `mmorpg-vault/tech-writing/tasks/BaseTaskHandler.md`).
+- **(s2-conditional-writes F24) Робот-handler'ы (`CompleteRobotGatheringHandler.php:100-101`,
+  `CompleteRobotExplorationHandler`) статус задачи НЕ пишут** — Worker уже перевёл `in_work -> completed`.
+  Тесты обязаны сеять задачу в `completed`. Это единственный вызывающий.
+- **`DeathRouletteHandler`** — один прогон под `NamedLock` `death_roulette` (`RUN_LOCK`, `:39,76`);
+  `NamedLock` инжектится в конструктор (`:57`). Ловушка ADR-181: условная запись до эффекта.
 - Эксклюзивные (🔒) задачи не стартуют поверх других эксклюзивных — симметрия ADR-167.
 - Ловушка (exploit-audit, `docs/specs/exploit-audit/REPORT.md` #9/#27, `EA-tasks-01`/`EA-tasks-02`):
   `character_tasks` несёт только `PRIMARY(id)`, никакого `UNIQUE` на эксклюзивном слоте — гейт
