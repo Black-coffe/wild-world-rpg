@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots;
 
 use App\Services\Bases\BaseCheckService;
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\WriteOutcome;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -56,35 +58,11 @@ class RobotRepairConfirmAction extends RobotRepairBaseAction
             return $this->reply($chatId, 'Ошибка: запись о роботе не найдена.');
         }
 
-        $db = \Config\Database::connect();
-        $db->transStart();
-
-        // Списание золота (builder decrement; canAfford гарантирует неотрицательность).
-        if ($cost['gold'] > 0) {
-            $db->table('characters')->where('id', $characterId)->decrement('gold', $cost['gold']);
+        $outcome = $this->applyRepair($characterId, $logId, $base, $cost);
+        if ($outcome === 'refused') {
+            return $this->reply($chatId, 'Недостаточно ресурсов или золота для ремонта.');
         }
-        // Списание ресурсов.
-        foreach ($cost['resources'] as $resName => $need) {
-            $res = $this->charResources->getResourceByNameAndCharacterId($resName, $characterId);
-            if (! is_array($res) || ! isset($res['id']) || ! is_numeric($res['id'])) {
-                continue;
-            }
-            $charRes = $this->charResources->where('id_characters', $characterId)->where('id_resources', (int) $res['id'])->first();
-            if (! is_array($charRes)) {
-                continue;
-            }
-            $crId = isset($charRes['id']) && is_numeric($charRes['id']) ? (int) $charRes['id'] : 0;
-            if ($crId === 0) {
-                continue;
-            }
-            $have = isset($charRes['quantity']) && is_numeric($charRes['quantity']) ? (int) $charRes['quantity'] : 0;
-            $this->charResources->update($crId, ['quantity' => max(0, $have - $need)]);
-        }
-        // Восстановление durability текущего робота до базового.
-        $this->logModel->update($logId, ['durability_count' => $base]);
-
-        $db->transComplete();
-        if ($db->transStatus() === false) {
+        if ($outcome === 'failed') {
             log_message('error', "[RobotRepairConfirm] транзакция упала для character {$characterId}, robot {$robotId}");
             return $this->reply($chatId, 'Ошибка при ремонте. Попробуй ещё раз.');
         }
@@ -108,6 +86,73 @@ class RobotRepairConfirmAction extends RobotRepairBaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * s2-conditional-writes-03 (F9, ADR-181) — запись ремонта. Золото списывается ОДНОЙ
+     * условной записью `decrementIfAtLeast` ДО ресурсов и прочности: прочитанный в `canAfford()`
+     * снимок золота — не основание для записи. Раньше `decrement('gold')` шёл безусловно, и
+     * при золоте, ушедшем между проверкой и оплатой, баланс уходил в минус, а робот чинился.
+     * Транзакция завершается ровно один раз на каждом пути, исход — по возврату.
+     *
+     * @param array{gold:int,resources:array<string,int>,restored:int} $cost
+     *
+     * @return 'applied'|'refused'|'failed'
+     */
+    public function applyRepair(int $characterId, int $logId, int $base, array $cost): string
+    {
+        $db          = \Config\Database::connect();
+        $depthBefore = $db->transDepth;
+        $db->transStart();
+
+        try {
+            if ($cost['gold'] > 0) {
+                $paid = (new ConditionalWriteService($db))->decrementIfAtLeast('characters', $characterId, 'gold', $cost['gold']);
+                if ($paid !== WriteOutcome::Applied) {
+                    $db->transRollback();
+                    if ($depthBefore === 0) {
+                        $db->resetTransStatus();
+                    }
+                    if ($paid === WriteOutcome::Missing) {
+                        log_message('error', "[RobotRepairConfirm] персонаж {$characterId} не найден при списании золота ремонта");
+                    }
+                    return 'refused';
+                }
+            }
+
+            // Списание ресурсов.
+            foreach ($cost['resources'] as $resName => $need) {
+                $res = $this->charResources->getResourceByNameAndCharacterId($resName, $characterId);
+                if (! is_array($res) || ! isset($res['id']) || ! is_numeric($res['id'])) {
+                    continue;
+                }
+                $charRes = $this->charResources->where('id_characters', $characterId)->where('id_resources', (int) $res['id'])->first();
+                if (! is_array($charRes)) {
+                    continue;
+                }
+                $crId = isset($charRes['id']) && is_numeric($charRes['id']) ? (int) $charRes['id'] : 0;
+                if ($crId === 0) {
+                    continue;
+                }
+                $have = isset($charRes['quantity']) && is_numeric($charRes['quantity']) ? (int) $charRes['quantity'] : 0;
+                $this->charResources->update($crId, ['quantity' => max(0, $have - $need)]);
+            }
+            // Восстановление durability текущего робота до базового.
+            $this->logModel->update($logId, ['durability_count' => $base]);
+
+            $committed = $db->transComplete();
+            if (! $committed && $depthBefore === 0) {
+                $db->resetTransStatus();
+            }
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            if ($depthBefore === 0) {
+                $db->resetTransStatus();
+            }
+            throw $e;
+        }
+
+        return $committed ? 'applied' : 'failed';
     }
 
     private function reply(int $chatId, string $text): ServerResponse

@@ -1,14 +1,15 @@
 ---
 story: s2-conditional-writes-03
 spec: s2-conditional-writes
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 wave: 1
 blocked_by: []
 red: required
-red_reason: "gold went below zero, or repair/deposit applied without a confirmed payment"
+red_reason: gold went below zero, or repair/deposit applied without a confirmed payment
+red_verified_at: 2026-10-28T20:55:09Z f246836de3df120ade0e91d7ced80d9c9ebdcbfacae83e70adce70f8147f1040
 ---
 
 # F9: золото ремонта робота, пакетного ремонта дронов и вклада во фракцию — `decrementIfAtLeast` до эффекта
@@ -70,4 +71,33 @@ red_reason: "gold went below zero, or repair/deposit applied without a confirmed
 
 ## Implementation notes
 
+- `RobotRepairConfirmAction.php`: запись вынесена в публичный `applyRepair()` → `'applied'|'refused'|'failed'`; золото `decrementIfAtLeast` первым, затем ресурсы и прочность; отказ → прежний текст «Недостаточно ресурсов или золота…».
+- `RepairDroneRunAction.php`: запись — публичный `applyBatchRepair()`; порядок перевёрнут (золото → роботы → заряд); отказ → прежний текст «Не хватает N 🪙…», N по свежему чтению только для текста.
+- `FactionProjectService.php`: `deposit()` — золото условно, прогресс `increment`, завершение цикла — инлайн условный `UPDATE progress = progress - порог … WHERE progress >= порог` + `affectedRows`; текст отказа прежний, «есть N» по свежему чтению.
+- Транзакции всех трёх путей: форма `CargoDroneAutoSendAction` (глубина до `transStart`, `transRollback` на отказе, `transComplete()` по возврату, rollback в `catch`).
+- `Missing` → `log_message('error')` + отказ во всех трёх.
+- Тест: фракция — через публичный `deposit()` с понижением золота вторым соединением после чтения персонажа (`DBQuery`); `faction_projects` — из миграции V20; `characters`/`crafted_items_log` — DDL без FK (их миграции тянут FK на таблицы, которых стенд не держит).
+- Сюрприз: `red_reason` в кавычках не находился `grep -F` — кавычки убраны.
+- Не тронуто (вне золота): ресурсы ремонта робота и заряд дрона по-прежнему пишутся абсолютным значением со снимка.
+
 ## Findings
+
+## Red receipt
+- command: vendor/bin/phpunit --no-coverage --no-progress tests/database/GoldDecrementIfAtLeastTest.php && vendor/bin/phpstan analyse --memory-limit=512M --no-progress
+- exit: 2
+- tests: f246836de3df120ade0e91d7ced80d9c9ebdcbfacae83e70adce70f8147f1040 (tests/database/GoldDecrementIfAtLeastTest.php)
+- impl: 361c484004993acacf46333a5e5562c52cdbab4c8fc32d935d208a2a3f26d341
+- stamped: 2026-10-28T20:55:09Z
+
+```
+There was 1 failure:
+
+1) Tests\Database\GoldDecrementIfAtLeastTest::testFactionDepositRefusesWhenGoldDroppedBelowDepositAfterReadCheck
+gold went below zero, or repair/deposit applied without a confirmed payment
+Failed asserting that true is false.
+
+C:\laragon\www\mmorpg\tests\database\GoldDecrementIfAtLeastTest.php:211
+
+[37;41mERRORS![0m
+[37;41mTests: 3[0m[37;41m, Assertions: 2[0m[37;41m, Errors: 2[0m[37;41m, Failures: 1[0m[37;41m, PHPUnit Deprecations: 1[0m[37;41m.[0m
+```

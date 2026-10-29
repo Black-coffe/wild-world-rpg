@@ -15,6 +15,8 @@ use App\Models\TelegramUserModel;
 use App\Models\TaskModel;
 use App\Models\BiomeModel;
 use App\Models\CraftedItemsModel;
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\WriteOutcome;
 use App\Services\Display\MarkdownSafe;
 use App\Services\Player\RobotService;
 use App\Services\Telegram\TelegramChatResolver;
@@ -95,8 +97,8 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
      */
     public function handle(array $task = []): void
     {
-        // 1) Ставим статус completed
-        $this->characterTaskModel->update($task['id'], ['status' => 'completed']);
+        // 1) Статус задачи не пишем: Worker уже атомарно перевёл её `in_work → completed`
+        // до вызова handle() (s2-conditional-writes F24; единственный вызывающий — Worker).
 
         // 2) Ищем персонажа
         $character = $this->characterModel->find($task['character_id']);
@@ -261,26 +263,12 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
             return;
         }
 
-        // Сохраняем
+        // Сохраняем — относительной записью (s2-conditional-writes F24, ADR-181): прочитанное
+        // количество в UPDATE не участвует, параллельная выдача в ту же строку не теряется.
         foreach ($biomeGroupedResources as $bId=>$resMap) {
             foreach ($resMap as $rId=>$amount) {
                 if ($amount<=0) continue;
-                $existing = $this->characterResourceModel
-                    ->where('id_characters', $character['id'])
-                    ->where('id_resources', $rId)
-                    ->first();
-                if ($existing) {
-                    $this->characterResourceModel->update($existing['id'], [
-                        'quantity'=>$existing['quantity'] + $amount
-                    ]);
-                } else {
-                    $this->characterResourceModel->insert([
-                        'id_characters'     => $character['id'],
-                        'id_resources'      => $rId,
-                        'id_telegram_users' => $task['telegram_user_id'],
-                        'quantity'          => $amount
-                    ]);
-                }
+                $this->awardResource((int) $character['id'], (int) $rId, (int) $amount);
             }
         }
 
@@ -296,6 +284,40 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
             // Отправляем фото + подпись
             $imagePath = base_url('uploads/telegram/craft/standard/robot_gatherer.jpg');
             $this->sendPhotoWithCaption($chatId, $imagePath, $safeCaption);
+        }
+    }
+
+    /**
+     * Зачисление добычи: `quantity = quantity + n` в самую старую строку пары
+     * `(id_characters, id_resources)` (у пары нет UNIQUE — инкремент по паре начислил бы
+     * в каждый дубль); строки нет — `insertUnique` со всеми NOT NULL-колонками.
+     */
+    private function awardResource(int $charId, int $resourceId, int $amount): void
+    {
+        $existing   = $this->characterResourceModel
+            ->select('id')
+            ->where('id_characters', $charId)
+            ->where('id_resources', $resourceId)
+            ->orderBy('id', 'ASC')
+            ->first();
+        $existingId = is_array($existing) && is_numeric($existing['id'] ?? null) ? (int) $existing['id'] : 0;
+        $writer     = new ConditionalWriteService();
+        if ($existingId > 0
+            && $writer->increment('character_resources', ['id' => $existingId], 'quantity', $amount) === WriteOutcome::Applied
+        ) {
+            return;
+        }
+
+        $now     = date('Y-m-d H:i:s');
+        $outcome = $writer->insertUnique('character_resources', [
+            'id_characters' => $charId,
+            'id_resources'  => $resourceId,
+            'quantity'      => $amount,
+            'created_at'    => $now,
+            'updated_at'    => $now,
+        ]);
+        if ($outcome === WriteOutcome::Refused) {
+            $writer->increment('character_resources', ['id_characters' => $charId, 'id_resources' => $resourceId], 'quantity', $amount);
         }
     }
 

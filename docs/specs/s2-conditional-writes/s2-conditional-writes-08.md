@@ -1,14 +1,15 @@
 ---
 story: s2-conditional-writes-08
 spec: s2-conditional-writes
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 wave: 2
 blocked_by: []
 red: required
-red_reason: "death roulette processed a candidate while the run lock was busy"
+red_reason: death roulette processed a candidate while the run lock was busy
+red_verified_at: 2026-10-28T20:58:56Z 5bb5a9c30f3bb16252bbc1cfe4fd4d791d952e695b72c5d404f1c26c2ed60943
 ---
 
 # F23: `DeathRouletteHandler` под `NamedLock` на весь прогон, без миграции
@@ -66,4 +67,30 @@ red_reason: "death roulette processed a candidate while the run lock was busy"
 
 ## Implementation notes
 
+- `app/TaskHandlers/DeathRouletteHandler.php`: `handle()` оборачивает весь прогон (новый private `runRoulette()`, тело прежнего `handle()`) в `NamedLock::withLock('death_roulette', …)`; лок берётся до выборки кандидатов; `null` → одна строка `log_message('error', '[DEATH_ROULETTE_LOCK_BUSY] …')`; освобождение — `finally` внутри `NamedLock`.
+- Конструктор получил опциональные `?DeathService $deathService`, `?NamedLock $lock` (после `$cfg`), константу `RUN_LOCK`; без аргументов поведение прежнее.
+- `tests/database/DeathRouletteNamedLockTest.php`: второе соединение держит `GET_LOCK('death_roulette', 0)` (NamedLock имя не префиксует); кандидат с health 0 умирает при любом броске; двойник `CountingDeathService`; исключение из прогона тоже считается «кандидат обработан».
+- Surprise: на общем стенде `characters` бывает урезанной таблицей чужого теста — тест добавляет недостающие колонки и убирает их в `tearDown`, свою таблицу дропает.
+- Surprise: `red_reason` в кавычках не находился `stamp-red` (fm_raw берёт кавычки буквально) — кавычки сняты, текст тот же.
+
 ## Findings
+
+## Red receipt
+- command: vendor/bin/phpunit --no-coverage --no-progress tests/database/DeathRouletteNamedLockTest.php && vendor/bin/phpstan analyse --memory-limit=512M --no-progress
+- exit: 1
+- tests: 5bb5a9c30f3bb16252bbc1cfe4fd4d791d952e695b72c5d404f1c26c2ed60943 (tests/database/DeathRouletteNamedLockTest.php)
+- impl: 0623f55a2f2f702baed80b4b6fce6328298d6b661a771b94ae4bf9a627213d22
+- stamped: 2026-10-28T20:58:56Z
+
+```
+There was 1 failure:
+
+1) Tests\Database\DeathRouletteNamedLockTest::testRunSkipsEveryCandidateWhileRunLockIsHeldElsewhere
+death roulette processed a candidate while the run lock was busy
+Failed asserting that 'CodeIgniter\Database\Exceptions\DatabaseException: Table 'wildworld_tests.character_resources' doesn't exist' is null.
+
+C:\laragon\www\mmorpg\tests\database\DeathRouletteNamedLockTest.php:150
+
+[37;41mFAILURES![0m
+[37;41mTests: 1[0m[37;41m, Assertions: 2[0m[37;41m, Failures: 1[0m[37;41m, PHPUnit Deprecations: 1[0m[37;41m.[0m
+```

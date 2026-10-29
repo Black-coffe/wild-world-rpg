@@ -27,9 +27,13 @@ final class ResourceTradeService
     private ResourceModel          $resourceModel;
     private ResourcesBankModel     $resourcesBankModel;
 
-    public function __construct()
+    /**
+     * `$characterModel` — шов для теста отказа начисления золота
+     * (`BulkSellIncreaseGoldRefusalTest`); вызывающие передают ничего и получают обычную модель.
+     */
+    public function __construct(?CharacterModel $characterModel = null)
     {
-        $this->characterModel         = new CharacterModel();
+        $this->characterModel         = $characterModel ?? new CharacterModel();
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
         $this->resourcesBankModel     = new ResourcesBankModel();
@@ -654,9 +658,10 @@ final class ResourceTradeService
             return ['success' => false, 'message' => 'Часть ресурсов уже продана или потрачена — открой оптовую продажу заново.', 'typesSold' => 0, 'totalQty' => 0, 'totalGold' => 0, 'lines' => []];
         }
 
-        $this->characterModel->increaseGold($charId, (float) $plan['totalGold']);
-
-        if ($bankFailed) {
+        // s2-conditional-writes-10: исход начисления читается. `false` (персонаж не найден в
+        // CharacterStatsService) раньше коммитил списание без золота; теперь — откат всей сделки,
+        // ресурсы остаются у игрока, банк не тронут.
+        if ($bankFailed || ! $this->characterModel->increaseGold($charId, (float) $plan['totalGold'])) {
             $db->transRollback();
             return ['success' => false, 'message' => 'Не удалось выполнить оптовую продажу, попробуйте ещё раз.', 'typesSold' => 0, 'totalQty' => 0, 'totalGold' => 0, 'lines' => []];
         }

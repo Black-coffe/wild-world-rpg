@@ -7,6 +7,7 @@ use App\Models\CharacterModel;
 use App\Services\Telegram\TelegramChatResolver;
 use App\Models\ClaimedCellModel;
 use App\Models\ExploredCellsModel;
+use App\Services\Db\NamedLock;
 use App\Services\Player\Death\DeathMessageBuilder;
 use App\Services\Player\DeathService;
 use Config\GameBalance;
@@ -31,7 +32,17 @@ use Config\GameBalance;
 )]
 class DeathRouletteHandler extends BaseTaskHandler
 {
+    /**
+     * s2-conditional-writes-08 (F23, ADR-181 п. 4): имя лока на весь прогон — без id,
+     * прогон один на весь мир.
+     */
+    public const RUN_LOCK = 'death_roulette';
+
     private GameBalance $cfg;
+
+    private ?DeathService $deathService;
+
+    private ?NamedLock $lock;
 
     /**
      * F2.10 wire-in (v0.51.2): deathExpLossPercent + deathStatLossPercent
@@ -39,10 +50,15 @@ class DeathRouletteHandler extends BaseTaskHandler
      * Раньше: self::DEATH_EXP_LOSS_PERCENT (0.05) / DEATH_STAT_LOSS_PERCENT (0.005).
      *
      * v0.51.14: removed Telegram init (now lazy via BaseTaskHandler::telegram()).
+     *
+     * s2-conditional-writes-08: `DeathService` и `NamedLock` опционально инжектятся (тест подсовывает
+     * двойник смерти); по умолчанию создаются в `handle()`, как раньше.
      */
-    public function __construct(?GameBalance $cfg = null)
+    public function __construct(?GameBalance $cfg = null, ?DeathService $deathService = null, ?NamedLock $lock = null)
     {
-        $this->cfg = $cfg ?? config('GameBalance');
+        $this->cfg          = $cfg ?? config('GameBalance');
+        $this->deathService = $deathService;
+        $this->lock         = $lock;
     }
 
     /**
@@ -53,9 +69,30 @@ class DeathRouletteHandler extends BaseTaskHandler
      */
     public function handle(array $task = []): void
     {
+        // s2-conditional-writes-08 (F23): весь прогон — от выборки кандидатов до последней смерти —
+        // под одним non-blocking локом. Иначе два наложившихся прогона крона обрабатывают одного
+        // кандидата дважды. Занятый лок = пропуск прогона, без ожидания (ADR-181 п. 4);
+        // освобождение — в finally внутри NamedLock::withLock().
+        $ran = ($this->lock ?? new NamedLock())->withLock(self::RUN_LOCK, function (): bool {
+            $this->runRoulette();
+
+            return true;
+        });
+
+        if ($ran === null) {
+            // error, а не info/warning: на проде сохраняется только error (маркер для grep логов).
+            log_message('error', '[DEATH_ROULETTE_LOCK_BUSY] run skipped: lock ' . self::RUN_LOCK . ' is held by another run');
+        }
+    }
+
+    /**
+     * Сам прогон рулетки; зовётся только из-под лока в {@see handle()}.
+     */
+    private function runRoulette(): void
+    {
         // 2) Подключаем модели и DeathService
         $characterModel    = new CharacterModel();
-        $deathService      = new DeathService();
+        $deathService      = $this->deathService ?? new DeathService();
 
         // 3) Ищем всех игроков, у кого здоровье <= 0.99 — кроме недавно возродившихся
         //    (death-validation batch 4: grace-окно ≈ GameBalance::$respawnGraceMinutes —

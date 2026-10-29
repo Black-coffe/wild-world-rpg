@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Greenhouse;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Services\Db\WriteOutcome;
 use App\Services\Farming\FarmingService;
 use DateInterval;
 use DateTime;
@@ -93,14 +94,29 @@ class PlantCropActionStart extends BaseAction
         $startTime = new DateTime();
         $endTime   = (clone $startTime)->add(new DateInterval('PT' . $grow . 'M'));
 
-        // Транзакция: списать 1 семя + insert task.
+        // Транзакция: условное списание 1 семени (affectedRows) → insert task только при Applied.
+        // Исход — по возврату списания, не по transStatus(); Refused/Missing откатывают транзакцию.
         $db->transStart();
 
         $db->table('character_resources')
             ->where('id_characters', $charId)
             ->where('id_resources', $seedResourceId)
+            ->where('quantity >=', 1)
             ->set('quantity', 'quantity - 1', false)
             ->update();
+
+        if ($db->affectedRows() < 1) {
+            $seedRowExists = $db->table('character_resources')
+                ->where('id_characters', $charId)
+                ->where('id_resources', $seedResourceId)
+                ->countAllResults() > 0;
+            $seedOutcome = $seedRowExists ? WriteOutcome::Refused : WriteOutcome::Missing;
+            $db->transRollback();
+            if ($seedOutcome === WriteOutcome::Missing) {
+                log_message('error', "[PlantCropActionStart] строка семени не найдена для character {$charId}, crop {$crop}");
+            }
+            return $this->sendError($chatId, "У тебя нет семян «{$meta['crop_ru']}». Сначала заготовь их.");
+        }
 
         $this->characterTaskModel->insert([
             'character_id'     => $charId,

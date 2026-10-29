@@ -121,6 +121,10 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->cleanCache();
+        // Урезанная схема `characters`/… не утекает в следующие тесты (как в DeathBreaksVehicleTest).
+        foreach (self::TABLES as $t) {
+            $this->conn->query("DROP TABLE IF EXISTS {$t}");
+        }
         parent::tearDown();
     }
 
@@ -191,7 +195,7 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
     {
         $owner  = $this->seedCharacter();
         $victim = $this->seedCharacter();
-        $item   = $this->seedTemplate('cart', 300);
+        $item   = $this->seedTemplate('LightCart', 300);
         $log    = $this->seedLog($owner, $item, 300);
 
         $result = $this->service->activate($victim, $log);
@@ -213,7 +217,7 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
     public function testReactivatingWithAnotherOwnedRowMovesPointer(): void
     {
         $char  = $this->seedCharacter();
-        $item  = $this->seedTemplate('cart', 300);
+        $item  = $this->seedTemplate('LightCart', 300);
         $log1  = $this->seedLog($char, $item, 300);
         $log2  = $this->seedLog($char, $item, 300);
 
@@ -234,7 +238,7 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
     public function testResolveActiveSelfHealsWhenLogRowWasDeleted(): void
     {
         $char = $this->seedCharacter();
-        $item = $this->seedTemplate('cart', 300);
+        $item = $this->seedTemplate('LightCart', 300);
         $log  = $this->seedLog($char, $item, 300);
 
         $this->service->activate($char, $log);
@@ -258,7 +262,7 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
     public function testSpendChargesDeductsExactlyCellsTimesWearFromActiveRowOnly(): void
     {
         $char = $this->seedCharacter();
-        $item = $this->seedTemplate('cart', 300);
+        $item = $this->seedTemplate('LightCart', 300);
         $log1 = $this->seedLog($char, $item, 300);
         $log2 = $this->seedLog($char, $item, 300); // соседняя строка того же предмета
 
@@ -276,7 +280,7 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
     public function testSpendChargesRespectsWearPerCellMultiplier(): void
     {
         $char = $this->seedCharacter();
-        $item = $this->seedTemplate('snowmobile', 400);
+        $item = $this->seedTemplate('Snowmobile', 400);
         $log  = $this->seedLog($char, $item, 400);
         $this->service->activate($char, $log);
 
@@ -292,7 +296,7 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
     public function testSpendChargesClampsGarbageDurabilityToTemplateBase(): void
     {
         $char = $this->seedCharacter();
-        $item = $this->seedTemplate('cart', 50); // база меньше исторического мусора
+        $item = $this->seedTemplate('LightCart', 50); // база меньше исторического мусора
         $log  = $this->seedLog($char, $item, 100); // мусор 100 > базы 50
         $this->service->activate($char, $log);
 
@@ -304,7 +308,7 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
     public function testSpendChargesNeverGoesNegative(): void
     {
         $char = $this->seedCharacter();
-        $item = $this->seedTemplate('cart', 300);
+        $item = $this->seedTemplate('LightCart', 300);
         $log  = $this->seedLog($char, $item, 300);
         $this->service->activate($char, $log);
 
@@ -319,7 +323,7 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
     public function testResolveActiveOnZeroChargesReturnsRowWithZeroChargesNoException(): void
     {
         $char = $this->seedCharacter();
-        $item = $this->seedTemplate('cart', 300);
+        $item = $this->seedTemplate('LightCart', 300);
         $log  = $this->seedLog($char, $item, 0); // полностью изношена
         $this->service->activate($char, $log);
 
@@ -334,7 +338,7 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
     public function testBreakActiveZeroesDurabilityClearsPointerKeepsRow(): void
     {
         $char = $this->seedCharacter();
-        $item = $this->seedTemplate('cart', 300);
+        $item = $this->seedTemplate('LightCart', 300);
         $log  = $this->seedLog($char, $item, 250, quantity: 3);
         $this->service->activate($char, $log);
 
@@ -371,7 +375,7 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
     public function testDeactivateClearsAnActivePointer(): void
     {
         $char = $this->seedCharacter();
-        $item = $this->seedTemplate('cart', 300);
+        $item = $this->seedTemplate('LightCart', 300);
         $log  = $this->seedLog($char, $item, 300);
         $this->service->activate($char, $log);
 
@@ -385,7 +389,7 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
     public function testCharacterResetNullsActiveVehiclePointer(): void
     {
         $char = $this->seedCharacter();
-        $item = $this->seedTemplate('cart', 300);
+        $item = $this->seedTemplate('LightCart', 300);
         $log  = $this->seedLog($char, $item, 300);
         $this->service->activate($char, $log);
         $this->assertSame($log, $this->pointerOf($char));
@@ -473,18 +477,14 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
         $this->assertSame(0, $result['charges_full'] - $result['charges'], 'ноль пройденных клеток — окупаемость обязана быть 0');
     }
 
-    /** Нетранспортный предмет (нет ключа в NAME_ENG_TO_KEY) — база остаётся каталогом. */
-    public function testResolveActiveNonVehicleItemStillClampsToCatalog(): void
+    /** Нетранспортный предмет (нет ключа в NAME_ENG_TO_KEY) — F22: активация отклоняется, указатель не ставится. */
+    public function testActivateRejectsNonVehicleItem(): void
     {
         $char = $this->seedCharacter();
         $item = $this->seedTemplate('MedKit', 50); // не входит в VehicleEffectsService::NAME_ENG_TO_KEY
-        $log  = $this->seedLog($char, $item, 200); // мусор выше каталожной базы
-        $this->service->activate($char, $log);
+        $log  = $this->seedLog($char, $item, 200);
 
-        $result = $this->service->resolveActive($char);
-
-        $this->assertNotNull($result);
-        $this->assertSame(50, $result['charges_full']);
-        $this->assertSame(50, $result['charges'], 'без GameSettings-ключа базой остаётся каталог');
+        $this->assertFalse($this->service->activate($char, $log), 'нетранспортный предмет не активируется (F22)');
+        $this->assertNull($this->service->resolveActive($char), 'указатель активного транспорта не поставлен');
     }
 }

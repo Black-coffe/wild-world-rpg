@@ -94,7 +94,7 @@ final class DeathBreaksVehicleTest extends CIUnitTestCase
 
     private function seedTemplate(?int $durability = 300): int
     {
-        $this->conn->table('crafted_items')->insert(['name_eng' => 'cart', 'durability_count' => $durability]);
+        $this->conn->table('crafted_items')->insert(['name_eng' => 'LightCart', 'durability_count' => $durability]);
 
         return (int) $this->conn->insertID();
     }

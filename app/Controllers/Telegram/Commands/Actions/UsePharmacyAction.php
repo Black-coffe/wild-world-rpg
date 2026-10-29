@@ -26,6 +26,12 @@ class UsePharmacyAction extends BaseAction
      */
     private string $itemNameEng = '';
 
+    /** F14: строка `crafted_items_log`, найденная гейтом, — по ней идёт условное списание дозы. */
+    private int $itemUsageId = 0;
+
+    /** F14: срок годности строки — для «Сытости», которая ставится только после списания. */
+    private mixed $itemDurabilityTime = null;
+
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
@@ -84,10 +90,10 @@ class UsePharmacyAction extends BaseAction
                 ->effectMultiplier($itemUsage['durability_time'] ?? null);
         }
 
-        // V9 (ADR-034): если съеденное — блюдо (food-buff), ставим «Сытость»
-        // (well_fed_until = now + food.<snake>.well_fed_minutes). Медикаменты не дают.
-        // V10 (ADR-035): длительность урезается, если блюдо зачерствело (durability_time).
-        $this->maybeApplyWellFed((int) $character['id'], $medicineName, $itemUsage['durability_time'] ?? null);
+        // V9/V10 (ADR-034/035): «Сытость» ставится в applyMedicineEffect — только после
+        // подтверждённого списания дозы (F14), а не до него.
+        $this->itemUsageId        = (int) $itemUsage['id'];
+        $this->itemDurabilityTime = $itemUsage['durability_time'] ?? null;
 
         // S19 (v0.51.201): data-driven heal через GameSettings (admin-tunable,
         // constitutional ADR-024). Если для предмета заданы ключи
@@ -240,76 +246,99 @@ class UsePharmacyAction extends BaseAction
         //    приходят сюда же, поэтому «отожраться консервами» перестаёт работать;
         //  - предмет из `cured_by` СНИМАЕТ состояние. Это и есть ниша лекарств: еда
         //    не снимает ничего и снимать не может.
-        $debuffs = new \App\Services\Player\DebuffService();
-        $capFactor = $debuffs->healCapFactor($charId);
-        $bounds    = $capFactor < 1.0 ? ['health' => ['max' => 100.0 * $capFactor]] : [];
+        // F14 (s2-conditional-writes): сначала условное списание дозы, эффекты — только на
+        // подтверждённое списание и в той же транзакции. Раньше лечение, снятие состояния и
+        // «Сытость» шли до списания: два параллельных тапа по последней дозе лечили дважды.
+        $db = \Config\Database::connect();
+        $db->transBegin();
 
-        $cured = $this->itemNameEng !== '' ? $debuffs->cureByItem($charId, $this->itemNameEng) : [];
+        try {
+            if (!$this->consumeDose($db, $charId, $itemId)) {
+                $db->transRollback();
 
-        $result = (new \App\Services\Player\CharacterStatsService())->adjust($charId, $effects, $bounds);
+                return $this->sendResponse('У тебя нет нужного препарата, или он закончился.');
+            }
 
-        if ($result === null) {
-            return $this->sendResponse('Персонаж не найден.');
+            // V9 (ADR-034): блюдо (food-buff) ставит «Сытость»; медикаменты не дают.
+            // V10 (ADR-035): длительность урезается, если блюдо зачерствело (durability_time).
+            $this->maybeApplyWellFed($charId, $this->itemNameEng, $this->itemDurabilityTime);
+
+            $debuffs = new \App\Services\Player\DebuffService();
+            $capFactor = $debuffs->healCapFactor($charId);
+            $bounds    = $capFactor < 1.0 ? ['health' => ['max' => 100.0 * $capFactor]] : [];
+
+            $cured = $this->itemNameEng !== '' ? $debuffs->cureByItem($charId, $this->itemNameEng) : [];
+
+            $result = (new \App\Services\Player\CharacterStatsService())->adjust($charId, $effects, $bounds);
+
+            if ($result === null) {
+                $db->transRollback();
+
+                return $this->sendResponse('Персонаж не найден.');
+            }
+
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+
+            throw $e;
         }
 
         $originalValues = $result['before'];
         $newValues      = $result['after'];
-
-        // Списываем 1 единицу препарата (учитывая durability_count)
-        if (!$this->decrementItemUsage($charId, $itemId)) {
-            return $this->sendResponse('Ошибка при списании использования препарата.');
-        }
 
         // Формируем «красивое» игровое сообщение
         return $this->sendUsageMessage($charId, $originalValues, $newValues, $itemId, $cured, $capFactor);
     }
 
     /**
-     * Логика для списания 1 шт. препарата.
+     * F14: списание одной дозы — условной записью по строке, найденной гейтом.
+     *
+     * Предусловие в `WHERE` — «в строке есть хотя бы одна единица» (`quantity >= 1`), а не
+     * прочитанное гейтом число: отдельный запрос, успевший истратить последнюю дозу, делает
+     * запись no-op (`affectedRows() = 0`) → отказ без эффектов. Условие стоит на `quantity`, а не
+     * на `durability_count`: у блюд шаблон без зарядов, их строки хранят 0, и
+     * `effectiveCharges()` считает это одной дозой — честную еду отказ задевать не должен.
+     *
+     * Перекат как раньше (заряд → единица стака → удаление строки), одной записью:
+     * eff = min(max(stored ?? base, 1), base) — остаток, зажатый ёмкостью шаблона
+     * (🔴 «бесконечный медовый сбитень», 2026-08-09); eff > 1 → заряд − 1, иначе единица
+     * стака − 1 и полная база доз на следующую. Опустевшая строка удаляется следующей
+     * записью в той же транзакции. MySQL считает SET слева направо — `quantity` идёт первой,
+     * пока `durability_count` ещё прежний. Raw `update()` модели не используется
+     * (`feedback_crafted_items_log_raw_set_update_noop`).
+     *
+     * @param \CodeIgniter\Database\BaseConnection<object, object> $db
      */
-    private function decrementItemUsage(int $characterId, int $itemId): bool
+    private function consumeDose(\CodeIgniter\Database\BaseConnection $db, int $characterId, int $itemId): bool
     {
-        $itemUsage = $this->craftedItemsLogModel->where([
-            'character_id' => $characterId,
-            'crafted_item_id' => $itemId
-        ])->first();
+        $template       = $this->craftedItemsModel->find($itemId);
+        $baseDurability = CraftedItemsLogModel::baseCharges(
+            is_array($template) ? ($template['durability_count'] ?? null) : null
+        );
 
-        if (!$itemUsage) {
-            log_message('error', "Item usage not found for character_id={$characterId} and item_id={$itemId}");
+        $table = $db->prefixTable('crafted_items_log');
+        $eff   = 'LEAST(GREATEST(COALESCE(durability_count, ?), 1), ?)';
+        $db->query(
+            "UPDATE {$table} SET "
+            . "quantity = CASE WHEN {$eff} > 1 THEN quantity ELSE quantity - 1 END, "
+            . "durability_count = CASE WHEN {$eff} > 1 THEN {$eff} - 1 ELSE ? END "
+            . 'WHERE id = ? AND character_id = ? AND crafted_item_id = ? AND quantity >= 1',
+            [
+                $baseDurability, $baseDurability,
+                $baseDurability, $baseDurability, $baseDurability, $baseDurability,
+                $baseDurability,
+                $this->itemUsageId, $characterId, $itemId,
+            ]
+        );
+
+        if ($db->affectedRows() < 1) {
+            log_message('error', "Item usage not found or empty for character_id={$characterId} and item_id={$itemId}");
+
             return false;
         }
 
-        // 🔴 Fix «бесконечный медовый сбитень» (2026-08-09): раньше остаток доз брался
-        // из `durability_count` КАК ЕСТЬ. У строк, выданных PvE-наградой, там лежала
-        // константа 100 — при базе 1 это давало 100 бесплатных применений, а экран всё
-        // это время честно писал «Остаток: 1 шт.». Теперь остаток зажат ёмкостью
-        // шаблона: min(остаток, база).
-        $baseDurability = CraftedItemsLogModel::baseCharges(
-            $this->craftedItemsModel->find($itemId)['durability_count'] ?? null
-        );
-        $chargesLeft = CraftedItemsLogModel::effectiveCharges(
-            $itemUsage['durability_count'] ?? null,
-            $baseDurability
-        );
-
-        // Если в дозах ещё есть запас, уменьшим его
-        if ($chargesLeft > 1) {
-            $this->craftedItemsLogModel->update($itemUsage['id'], [
-                'durability_count' => $chargesLeft - 1
-            ]);
-        } else {
-            // Иначе уменьшаем quantity на 1
-            if ($itemUsage['quantity'] > 1) {
-                // Начинаем следующую единицу стака — доз снова полная база
-                $this->craftedItemsLogModel->update($itemUsage['id'], [
-                    'quantity' => $itemUsage['quantity'] - 1,
-                    'durability_count' => $baseDurability
-                ]);
-            } else {
-                // Если quantity = 1, то препарат заканчивается
-                $this->craftedItemsLogModel->delete($itemUsage['id']);
-            }
-        }
+        $db->query("DELETE FROM {$table} WHERE id = ? AND quantity <= 0", [$this->itemUsageId]);
 
         return true;
     }

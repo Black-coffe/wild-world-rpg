@@ -1,15 +1,16 @@
 ---
 story: s2-conditional-writes-07
 spec: s2-conditional-writes
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 model: haiku
 wave: 2
 blocked_by: []
 red: required
-red_reason: "non-transport item was activated as a vehicle"
+red_reason: non-transport item was activated as a vehicle
+red_verified_at: 2026-10-28T20:57:50Z 5274513786274411b1662aa3d3b4a3f529031cffb42d422fd5086efc958b60b9
 ---
 
 # F22: `VehicleActivationService::activate()` отвергает предмет без ключа транспорта
@@ -61,4 +62,35 @@ red_reason: "non-transport item was activated as a vehicle"
 
 ## Implementation notes
 
+- `app/Services/Player/VehicleActivationService.php`: `activate()` берёт строку через `fetchOwnedRow()`, резолвит `name_eng` через `VehicleEffectsService::keyForItemNameEng()`, на `null`/пустом ключе возвращает `false` до `setPointer()`. Остальные пути сервиса не тронуты.
+- `tests/database/VehicleActivationNonTransportTest.php`: два метода (`LightCart` → `true`; `Hammer` → `false` и указатель `NULL`).
+- Единственный прод-вызыватель `activate()` — `VehicleAction.php:101`; его тексты не менялись (Non-goal).
+
 ## Findings
+
+Существующие тесты, краснеющие от правки (фикстуры — не-транспорт, по Non-goal не правились):
+
+- `tests/unit/Transport/VehicleActivationServiceTest.php`: 8 из 19 падают. Причина: фикстура `seedTemplate('cart', …)` (строчная, в `NAME_ENG_TO_KEY` есть только `LightCart`) и `seedTemplate('snowmobile', …)` (`:279`; ключ `Snowmobile`); `testResolveActiveNonVehicleItemStillClampsToCatalog` (`:480`, `MedKit`) вызывает `activate()` и ждёт указатель. Падают: `testReactivatingWithAnotherOwnedRowMovesPointer`, `testSpendChargesDeductsExactlyCellsTimesWearFromActiveRowOnly`, `testSpendChargesRespectsWearPerCellMultiplier`, `testSpendChargesClampsGarbageDurabilityToTemplateBase`, `testResolveActiveOnZeroChargesReturnsRowWithZeroChargesNoException`, `testBreakActiveZeroesDurabilityClearsPointerKeepsRow`, `testCharacterResetNullsActiveVehiclePointer`, `testResolveActiveNonVehicleItemStillClampsToCatalog`.
+- `tests/unit/Transport/DeathBreaksVehicleTest.php`: 1 из 6 падает — `testDeathWithActiveVehicleZeroesDurabilityClearsPointerKeepsRow` (`:174`), фикстура `seedTemplate()` с `name_eng = 'cart'` (`:97`).
+
+Правка их не чинит: решение о переименовании фикстур на `LightCart` / `Snowmobile` — за владельцем (map slice помечает это `WALL` с перечнем).
+
+## Red receipt
+- command: vendor/bin/phpunit --no-coverage --no-progress tests/database/VehicleActivationNonTransportTest.php && vendor/bin/phpstan analyse --memory-limit=512M --no-progress
+- exit: 1
+- tests: 5274513786274411b1662aa3d3b4a3f529031cffb42d422fd5086efc958b60b9 (tests/database/VehicleActivationNonTransportTest.php)
+- impl: 40d3435a6ab3f2e2f7a7e2ed5c6f0577055493d5395a2b30c7f6301971e0f2af
+- stamped: 2026-10-28T20:57:50Z
+
+```
+There was 1 failure:
+
+1) Tests\Database\VehicleActivationNonTransportTest::testNonTransportItemIsRejectedWithoutWrite
+non-transport item was activated as a vehicle
+Failed asserting that true is false.
+
+C:\laragon\www\mmorpg\tests\database\VehicleActivationNonTransportTest.php:74
+
+[37;41mFAILURES![0m
+[37;41mTests: 2[0m[37;41m, Assertions: 3[0m[37;41m, Failures: 1[0m[37;41m, PHPUnit Deprecations: 1[0m[37;41m.[0m
+```

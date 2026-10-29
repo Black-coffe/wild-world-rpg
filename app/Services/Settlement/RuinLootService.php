@@ -7,6 +7,7 @@ namespace App\Services\Settlement;
 use App\Models\CharacterRuinLootModel;
 use App\Models\ResourceModel;
 use App\Services\GameSettings\GameSettingsService;
+use Config\Database;
 
 /**
  * ADR-101 Фаза 4 — повторяемый лут охраняемых руин (type=ruins).
@@ -145,16 +146,37 @@ final class RuinLootService
             return ['ok' => false, 'reason' => 'empty'];
         }
 
-        $awarded = [];
-        foreach ($loot as $name => $baseMax) {
-            $max    = $this->maxForResource($baseMax);
-            $amount = random_int(1, $max);
-            if ($this->resources->addOrIncreaseResource($characterId, $name, $amount) !== false) {
-                $awarded[$name] = $amount;
-            }
-        }
+        // s2-conditional-writes-04 (F10, ADR-181): чтение выше — только быстрый отказ с остатком.
+        // Решение принимает условный резерв кулдауна ДО выдачи; резерв и выдача — одна транзакция.
+        $nowTs       = time();
+        $now         = date('Y-m-d H:i:s', $nowTs);
+        $readyBefore = date('Y-m-d H:i:s', $nowTs - $this->cooldownHours() * 3600);
 
-        $this->log->touch($characterId, $sid, date('Y-m-d H:i:s'));
+        $db = Database::connect();
+        $db->transBegin();
+        try {
+            if (! $this->log->reserveCooldown($characterId, $sid, $now, $readyBefore)) {
+                $db->transRollback();
+
+                return ['ok' => false, 'reason' => 'cooldown', 'remaining' => $this->remainingCooldownSeconds($characterId, $sid, $nowTs)];
+            }
+
+            $awarded = [];
+            foreach ($loot as $name => $baseMax) {
+                $max    = $this->maxForResource($baseMax);
+                $amount = random_int(1, $max);
+                if ($this->resources->addOrIncreaseResource($characterId, $name, $amount) !== false) {
+                    $awarded[$name] = $amount;
+                }
+            }
+        } catch (\Throwable $e) {
+            $db->transRollback();
+
+            throw $e;
+        }
+        if (! $db->transCommit()) {
+            return ['ok' => false, 'reason' => 'invalid'];
+        }
 
         return ['ok' => true, 'awarded' => $awarded];
     }

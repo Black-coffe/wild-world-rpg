@@ -6,6 +6,8 @@ namespace App\Services\Player;
 
 use App\Models\CharacterModel;
 use App\Models\FactionProjectModel;
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\WriteOutcome;
 use App\Services\GameSettings\GameSettingsService;
 use Config\Database;
 
@@ -144,33 +146,74 @@ final class FactionProjectService
         if ($projId === 0) {
             return $fail('Ошибка проекта фракции. Попробуй ещё раз.');
         }
-        $progress = isset($project['progress']) && is_numeric($project['progress']) ? (int) $project['progress'] : 0;
-        $cycles   = isset($project['cycles_completed']) && is_numeric($project['cycles_completed']) ? (int) $project['cycles_completed'] : 0;
-
-        $newProgress = $progress + $deposit;
-        $completed   = false;
-        $update      = [];
-        if ($newProgress >= $threshold) {
-            $completed              = true;
-            $update['buff_until']   = date('Y-m-d H:i:s', time() + $this->buffDurationHours() * 3600);
-            $update['cycles_completed'] = $cycles + 1;
-            $newProgress           -= $threshold;
-        }
-        $update['progress'] = $newProgress;
-
-        $db = Database::connect();
+        // s2-conditional-writes-03 (F9, ADR-181): золото — ОДНОЙ условной записью ДО вклада; прогресс —
+        // относительным increment, а не «снимок + вклад». Раньше `decrement('gold')` шёл безусловно, а
+        // progress писался абсолютным числом от прочитанного снимка: при золоте, ушедшем между проверкой
+        // и оплатой, баланс уходил в минус, а два параллельных вклада теряли один из них.
+        $db          = Database::connect();
+        $writer      = new ConditionalWriteService($db);
+        $depthBefore = $db->transDepth;
         $db->transStart();
-        $db->table('characters')->where('id', $characterId)->decrement('gold', $deposit);
-        (new FactionProjectModel())->update($projId, $update);
-        $db->transComplete();
-        if ($db->transStatus() === false) {
+
+        try {
+            $paid = $writer->decrementIfAtLeast('characters', $characterId, 'gold', $deposit);
+            if ($paid !== WriteOutcome::Applied) {
+                $db->transRollback();
+                if ($depthBefore === 0) {
+                    $db->resetTransStatus();
+                }
+                if ($paid === WriteOutcome::Missing) {
+                    log_message('error', "[FactionProject] персонаж {$characterId} не найден при списании вклада");
+                    return $fail('Ошибка при внесении вклада. Попробуй ещё раз.');
+                }
+                return $fail("Недостаточно золота: нужно {$deposit}, есть {$this->goldOf($characterId)}.");
+            }
+
+            if ($writer->increment('faction_projects', ['id' => $projId], 'progress', $deposit) !== WriteOutcome::Applied) {
+                $db->transRollback();
+                if ($depthBefore === 0) {
+                    $db->resetTransStatus();
+                }
+                log_message('error', "[FactionProject] проект {$projId} фракции {$factionId} исчез при вкладе character {$characterId}");
+                return $fail('Ошибка проекта фракции. Попробуй ещё раз.');
+            }
+
+            // Строка проекта уже под X-локом нашего UPDATE до конца транзакции — чтение ниже видит
+            // текущий прогресс; в запись оно не попадает: завершение цикла — условный относительный UPDATE.
+            $progress  = $this->progressOf($projId);
+            $completed = false;
+            if ($progress >= $threshold) {
+                $prefixed = $db->prefixTable('faction_projects');
+                $db->query(
+                    "UPDATE {$prefixed} SET progress = progress - ?, cycles_completed = cycles_completed + 1, buff_until = ?, updated_at = ? WHERE id = ? AND progress >= ?",
+                    [$threshold, date('Y-m-d H:i:s', time() + $this->buffDurationHours() * 3600), date('Y-m-d H:i:s'), $projId, $threshold]
+                );
+                $completed = $db->affectedRows() > 0;
+                if ($completed) {
+                    $progress -= $threshold;
+                }
+            }
+
+            $committed = $db->transComplete();
+            if (! $committed && $depthBefore === 0) {
+                $db->resetTransStatus();
+            }
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            if ($depthBefore === 0) {
+                $db->resetTransStatus();
+            }
+            throw $e;
+        }
+
+        if (! $committed) {
             log_message('error', "[FactionProject] транзакция упала для character {$characterId}, faction {$factionId}");
             return $fail('Ошибка при внесении вклада. Попробуй ещё раз.');
         }
 
         return [
             'ok' => true, 'message' => '', 'completed' => $completed,
-            'progress' => $newProgress, 'threshold' => $threshold, 'factionId' => $factionId, 'deposit' => $deposit,
+            'progress' => $progress, 'threshold' => $threshold, 'factionId' => $factionId, 'deposit' => $deposit,
         ];
     }
 
@@ -230,6 +273,20 @@ final class FactionProjectService
             }
         }
         return $ids;
+    }
+
+    private function goldOf(int $characterId): int
+    {
+        $query = Database::connect()->table('characters')->select('gold')->where('id', $characterId)->get();
+        $row   = $query !== false ? $query->getRowArray() : null;
+        return is_array($row) && is_numeric($row['gold'] ?? null) ? (int) $row['gold'] : 0;
+    }
+
+    private function progressOf(int $projId): int
+    {
+        $query = Database::connect()->table('faction_projects')->select('progress')->where('id', $projId)->get();
+        $row   = $query !== false ? $query->getRowArray() : null;
+        return is_array($row) && is_numeric($row['progress'] ?? null) ? (int) $row['progress'] : 0;
     }
 
     private function intSetting(string $key, int $default): int

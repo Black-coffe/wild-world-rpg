@@ -9,6 +9,8 @@ use App\Models\TelegramUserModel;
 use App\Models\CharacterTaskModel;
 use App\Models\TaskModel;  // чтобы узнать name_rus
 use App\Services\Player\Progression\EarlyProgressionService;
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\WriteOutcome;
 
 class FinishTaskAction
 {
@@ -71,25 +73,32 @@ class FinishTaskAction
             ->first();
 
         if (!$taskRow) {
-            Request::answerCallbackQuery([
-                'callback_query_id' => $this->callbackQuery->getId(),
-                'text' => 'Задача не найдена или уже завершена.',
-                'show_alert' => false,
-            ]);
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => 'Задача не найдена или уже завершена.'
-            ]);
+            return $this->replyNotFound($chatId);
         }
 
         // Берём название задачи
         $taskInfo = $this->taskModel->find($taskRow['task_id']);
         $taskName = $taskInfo ? $taskInfo['name_rus'] : '???';
 
-        // 5) Меняем статус
-        $this->characterTaskModel->update($taskRow['id'], [
-            'status' => 'interrupted'
-        ]);
+        // 5) Меняем статус — условным переходом (s2-conditional-writes F21, ADR-181).
+        // Двойной тап проходит гейт-чтение выше дважды; штраф идёт только тому вызову,
+        // чей `in_work → interrupted` реально применился.
+        $outcome = (new ConditionalWriteService())->transitionIfCurrent(
+            'character_tasks',
+            (int) $taskRow['id'],
+            'status',
+            'in_work',
+            'interrupted'
+        );
+        switch ($outcome) {
+            case WriteOutcome::Applied:
+                break;
+            case WriteOutcome::Missing:
+                log_message('error', "[FinishTaskAction] character_tasks #{$taskRow['id']} исчезла между чтением и переходом в interrupted.");
+                return $this->replyNotFound($chatId);
+            case WriteOutcome::Refused:
+                return $this->replyNotFound($chatId);
+        }
 
         // При прерывании задачи игрок теряет характеристики.
         // ADR-138 (S3) рычаг D: для новичка (level<cap) штраф ×interrupt_penalty_factor
@@ -155,6 +164,19 @@ class FinishTaskAction
             'chat_id' => $chatId,
             'text' => $text,
             'parse_mode' => 'Markdown'
+        ]);
+    }
+
+    private function replyNotFound(int|string $chatId): ServerResponse
+    {
+        Request::answerCallbackQuery([
+            'callback_query_id' => $this->callbackQuery->getId(),
+            'text' => 'Задача не найдена или уже завершена.',
+            'show_alert' => false,
+        ]);
+        return Request::sendMessage([
+            'chat_id' => $chatId,
+            'text' => 'Задача не найдена или уже завершена.'
         ]);
     }
 }

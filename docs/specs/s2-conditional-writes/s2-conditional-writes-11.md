@@ -1,14 +1,15 @@
 ---
 story: s2-conditional-writes-11
 spec: s2-conditional-writes
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 wave: 3
 blocked_by: []
 red: required
-red_reason: "teleport charge consumed although the move failed"
+red_reason: teleport charge consumed although the move failed
+red_verified_at: 2026-10-28T21:18:38Z f0ed404b944bc89e3feab20a224fd4e405faef46dc798134d46974c72519409e
 ---
 
 # Телепорт: CAS заряда и перемещение в одной транзакции
@@ -72,4 +73,32 @@ exploit-fix-08, F7»: CAS по снимку, `bool`/`?int`, инлайн). Пр�
 
 ## Implementation notes
 
+- `TeleportUseAction.php`: новый `chargeAndMove()` — transBegin → CAS → перемещение → один transCommit/transRollback на каждом пути; исключение перемещения — откат + `log_message('error')`; оба пути (рюкзак, портативный) идут через него.
+- Шов: конструктор `TeleportUseAction($callbackQuery, ?TeleportExecutor $executor = null)`; списание и перемещение на одном `$this->db` (`TeleportItemConsumer($this->db)`, `TeleportExecutor(new CharacterModel($this->db))`).
+- `TeleportItemConsumer.php`, `TeleportExecutor.php` не правились: своих транзакций и своего соединения у них нет (`adjust()` в executor только на путях золото/опыт, вне этой story).
+- Текст при сбое перемещения — существующий `formatter->baseNotFound()` («База не найдена… Попробуй ещё раз.»): текст CAS-отказа («заряд списан другим запросом») был бы ложью.
+- `TeleportExecutor::teleport()` возвращает `void`, поэтому «`false` из перемещения» на практике = исключение; `commit === false` тоже трактуется как отказ.
+- `red_reason` был в кавычках: `fm_raw` сохраняет кавычки, и stamp-red не находил строку — кавычки сняты.
+- Тест зовёт приватный `usePortableTeleport()` через reflection (гейты `handle()` вне пункта), схема — по образцу `TeleportChargeTest`.
+
 ## Findings
+
+## Red receipt
+- command: vendor/bin/phpunit --no-coverage --no-progress tests/database/TeleportUseTransactionTest.php && vendor/bin/phpstan analyse --memory-limit=512M --no-progress
+- exit: 1
+- tests: f0ed404b944bc89e3feab20a224fd4e405faef46dc798134d46974c72519409e (tests/database/TeleportUseTransactionTest.php)
+- impl: 40036806ff2962ce8b6448020ef3063aee7681670a8e741c32ddf5952f77009e
+- stamped: 2026-10-28T21:18:38Z
+
+```
+There was 1 failure:
+
+1) Tests\Database\TeleportUseTransactionTest::testMoveFailureKeepsTheCharge
+teleport charge consumed although the move failed
+Failed asserting that 1 is identical to 2.
+
+C:\laragon\www\mmorpg\tests\database\TeleportUseTransactionTest.php:99
+
+[37;41mFAILURES![0m
+[37;41mTests: 2[0m[37;41m, Assertions: 6[0m[37;41m, Failures: 1[0m[37;41m, PHPUnit Deprecations: 1[0m[37;41m.[0m
+```

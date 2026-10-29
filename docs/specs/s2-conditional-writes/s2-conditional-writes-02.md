@@ -1,14 +1,15 @@
 ---
 story: s2-conditional-writes-02
 spec: s2-conditional-writes
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 3
 worker: worker-code
 wave: 1
 blocked_by: []
 red: required
-red_reason: "reward granted while spawn lock was busy or after the spawn was consumed"
+red_reason: reward granted while spawn lock was busy or after the spawn was consumed
+red_verified_at: 2026-10-28T20:54:18Z 9d927e500b72c4d0e904644d08e7ef8222c09d62f8c4e7cd362aafbab3a18766
 ---
 
 # F8: «Драться» и «Ограбить» под `NamedLock` на спавн, `PvEService::attack` нетронут
@@ -72,4 +73,32 @@ red_reason: "reward granted while spawn lock was busy or after the spawn was con
 
 ## Implementation notes
 
+- `app/Services/NPC/NpcInteractionService.php`: `fight()`/`rob()` — обёртки `NamedLock::withLock('npc_spawn_<id>')`, тела в `fightUnlocked()`/`robUnlocked()`; `null` → «NPC уже исчез.».
+- Провал грабежа зовёт `fightUnlocked()` под тем же локом: вложенного `GET_LOCK` нет (ADR-181 п. 4).
+- `aliveSpawn()` перечитывает спавн под локом, `status='dead'` = исчез; `consumeSpawn()` — `transitionIfCurrent` из прочитанного статуса в `dead` (статусы бывают `alive`/`active`), затем DELETE; NULL-статус — DELETE с `affectedRows`.
+- `rob()`: условный перевод спавна ДО `increaseGold`; `fight()`: перевод после победы (бой может быть проигран, решение владельца).
+- `npcFlees()` перешёл на новую сигнатуру `consumeSpawn($id, $spawn)`, поведение прежнее; `PvEService` не тронут.
+- `fight()` при занятом локе отдаёт `ok=false, summary='NPC уже исчез.'`; вызывающие экшены `summary` не показывают — текст игроку там прежний (файлы вне story).
+- `tests/database/NpcSpawnNamedLockTest.php`: шанс грабежа 1.0 через кэш `GameSettingsService`; red_reason снял кавычки — stamp-red искал их буквально.
+
 ## Findings
+
+## Red receipt
+- command: vendor/bin/phpunit --no-coverage --no-progress tests/database/NpcSpawnNamedLockTest.php && vendor/bin/phpstan analyse --memory-limit=512M --no-progress
+- exit: 1
+- tests: 9d927e500b72c4d0e904644d08e7ef8222c09d62f8c4e7cd362aafbab3a18766 (tests/database/NpcSpawnNamedLockTest.php)
+- impl: 0cd4c02e10f8631b102aa2e3542c98775d504863dcb9cbb62942cb83affbdde5
+- stamped: 2026-10-28T20:54:18Z
+
+```
+     'experience' => '0.00',
+     'npc_kills' => '0',
+-    'spawn_status' => 'alive',
++    'spawn_status' => 'absent',
+ ]
+
+C:\laragon\www\mmorpg\tests\database\NpcSpawnNamedLockTest.php:145
+
+[37;41mFAILURES![0m
+[37;41mTests: 2[0m[37;41m, Assertions: 6[0m[37;41m, Failures: 1[0m[37;41m, PHPUnit Deprecations: 1[0m[37;41m.[0m
+```

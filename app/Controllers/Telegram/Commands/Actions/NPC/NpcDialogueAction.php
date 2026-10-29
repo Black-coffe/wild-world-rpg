@@ -152,6 +152,11 @@ final class NpcDialogueAction extends BaseAction
 
             case 'fight':
                 $f   = $svc->fight($charId, $spawnId);
+                if (! $f['ok']) {
+                    // Бой не состоялся (спавн уже съеден гонкой / ушёл) — не «ты отступил».
+                    $gone = $f['summary'] ?? '';
+                    return $this->finish($gone !== '' ? $gone : 'NPC уже исчез.', $inMarch);
+                }
                 $won = ($f['won'] ?? false) === true;
                 return $this->finish(
                     $won
@@ -193,6 +198,10 @@ final class NpcDialogueAction extends BaseAction
 
         // NPC сильнее/равный — бросается в бой по своей инициативе.
         $f   = $svc->fight($charId, $spawnId);
+        if (! $f['ok']) {
+            $gone = $f['summary'] ?? '';
+            return $this->finish($gone !== '' ? $gone : 'NPC уже исчез.', $inMarch);
+        }
         $won = ($f['won'] ?? false) === true;
         return $this->finish(
             $won
