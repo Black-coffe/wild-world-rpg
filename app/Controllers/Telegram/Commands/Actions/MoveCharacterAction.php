@@ -80,6 +80,12 @@ class MoveCharacterAction
         // можно, как из нижней «🌍 Мир» (GenericmessageCommand::handleWorld). Шаг во время такой задачи
         // отклоняет MoveService::step() → BUSY (задачи с parallel_execution_allowed = 0).
         // Рендер поверхности ходьбы — единый для move / «🌍 Мир» / /go.
-        return (new MoveSurfaceService())->show($chatId, $character);
+        $response = (new MoveSurfaceService())->show($chatId, $character);
+
+        // E-FIRST: первый шаг новичка с экрана Роби (`move~cold`) — после компаса один раз полное
+        // меню. Гейты (флаг, метка cold, маркер) — внутри сервиса; он никогда не бросает.
+        (new \App\Services\Onboarding\FirstStepMenuService())->maybeAttach((int) $character['id'], (int) $chatId);
+
+        return $response;
     }
 }

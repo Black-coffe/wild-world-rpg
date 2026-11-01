@@ -81,7 +81,18 @@ class GenericmessageCommand extends SystemCommand
             \App\Services\Logging\ActionOrigin::set(\App\Services\Logging\ActionOrigin::FROM_COLDOPEN);
             \App\Services\Logging\PlayerActionLogger::current()->setOrigin(\App\Services\Logging\ActionOrigin::FROM_COLDOPEN);
 
-            return $this->handleWorld($chatId);
+            $worldResponse = $this->handleWorld($chatId);
+
+            // e-first-02: после компаса один раз полное меню (гейты и маркер — в сервисе).
+            $userRow = (new TelegramUserModel())->where('telegram_id', $this->getMessage()->getFrom()->getId())->first();
+            if (is_array($userRow)) {
+                $character = (new CharacterModel())->where('telegram_user_id', $userRow['id'])->first();
+                if ($character instanceof \App\Entities\CharacterEntity) {
+                    (new \App\Services\Onboarding\FirstStepMenuService())->maybeAttach((int) $character->id, (int) $chatId);
+                }
+            }
+
+            return $worldResponse;
         }
 
         switch ($text) {
