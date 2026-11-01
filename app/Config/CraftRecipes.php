@@ -248,6 +248,112 @@ class CraftRecipes extends BaseConfig
         ],
 
         // ============================================================
+        // D-DEAD-RES — полевые лекарства первого верстака из мёртвого сырья
+        // (семь самых накопленных ресурсов без потребителя, срез прода 2026-11-01).
+        // Без гейта верстака (как вся «💊 Лекарства»), уровень = максимум
+        // level_required сырья. Лечение — GameSettings medical.<snake>.heal_*,
+        // карточка — генерик MedicalRecipePreviewT3Action (craftPreviewT3Medical_<Key>).
+        // Цена предмета держит «не печатает золото» (CraftRecipesDeadResourcesTest).
+        // ============================================================
+
+        'Antivenom' => [
+            'task_name'            => 'craftAntivenom',
+            'required_level'       => 5,
+            'resources'            => [
+                'Змеиный яд' => 6,
+                'Снег'       => 10,
+            ],
+            'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',
+            'image_in_progress'    => 'uploads/telegram/craft/antivenom.jpg',
+            'start_caption_name'   => '🐍 *Сыворотку от яда*',
+            'info_callback'        => 'craftPreviewT3Medical_Antivenom',
+
+            'item_name_eng'        => 'Antivenom',
+            'item_name_rus'        => 'Сыворотка от яда',
+            'icon_emoji'           => '🐍',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/antivenom.jpg',
+            'craft_again_callback' => 'genericCraft_Antivenom_1',
+        ],
+
+        'ChitinPatch' => [
+            'task_name'            => 'craftChitinPatch',
+            'required_level'       => 2,
+            'resources'            => [
+                'Тропические насекомые' => 12,
+                'Капельники'            => 4,
+            ],
+            'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',
+            'image_in_progress'    => 'uploads/telegram/craft/chitin_patch.jpg',
+            'start_caption_name'   => '🩹 *Хитиновый пластырь*',
+            'info_callback'        => 'craftPreviewT3Medical_ChitinPatch',
+
+            'item_name_eng'        => 'ChitinPatch',
+            'item_name_rus'        => 'Хитиновый пластырь',
+            'icon_emoji'           => '🩹',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/chitin_patch.jpg',
+            'craft_again_callback' => 'genericCraft_ChitinPatch_1',
+        ],
+
+        'SulfurOintment' => [
+            'task_name'            => 'craftSulfurOintment',
+            'required_level'       => 5,
+            'resources'            => [
+                'Сера'                => 5,
+                'Вулканический пепел' => 8,
+            ],
+            'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',
+            'image_in_progress'    => 'uploads/telegram/craft/sulfur_ointment.jpg',
+            'start_caption_name'   => '🧴 *Серную мазь*',
+            'info_callback'        => 'craftPreviewT3Medical_SulfurOintment',
+
+            'item_name_eng'        => 'SulfurOintment',
+            'item_name_rus'        => 'Серная мазь',
+            'icon_emoji'           => '🧴',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/sulfur_ointment.jpg',
+            'craft_again_callback' => 'genericCraft_SulfurOintment_1',
+        ],
+
+        'MineralTablets' => [
+            'task_name'            => 'craftMineralTablets',
+            'required_level'       => 7,
+            'resources'            => [
+                'Редкие руды' => 3,
+                'Капельники'  => 3,
+                'Снег'        => 5,
+            ],
+            'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',
+            'image_in_progress'    => 'uploads/telegram/craft/mineral_tablets.jpg',
+            'start_caption_name'   => '💊 *Минеральные таблетки*',
+            'info_callback'        => 'craftPreviewT3Medical_MineralTablets',
+
+            'item_name_eng'        => 'MineralTablets',
+            'item_name_rus'        => 'Минеральные таблетки',
+            'icon_emoji'           => '💊',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.03,
+            'image_completed'      => 'uploads/telegram/craft/mineral_tablets.jpg',
+            'craft_again_callback' => 'genericCraft_MineralTablets_1',
+        ],
+
+        // ============================================================
         // F3.B6 (v0.22.0) — Components 10 крафтов
         // ============================================================
 

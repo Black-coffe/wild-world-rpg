@@ -50,6 +50,15 @@ class MedicalCraft1Action extends BaseAction
                 [ 'label' => '🔋 Регенератор',           'callback' => 'regenerator',         'name_eng' => 'Regenerator',         ],
                 [ 'label' => '🚑 Аптечка базовая',       'callback' => 'basicMedKit',         'name_eng' => 'FirstAidKit',         ],
             ],
+            // D-DEAD-RES: полевые лекарства из мёртвого сырья — генерик-карточка рецепта.
+            [
+                [ 'label' => '🐍 Сыворотка от яда',      'callback' => 'craftPreviewT3Medical_Antivenom',      'name_eng' => 'Antivenom',      ],
+                [ 'label' => '🩹 Хитиновый пластырь',    'callback' => 'craftPreviewT3Medical_ChitinPatch',    'name_eng' => 'ChitinPatch',    ],
+            ],
+            [
+                [ 'label' => '🧴 Серная мазь',           'callback' => 'craftPreviewT3Medical_SulfurOintment', 'name_eng' => 'SulfurOintment', ],
+                [ 'label' => '💊 Минеральные таблетки',  'callback' => 'craftPreviewT3Medical_MineralTablets', 'name_eng' => 'MineralTablets', ],
+            ],
         ];
 
         // Формируем клавиатуру

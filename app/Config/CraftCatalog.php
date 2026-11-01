@@ -47,7 +47,7 @@ class CraftCatalog extends BaseConfig
                 'medicine' => [
                     'label'   => '💊 Лекарства',
                     'bot'     => 'medicinesCraft1',
-                    'recipes' => ['Antiseptic', 'PainReliefPower', 'StrengthElixir', 'Bandage', 'Sedative', 'Stimulator', 'Regenerator', 'BasicMedKit'],
+                    'recipes' => ['Antiseptic', 'PainReliefPower', 'StrengthElixir', 'Bandage', 'Sedative', 'Stimulator', 'Regenerator', 'BasicMedKit', 'Antivenom', 'ChitinPatch', 'SulfurOintment', 'MineralTablets'],
                 ],
                 'tools' => [
                     'label'   => '🛠️ Инструменты',

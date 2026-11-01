@@ -8,6 +8,8 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
+use App\Services\Craft\CraftCardHelper;
+use App\Services\Craft\CraftDurationService;
 use App\Services\GameSettings\GameSettingsService;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\CallbackQuery;
@@ -25,21 +27,27 @@ use App\Services\Telegram\Request;
  * Зеркало `ArmorRecipePreviewT3Action` (S18) — но вместо outfit-статов показывает
  * heal-эффект из GameSettings (medical.<key>.heal_health/.heal_tired) и
  * durability_count (кол-во применений). CraftRecipes — single source of truth.
+ *
+ * D-DEAD-RES: карточка обслуживает и лекарства первого верстака (рецепт без
+ * `required_crafted_items`) — тогда без метки «(T3)», «Назад» ведёт в «💊 Лекарства»
+ * (`medicinesCraft1`). Сырьё считается пулом рюкзак+склад через
+ * {@see CraftCardHelper::available()} (паритет с гейтом старта), время крафта —
+ * {@see CraftDurationService}, кнопки количества — {@see CraftCardHelper::quantityRows()}.
  */
 class MedicalRecipePreviewT3Action extends BaseAction
 {
-    private CharacterResourceModel $characterResourceModel;
     private CraftedItemsModel      $craftedItemsModel;
     private CraftedItemsLogModel   $craftedItemsLogModel;
     private GameSettingsService    $gameSettings;
+    private CraftCardHelper        $craftCardHelper;
 
     public function __construct(CallbackQuery $callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->characterResourceModel = new CharacterResourceModel();
         $this->craftedItemsModel      = new CraftedItemsModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
         $this->gameSettings           = new GameSettingsService();
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -123,15 +131,28 @@ class MedicalRecipePreviewT3Action extends BaseAction
         // Resources.
         $resourcesRaw = $recipe['resources'] ?? [];
         $resources = is_array($resourcesRaw) ? $resourcesRaw : [];
-        $resourceLines = [];
+        // F3.B8: gold_required умножается на количество — ступень, недоступная по золоту, не показывается.
+        $maxAffordable = $goldNeed > 0 ? intdiv(max(0, $goldHave), $goldNeed) : PHP_INT_MAX;
+
+        // ADR-171: доступность — пул рюкзак + склад базы, как у гейта старта.
+        $requiredResources = [];
         foreach ($resources as $resName => $qtyNeedRaw) {
-            $resNameStr = is_string($resName) ? $resName : (string) $resName;
-            $qtyNeed = $this->intFromMixed($qtyNeedRaw);
-            $charRes = $this->characterResourceModel->getResourceByNameAndCharacterId($resNameStr, $characterId);
-            $have    = is_array($charRes) ? $this->intFromMixed($charRes['quantity'] ?? 0) : 0;
-            $marker  = $have >= $qtyNeed ? '✅' : '❌';
+            $requiredResources[is_string($resName) ? $resName : (string) $resName] = $this->intFromMixed($qtyNeedRaw);
+        }
+        $availableByName = [];
+        foreach ($this->craftCardHelper->available($characterId, $requiredResources) as $row) {
+            $availableByName[$row['name']] = $row['quantity'];
+        }
+
+        $resourceLines = [];
+        foreach ($requiredResources as $resNameStr => $qtyNeed) {
+            $have   = $availableByName[$resNameStr] ?? 0;
+            $marker = $have >= $qtyNeed ? '✅' : '❌';
             if ($have < $qtyNeed) {
                 $insufficient[] = "{$resNameStr}: нужно {$qtyNeed}, есть {$have}";
+            }
+            if ($qtyNeed > 0) {
+                $maxAffordable = min($maxAffordable, intdiv($have, $qtyNeed));
             }
             $resourceLines[] = "{$marker} {$resNameStr} — {$have} / {$qtyNeed}";
         }
@@ -159,8 +180,15 @@ class MedicalRecipePreviewT3Action extends BaseAction
             if ($have < $qtyNeed) {
                 $insufficient[] = "{$rusName}: нужно {$qtyNeed}, есть {$have}";
             }
+            if ($qtyNeed > 0) {
+                $maxAffordable = min($maxAffordable, intdiv($have, $qtyNeed));
+            }
             $componentLines[] = "{$marker} {$rusName} — {$have} / {$qtyNeed}";
         }
+        if ($maxAffordable === PHP_INT_MAX) {
+            $maxAffordable = 0;
+        }
+        $levelOk = !($needLevel > 0 && $charLevel < $needLevel);
 
         // Heal-эффект из GameSettings (admin-tunable).
         $snake     = $this->toSnakeCase($itemNameEng);
@@ -176,6 +204,10 @@ class MedicalRecipePreviewT3Action extends BaseAction
         $taskNameStr = is_string($taskNameRaw) ? $taskNameRaw : '';
         $taskRow     = $taskNameStr !== '' ? $taskModel->where('name', $taskNameStr)->first() : null;
         $bg          = $scope->isBackground(is_array($taskRow) ? ($taskRow['parallel_execution_allowed'] ?? 0) : 0);
+        $minutes     = is_array($taskRow)
+            ? (new CraftDurationService())->minutesForOne($character, $taskRow, $recipe)
+            : 0;
+        $isPro       = !empty($gate);
 
         // Build caption.
         $itemNameRusRaw = $recipe['item_name_rus'] ?? $recipeKey;
@@ -183,7 +215,7 @@ class MedicalRecipePreviewT3Action extends BaseAction
         $iconRaw        = $recipe['icon_emoji'] ?? '💊';
         $icon           = is_string($iconRaw) ? $iconRaw : '💊';
 
-        $caption = "{$icon} *{$itemNameRus}* (T3)\n";
+        $caption = "{$icon} *{$itemNameRus}*" . ($isPro ? ' (T3)' : '') . "\n";
         $effectParts = [];
         if ($healHealth !== 0) {
             $effectParts[] = "❤️ +{$healHealth} HP";
@@ -199,8 +231,13 @@ class MedicalRecipePreviewT3Action extends BaseAction
             $caption .= "_Многоразовый: {$uses} применения_\n";
         }
         $caption .= "\n" . $scope->scopeLine(\App\Services\Tasks\ActionScopeService::KIND_CRAFT, $bg) . "\n";
-        $caption .= "\n*Уровень:* L{$needLevel} (у вас L{$charLevel})\n";
-        $caption .= "*Золото:* {$goldNeed} / {$goldHave}\n";
+        if ($minutes > 0) {
+            $caption .= '*Время крафта (1 шт.):* _~' . $scope->humanMinutes($minutes) . "_\n";
+        }
+        $caption .= "\n*Уровень:* L{$needLevel} (у вас L{$charLevel})" . ($levelOk ? '' : ' 🔒') . "\n";
+        if ($goldNeed > 0) {
+            $caption .= "*Золото:* {$goldNeed} / {$goldHave}\n";
+        }
 
         if (!empty($gate)) {
             $caption .= "\n*Требуется в инвентаре:*\n";
@@ -232,12 +269,15 @@ class MedicalRecipePreviewT3Action extends BaseAction
 
         $rows = [];
         if ($canCraft) {
-            $rows[] = [['text' => '🛠 Скрафтить 1 шт', 'callback_data' => 'genericCraft_' . $recipeKey . '_1']];
+            $rows = $this->craftCardHelper->quantityRows($recipeKey, $maxAffordable);
         }
-        $rows[] = [
-            ['text' => '⬅️ Назад к медицине', 'callback_data' => 'craftMedicalT3Select'],
-            ['text' => '🎒 Инвентарь',         'callback_data' => 'inventory'],
-        ];
+        $back = $isPro
+            ? ['text' => '⬅️ Назад к медицине', 'callback_data' => 'craftMedicalT3Select']
+            : ['text' => '⬅️ Назад к лекарствам', 'callback_data' => 'medicinesCraft1'];
+        // Уровень пройден, но не хватает сырья — выход на карту нехватки, а не тупик.
+        $rows[] = $levelOk && !$canCraft
+            ? [$this->craftCardHelper->fallbackButton($recipeKey), $back]
+            : [$back, ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']];
 
         // Image: recipe-specific, fallback на verstack.
         $imageRel = $recipe['image_in_progress'] ?? 'uploads/telegram/craft/professional_workbench.jpg';
