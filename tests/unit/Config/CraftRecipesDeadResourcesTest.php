@@ -186,6 +186,18 @@ final class CraftRecipesDeadResourcesTest extends CIUnitTestCase
         }
     }
 
+    /**
+     * Repair round 1: незнакомое name_eng `Consumables::shelfOf()` отправляет на «🍲 Провизия».
+     * Совет обещает «💊 Аптечка» — новые лекарства обязаны стоять в MEDICINE.
+     */
+    public function testEachNewDrugStandsOnThePharmacyShelf(): void
+    {
+        foreach (self::NEW_KEYS as $key) {
+            $this->assertContains($key, \Config\Consumables::MEDICINE, "{$key} не на полке 💊 Аптечка");
+            $this->assertNotContains($key, \Config\Consumables::PROVISION, "{$key} попал в провизию");
+        }
+    }
+
     public function testBotMedicineMenuOpensEachNewRecipeCard(): void
     {
         $src = (string) file_get_contents(self::BOT_MENU);

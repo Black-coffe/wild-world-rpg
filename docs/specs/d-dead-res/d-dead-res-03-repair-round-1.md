@@ -1,13 +1,14 @@
 ---
 story: d-dead-res-03
-status: todo
-returned:
+status: done
+returned: DONE
 worker: worker-code
 model: opus
 wave: 3
 blocked_by: []
 red: required
-red_reason:
+red_reason: Antivenom не на полке 💊 Аптечка
+red_verified_at: 2026-11-01T21:02:30Z 85792db8c803b4908d9fc25c56d1f3f4b343c8bf70057237a0d200020d0f0643
 ---
 
 # Repair round 1
@@ -40,9 +41,44 @@ Make the asks and findings council round 1 left RED pass, and change nothing els
 - app/Database/Migrations/2026-12-23-100020_SeedFieldMedicineTip.php
 - GAME_DESCRIPTION.md
 - ROADMAP.md
+- app/Config/Consumables.php
+- tests/database/PlayViewControllerTest.php
+- tests/unit/Player/ConsumableShelfTest.php
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Config/CraftRecipesDeadResourcesTest.php`
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Config/CraftRecipesTest.php`
 `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
+
+## Red receipt
+- command: vendor/bin/phpunit --no-coverage --no-progress tests/unit/Config/CraftRecipesDeadResourcesTest.php
+- exit: 1
+- tests: 85792db8c803b4908d9fc25c56d1f3f4b343c8bf70057237a0d200020d0f0643 (tests/unit/Config/CraftRecipesDeadResourcesTest.php)
+- impl: 1da9666038b7f5f9db12e959e629601c5d591db54f9ad561333840ba21afa0aa
+- stamped: 2026-11-01T21:02:30Z
+
+```
+There was 1 failure:
+
+1) Tests\Unit\Config\CraftRecipesDeadResourcesTest::testEachNewDrugStandsOnThePharmacyShelf
+Antivenom не на полке 💊 Аптечка
+Failed asserting that an array contains 'Antivenom'.
+
+C:\laragon\www\mmorpg\tests\unit\Config\CraftRecipesDeadResourcesTest.php:196
+
+[37;41mFAILURES![0m
+[37;41mTests: 8[0m[37;41m, Assertions: 200[0m[37;41m, Failures: 1[0m[37;41m, PHPUnit Deprecations: 1[0m[37;41m.[0m
+```
+
+## Implementation notes
+- Finding 1 (регрессия `/play`): `PlayViewControllerTest` ждёт `💊 Лекарства · 12` — 8 прежних + 4 новых в `CraftCatalog`.
+- Finding 2 (ask 2, полка): `Config\Consumables::MEDICINE` += `Antivenom`, `ChitinPatch`, `SulfurOintment`,
+  `MineralTablets`. Красный тест — `CraftRecipesDeadResourcesTest::testEachNewDrugStandsOnThePharmacyShelf`.
+- Та же правка уронила `ConsumableShelfTest::testFullCatalogScreenFitsTelegramTextLimit` (каталог фикстуры не знал
+  новых имён). Добавил 4 строки с прод-формой; полный экран полки из 19 лекарств укладывается в 4096. Файл внесён
+  в `## Files`, как и `Consumables.php` и `PlayViewControllerTest.php`: Findings называют их прямо.
+- Minor с ревью: строка Plan deltas про время в минутах добавлена в `plan.md`. Числа лечения в итоге крафта
+  (`GenericCraftCompletionHandler`) не трогал: ask 6 про карточку рецепта закрыт, итог несёт имя, количество и зону, как
+  у всех рецептов. Это общий handler всех крафтов, вне файлов спеки.
+- Полный набор локально: 5083 теста, 0 падений, 10 skipped (08:44). phpstan чист.
