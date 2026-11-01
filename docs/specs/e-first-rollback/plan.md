@@ -32,7 +32,7 @@ none
 
 **Approved:**
 **Briefed:** via mini-brief, Andrei, 2026-11-01
-**Branch:**
+**Branch:** vulyk/e-first-rollback
 **Checked:**
 **Council:**
 **Shipped:**
