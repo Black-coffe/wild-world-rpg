@@ -73,11 +73,9 @@ class GenericmessageCommand extends SystemCommand
 
         // E-FIRST: нижняя кнопка первого шага новичка ведёт туда же, куда inline `move~cold` экрана
         // Роби, — в компас. Метка `cold` ставится до записи firehose (commit в UpdatePipeline),
-        // чтобы шаг с нижней кнопки считался вместе с шагом с экрана Роби. При OFF текст уходит
-        // в обычный разбор ниже, как раньше.
-        if (\App\Services\Onboarding\ColdOpenWelcomeService::isFirstStepText($text)
-            && (new \App\Services\Onboarding\ColdOpenGreetingService())->firstStepKeyboardEnabled()
-        ) {
+        // чтобы шаг с нижней кнопки считался вместе с шагом с экрана Роби. Флаг здесь НЕ читается
+        // (e-first-rollback): после отката у новичка ещё висит эта кнопка — она обязана работать.
+        if (\App\Services\Onboarding\ColdOpenWelcomeService::isFirstStepText($text)) {
             \App\Services\Logging\ActionOrigin::set(\App\Services\Logging\ActionOrigin::FROM_COLDOPEN);
             \App\Services\Logging\PlayerActionLogger::current()->setOrigin(\App\Services\Logging\ActionOrigin::FROM_COLDOPEN);
 
@@ -88,7 +86,7 @@ class GenericmessageCommand extends SystemCommand
             if (is_array($userRow)) {
                 $character = (new CharacterModel())->where('telegram_user_id', $userRow['id'])->first();
                 if ($character instanceof \App\Entities\CharacterEntity) {
-                    (new \App\Services\Onboarding\FirstStepMenuService())->maybeAttach((int) $character->id, (int) $chatId);
+                    (new \App\Services\Onboarding\FirstStepMenuService())->maybeAttach((int) $character->id, (int) $chatId, true);
                 }
             }
 

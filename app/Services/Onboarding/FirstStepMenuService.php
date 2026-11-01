@@ -28,13 +28,20 @@ class FirstStepMenuService
     /** Маркер one-shot в `action_log`. */
     public const MARKER = 'FirstStepMenuAttached';
 
-    /** Зовётся ПОСЛЕ ответа компаса: меню приходит вторым сообщением, не подменяя экран шага. */
-    public function maybeAttach(int $charId, int $chatId): void
+    /**
+     * Зовётся ПОСЛЕ ответа компаса: меню приходит вторым сообщением, не подменяя экран шага.
+     *
+     * `$fromBottomButton` — шаг сделан нижней кнопкой «🧭 Сделать первый шаг». Её текст приходит только
+     * с клавиатуры E-FIRST, поэтому гейт флага здесь не нужен: после отката флага новичок с уже висящей
+     * кнопкой всё равно получает полное меню (e-first-rollback). Inline-шаг Роби остаётся под флагом —
+     * при OFF его поток байт-в-байт как до E-FIRST.
+     */
+    public function maybeAttach(int $charId, int $chatId, bool $fromBottomButton = false): void
     {
         try {
             if ($charId <= 0 || $chatId === 0
                 || $this->currentOrigin() !== ActionOrigin::FROM_COLDOPEN
-                || ! $this->flagEnabled()
+                || (! $fromBottomButton && ! $this->flagEnabled())
                 || $this->alreadyAttached($charId)
             ) {
                 return;

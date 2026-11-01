@@ -380,3 +380,4 @@
 {"ts":"2026-11-01T13:59:55Z","story":"e-first-01","declared":8,"changed":8,"out_of_scope":0}
 {"ts":"2026-11-01T14:08:58Z","story":"e-first-02","declared":4,"changed":4,"out_of_scope":0}
 {"ts":"2026-11-01T14:36:42Z","story":"e-first-03-repair-round-1","declared":11,"changed":4,"out_of_scope":0}
+{"ts":"2026-11-01T15:23:31Z","story":"e-first-rollback-01","declared":3,"changed":3,"out_of_scope":0}
