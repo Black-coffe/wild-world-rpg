@@ -37,4 +37,5 @@ none
 **Branch:** vulyk/d-dead-res-heal-line
 **Checked:**
 **Council:**
+**Council:** GREEN round 1, 2026-11-01, at efdb7648, pack 83618f32a2d7
 **Shipped:**
