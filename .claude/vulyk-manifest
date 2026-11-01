@@ -72,10 +72,13 @@ scripts/leak-check.sh
 scripts/lib.sh
 scripts/memory-triage.sh
 scripts/model-profile.sh
+scripts/portability-check.sh
 scripts/prompt-check.py
 scripts/prompt-check.sh
+scripts/py.sh
 scripts/redact.sh
 scripts/release-check.sh
+scripts/run-capped.py
 scripts/scope-check.sh
 scripts/ship-check.sh
 scripts/state.sh
