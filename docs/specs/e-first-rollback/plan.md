@@ -35,4 +35,5 @@ none
 **Branch:** vulyk/e-first-rollback
 **Checked:**
 **Council:**
+**Council:** GREEN round 1, 2026-11-01, at b26d9962, pack 5adb80c20183
 **Shipped:**
