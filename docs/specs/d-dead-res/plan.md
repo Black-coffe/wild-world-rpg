@@ -55,6 +55,16 @@
 
 ## Plan deltas
 
+- **Время крафта — `tasks.min/max_duration` (минуты), а не GameSettings** (d-dead-res-01). GameSettings-override
+  `duration_override_setting_key` хранит целые часы (hard_min 1 ч): полевое лекарство варилось бы ≥ 60 мин против
+  3–19 мин у соседей. Так время задано у всех рецептов первого верстака. Минуты в админке — отдельная правка
+  `CraftDurationService`, кандидат в долг D8.
+- **Редких трофеев четыре, не пять** (d-dead-res-02): после семи из 25 остаются 18 — Корона, Книга, Сердце, ТВЭЛы и
+  хвост из 14.
+- **Полка Аптечки** (repair round 1): новые `drug` вписаны в `Config\Consumables::MEDICINE`, иначе `shelfOf()`
+  отправлял их в «🍲 Провизия».
+- Цены сырья — прод-снимок 2026-11-01; на preprod «Вулканический пепел» 13.30 против 3.80 (`preprod-settings-drift`).
+
 **Approved:** владелец («утверждаю»), 2026-11-01
 **Briefed:**
 **Branch:** vulyk/d-dead-res
