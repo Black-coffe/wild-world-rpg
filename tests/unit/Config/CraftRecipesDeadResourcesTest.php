@@ -164,6 +164,28 @@ final class CraftRecipesDeadResourcesTest extends CIUnitTestCase
         }
     }
 
+    /**
+     * ADR-022: у каждого рецепта своя картинка на диске и в реестре генерации.
+     */
+    public function testEachRecipeHasArtOnDiskAndInImageRegistry(): void
+    {
+        $registry = [];
+        foreach ((new \Config\ImageRegistry())->images as $entry) {
+            $registry[$entry['file']] = $entry;
+        }
+
+        foreach (self::NEW_KEYS as $key) {
+            $recipe = $this->recipe($key);
+            foreach (['image_in_progress', 'image_completed'] as $field) {
+                $rel = $recipe[$field] ?? null;
+                $this->assertIsString($rel, "{$key}: {$field}");
+                $this->assertFileExists(FCPATH . $rel, "{$key}: {$field} нет на диске");
+                $this->assertArrayHasKey($rel, $registry, "{$key}: {$rel} нет в Config\\ImageRegistry");
+                $this->assertSame('loot.medicine', $registry[$rel]['lexicon'] ?? null, "{$key}: lexicon");
+            }
+        }
+    }
+
     public function testBotMedicineMenuOpensEachNewRecipeCard(): void
     {
         $src = (string) file_get_contents(self::BOT_MENU);

@@ -1,8 +1,8 @@
 ---
 story: d-dead-res-02
 spec: d-dead-res
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 wave: 2
@@ -52,5 +52,21 @@ blocked_by: [d-dead-res-01]
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- Арт: 4 записи `craft/<snake>` в `Config\ImageRegistry` (`loot.medicine`, V4), `php spark images:generate --key …`
+  локально — 4 ок, статус `generated`. Картинки просмотрены: стиль «Найденная фотоплёнка», текста нет.
+  `CraftRecipesDeadResourcesTest::testEachRecipeHasArtOnDiskAndInImageRegistry` — `is_file` по
+  `image_in_progress`/`image_completed` + запись реестра с `loot.medicine`.
+- Совет `2026-12-23-100020_SeedFieldMedicineTip`: `title_en=FieldMedicineFromWastelandStock`, категория «крафт»,
+  без чисел. Путь «🔨 Крафт → 🔨 Общий крафт → 💊 Лекарства» и «💊 Аптечка» сверены с кнопками
+  (`CraftService.php:119`, `GeneralCraftingAction.php:24`, `CharacterService.php:150`). Прямо говорит, что ран не
+  снимают, чтобы не спорить с советом Wounds. Локально применён (id 158, 546 символов).
+- Канон: `GAME_DESCRIPTION.md` §«Система лечения и медицины» — подраздел «Полевые лекарства из сырья пустошей».
+- ROADMAP: D-DEAD-RES сужен до хвоста из 14 ресурсов, причина про редкие записана. **Расхождение с plan.md:**
+  в плане было «пять редких и хвост из 14». По списку из 25 после семи остаётся 18: четыре редких трофея (Корона,
+  Книга, Сердце, ТВЭЛы) и 14 в хвосте. Записал 4.
+- Tech-writing (vault `d153f7f`): обновлены CraftRecipes, CraftCatalog, UsePharmacyAction, ImageRegistry, Worker;
+  созданы `handlers/craft/MedicalCraft1Action.md`, `handlers/craft/MedicalRecipePreviewT3Action.md`.
+- Вердикты: `/guide` — нет (раздел «🩺 Раны и лекарства» уже ведёт к лекарствам, новой механики нет); совет — да
+  (выше); вход — существующее меню, при нехватке уровня 🔒 в строке уровня на карточке.
 
 ## Findings
