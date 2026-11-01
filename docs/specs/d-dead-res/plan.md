@@ -60,4 +60,5 @@
 **Branch:** vulyk/d-dead-res
 **Checked:**
 **Council:**
+**Council:** RED round 1, 2026-11-01, at a0b3c958, pack c838b68ea4c9
 **Shipped:**
