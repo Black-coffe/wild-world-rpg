@@ -42,6 +42,12 @@ class Consumables extends BaseConfig
         'SurgicalKit',
         'WinterWarmingBalm',
         'SummerAloeBalm',
+        // D-DEAD-RES: полевые лекарства первого верстака — ран не снимают, но лечат и бодрят
+        // как медикаменты; совет и канон ведут к ним через «💊 Аптечка».
+        'Antivenom',
+        'ChitinPatch',
+        'SulfurOintment',
+        'MineralTablets',
     ];
 
     /**

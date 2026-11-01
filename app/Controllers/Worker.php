@@ -172,6 +172,10 @@ class Worker extends Controller
         'craftStimulator'          => 'generic_craft',
         'craftRegenerator'         => 'generic_craft',
         'craftBasicMedKit'         => 'generic_craft',
+        'craftAntivenom'           => 'generic_craft', // D-DEAD-RES
+        'craftChitinPatch'         => 'generic_craft', // D-DEAD-RES
+        'craftSulfurOintment'      => 'generic_craft', // D-DEAD-RES
+        'craftMineralTablets'      => 'generic_craft', // D-DEAD-RES
         'craftLumberjackAxe'        => 'generic_craft',
         'craftStonePickaxe'         => 'generic_craft',
         'craftIronShovel'           => 'generic_craft',
@@ -289,6 +293,10 @@ class Worker extends Controller
         'craftStimulator'          => 'Craft\GenericCraftCompletionHandler',
         'craftRegenerator'         => 'Craft\GenericCraftCompletionHandler',
         'craftBasicMedKit'         => 'Craft\GenericCraftCompletionHandler',
+        'craftAntivenom'           => 'Craft\GenericCraftCompletionHandler', // D-DEAD-RES
+        'craftChitinPatch'         => 'Craft\GenericCraftCompletionHandler', // D-DEAD-RES
+        'craftSulfurOintment'      => 'Craft\GenericCraftCompletionHandler', // D-DEAD-RES
+        'craftMineralTablets'      => 'Craft\GenericCraftCompletionHandler', // D-DEAD-RES
         // F3.B7 (v0.23.0) cutover: 8 tools крафтов через GenericCraftCompletionHandler.
         'craftLumberjackAxe'        => 'Craft\GenericCraftCompletionHandler',
         'craftStonePickaxe'         => 'Craft\GenericCraftCompletionHandler',
