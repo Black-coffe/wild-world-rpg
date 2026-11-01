@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Services\Onboarding;
 
+use App\Services\Onboarding\ColdOpenGreetingService;
 use App\Services\Onboarding\ColdOpenWelcomeService;
 use CodeIgniter\Test\CIUnitTestCase;
 
@@ -134,5 +135,96 @@ final class ColdOpenWelcomeServiceTest extends CIUnitTestCase
         $this->assertSame(['kit', 'signal', 'greeter', 'welcome'], array_column($model, 'role'));
         $this->assertSame('move', $model[3]['inline_keyboard'][0][0]['callback_data']);
         $this->assertSame([], $model[0]['inline_keyboard']);
+    }
+
+    // ── e-first-01: одна нижняя кнопка первого шага ──────────────────────
+
+    /** @return list<array<string, mixed>> */
+    private function bot(bool $firstStep, bool $singleScreen = true): array
+    {
+        $texts                 = $this->texts();
+        $texts['singleScreen'] = $singleScreen;
+
+        return (new ColdOpenWelcomeService(new FirstStepFlagGreeting($firstStep)))->build(ColdOpenWelcomeService::CLIENT_BOT, $texts);
+    }
+
+    /** @param list<array<string, mixed>> $model */
+    private static function carrier(array $model): array
+    {
+        foreach ($model as $msg) {
+            if ($msg['role'] === 'menu_carrier') {
+                return $msg;
+            }
+        }
+        self::fail('в модели бота нет носителя нижней клавиатуры');
+    }
+
+    public function testBotCarrierHoldsOnlyFirstStepButtonWhenFlagOn(): void
+    {
+        foreach ([true, false] as $singleScreen) {
+            $carrier = self::carrier($this->bot(true, $singleScreen));
+
+            $this->assertSame(
+                [['🧭 Сделать первый шаг']],
+                $carrier['reply_keyboard'] ?? null,
+                'при ON носитель снова несёт полное меню'
+            );
+            $this->assertDoesNotMatchRegularExpression('/ниже|внизу|нижн\w* меню|клавиатур/iu', (string) $carrier['text']);
+            $this->assertNotSame('', trim((string) $carrier['text']), 'Telegram не вешает клавиатуру на пустой текст');
+        }
+    }
+
+    public function testBotCarrierKeepsMainMenuWhenFlagOff(): void
+    {
+        $carrier = self::carrier($this->bot(false));
+
+        $this->assertArrayNotHasKey('reply_keyboard', $carrier, 'при OFF носитель несёт полное меню, как раньше');
+        $this->assertSame((new FirstStepFlagGreeting(false))->menuAttachText(), $carrier['text']);
+    }
+
+    public function testRobiScreenUnchangedByFirstStepFlag(): void
+    {
+        $on  = $this->bot(true);
+        $off = $this->bot(false);
+
+        $this->assertSame(array_slice($off, 1), array_slice($on, 1), 'экран Роби и его inline-кнопки не меняются');
+    }
+
+    /** repair-1: inline-кнопка Роби держит литерал подписи рядом с `move` (анти-дрейф ColdOpenSingleScreenTest). */
+    public function testRobiInlineButtonKeepsLiteralLabelNextToMove(): void
+    {
+        $source = (string) file_get_contents(APPPATH . 'Services/Onboarding/ColdOpenWelcomeService.php');
+
+        $this->assertStringContainsString(
+            "['text' => '🧭 Сделать первый шаг', 'callback_data' => ActionOrigin::tag('move'",
+            $source,
+            'repair-1: литерал кнопки Роби потерян'
+        );
+    }
+
+    public function testFirstStepTextIsRecognisedInAnyCase(): void
+    {
+        $this->assertTrue(ColdOpenWelcomeService::isFirstStepText('🧭 Сделать первый шаг'));
+        $this->assertTrue(ColdOpenWelcomeService::isFirstStepText('🧭 сделать первый шаг'));
+        $this->assertTrue(ColdOpenWelcomeService::isFirstStepText('  🧭 СДЕЛАТЬ ПЕРВЫЙ ШАГ '));
+        $this->assertFalse(ColdOpenWelcomeService::isFirstStepText('сделать первый шаг'), 'без значка — не нажатие кнопки');
+        $this->assertFalse(ColdOpenWelcomeService::isFirstStepText('🌍 Мир'));
+    }
+}
+
+/** @internal */
+final class FirstStepFlagGreeting extends ColdOpenGreetingService
+{
+    public function __construct(private bool $firstStep)
+    {
+    }
+
+    protected function gsBool(string $key, bool $default): bool
+    {
+        return match ($key) {
+            'onboarding.cold_open_v2.first_step_keyboard' => $this->firstStep,
+            'onboarding.cold_open_v2.start_greeting', 'onboarding.cold_open_v2.menu_defer' => true,
+            default => throw new \LogicException("Неожиданный флаг {$key}"),
+        };
     }
 }

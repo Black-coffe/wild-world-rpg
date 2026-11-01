@@ -52,6 +52,22 @@ class BotMenuService
     }
 
     /**
+     * Нижняя reply-клавиатура из готовых рядов подписей (E-FIRST: одна кнопка первого шага у
+     * новичка; ряды решает ядро первого экрана). Те же параметры, что у {@see mainReplyKeyboard()}.
+     *
+     * @param list<list<string>> $rows
+     */
+    public static function replyKeyboardFromRows(array $rows): Keyboard
+    {
+        return new Keyboard([
+            'keyboard'          => $rows,
+            'resize_keyboard'   => true,
+            'one_time_keyboard' => false,
+            'selective'         => false,
+        ]);
+    }
+
+    /**
      * Ряды нижнего меню — ЕДИНЫЙ источник истины (клавиатура + тексты, которые её называют).
      *
      * @return list<list<string>>

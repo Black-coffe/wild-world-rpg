@@ -155,10 +155,13 @@ class StartCommand extends UserCommand
         $response = null;
         foreach ($this->welcomeService()->build(\App\Services\Onboarding\ColdOpenWelcomeService::CLIENT_BOT, $created) as $msg) {
             if ($msg['role'] === 'menu_carrier') {
+                // E-FIRST: ряды нижней клавиатуры решает ядро; без них — полное меню.
                 $payload = [
                     'chat_id'      => $chatId,
                     'text'         => $msg['text'],
-                    'reply_markup' => $replyKeyboard,
+                    'reply_markup' => isset($msg['reply_keyboard'])
+                        ? (string) \App\Services\Telegram\BotMenuService::replyKeyboardFromRows($msg['reply_keyboard'])
+                        : $replyKeyboard,
                 ];
             } else {
                 $payload = [

@@ -71,6 +71,30 @@ class GenericmessageCommand extends SystemCommand
             }
         }
 
+        // E-FIRST: нижняя кнопка первого шага новичка ведёт туда же, куда inline `move~cold` экрана
+        // Роби, — в компас. Метка `cold` ставится до записи firehose (commit в UpdatePipeline),
+        // чтобы шаг с нижней кнопки считался вместе с шагом с экрана Роби. При OFF текст уходит
+        // в обычный разбор ниже, как раньше.
+        if (\App\Services\Onboarding\ColdOpenWelcomeService::isFirstStepText($text)
+            && (new \App\Services\Onboarding\ColdOpenGreetingService())->firstStepKeyboardEnabled()
+        ) {
+            \App\Services\Logging\ActionOrigin::set(\App\Services\Logging\ActionOrigin::FROM_COLDOPEN);
+            \App\Services\Logging\PlayerActionLogger::current()->setOrigin(\App\Services\Logging\ActionOrigin::FROM_COLDOPEN);
+
+            $worldResponse = $this->handleWorld($chatId);
+
+            // e-first-02: после компаса один раз полное меню (гейты и маркер — в сервисе).
+            $userRow = (new TelegramUserModel())->where('telegram_id', $this->getMessage()->getFrom()->getId())->first();
+            if (is_array($userRow)) {
+                $character = (new CharacterModel())->where('telegram_user_id', $userRow['id'])->first();
+                if ($character instanceof \App\Entities\CharacterEntity) {
+                    (new \App\Services\Onboarding\FirstStepMenuService())->maybeAttach((int) $character->id, (int) $chatId);
+                }
+            }
+
+            return $worldResponse;
+        }
+
         switch ($text) {
             // ADR-150: «Перс»/«База»/«Крафт» есть и в старом, и в новом каркасе — сами по себе
             // уликой не служат, но пере-аттач всё равно пробуем: он one-shot и пропускает тех,

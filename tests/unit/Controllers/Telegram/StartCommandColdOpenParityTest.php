@@ -69,6 +69,41 @@ final class StartCommandColdOpenParityTest extends CIUnitTestCase
         }
     }
 
+    /** e-first-01: при ON носитель уходит с одной кнопкой первого шага, а не с полным меню. */
+    public function testFirstStepFlagSendsSingleButtonKeyboardOnCarrier(): void
+    {
+        $snapshots = require __DIR__ . '/StartCommandColdOpenSnapshots.php';
+
+        foreach ($snapshots as $name => $case) {
+            ActionOrigin::overrideEnabled($case['flags']['action_origin']);
+
+            $command           = new RecordingStartCommand(new Telegram('123456:TEST_TOKEN', 'test_bot'));
+            $command->greeting = new FlagGreeting($case['flags']['start_greeting'], $case['flags']['menu_defer'], true);
+            $command->render(777, $case['created'], 'REPLY_KB');
+
+            $carrier = $command->calls[0][1];
+            $markup  = $carrier['reply_markup'] ?? null;
+            $this->assertNotSame('REPLY_KB', $markup, "при ON носитель снова несёт полное меню: {$name}");
+
+            $decoded = json_decode((string) $markup, true);
+            $this->assertIsArray($decoded, "reply_markup носителя — JSON клавиатуры: {$name}");
+            $labels = [];
+            foreach ($decoded['keyboard'] ?? [] as $row) {
+                foreach ($row as $btn) {
+                    $labels[] = is_array($btn) ? ($btn['text'] ?? '') : $btn;
+                }
+            }
+            $this->assertSame(['🧭 Сделать первый шаг'], $labels, "одна кнопка первого шага: {$name}");
+
+            // Всё, что после носителя, — байт-в-байт как при OFF.
+            $this->assertSame(
+                json_encode(array_slice($case['calls'], 1), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                json_encode(array_slice($command->calls, 1), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                "экран Роби разошёлся со снимком: {$name}"
+            );
+        }
+    }
+
     /** В StartCommand не осталось ни легаси-текста, ни клавиатуры cold open. */
     public function testStartCommandHoldsNoColdOpenCopy(): void
     {
@@ -83,7 +118,7 @@ final class StartCommandColdOpenParityTest extends CIUnitTestCase
 /** @internal */
 final class FlagGreeting extends ColdOpenGreetingService
 {
-    public function __construct(private bool $startGreeting, private bool $menuDefer)
+    public function __construct(private bool $startGreeting, private bool $menuDefer, private bool $firstStep = false)
     {
     }
 
@@ -92,6 +127,7 @@ final class FlagGreeting extends ColdOpenGreetingService
         return match ($key) {
             'onboarding.cold_open_v2.start_greeting' => $this->startGreeting,
             'onboarding.cold_open_v2.menu_defer'     => $this->menuDefer,
+            'onboarding.cold_open_v2.first_step_keyboard' => $this->firstStep,
             default                                  => throw new \LogicException("Неожиданный флаг {$key}"),
         };
     }
