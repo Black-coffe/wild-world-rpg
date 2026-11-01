@@ -27,3 +27,8 @@ ERROR/CRITICAL в логе testbot за время смоука нет. Флаг
 Проверки только на чтение, живой проход на проде не делаем. Код на месте. Миграция посеяла `first_step_keyboard = 0`.
 `getWebhookInfo`: `pending_update_count = 0`, ошибок нет. В логе за 15 минут одна посторонняя строка
 (`GreenhouseProductionHandler`: «bot was blocked by the user»). Флаг включает владелец через админку.
+
+## Включение на проде
+
+- 2026-11-01 20:41:23 (время БД прода): `onboarding.cold_open_v2.first_step_keyboard = 1` через `/admin/game-settings` (кэш сброшен админкой). `logging.action_origin.enabled = 1`.
+- Когорта для порога из `plan.md` (`## Success threshold`) — новички, созданные после этого момента.
