@@ -629,6 +629,47 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
     }
 
     /**
+     * Строка лечения для итога крафта: «🩺 Лечит: ❤️ +N здоровья, ⚡ +M выносливости».
+     * Только `type='drug'` с ключом `medical.<snake>.heal_health` — те же ключи и то же
+     * snake-правило, что у `UsePharmacyAction::resolveEffectsFromSettings()`; нулевая часть
+     * опускается. Без `*`/`_`: итог уходит с parse_mode=Markdown.
+     *
+     * @param array<string,mixed>          $craftedItem строка `crafted_items`
+     * @param \Closure(string): mixed      $setting     геттер GameSettings по ключу (null — нет ключа)
+     */
+    public static function healLine(array $craftedItem, \Closure $setting): ?string
+    {
+        if (($craftedItem['type'] ?? null) !== 'drug') {
+            return null;
+        }
+        $nameEng = $craftedItem['name_eng'] ?? null;
+        if (!is_string($nameEng) || $nameEng === '') {
+            return null;
+        }
+
+        $snake = preg_replace('/([a-z0-9])([A-Z])/', '$1_$2', $nameEng) ?? $nameEng;
+        $snake = str_replace([' ', '-'], '_', $snake);
+        $snake = preg_replace('/_+/', '_', $snake) ?? $snake;
+        $snake = strtolower(trim($snake, '_'));
+
+        $health = $setting("medical.{$snake}.heal_health");
+        if (!is_numeric($health)) {
+            return null;
+        }
+        $tired = $setting("medical.{$snake}.heal_tired");
+
+        $parts = [];
+        if ((int) $health !== 0) {
+            $parts[] = '❤️ +' . (int) $health . ' здоровья';
+        }
+        if (is_numeric($tired) && (int) $tired !== 0) {
+            $parts[] = '⚡ +' . (int) $tired . ' выносливости';
+        }
+
+        return $parts === [] ? null : '🩺 Лечит: ' . implode(', ', $parts);
+    }
+
+    /**
      * @param array<string,mixed> $craftedItem
      * @param array<string,mixed> $recipe
      */
@@ -665,8 +706,15 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
 
         $itemNameRus = $craftedItem['name_rus'] ?? $recipe['item_name_rus'];
 
+        // d-dead-res-heal-line (ADR-020): лекарство с лечением в GameSettings — числа в итоге,
+        // чтобы он читался без фото так же полно, как карточка рецепта.
+        $gameSettings = new \App\Services\GameSettings\GameSettingsService();
+        $healLine     = self::healLine($craftedItem, static fn (string $key): mixed => $gameSettings->get($key, null));
+
         $text = "📌 *Крафт завершён!*\n\n"
-            . "Ты создал: {$recipe['icon_emoji']} *{$itemNameRus}* x{$quantityAdded} шт.\n\n"
+            . "Ты создал: {$recipe['icon_emoji']} *{$itemNameRus}* x{$quantityAdded} шт.\n"
+            . ($healLine !== null ? $healLine . "\n" : '')
+            . "\n"
             . ($this->yieldBoostNote !== null ? $this->yieldBoostNote . "\n\n" : '')
             . "Теперь у тебя *{$totalNow} шт.* в инвентаре.\n\n"
             . "Зона применения: *{$recipe['zone_name']}* {$recipe['zone_emoji']}";
