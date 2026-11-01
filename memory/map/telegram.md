@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-29
+last-verified: 2026-11-01 (e-first)
 
 # Scout report: Telegram-поверхность
 
@@ -24,14 +24,18 @@ last-verified: 2026-10-29
   маршрут в `app/Config/CallbackRoutes.php`).
 - `/start` создаёт персонажа через `App\Services\Player\CharacterProvisioningService::create()`
   (общий путь с сайтом); в `StartCommand` осталась только UI-часть: `renderNewcomer()` шлёт модель
-  `ColdOpenWelcomeService` (`menu_carrier` получает reply-клавиатуру).
+  `ColdOpenWelcomeService` (`menu_carrier` получает reply-клавиатуру; при `msg['reply_keyboard']` — одну кнопку первого шага
+  через `BotMenuService::replyKeyboardFromRows`, иначе полное `mainReplyKeyboard()`). E-FIRST: нижний тап первого шага
+  ловит `GenericmessageCommand.php:78`, inline `move~cold` — `MoveCharacterAction.php:87`; оба после компаса зовут
+  `Onboarding\FirstStepMenuService::maybeAttach` (полное меню отдельным сообщением, one-shot). Детали — `onboarding.md`.
 - `app/Controllers/Telegram/Commands/Actions/` — ~54 action-handler'а (callback-кнопки).
 - `app/Controllers/Telegram/Commands/BaseCommand.php` и `BaseShiftingCommand.php` — базовые классы.
 - `app/Services/Notifications/MediaSender.php` — **единственная** точка отправки фото.
 
 ## Key types / contracts
 Action-handler получает управление по `callback_data`; ответ строится как caption + клавиатура.
-Постоянное reply-меню обновляется только на `/start` и `/menu` — само по себе оно не меняется.
+Постоянное reply-меню обновляется только на `/start` и `/menu` — само по себе оно не меняется
+(исключение при флаге E-FIRST: `FirstStepMenuService` один раз досылает полное меню после первого шага новичка).
 
 ## Dependencies
 inbound: Telegram webhook, `Worker` (уведомления о завершении задач), broadcast-рассылки.

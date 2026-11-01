@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-26 (w-reg-polish)
+last-verified: 2026-11-01 (e-first)
 
 # Scout report: Онбординг, обучение, советы
 
@@ -12,7 +12,7 @@ last-verified: 2026-10-26 (w-reg-polish)
 ## Entry points
 - `app/Services/Onboarding/` — **`ColdOpenWelcomeService`** (`build(CLIENT_BOT|CLIENT_WEB, $texts)` → список
   `{role,text,parse_mode,inline_keyboard}`; рендерят `StartCommand::renderNewcomer` и `AccountRegister::seedFirstScreen`),
-  `ColdOpenGreetingService` (тексты/флаги), `ColdOpenSignalService`, `PolarStarService`,
+  `ColdOpenGreetingService` (тексты/флаги), `FirstStepMenuService` (E-FIRST, см. Gotchas), `ColdOpenSignalService`, `PolarStarService`,
   `NewbieGreeterService`, `NewbieAtmosphereService`, `StarterKitService`, `FirstShelterService`,
   `LuckyFindService`, `WinBeatService`, `BuildLockService`,
   `OnboardingChainService` + `OnboardingChainCatalog`,
@@ -60,6 +60,14 @@ outbound: почти все доменные сервисы (подсказки 
   builder (в тестах префикс таблиц `db_`), замена по точной фразе, идемпотентно.
 - Первый экран собирает только `ColdOpenWelcomeService`: бот — `menu_carrier` + секции + welcome; веб — всегда одно окно,
   одна кнопка `move` без метки `cold`, бот-хвост «_Жми «…» внизу экрана_» вырезан (`withoutNavHint`, регэксп по этой фразе), `closingWeb()` без имени.
+- **(E-FIRST, флаг `onboarding.cold_open_v2.first_step_keyboard`, дефолт OFF — миграция
+  `2026-12-22-100000_ColdOpenFirstStepKeyboardGameSettings`)** Бот-новичок до первого шага получает внизу одну кнопку
+  `ColdOpenWelcomeService::FIRST_STEP_LABEL` (`menu_carrier` несёт `reply_keyboard`, текст — `ColdOpenGreetingService::firstStepCarrierText()`);
+  inline-метки «🧭 Сделать первый шаг» в `buildBot`/`buildWeb` — литералы (сверяет `ColdOpenSingleScreenTest`). Веб не затронут.
+  Нижний тап → `GenericmessageCommand.php:78-96` (`isFirstStepText`, метка `cold`, `handleWorld`); inline `move~cold` →
+  `MoveCharacterAction.php:87`. Оба зовут `FirstStepMenuService::maybeAttach` — второе сообщение с полным меню, one-shot
+  маркер `FirstStepMenuAttached` в `action_log` (ставится только при `isOk`; гейты: флаг, `ActionOrigin` = cold). Флаг OFF → всё как раньше.
+  Ноты: `tech-writing/services/FirstStepMenuService.md`, `handlers/StartCommand.md`.
 - Эмодзи требуют `utf8mb4` у колонки; ловится только Tier-3 рендером.
 - Ни один tip/guide-текст не должен нести хрупкие числа баланса — они дрейфуют.
 - Тексты идут и в `/play`: «внизу экрана», не «в нижнем меню»/«экран бота»/«шесть кнопок» — `scripts/defects-bot-lexicon-check.php` (W-REG.2).
