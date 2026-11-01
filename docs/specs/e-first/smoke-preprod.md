@@ -22,3 +22,8 @@ ERROR/CRITICAL в логе testbot за время смоука нет. Флаг
 
 **Не проверено глазами:** рендер клавиатуры (одна кнопка внизу) в клиенте Telegram — состав клавиатуры закреплён unit-тестами
 (`ColdOpenWelcomeServiceTest`, `StartCommandColdOpenParityTest`); сообщения лежат в чате tg25 для визуальной сверки.
+
+## Прод (после тега v0.51.708, Actions run 41322886538 зелёный)
+Проверки только на чтение, живой проход на проде не делаем. Код на месте. Миграция посеяла `first_step_keyboard = 0`.
+`getWebhookInfo`: `pending_update_count = 0`, ошибок нет. В логе за 15 минут одна посторонняя строка
+(`GreenhouseProductionHandler`: «bot was blocked by the user»). Флаг включает владелец через админку.
