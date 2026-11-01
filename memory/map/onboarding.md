@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-11-01 (e-first)
+last-verified: 2026-11-01 (e-first-rollback)
 
 # Scout report: Онбординг, обучение, советы
 
@@ -64,9 +64,11 @@ outbound: почти все доменные сервисы (подсказки 
   `2026-12-22-100000_ColdOpenFirstStepKeyboardGameSettings`)** Бот-новичок до первого шага получает внизу одну кнопку
   `ColdOpenWelcomeService::FIRST_STEP_LABEL` (`menu_carrier` несёт `reply_keyboard`, текст — `ColdOpenGreetingService::firstStepCarrierText()`);
   inline-метки «🧭 Сделать первый шаг» в `buildBot`/`buildWeb` — литералы (сверяет `ColdOpenSingleScreenTest`). Веб не затронут.
-  Нижний тап → `GenericmessageCommand.php:78-96` (`isFirstStepText`, метка `cold`, `handleWorld`); inline `move~cold` →
-  `MoveCharacterAction.php:87`. Оба зовут `FirstStepMenuService::maybeAttach` — второе сообщение с полным меню, one-shot
-  маркер `FirstStepMenuAttached` в `action_log` (ставится только при `isOk`; гейты: флаг, `ActionOrigin` = cold). Флаг OFF → всё как раньше.
+  Нижний тап → `GenericmessageCommand.php:78-94` (`isFirstStepText`, метка `cold`, `handleWorld`) — **флаг не читает**
+  (e-first-rollback): после отката у новичка ещё висит кнопка, она обязана работать; inline `move~cold` →
+  `MoveCharacterAction.php:87`. Оба зовут `FirstStepMenuService::maybeAttach($char, $chat, $fromBottomButton)` — второе
+  сообщение с полным меню, one-shot маркер `FirstStepMenuAttached` в `action_log` (только при `isOk`; гейты: `ActionOrigin` =
+  cold, флаг — **только для inline-шага**, нижняя кнопка передаёт `true`). Флаг OFF → inline-поток байт-в-байт как раньше.
   Ноты: `tech-writing/services/FirstStepMenuService.md`, `handlers/StartCommand.md`.
 - Эмодзи требуют `utf8mb4` у колонки; ловится только Tier-3 рендером.
 - Ни один tip/guide-текст не должен нести хрупкие числа баланса — они дрейфуют.
