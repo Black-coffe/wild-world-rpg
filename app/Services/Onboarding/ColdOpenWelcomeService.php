@@ -22,6 +22,12 @@ class ColdOpenWelcomeService
     public const CLIENT_BOT = 'bot';
     public const CLIENT_WEB = 'web';
 
+    /**
+     * Подпись кнопки первого шага — один источник истины (E-FIRST): inline-кнопка Роби, нижняя
+     * кнопка новичка и текстовый роут в GenericmessageCommand читают её отсюда.
+     */
+    public const FIRST_STEP_LABEL = '🧭 Сделать первый шаг';
+
     private const ERROR_TEXT = 'Извините, произошла ошибка при попытке определить локацию для спавна. Пожалуйста, попробуйте ещё раз.';
 
     private ColdOpenGreetingService $greeting;
@@ -35,7 +41,7 @@ class ColdOpenWelcomeService
      * @param array{spawned: bool, singleScreen: bool, starterKit: ?string, signal: ?string, greeter: ?string} $texts
      *        форма {@see \App\Services\Player\CharacterProvisioningService::lastTexts()}
      *
-     * @return list<array{role: string, text: string, parse_mode: ?string, inline_keyboard: list<list<array{text: string, callback_data: string}>>}>
+     * @return list<array{role: string, text: string, parse_mode: ?string, inline_keyboard: list<list<array{text: string, callback_data: string}>>, reply_keyboard?: list<list<string>>}>
      */
     public function build(string $client, array $texts): array
     {
@@ -43,9 +49,18 @@ class ColdOpenWelcomeService
     }
 
     /**
+     * Пришёл ли текст нажатием нижней кнопки первого шага. Telegram шлёт подпись как есть,
+     * GenericmessageCommand — в нижнем регистре; без значка 🧭 это набранная фраза, а не кнопка.
+     */
+    public static function isFirstStepText(string $text): bool
+    {
+        return mb_strtolower(trim($text)) === mb_strtolower(self::FIRST_STEP_LABEL);
+    }
+
+    /**
      * @param array{spawned: bool, singleScreen: bool, starterKit: ?string, signal: ?string, greeter: ?string} $texts
      *
-     * @return list<array{role: string, text: string, parse_mode: ?string, inline_keyboard: list<list<array{text: string, callback_data: string}>>}>
+     * @return list<array{role: string, text: string, parse_mode: ?string, inline_keyboard: list<list<array{text: string, callback_data: string}>>, reply_keyboard?: list<list<string>>}>
      */
     private function buildBot(array $texts): array
     {
@@ -91,7 +106,7 @@ class ColdOpenWelcomeService
                     $text     = $composed;
                     $keyboard = [
                         [
-                            ['text' => '🧭 Сделать первый шаг', 'callback_data' => ActionOrigin::tag('move', ActionOrigin::FROM_COLDOPEN)],
+                            ['text' => self::FIRST_STEP_LABEL, 'callback_data' => ActionOrigin::tag('move', ActionOrigin::FROM_COLDOPEN)],
                         ],
                         [
                             ['text' => '✏️ Назвать героя', 'callback_data' => ActionOrigin::tag('setCharacterName', ActionOrigin::FROM_COLDOPEN)],
@@ -106,9 +121,14 @@ class ColdOpenWelcomeService
         }
 
         // N4 (ADR-039): постоянное меню шлётся только новичку; рендерер вешает на это сообщение reply-клавиатуру.
-        $messages = [
-            ['role' => 'menu_carrier', 'text' => $this->greeting->menuAttachText(), 'parse_mode' => null, 'inline_keyboard' => []],
-        ];
+        // E-FIRST: при флаге до первого шага внизу одна кнопка первого шага (`reply_keyboard`);
+        // без ключа рендерер вешает полное меню, как раньше.
+        $carrier = ['role' => 'menu_carrier', 'text' => $this->greeting->menuAttachText(), 'parse_mode' => null, 'inline_keyboard' => []];
+        if ($this->greeting->firstStepKeyboardEnabled()) {
+            $carrier['text']           = $this->greeting->firstStepCarrierText();
+            $carrier['reply_keyboard'] = [[self::FIRST_STEP_LABEL]];
+        }
+        $messages = [$carrier];
         foreach (['kit' => $starterKit, 'signal' => $signal, 'greeter' => $greeter] as $kind => $section) {
             if ($section !== null) {
                 $messages[] = ['role' => $kind, 'text' => $section, 'parse_mode' => 'Markdown', 'inline_keyboard' => []];
@@ -132,7 +152,7 @@ class ColdOpenWelcomeService
 
         $keyboard = [
             [
-                ['text' => '🧭 Сделать первый шаг', 'callback_data' => 'move'],
+                ['text' => self::FIRST_STEP_LABEL, 'callback_data' => 'move'],
             ],
         ];
 
