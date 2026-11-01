@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-05
+last-verified: 2026-11-01
 
 # Scout report: Крафт, ремонт, экономика предметов
 
@@ -78,6 +78,12 @@ outbound: ресурсы персонажа, `GameSettings`, `Images`.
   Аптечка и Провизия читают только `drug`. `CraftedResourcesAction` помечает такие строки
   «не применяется, выводится из обращения» и печатает путь «💊 Аптечка → 🍲 Провизия».
   Вывод из обращения — ADR-185, ветка `vulyk/craft-shelf-coverage` не влита и правит тот же файл.
+- **(2026-11, d-dead-res) Новый `type='drug'` обязан попасть в `Config\Consumables::MEDICINE`**
+  (`Consumables.php:29`): неизвестный `name_eng` падает на полку «Провизия» (`shelfFor`, стр. ~100).
+- **`MedicalRecipePreviewT3Action` — общая медкарточка, не только T3:** без `required_crafted_items` нет «(T3)»,
+  «Назад» → `medicinesCraft1`, сырьё через `CraftCardHelper::available()`, время — `CraftDurationService`.
+- **Оверрайд длительности из GameSettings (`duration_override_setting_key`) — только целые часы**
+  (`CraftDurationService.php:130-132`, `×60`). Рецепты первого верстака с минутами держат их в `tasks`.
 
 ## Vault
 `tech-writing/services/{CraftOrderService,CraftQueueService}.md`, `tech-writing/config/CraftCatalog.md`,
