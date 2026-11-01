@@ -44,3 +44,4 @@
 {"ts":"2026-10-26T19:56:24Z","spec":"s4-deploy-secret-gate","version":"v0.51.706","head":"544c4ec5","pack":"d1d30c571ba1","note":"merged to develop, publish pending"}
 {"ts":"2026-10-29T09:55:28Z","spec":"s2-conditional-writes","version":"v0.51.707","head":"ffe96b9c","pack":"5d70e9874782","note":"merged to develop, publish pending"}
 {"ts":"2026-11-01T15:18:35Z","spec":"e-first","version":"v0.51.708","head":"4ee35897","pack":"3eca0f888b5d","note":"merged to develop, publish pending"}
+{"ts":"2026-11-01T15:35:03Z","spec":"e-first-rollback","version":"v0.51.708","head":"e3b4c58c","pack":"5adb80c20183","note":"merged to develop, publish pending (вместе с e-first)"}
