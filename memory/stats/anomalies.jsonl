@@ -182,3 +182,4 @@
 {"v":1,"ts":"2026-10-12T17:54:57Z","code":"driver_relaunched","value":1,"threshold":0,"vulyk":"0.26.0","tier":0,"model":"","agent":"","spec":"web-onboarding","story":"","ref":"relaunch:web-onboarding:e41415950415c144"}
 {"v":1,"ts":"2026-10-13T06:18:49Z","code":"scope_breach","value":2,"threshold":0,"vulyk":"0.26.0","tier":0,"model":"","agent":"","spec":"","story":"web-onboarding-03-new-message-banner","ref":"scope:web-onboarding-03-new-message-banner"}
 {"v":1,"ts":"2026-10-13T06:18:51Z","code":"scope_breach","value":2,"threshold":0,"vulyk":"0.26.0","tier":0,"model":"","agent":"","spec":"","story":"web-onboarding-04-web-first-screen","ref":"scope:web-onboarding-04-web-first-screen"}
+{"v":1,"ts":"2026-10-29T10:24:47Z","code":"council_rounds_high","value":4,"threshold":3,"vulyk":"0.43.0","tier":3,"model":"","agent":"","spec":"s2-conditional-writes","story":"","ref":"council:s2-conditional-writes"}
