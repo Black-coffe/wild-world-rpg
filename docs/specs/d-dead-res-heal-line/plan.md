@@ -34,7 +34,7 @@ none
 
 **Approved:**
 **Briefed:** via mini-brief, Andrei, 2026-11-01
-**Branch:**
+**Branch:** vulyk/d-dead-res-heal-line
 **Checked:**
 **Council:**
 **Shipped:**
