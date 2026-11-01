@@ -46,3 +46,4 @@
 {"ts":"2026-11-01T15:18:35Z","spec":"e-first","version":"v0.51.708","head":"4ee35897","pack":"3eca0f888b5d","note":"merged to develop, publish pending"}
 {"ts":"2026-11-01T15:35:03Z","spec":"e-first-rollback","version":"v0.51.708","head":"e3b4c58c","pack":"5adb80c20183","note":"merged to develop, publish pending (вместе с e-first)"}
 {"ts":"2026-11-01T21:50:41Z","spec":"d-dead-res","version":"v0.51.709","head":"14d21c9f","pack":"4cfa3dfc4269","note":"merged to develop, publish pending"}
+{"ts":"2026-11-01T22:10:44Z","spec":"d-dead-res-heal-line","version":"v0.51.709","head":"f25b369d","pack":"83618f32a2d7","note":"merged to develop, publish pending (один тег с d-dead-res)"}
