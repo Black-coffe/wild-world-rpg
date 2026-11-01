@@ -58,3 +58,4 @@ callback-эквивалента нет). Метка `cold` — только дл
 **Council:** RED round 1, 2026-11-01, at b2924c5a, pack 4fbf6de57512
 **Council:** GREEN round 2, 2026-11-01, at 568359c7, pack 3eca0f888b5d
 **Shipped:**
+**Shipped:** v0.51.708, 2026-11-01, at 4ee35897 - merged to develop, publish pending
