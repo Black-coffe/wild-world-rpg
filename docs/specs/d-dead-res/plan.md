@@ -57,7 +57,7 @@
 
 **Approved:** владелец («утверждаю»), 2026-11-01
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/d-dead-res
 **Checked:**
 **Council:**
 **Shipped:**
