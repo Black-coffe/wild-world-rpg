@@ -122,6 +122,26 @@ final class FirstStepMenuServiceTest extends CIUnitTestCase
         $this->assertSame([], $marked->sent, 'маркер уже есть — меню не шлётся');
     }
 
+    /** e-first-rollback: нижняя кнопка привозит меню и при выключенном флаге (откат не оставляет мёртвую кнопку). */
+    public function testBottomButtonAttachesMenuOnceEvenWhenFlagIsOff(): void
+    {
+        $svc = $this->service(flag: false);
+
+        $svc->maybeAttach(42, 777, true);
+        $svc->maybeAttach(42, 777, true);
+
+        $this->assertCount(1, $svc->sent, 'при OFF нижняя кнопка не привозит меню');
+        $this->assertSame([42], $svc->marks);
+
+        $inline = $this->service(flag: false);
+        $inline->maybeAttach(42, 777);
+        $this->assertSame([], $inline->sent, 'inline-шаг Роби при OFF меню не привозит');
+
+        $untagged = $this->service(flag: false, origin: null);
+        $untagged->maybeAttach(42, 777, true);
+        $this->assertSame([], $untagged->sent, 'без метки cold меню нет и с нижней кнопки');
+    }
+
     public function testExceptionsDoNotEscape(): void
     {
         $svc              = $this->service();
