@@ -7,6 +7,7 @@ namespace App\Services\Onboarding;
 use App\Models\ActionLogModel;
 use App\Services\Logging\ActionOrigin;
 use App\Services\Telegram\BotMenuService;
+use App\Services\Telegram\TelegramBridge;
 use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 
@@ -108,6 +109,13 @@ class FirstStepMenuService
      */
     protected function send(array $payload): ServerResponse
     {
+        // Мост Telegram: без него Request молча не шлёт. Нет моста — честный отказ, маркер не ставится.
+        if (! TelegramBridge::ensure()) {
+            log_message('error', '[FirstStepMenu] Telegram bridge is not available');
+
+            return new ServerResponse(['ok' => false, 'description' => 'telegram bridge unavailable'], '');
+        }
+
         return Request::sendMessage($payload);
     }
 }

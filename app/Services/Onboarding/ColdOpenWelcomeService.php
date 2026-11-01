@@ -23,8 +23,9 @@ class ColdOpenWelcomeService
     public const CLIENT_WEB = 'web';
 
     /**
-     * Подпись кнопки первого шага — один источник истины (E-FIRST): inline-кнопка Роби, нижняя
-     * кнопка новичка и текстовый роут в GenericmessageCommand читают её отсюда.
+     * Подпись нижней кнопки первого шага (E-FIRST): клавиатура новичка и текстовый роут в
+     * GenericmessageCommand читают её отсюда. Inline-кнопки Роби и веба держат тот же текст
+     * литералом: его сверяет с копией анти-дрейф ColdOpenSingleScreenTest.
      */
     public const FIRST_STEP_LABEL = '🧭 Сделать первый шаг';
 
@@ -106,7 +107,7 @@ class ColdOpenWelcomeService
                     $text     = $composed;
                     $keyboard = [
                         [
-                            ['text' => self::FIRST_STEP_LABEL, 'callback_data' => ActionOrigin::tag('move', ActionOrigin::FROM_COLDOPEN)],
+                            ['text' => '🧭 Сделать первый шаг', 'callback_data' => ActionOrigin::tag('move', ActionOrigin::FROM_COLDOPEN)],
                         ],
                         [
                             ['text' => '✏️ Назвать героя', 'callback_data' => ActionOrigin::tag('setCharacterName', ActionOrigin::FROM_COLDOPEN)],
@@ -152,7 +153,7 @@ class ColdOpenWelcomeService
 
         $keyboard = [
             [
-                ['text' => self::FIRST_STEP_LABEL, 'callback_data' => 'move'],
+                ['text' => '🧭 Сделать первый шаг', 'callback_data' => 'move'],
             ],
         ];
 

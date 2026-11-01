@@ -190,6 +190,18 @@ final class ColdOpenWelcomeServiceTest extends CIUnitTestCase
         $this->assertSame(array_slice($off, 1), array_slice($on, 1), 'экран Роби и его inline-кнопки не меняются');
     }
 
+    /** repair-1: inline-кнопка Роби держит литерал подписи рядом с `move` (анти-дрейф ColdOpenSingleScreenTest). */
+    public function testRobiInlineButtonKeepsLiteralLabelNextToMove(): void
+    {
+        $source = (string) file_get_contents(APPPATH . 'Services/Onboarding/ColdOpenWelcomeService.php');
+
+        $this->assertStringContainsString(
+            "['text' => '🧭 Сделать первый шаг', 'callback_data' => ActionOrigin::tag('move'",
+            $source,
+            'repair-1: литерал кнопки Роби потерян'
+        );
+    }
+
     public function testFirstStepTextIsRecognisedInAnyCase(): void
     {
         $this->assertTrue(ColdOpenWelcomeService::isFirstStepText('🧭 Сделать первый шаг'));

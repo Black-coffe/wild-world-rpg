@@ -149,4 +149,17 @@ final class FirstStepMenuServiceTest extends CIUnitTestCase
         $this->assertDoesNotMatchRegularExpression('/[Нн]ижн\w* меню|[Нн]ижн\w* панел|(?:[Шш]ест|[Сс]ем|[Вв]осем)\w* кноп|☰/u', $text);
         $this->assertLessThanOrEqual(4096, mb_strlen($text));
     }
+
+    /** repair-1: настоящая отправка поднимает мост Telegram (TelegramSenderBridgeCoverageTest). */
+    public function testRealSendRaisesTelegramBridgeFirst(): void
+    {
+        $source = (string) file_get_contents(APPPATH . 'Services/Onboarding/FirstStepMenuService.php');
+
+        $this->assertMatchesRegularExpression('/TelegramBridge::ensure\s*\(/', $source, 'repair-1: мост не поднят');
+        $this->assertLessThan(
+            strpos($source, 'Request::sendMessage('),
+            strpos($source, 'TelegramBridge::ensure('),
+            'repair-1: мост поднимается до отправки'
+        );
+    }
 }
