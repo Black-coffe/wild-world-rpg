@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-29
+last-verified: 2026-11-02 (w2-n4b-cards)
 
 # Scout report: Базы, лагерь, постройки
 
@@ -23,6 +23,12 @@ last-verified: 2026-10-29
   (endgame, `FarmersHarvest`). Рендереры: `Camp\Buildings\UpgradeBuildingAction` (`CallbackPrefixDispatcher`,
   `upgrade_building_<id>` / `confirm_upgrade_building_<id>`, опц. `_b<id>`), веб. Запись —
   `Player/BuildingUpgrade/BuildingUpgradeApplier`, проверка — `BuildingUpgradeValidator`.
+- **Карточка своей постройки — `App\Services\Bases\BuildingCardService`** (w2-n4b, v0.51.710): `has($key)`, `card($charId, $cell, $key, ?$baseId)`
+  → модель (`state` ok|refused, `refusal` relocation|plain|unknown, `rows` кнопок); таблица `CARDS` вместо 14 копий `Camp/Buildings/*Handler.php`
+  (удалены). Переезд и `_b<id>` проверяет ядро. Бот: единственный рендерер `Camp\BuildingHandlerAction` (`building_<id>_<Key>[_b<id>]`);
+  веб: `BaseScreenService` (`has_card` в строке) → `WebNativeScreenService` секция `card` (`BASE_SECTIONS`, `cardBridgeData()`), вьюха
+  `_play/native_base.php`. Бот байт-в-байт прежний (снимки `tests/unit/Camp/BuildingCardSnapshots.json`). Ноты: `services/BuildingCardService.md`,
+  `handlers/camp/BuildingHandlerAction.md`.
 - `app/Services/Bases/` — также `BaseLifecycleService`, `BaseLimitService`, `BaseCheckService`,
   `CampCheckService`, `BaseLocationResolver`, `BaseCallbackSuffix`, `BaseScopeResolver`.
 - **«Лагерь разбит»** — `Camp\CampCreateConfirmAction::campCreatedMessage(x, y, ?restoredNames, baseId)` (static,

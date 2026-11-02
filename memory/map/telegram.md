@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-11-01 (e-first-rollback)
+last-verified: 2026-11-02 (w2-n4b-cards)
 
 # Scout report: Telegram-поверхность
 
@@ -76,6 +76,9 @@ outbound: `Services/Player`, `Services/World`, `Services/Craft*`, `Services/Base
 - **(w2-n4-base, ADR-190) Экраны базы/стройки/апгрейда — рендереры ядра** (`BaseScreenService`,
   `BuildOrderService`, `BuildingUpgradeService`; см. `bases.md`): логику в action-handler'ы не возвращать —
   её же рисует веб `/play`. Апгрейд-confirm: `confirm_upgrade_building_<id>_l<N>[_b<id>]`, без `_l` — перезапрос.
+- **(w2-n4b, ADR-190) Карточки построек — один рендерер** `Camp/BuildingHandlerAction` над `Services/Bases/BuildingCardService`;
+  14 классов `Camp/Buildings/{Arsenal…Workshop}Handler.php` удалены — новое здание = строка в `CARDS`, не новый handler (см. `bases.md`).
+  `NavigationMapService` зеркалит это для сканера маршрутов (кнопки карточек лежат под ключом `data`).
 - **(w2-n6, ADR-190) Магазин сырья и склад — рендереры ядер.** `ShopAction`, `Sell/{SellAction,SellResourceAction,
   BuyResourceAction,BulkSellAction}` рисуют модели `Services/Player/Trade/ResourceShopScreenService` (над `ResourceTradeService`);
   `Storage/{BaseStorageListAction,BaseStorageDepositAction}` — `Services/Bases/BaseStorageService` (см. `bases.md`). Логику

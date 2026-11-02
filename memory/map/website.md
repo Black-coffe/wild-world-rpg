@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-10-26 (w-reg-banner)
+last-verified: 2026-11-02 (w2-n4b-cards)
 
 # Scout report: Публичный сайт wildworld.fun
 
@@ -40,7 +40,7 @@ last-verified: 2026-10-26 (w-reg-banner)
   `op=cell|step|march_*`. «Крафт» `view=craft` (`Config\CraftCatalog`, `CraftOrderService`/
   `CraftQueueService`, `craft.md`); `op=craft_start|craft_cancel`; крупная партия: `craftStartOutcome()` → `confirm=N` в nav (панель итога, POST
   `confirmed=1`; правило в ядре `CraftOrderService::start($confirmed)`, см. `craft.md`). «База» `view=base`
-  (`BaseScreenService`, `BuildOrderService`/`BuildingUpgradeService`, `bases.md`); `op=build_start|upgrade`.
+  (`BaseScreenService`, `BuildOrderService`/`BuildingUpgradeService`, `bases.md`); `op=build_start|upgrade`; карточка своей постройки — секция `card` (`BuildingCardService`, w2-n4b, вьюха `_play/native_base.php`; остальные действия карточки идут `op=bridge` через `cardBridgeData()`), стили в `ui-kit.html`.
   «📋 Дела» `view=tasks` (`op=quest_start|quest_branch`, `quests-events-npc.md`). «🛒 Магазин» `view=shop`
   (`ResourceShopScreenService`; `op=sell|buy|bulk_sell`, опт с `token` плана) и «📦 Склад» `view=storage`
   (`BaseStorageService`; `op=storage_take|storage_put`) — w2-n6; `op=bridge` с `shop`/`baseStorageList` → нативно.
