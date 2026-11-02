@@ -32,7 +32,7 @@ use App\Services\Web\VirtualIdentityService;
  * @phpstan-type Coverage array{covered: bool, tower_level: int, distance: int, max: int}
  * @phpstan-type PickerBase array{base_id:int, cell:int, name:string, x:int, y:int, towerLevel:int, distance:int, maxCoverage:int, isCovered:bool}
  * @phpstan-type Resolution array{state: string, base_id: int, on_base: bool, coverage: Coverage|null, bases: list<PickerBase>, text: string}
- * @phpstan-type BuildingRow array{char_building_id:int, building_id:int, key:string, name:string, icon:string, level:int, amount:int, tax:int, type:string, bridge_callback:string}
+ * @phpstan-type BuildingRow array{char_building_id:int, building_id:int, key:string, name:string, icon:string, level:int, amount:int, tax:int, type:string, has_card:bool, bridge_callback:string}
  * @phpstan-type Decor array{name: string|null, flag: string|null, hearth: string|null, furniture: string|null, pet: string|null}
  * @phpstan-type Overview array{base: array{id:int, cell:int, x:int|null, y:int|null, biome:string, on_base:bool, days_left:int|null, count:int, tax_total:int, decor:Decor, decor_enabled:bool}, coverage: Coverage|null, buildings: list<BuildingRow>}
  */
@@ -213,6 +213,8 @@ final class BaseScreenService
                 'amount'           => $row['amount'],
                 'tax'              => $row['tax'],
                 'type'             => $row['type'],
+                // W2.N4b: есть карточка в ядре — веб открывает её нативно; нет — мост `bridge_callback`.
+                'has_card'         => BuildingCardService::has($row['key']),
                 'bridge_callback'  => BaseCallbackSuffix::append('building_' . $row['buildingId'] . '_' . $row['key'], $baseId),
             ];
         }

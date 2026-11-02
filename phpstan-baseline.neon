@@ -978,149 +978,29 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/BaseAction.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ArsenalHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/ArsenalHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ArsenalHandler\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/ArsenalHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ArsenalHandler\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/ArsenalHandler.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\BlastFurnaceHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/BlastFurnaceHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\BlastFurnaceHandler\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/BlastFurnaceHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\BlastFurnaceHandler\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/BlastFurnaceHandler.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\CommunicationTowerHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/CommunicationTowerHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\CommunicationTowerHandler\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/CommunicationTowerHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\CommunicationTowerHandler\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/CommunicationTowerHandler.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\GreenhouseHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/GreenhouseHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\GreenhouseHandler\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/GreenhouseHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\GreenhouseHandler\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/GreenhouseHandler.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\GymHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/GymHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\GymHandler\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/GymHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\GymHandler\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/GymHandler.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\HandPumpHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/HandPumpHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\HandPumpHandler\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/HandPumpHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\HandPumpHandler\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/HandPumpHandler.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\LaboratoryHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/LaboratoryHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\LaboratoryHandler\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/LaboratoryHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\LaboratoryHandler\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/LaboratoryHandler.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\RoboticsWorkshopHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/RoboticsWorkshopHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\RoboticsWorkshopHandler\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/RoboticsWorkshopHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\RoboticsWorkshopHandler\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/RoboticsWorkshopHandler.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\Robots\\ActivateRobotHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
@@ -1386,23 +1266,8 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/Robots/StartRobotGatheringAction.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\SolarStationHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/SolarStationHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\SolarStationHandler\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/SolarStationHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\SolarStationHandler\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/SolarStationHandler.php
 
 		-
 			message: '#^Cannot access offset ''biome_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
@@ -1698,23 +1563,8 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportationCenterHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportationCenterHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportationCenterHandler.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\UpgradeBuildingAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
@@ -1830,41 +1680,11 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/Upgrades/RoboticsWorkshopUpgradeAction.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\WarehouseHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/WarehouseHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\WarehouseHandler\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/WarehouseHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\WarehouseHandler\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/WarehouseHandler.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\WorkshopHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/WorkshopHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\WorkshopHandler\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/WorkshopHandler.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\WorkshopHandler\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/WorkshopHandler.php
 
 		-
 			message: '#^Cannot access offset ''amount'' on mixed\.$#'

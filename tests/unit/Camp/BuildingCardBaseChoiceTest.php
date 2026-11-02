@@ -12,7 +12,7 @@ namespace Tests\Unit\Camp {
         require_once __DIR__ . '/BuildingCardBaseScopeTest.php';
     }
 
-    use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\HandPumpHandler;
+    use App\Controllers\Telegram\Commands\Actions\Camp\BuildingHandlerAction;
     use App\Services\Bases\BaseCallbackSuffix;
     use App\Services\Bases\BaseScopeResolver;
     use App\Services\Player\BuildingUpgrade\BuildingUpgradeApplier;
@@ -77,7 +77,7 @@ namespace Tests\Unit\Camp {
             // Переиспользуем namespaced-`fopen()`-шим, объявленный `BuildingCardBaseScopeTest`
             // (process-wide function — объявить второй раз в этом же файле нельзя,
             // PHP не разрешает redeclare). Флаг у неё public static.
-            BuildingCardBaseScopeTest::$fopenShimActive = true;
+            $GLOBALS['__building_card_fopen_shim'] = true;
             $this->origPrefix      = $this->db()->getPrefix();
             $this->db()->setPrefix(self::PREFIX);
             $this->resetBuildingModelStaticCache();
@@ -123,7 +123,7 @@ namespace Tests\Unit\Camp {
                 }
             } finally {
                 $this->db()->setPrefix($this->origPrefix);
-                BuildingCardBaseScopeTest::$fopenShimActive = false;
+                $GLOBALS['__building_card_fopen_shim'] = false;
                 $this->cleanCache();
             }
 
@@ -311,7 +311,7 @@ namespace Tests\Unit\Camp {
             $this->seedCharacterBuilding($charId, $handPumpId, 1000, 3); // база 2 — L3
             $this->seedTower($charId, $towerId, 1000, 7); // 7 × 100 = 700 = дистанция до игрока
 
-            $response = (new HandPumpHandler($this->cbq(
+            $response = (new BuildingHandlerAction($this->cbq(
                 $tgId,
                 'building_' . $handPumpId . '_HandPump' . BaseCallbackSuffix::append('', $base2)
             )))->handle();
@@ -333,7 +333,7 @@ namespace Tests\Unit\Camp {
             // Чужая база — id другого персонажа.
             $foreignOwnerBase = $this->seedBase($charId + 999, 999);
 
-            $response = (new HandPumpHandler($this->cbq(
+            $response = (new BuildingHandlerAction($this->cbq(
                 $tgId,
                 'building_' . $handPumpId . '_HandPump' . BaseCallbackSuffix::append('', $foreignOwnerBase)
             )))->handle();
@@ -343,14 +343,14 @@ namespace Tests\Unit\Camp {
 
             // Неактивная (abandoned) собственная база.
             $abandoned = $this->seedBase($charId, 60, 'abandoned');
-            $responseAbandoned = (new HandPumpHandler($this->cbq(
+            $responseAbandoned = (new BuildingHandlerAction($this->cbq(
                 $tgId,
                 'building_' . $handPumpId . '_HandPump' . BaseCallbackSuffix::append('', $abandoned)
             )))->handle();
             $this->assertStringContainsString(BaseScopeResolver::TEXT_UNAVAILABLE, $this->textOf($responseAbandoned));
 
             // Сама своя активная база суффиксом продолжает работать штатно.
-            $responseOwn = (new HandPumpHandler($this->cbq(
+            $responseOwn = (new BuildingHandlerAction($this->cbq(
                 $tgId,
                 'building_' . $handPumpId . '_HandPump' . BaseCallbackSuffix::append('', $own)
             )))->handle();
@@ -366,7 +366,7 @@ namespace Tests\Unit\Camp {
             $this->seedBase($charId, 100);
             $this->seedCharacterBuilding($charId, $handPumpId, 100, 4);
 
-            $response = (new HandPumpHandler($this->cbq($tgId, 'building_' . $handPumpId . '_HandPump')))->handle();
+            $response = (new BuildingHandlerAction($this->cbq($tgId, 'building_' . $handPumpId . '_HandPump')))->handle();
             $this->assertStringContainsString('4 lvl', $this->textOf($response));
         }
 
@@ -383,7 +383,7 @@ namespace Tests\Unit\Camp {
             $this->seedCharacterBuilding($charId, $handPumpId, 0, 10);
             $this->seedCharacterBuilding($charId, $handPumpId, 1000, 3);
 
-            $response = (new HandPumpHandler($this->cbq(
+            $response = (new BuildingHandlerAction($this->cbq(
                 $tgId,
                 'building_' . $handPumpId . '_HandPump' . BaseCallbackSuffix::append('', $base2)
             )))->handle();

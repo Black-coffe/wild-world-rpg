@@ -56,7 +56,7 @@ namespace Tests\Unit\Camp {
             }
             new Telegram('123456:TEST-fake-token-for-tests', 'test_bot');
 
-            BuildingCardBaseScopeTest::$fopenShimActive = true;
+            $GLOBALS['__building_card_fopen_shim'] = true;
             $this->origPrefix = $this->db()->getPrefix();
             $this->db()->setPrefix(self::PREFIX);
 
@@ -104,7 +104,7 @@ namespace Tests\Unit\Camp {
                 }
             } finally {
                 $this->db()->setPrefix($this->origPrefix);
-                BuildingCardBaseScopeTest::$fopenShimActive = false;
+                $GLOBALS['__building_card_fopen_shim'] = false;
                 $this->cleanCache();
             }
 

@@ -2940,7 +2940,7 @@ section.block:first-of-type { border-top: 0; }
       </div>
     </div>
     <h3 class="mt-3" id="play-base-demo">База — пикер, обзор со стопками, «что можно построить» с замком (W2.N4-03)</h3>
-    <p class="muted">Пикер: базы под сигналом своей Вышки — кнопками, остальные — пунктиром с расстоянием. Обзор: факты базы, постройки строкой (×N — стопка), у каждой «⬆️ Улучшить» и «⚙️ Действия» (карточка в боте). Список стройки: доступные — кнопками с налогом, запертые — блок «🔒 … (нужно: уровень N)» с путём. Замок раздела занимает всю строку сетки и переносится по словам.</p>
+    <p class="muted">Пикер: базы под сигналом своей Вышки — кнопками, остальные — пунктиром с расстоянием. Обзор: факты базы, постройки строкой (×N — стопка), у каждой «⬆️ Улучшить» и «📋 Подробнее» (нативная карточка постройки, W2.N4b). Список стройки: доступные — кнопками с налогом, запертые — блок «🔒 … (нужно: уровень N)» с путём. Замок раздела занимает всю строку сетки и переносится по словам.</p>
     <div class="play-shell is-native mt-2">
       <div class="play-screen">
         <article class="play-native" aria-label="База">
@@ -2959,7 +2959,7 @@ section.block:first-of-type { border-top: 0; }
             <li class="play-base-building">
               <span class="play-base-building-name">🏚️ Склад <span class="play-base-stack">×3</span></span>
               <span class="play-base-building-meta">ур. 2 · налог 900</span>
-              <span class="play-base-building-actions"><form action="#play" method="post"><button class="play-kb-btn" type="submit">⬆️ Улучшить</button></form><form action="#play" method="post"><button class="play-kb-btn" type="submit">⚙️ Действия</button></form></span>
+              <span class="play-base-building-actions"><form action="#play" method="post"><button class="play-kb-btn" type="submit">⬆️ Улучшить</button></form><form action="#play" method="post"><button class="play-kb-btn" type="submit">📋 Подробнее</button></form></span>
             </li>
           </ul>
           <div class="play-kb-grid">
@@ -2972,6 +2972,32 @@ section.block:first-of-type { border-top: 0; }
             <span class="play-lock-path">Путь: уровень растёт с опытом — добыча, крафт, стройка и задания.</span>
           </div>
           <p class="play-base-effect">Ускоряет изготовление всех предметов (со 2-го уровня; на 3-м — заметно сильнее).</p>
+        </article>
+      </div>
+    </div>
+    <h3 class="mt-3" id="play-base-building-card-demo">База — карточка постройки (W2.N4b)</h3>
+    <p class="muted">Карточка «моей» постройки из ядра BuildingCardService — того же, из которого рисует бот. Факты плиткой, без «lvl» и знака валюты: уровень, стопка, прочность (оборона), налог, даты, использования (только при лимите), доступность. Эффект и описание — текстом (читается без картинок). «🆙 Поднять уровень» — нативный апгрейд, «🏠 База» — нативный обзор, собственные действия здания (грядки, роботы, маяки, ремонт, развитие) — кнопками моста с той же callback_data.</p>
+    <div class="play-shell is-native mt-2">
+      <div class="play-screen">
+        <article class="play-native" aria-label="Карточка постройки">
+          <header class="play-native-head"><h2 class="play-native-title">🏠 База</h2></header>
+          <section class="play-craft-card" aria-labelledby="kit-own-card" data-building-card="Greenhouse">
+            <h3 class="play-craft-card-title" id="kit-own-card">🌱 Теплица</h3>
+            <dl class="play-craft-facts">
+              <div><dt>📈 Уровень</dt><dd>5</dd></div>
+              <div><dt>💰 Налог</dt><dd>0 зол./сутки</dd></div>
+              <div><dt>📅 Построена</dt><dd>20.02.2026</dd></div>
+              <div><dt>🔒 Доступность</dt><dd>коллективная</dd></div>
+            </dl>
+            <p class="play-base-effect">⚡ Даёт сейчас: за сутки примерно 4320 фруктов, 4320 ягод, 1440 грибов — пока хватает воды (расход 7200 в сутки)</p>
+            <p class="play-native-hint">🌱 Грядки: растёт 1 из 2.</p>
+            <p class="play-base-effect">Свои посевы: фрукты, ягоды и грибы без похода в поле.</p>
+            <div class="play-kb-grid">
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🌱 Грядки</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🆙 Поднять уровень</button></form>
+              <form action="#play" method="post"><button class="play-kb-btn" type="submit">🏠 База</button></form>
+            </div>
+          </section>
         </article>
       </div>
     </div>

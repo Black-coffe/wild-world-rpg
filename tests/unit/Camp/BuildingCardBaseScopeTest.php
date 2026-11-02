@@ -24,26 +24,29 @@ namespace Longman\TelegramBot {
      * @param string $mode
      * @return resource|false
      */
-    function fopen($filename, $mode)
-    {
-        if (\Tests\Unit\Camp\BuildingCardBaseScopeTest::$fopenShimActive
-            && is_string($filename)
-            && preg_match('#^https?://[^/]+/(.+)$#', $filename, $m) === 1
-        ) {
-            $local = rtrim(FCPATH, '\\/') . '/' . $m[1];
-            if (is_file($local)) {
-                return \fopen($local, $mode);
+    if (! function_exists('Longman\TelegramBot\fopen')) {
+        // w2-n4b-cards-01: флаг общий с BuildingCardParityTest — шим объявляет тот файл, что
+        // загрузился первым, второе объявление в одном процессе было бы фаталом.
+        function fopen($filename, $mode)
+        {
+            if (($GLOBALS['__building_card_fopen_shim'] ?? false) === true
+                && is_string($filename)
+                && preg_match('#^https?://[^/]+/(.+)$#', $filename, $m) === 1
+            ) {
+                $local = rtrim(FCPATH, '\\/') . '/' . $m[1];
+                if (is_file($local)) {
+                    return \fopen($local, $mode);
+                }
             }
-        }
 
-        return \fopen($filename, $mode);
+            return \fopen($filename, $mode);
+        }
     }
 }
 
 namespace Tests\Unit\Camp {
 
-    use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\HandPumpHandler;
-    use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\WarehouseHandler;
+    use App\Controllers\Telegram\Commands\Actions\Camp\BuildingHandlerAction;
     use CodeIgniter\Database\BaseConnection;
     use CodeIgniter\Test\CIUnitTestCase;
     use CodeIgniter\Test\DatabaseTestTrait;
@@ -82,7 +85,6 @@ namespace Tests\Unit\Camp {
          * setUp()..tearDown() ЭТОГО теста, чтобы шим не действовал на тесты,
          * загруженные до/после/вперемешку с этим файлом (angela-second-base-bugs-05).
          */
-        public static bool $fopenShimActive = false;
 
         /**
          * Приватный префикс таблиц (тот же паттерн, что `bubs_*` в
@@ -109,7 +111,7 @@ namespace Tests\Unit\Camp {
             // вместо реального HTTP (урок feedback_taskhandler_telegram_init_in_tests).
             new Telegram('123456:TEST-fake-token-for-tests', 'test_bot');
 
-            self::$fopenShimActive = true;
+            $GLOBALS['__building_card_fopen_shim'] = true;
             $this->origPrefix      = $this->db()->getPrefix();
             $this->db()->setPrefix(self::PREFIX);
 
@@ -203,7 +205,7 @@ namespace Tests\Unit\Camp {
                 }
             } finally {
                 $this->db()->setPrefix($this->origPrefix);
-                self::$fopenShimActive = false;
+                $GLOBALS['__building_card_fopen_shim'] = false;
             }
 
             parent::tearDown();
@@ -351,13 +353,13 @@ namespace Tests\Unit\Camp {
             $this->seedCharacterBuilding($charId, $buildingId, 200, 1);  // база B — L1
 
             // Игрок стоит на базе A (100) — карточка обязана показать L10, не L1 с базы B.
-            $responseA = (new HandPumpHandler($this->cbq($tgId, 'building_' . $buildingId . '_HandPump')))->handle();
+            $responseA = (new BuildingHandlerAction($this->cbq($tgId, 'building_' . $buildingId . '_HandPump')))->handle();
             $this->assertStringContainsString('10 lvl', $this->textOf($responseA));
             $this->assertStringNotContainsString('1 lvl', $this->textOf($responseA));
 
             // Переставляем игрока на базу B (200) — карточка обязана показать L1, не L10 с базы A.
             $this->db()->table('characters')->where('id', $charId)->update(['cell_number' => 200]);
-            $responseB = (new HandPumpHandler($this->cbq($tgId, 'building_' . $buildingId . '_HandPump')))->handle();
+            $responseB = (new BuildingHandlerAction($this->cbq($tgId, 'building_' . $buildingId . '_HandPump')))->handle();
             $this->assertStringContainsString('1 lvl', $this->textOf($responseB));
             $this->assertStringNotContainsString('10 lvl', $this->textOf($responseB));
         }
@@ -370,7 +372,7 @@ namespace Tests\Unit\Camp {
             // Склад есть только на базе, где игрока сейчас нет — на базе 100 у него Склада нет.
             $this->seedCharacterBuilding($charId, $buildingId, 999, 5);
 
-            $response = (new WarehouseHandler($this->cbq($tgId, 'building_' . $buildingId . '_Warehouse')))->handle();
+            $response = (new BuildingHandlerAction($this->cbq($tgId, 'building_' . $buildingId . '_Warehouse')))->handle();
             $this->assertStringContainsString('нет Склада на базе', $this->textOf($response));
         }
 
@@ -383,7 +385,7 @@ namespace Tests\Unit\Camp {
             $this->seedCharacterBuilding($charId, $buildingId, 100, 10);
             $this->seedCharacterBuilding($charId, $buildingId, 200, 1);
 
-            $response = (new HandPumpHandler($this->cbq($tgId, 'building_' . $buildingId . '_HandPump')))->handle();
+            $response = (new BuildingHandlerAction($this->cbq($tgId, 'building_' . $buildingId . '_HandPump')))->handle();
             $this->assertStringContainsString(
                 'Баз у тебя несколько. Встань на ту базу, с которой работаешь, — и открой экран снова.',
                 $this->textOf($response)
@@ -400,7 +402,7 @@ namespace Tests\Unit\Camp {
             // Игрок с одной базой — даже стоя не на клетке базы (например, в поле) экран
             // резолвит его единственную базу и показывает уровень, как раньше.
             $this->db()->table('characters')->where('id', $charId)->update(['cell_number' => 777]);
-            $response = (new HandPumpHandler($this->cbq($tgId, 'building_' . $buildingId . '_HandPump')))->handle();
+            $response = (new BuildingHandlerAction($this->cbq($tgId, 'building_' . $buildingId . '_HandPump')))->handle();
             $this->assertStringContainsString('4 lvl', $this->textOf($response));
         }
 
@@ -413,7 +415,7 @@ namespace Tests\Unit\Camp {
             $buildingId      = $this->seedBuilding('Ручная скважина', 'HandPump');
             [$tgId, $charId] = $this->seedCharacter(100); // ни одной seedBase()
 
-            $response = (new HandPumpHandler($this->cbq($tgId, 'building_' . $buildingId . '_HandPump')))->handle();
+            $response = (new BuildingHandlerAction($this->cbq($tgId, 'building_' . $buildingId . '_HandPump')))->handle();
             $this->assertStringContainsString(
                 'Базы у тебя сейчас нет. Разбей лагерь — и постройки появятся на этом экране.',
                 $this->textOf($response)

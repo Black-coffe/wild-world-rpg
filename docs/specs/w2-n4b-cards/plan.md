@@ -70,9 +70,15 @@
 
 ## Plan deltas
 
+- 2026-11-02, story 02 (записка бокового агента, «проверка байт-в-байт видит только дефолты настроек»): в `## Files` story 02 добавлены `tests/unit/Camp/BuildingCardParityTest.php` и снимки — второй прогон с флагами `defense.stack.enabled=1`, `farming.enabled=0`; снимки сняты со старых классов из `e8a70c10`. Отвергнуто: включить флаги, которые сейчас на проде, — не сверял прод, а обе ветки флагов покрывают любую комбинацию этих двух.
+
+- 2026-11-02, story 01 (отчёт сборки): `## Files` story 01 расширен двумя путями, без которых удаление 14 классов не собирается. `phpstan-baseline.neon` — 36 блоков baseline ссылались на удалённые файлы, phpstan падал «path is neither a directory nor a file»; блоки вычищены скриптом по несуществующему `path:`, baseline не перегенерирован (иначе спрятал бы новые ошибки). `tests/unit/Camp/DetailedBaseInfoBareConstructionTest.php` — пользовался статическим флагом шима `fopen` из `BuildingCardBaseScopeTest`, флаг стал общим `$GLOBALS`. Отвергнуто: оставить статический флаг для совместимости — две правды о том, включён ли шим.
+
 **Approved:** Andrei (владелец), 2026-11-02 — запуском /vulyk-build w2-n4b-cards
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/w2-n4b-cards
 **Checked:**
 **Council:**
+**Council:** RED round 1, 2026-11-02, at e6bf0949, pack 762348ceedbe
+**Council:** GREEN round 2, 2026-11-02, at fb55165a, pack 2deb0f3f5201
 **Shipped:**

@@ -994,7 +994,10 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('ур. 2 · налог 900', $html);
         $this->assertStringContainsString('X=20 Y=20', $html);
         $this->assertStringContainsString('сигнал Вышки связи (ур. 1)', $html, 'дистанционно — видно, откуда управление');
-        foreach (["building_2_Workshop_b{$b2}", "hangar_b{$b2}", "baseDevelopment_b{$b2}", 'teleportBeacon', 'DeleteBase', 'demolishBuilding', 'TeleportToCamp'] as $cb) {
+        // W2.N4b: строка постройки ведёт в нативную карточку, а не в мост `building_<id>_<Key>`.
+        $this->assertMatchesRegularExpression('~name="section" value="card"><input type="hidden" name="key" value="Workshop">~su', $html, 'строка постройки ведёт в нативную карточку');
+        $this->assertStringNotContainsString('name="data" value="building_2_Workshop_b' . $b2 . '"', $html, 'строка постройки ведёт в нативную карточку, а не в мост');
+        foreach (["hangar_b{$b2}", "baseDevelopment_b{$b2}", 'teleportBeacon', 'DeleteBase', 'demolishBuilding', 'TeleportToCamp'] as $cb) {
             $this->assertMatchesRegularExpression('~name="op" value="bridge">.*?name="data" value="' . preg_quote($cb, '~') . '">~su', $html, "кнопка моста {$cb}");
         }
         $this->assertMatchesRegularExpression('~name="section" value="upgrade"><input type="hidden" name="id" value="2">~su', $html, 'у постройки — «Улучшить»');
@@ -1003,6 +1006,35 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('Эта база сейчас недоступна', $refused);
         $this->assertStringNotContainsString('X=40', $refused, 'чужая база не показывается');
         $this->assertStringNotContainsString('Чужая', $refused);
+    }
+
+    /**
+     * W2.N4b (ask 2, 4): карточка «моей» постройки открывается нативно из того же ядра, что у бота — уровень,
+     * стопка, налог, апгрейд нативно, «🏠 База» на нативный обзор; номер базы перепроверяет ядро.
+     */
+    public function testOwnedBuildingCardOpensNativelyFromTheCore(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        [, $otherId]        = $this->character('Чужак');
+        $this->enableBase();
+        $this->place($charId, 200);
+        $b = $this->addBase($charId, 200, 'Дом', 1);
+        $this->building($charId, 2, 200, 3, 900, 2);
+        $foreign = $this->addBase($otherId, 400, 'Чужая', null);
+        $this->stubSheets();
+
+        $nav  = ['view' => 'base', 'b' => (string) $b, 'section' => 'card', 'key' => 'Workshop'];
+        $html = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', $nav, true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringContainsString('data-building-card="Workshop"', $html, 'строка постройки ведёт в нативную карточку');
+        $this->assertStringContainsString('Мастерская ×2', $html);
+        $this->assertMatchesRegularExpression('~<dt>📈 Уровень</dt><dd>3</dd>~u', $html);
+        $this->assertMatchesRegularExpression('~<dt>💰 Налог</dt><dd>900 зол\./сутки</dd>~u', $html);
+        $this->assertMatchesRegularExpression('~name="section" value="upgrade"><input type="hidden" name="id" value="2"><button class="play-kb-btn" type="submit">🆙 Поднять уровень~su', $html, 'апгрейд — нативный экран');
+        $this->assertStringNotContainsString('lvl', $html);
+        $this->assertStringNotContainsString('*', strip_tags($html), 'Markdown бота в вебе не виден');
+
+        $refused = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['b' => (string) $foreign] + $nav, true))['html'], ENT_QUOTES | ENT_HTML5);
+        $this->assertStringNotContainsString('data-building-card=', $refused, 'чужая база — без карточки');
     }
 
     public function testNoBaseOffersCampThroughTheBridgeFromTheBaseMenu(): void
@@ -1041,6 +1073,36 @@ final class PlayViewControllerTest extends CIUnitTestCase
         ], $act->calls);
 
         $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'building_2_Workshop', 'intent_id' => 'w2'], true)->response()->getStatusCode(), 'карточка без базы — не кнопка веб-базы');
+    }
+
+    /**
+     * W2.N4b repair round 1 (ask 3): собственная кнопка здания с веб-карточки (`<карточка>><кнопка>`) проходит мост —
+     * путь бота «🏠 База» → база → постройки → карточка, затем сама кнопка на сообщении карточки. Поддельная кнопка и
+     * карточка без базы — отказ.
+     */
+    public function testOwnedCardButtonsWalkTheBridgeToTheBotCard(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableBase();
+        $act = $this->baseAct();
+        $this->stubSheets($act);
+
+        foreach (['plantSeedMenu', 'AllRobots', 'repairBuilding_52', 'teleportBeacon', 'baseDevelopment', 'guide_base'] as $i => $button) {
+            $act->calls = [];
+            $status     = $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'building_2_Workshop_b7>' . $button, 'intent_id' => 'c' . $i], true)->response()->getStatusCode();
+            $this->assertSame(200, $status, "кнопка карточки проходит мост: {$button}");
+            $this->assertSame([
+                ['intent_id' => "c{$i}:card", 'kind' => 'text', 'data' => BotMenuService::menuLabel('base')],
+                ['intent_id' => "c{$i}:s0", 'kind' => 'callback', 'data' => 'Base_b7', 'message_id' => '51'],
+                ['intent_id' => "c{$i}:s1", 'kind' => 'callback', 'data' => 'construction_b7', 'message_id' => '52'],
+                ['intent_id' => "c{$i}:s2", 'kind' => 'callback', 'data' => 'building_2_Workshop_b7', 'message_id' => '53'],
+                ['intent_id' => "c{$i}:cb", 'kind' => 'callback', 'data' => $button, 'message_id' => '54'],
+            ], $act->calls, "путь бота до кнопки {$button}");
+        }
+
+        foreach (['building_2_Workshop_b7>admin_give_gold', 'building_2_Workshop>AllRobots', 'Base_b7>AllRobots', 'building_2_Workshop_b7>repairBuilding_x'] as $forged) {
+            $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => $forged, 'intent_id' => 'f' . md5($forged)], true)->response()->getStatusCode(), "не кнопка карточки: {$forged}");
+        }
     }
 
     /** Обзор — визит, как в боте; подсказка «первая постройка» веб-игроку — во входящих. */
@@ -2249,6 +2311,8 @@ final class PlayViewControllerTest extends CIUnitTestCase
                 [$mid, $kb] = match ($intent['data'] ?? null) {
                     'Base_b7'         => [52, [[['text' => '🏘 Постройки', 'callback_data' => 'construction_b7']]]],
                     'construction_b7' => [53, [[['text' => '🔧 Мастерская L1', 'callback_data' => 'building_2_Workshop_b7']]]],
+                    // W2.N4b: карточка постройки в боте со всеми собственными кнопками зданий (мост из веб-карточки).
+                    'building_2_Workshop_b7' => [54, [[['text' => '🌱 Грядки', 'callback_data' => 'plantSeedMenu'], ['text' => '🤖 Роботы', 'callback_data' => 'AllRobots']], [['text' => '🔧 Ремонт', 'callback_data' => 'repairBuilding_52'], ['text' => '📡 Маяки', 'callback_data' => 'teleportBeacon']], [['text' => '🏗 Развитие базы', 'callback_data' => 'baseDevelopment'], ['text' => '📖 Путь новичка', 'callback_data' => 'guide_base']]]],
                     default           => [51, [[['text' => '🏠 Первая', 'callback_data' => 'Base_b7'], ['text' => '🏕 Разбить лагерь', 'callback_data' => 'Camp']]]],
                 };
                 $msg = ['message_id' => $mid, 'text' => 'База', 'caption' => null, 'parse_mode' => null, 'photo_url' => null, 'inline_keyboard' => $kb];

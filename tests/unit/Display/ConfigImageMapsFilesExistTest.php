@@ -12,7 +12,7 @@ use CodeIgniter\Test\CIUnitTestCase;
  * Сиблинг [[GearMapFilesExistTest]], но для другого класса потребителей: экраны построек и
  * крафта берут путь картинки из `Config\Buildings` / `Config\CraftRecipes` (поля
  * `image_in_progress` / `image_completed` / `completion_image`) или из хардкод-карты
- * `DefensiveBuildingHandler::DEF` и суют его в `Request::encodeFile()` — fopen без `is_file`.
+ * `BuildingCardService::CARDS` (W2.N4b; раньше — `DefensiveBuildingHandler::DEF`) и суют его в `Request::encodeFile()` — fopen без `is_file`.
  * Ссылка на несуществующий файл = падение экрана (класс-баг Gear) ИЛИ тихая потеря
  * completion-уведомления. Резолверы это лечат, но ТИХО — заглушка вместо арта.
  *
@@ -29,7 +29,7 @@ final class ConfigImageMapsFilesExistTest extends CIUnitTestCase
     private const SOURCES = [
         'Config\Buildings'        => 'app/Config/Buildings.php',
         'Config\CraftRecipes'     => 'app/Config/CraftRecipes.php',
-        'DefensiveBuildingHandler' => 'app/Controllers/Telegram/Commands/Actions/Camp/Buildings/DefensiveBuildingHandler.php',
+        'BuildingCardService'     => 'app/Services/Bases/BuildingCardService.php',
     ];
 
     /**
