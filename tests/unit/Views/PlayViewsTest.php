@@ -590,7 +590,7 @@ final class PlayViewsTest extends CIUnitTestCase
         $this->assertStringContainsString('⚡ Даёт сейчас: за сутки примерно 4320 фруктов', $green, 'эффект без Markdown');
         $this->assertStringContainsString('🌱 Грядки: растёт 1 из 2', $green);
         $this->assertStringContainsString('Свои посевы.', $green);
-        $this->assertMatchesRegularExpression('~name="op" value="bridge">.*?name="data" value="plantSeedMenu"><button class="play-kb-btn" type="submit">🌱 Грядки~su', $green, 'кнопка действия здания — мостом');
+        $this->assertMatchesRegularExpression('~name="op" value="bridge">.*?name="data" value="building_7_Greenhouse_b9>plantSeedMenu"><button class="play-kb-btn" type="submit">🌱 Грядки~su', $green, 'кнопка действия здания — мостом');
         $this->assertMatchesRegularExpression('~name="section" value="upgrade"><input type="hidden" name="id" value="7"><button class="play-kb-btn" type="submit">🆙 Поднять уровень~su', $green);
         $this->assertStringNotContainsString('Использований', $green, 'без лимита — без строки использований');
         foreach (['lvl', '$', '*'] as $junk) {
@@ -609,14 +609,14 @@ final class PlayViewsTest extends CIUnitTestCase
         $this->assertStringContainsString('Деревянная стена ×3', $wall);
         $this->assertMatchesRegularExpression('~<dt>❤️ Прочность</dt><dd>7 / 140</dd>~u', $wall);
         $this->assertStringContainsString('Структура повреждена', $wall);
-        $this->assertMatchesRegularExpression('~name="data" value="repairBuilding_52"><button class="play-kb-btn" type="submit">🔧 Ремонт~su', $wall);
+        $this->assertMatchesRegularExpression('~name="data" value="building_7_WoodenWall_b9>repairBuilding_52"><button class="play-kb-btn" type="submit">🔧 Ремонт~su', $wall);
 
         $leanTo = $render($card([
             'key' => 'LeanTo', 'template' => 'leanto', 'name' => 'Навес', 'emoji' => '⛺', 'level' => 1, 'effect' => null, 'farming' => null,
             'rows' => [[['kind' => 'bridge', 'text' => '🏗 Развитие базы', 'data' => 'baseDevelopment']], [['kind' => 'base', 'text' => '🏠 База', 'data' => 'Base'], ['kind' => 'bridge', 'text' => '📖 Путь новичка', 'data' => 'guide_base']]],
         ]));
-        $this->assertMatchesRegularExpression('~name="data" value="baseDevelopment"><button class="play-kb-btn" type="submit">🏗 Развитие базы~su', $leanTo);
-        $this->assertMatchesRegularExpression('~name="data" value="guide_base"><button class="play-kb-btn" type="submit">📖 Путь новичка~su', $leanTo);
+        $this->assertMatchesRegularExpression('~name="data" value="building_7_LeanTo_b9>baseDevelopment"><button class="play-kb-btn" type="submit">🏗 Развитие базы~su', $leanTo);
+        $this->assertMatchesRegularExpression('~name="data" value="building_7_LeanTo_b9>guide_base"><button class="play-kb-btn" type="submit">📖 Путь новичка~su', $leanTo);
         $this->assertStringNotContainsString('Поднять уровень', $leanTo, 'Навес не улучшается');
 
         $refused = $render($card(['state' => 'refused', 'refusal' => 'relocation', 'text' => "Сейчас идёт *Планируемый переезд базы*.\nПока эта задача активна, это действие недоступно!"]));

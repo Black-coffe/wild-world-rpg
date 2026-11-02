@@ -325,7 +325,7 @@ $home = ['b' => $baseId];
                                         <?php elseif ($kind === 'base'): ?>
                                             <?= $go($home, $str($btn['text'] ?? null, '🏠 База'), 'play-kb-btn') ?>
                                         <?php else: ?>
-                                            <?= $bridgeBtn($str($btn['data'] ?? null), $str($btn['text'] ?? null)) ?>
+                                            <?= $bridgeBtn(\App\Services\Web\WebNativeScreenService::cardBridgeData($int($own['building_id'] ?? 0), $str($own['key'] ?? null), $baseId, $str($btn['data'] ?? null)), $str($btn['text'] ?? null)) ?>
                                         <?php endif ?>
                                     <?php endforeach ?>
                                 <?php endforeach ?>

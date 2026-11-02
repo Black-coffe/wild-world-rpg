@@ -219,6 +219,18 @@ class WebNativeScreenService
 
     private const BASE_BRIDGE_PATTERN = '/^((hangar|campDecor|baseDevelopment)_b\d+|building_\d+_[A-Za-z]+_b\d+|genericBuildInfo_[A-Za-z]+(_b\d+)?)$/';
 
+    /**
+     * W2.N4b: кнопка моста с веб-карточки постройки несёт `<карточка в боте>><кнопка>` — мосту нужен путь до
+     * сообщения карточки (`building_<id>_<Key>_b<base>`), а у бота таких символов в `callback_data` нет.
+     */
+    public const CARD_BRIDGE_SEP = '>';
+
+    /** `data` кнопки моста с веб-карточки постройки. */
+    public static function cardBridgeData(int $buildingId, string $key, int $baseId, string $button): string
+    {
+        return BaseCallbackSuffix::append('building_' . $buildingId . '_' . $key, $baseId) . self::CARD_BRIDGE_SEP . $button;
+    }
+
     /** Отказ склада вне базы — что делать, а не голое «нельзя» (тот же смысл, что у бота). */
     private const STORAGE_OFF_BASE = '🚫 Склад физически на базе: положить и забрать можно только стоя на своей клейм-клетке. Вернись на базу — или из поля отправь груз карго-дроном.';
 
@@ -1746,6 +1758,17 @@ class WebNativeScreenService
     public function bridge(int $accountId, int $characterId, string $callback, string $intentId): array
     {
         self::assertIntent($intentId);
+        if (str_contains($callback, self::CARD_BRIDGE_SEP)) {
+            // W2.N4b: собственная кнопка здания с веб-карточки — путь бота до его карточки, затем кнопка.
+            [$origin, $button] = explode(self::CARD_BRIDGE_SEP, $callback, 2);
+            if (preg_match('/^building_\d+_[A-Za-z]+_b\d+$/', $origin) !== 1 || ! BuildingCardService::isBridgeAction($button)) {
+                throw new InvalidArgumentException('not a building card button');
+            }
+            $steps   = self::baseRoute($origin) ?? [];
+            $steps[] = $origin;
+
+            return $this->baseBridge($this->act ?? new WebActService(), $accountId, $characterId, $button, $intentId, $steps);
+        }
         $baseSteps = isset(self::BRIDGE_ROUTES[$callback]) ? null : self::baseRoute($callback);
         if ($baseSteps !== null) {
             return $this->baseBridge($this->act ?? new WebActService(), $accountId, $characterId, $callback, $intentId, $baseSteps);

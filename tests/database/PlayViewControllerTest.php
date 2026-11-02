@@ -1075,6 +1075,36 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'building_2_Workshop', 'intent_id' => 'w2'], true)->response()->getStatusCode(), 'карточка без базы — не кнопка веб-базы');
     }
 
+    /**
+     * W2.N4b repair round 1 (ask 3): собственная кнопка здания с веб-карточки (`<карточка>><кнопка>`) проходит мост —
+     * путь бота «🏠 База» → база → постройки → карточка, затем сама кнопка на сообщении карточки. Поддельная кнопка и
+     * карточка без базы — отказ.
+     */
+    public function testOwnedCardButtonsWalkTheBridgeToTheBotCard(): void
+    {
+        [$session, $charId] = $this->character('Ворон');
+        $this->enableBase();
+        $act = $this->baseAct();
+        $this->stubSheets($act);
+
+        foreach (['plantSeedMenu', 'AllRobots', 'repairBuilding_52', 'teleportBeacon', 'baseDevelopment', 'guide_base'] as $i => $button) {
+            $act->calls = [];
+            $status     = $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => 'building_2_Workshop_b7>' . $button, 'intent_id' => 'c' . $i], true)->response()->getStatusCode();
+            $this->assertSame(200, $status, "кнопка карточки проходит мост: {$button}");
+            $this->assertSame([
+                ['intent_id' => "c{$i}:card", 'kind' => 'text', 'data' => BotMenuService::menuLabel('base')],
+                ['intent_id' => "c{$i}:s0", 'kind' => 'callback', 'data' => 'Base_b7', 'message_id' => '51'],
+                ['intent_id' => "c{$i}:s1", 'kind' => 'callback', 'data' => 'construction_b7', 'message_id' => '52'],
+                ['intent_id' => "c{$i}:s2", 'kind' => 'callback', 'data' => 'building_2_Workshop_b7', 'message_id' => '53'],
+                ['intent_id' => "c{$i}:cb", 'kind' => 'callback', 'data' => $button, 'message_id' => '54'],
+            ], $act->calls, "путь бота до кнопки {$button}");
+        }
+
+        foreach (['building_2_Workshop_b7>admin_give_gold', 'building_2_Workshop>AllRobots', 'Base_b7>AllRobots', 'building_2_Workshop_b7>repairBuilding_x'] as $forged) {
+            $this->assertSame(400, $this->postWithCsrf($session, 'play/view', ['op' => 'bridge', 'data' => $forged, 'intent_id' => 'f' . md5($forged)], true)->response()->getStatusCode(), "не кнопка карточки: {$forged}");
+        }
+    }
+
     /** Обзор — визит, как в боте; подсказка «первая постройка» веб-игроку — во входящих. */
     public function testOpeningBaseIsAVisitAndWebOnlyHintLandsInTheInbox(): void
     {
@@ -2281,6 +2311,8 @@ final class PlayViewControllerTest extends CIUnitTestCase
                 [$mid, $kb] = match ($intent['data'] ?? null) {
                     'Base_b7'         => [52, [[['text' => '🏘 Постройки', 'callback_data' => 'construction_b7']]]],
                     'construction_b7' => [53, [[['text' => '🔧 Мастерская L1', 'callback_data' => 'building_2_Workshop_b7']]]],
+                    // W2.N4b: карточка постройки в боте со всеми собственными кнопками зданий (мост из веб-карточки).
+                    'building_2_Workshop_b7' => [54, [[['text' => '🌱 Грядки', 'callback_data' => 'plantSeedMenu'], ['text' => '🤖 Роботы', 'callback_data' => 'AllRobots']], [['text' => '🔧 Ремонт', 'callback_data' => 'repairBuilding_52'], ['text' => '📡 Маяки', 'callback_data' => 'teleportBeacon']], [['text' => '🏗 Развитие базы', 'callback_data' => 'baseDevelopment'], ['text' => '📖 Путь новичка', 'callback_data' => 'guide_base']]]],
                     default           => [51, [[['text' => '🏠 Первая', 'callback_data' => 'Base_b7'], ['text' => '🏕 Разбить лагерь', 'callback_data' => 'Camp']]]],
                 };
                 $msg = ['message_id' => $mid, 'text' => 'База', 'caption' => null, 'parse_mode' => null, 'photo_url' => null, 'inline_keyboard' => $kb];

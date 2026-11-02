@@ -113,6 +113,26 @@ final class BuildingCardService
         return isset(self::CARDS[$key]);
     }
 
+    /**
+     * Собственная кнопка здания с карточки (её `callback_data` в боте): из таблицы CARDS, «🌱 Грядки» теплицы,
+     * «🔧 Ремонт» обороны. Мост `/play` пропускает с веб-карточки только их (W2.N4b, repair round 1).
+     */
+    public static function isBridgeAction(string $data): bool
+    {
+        if ($data === 'plantSeedMenu' || preg_match('/^repairBuilding_[1-9]\d{0,11}$/', $data) === 1) {
+            return true;
+        }
+        foreach (self::CARDS as $card) {
+            foreach ($card['extra'] as $extra) {
+                if ($extra['data'] === $data) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     /** Отказ «нет персонажа» — свой текст у каждой старой копии. */
     public static function noUserText(string $key): string
     {
