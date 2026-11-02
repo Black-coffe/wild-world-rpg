@@ -107,24 +107,22 @@ final class NavigationMapService
      * дерево было связным.
      *
      * Источник: {@see \App\Controllers\Telegram\Commands\Actions\Camp\BuildingHandlerAction::handle()}
-     * (`building_<id>_<NameEng>` switch → конкретный *Handler).
+     * (W2.N4b: сам рисует карточку любого здания из `BuildingCardService::CARDS`).
      *
      * @var array<class-string, list<array{label:string, to:class-string}>>
      */
     private const INTERNAL_DISPATCH = [
+        // W2.N4b: карточки всех зданий рисует сам BuildingHandlerAction из таблицы
+        // BuildingCardService::CARDS (кнопки там под ключом `data`, сканер их не видит) —
+        // зеркалим её кнопки рёбрами на целевые экраны.
         \App\Controllers\Telegram\Commands\Actions\Camp\BuildingHandlerAction::class => [
-            ['label' => '🚰 Колонка',            'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\HandPumpHandler::class],
-            ['label' => '🔥 Домна',              'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\BlastFurnaceHandler::class],
-            ['label' => '🤖 Мастерская роботов', 'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\RoboticsWorkshopHandler::class],
-            ['label' => '🛠️ Мастерская',         'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\WorkshopHandler::class],
-            ['label' => '📦 Склад',              'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\WarehouseHandler::class],
-            ['label' => '🔬 Лаборатория',        'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\LaboratoryHandler::class],
-            ['label' => '🌱 Теплица',            'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\GreenhouseHandler::class],
-            ['label' => '☀️ Солнечная станция',  'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\SolarStationHandler::class],
-            ['label' => '🏋️ Спортзал',           'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\GymHandler::class],
-            ['label' => '📡 Центр телепортации', 'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportationCenterHandler::class],
-            ['label' => '⚔️ Арсенал',            'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\ArsenalHandler::class],
-            ['label' => '📶 Вышка связи',        'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\CommunicationTowerHandler::class],
+            ['label' => '🆙 Поднять уровень',    'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\UpgradeBuildingAction::class],
+            ['label' => '🤖 Роботы',             'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\AllRobotsHandler::class],
+            ['label' => '📡 Маяки',              'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportBeacon::class],
+            ['label' => '🌱 Грядки',             'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Greenhouse\SeedSelectAction::class],
+            ['label' => '🔧 Ремонт',             'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\RepairBuildingAction::class],
+            ['label' => '🏗 Развитие базы',      'to' => \App\Controllers\Telegram\Commands\Actions\Camp\BaseDevelopmentAction::class],
+            ['label' => '📖 Путь новичка',       'to' => \App\Controllers\Telegram\Commands\Actions\Guide\GuideAction::class],
         ],
     ];
 

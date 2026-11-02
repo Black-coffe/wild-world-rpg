@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Camp;
 
+use App\Services\Bases\BuildingCardService;
 use CodeIgniter\Test\CIUnitTestCase;
 use Config\Buildings;
 
 /**
  * 🔴 АНТИ-ДРИФТ ГЕЙТ экранов построек (CLAUDE.md §🎮 UX-DISCOVERABILITY).
  *
- * `BuildingHandlerAction::handle()` — ручной `switch` по `name_eng`. Добавить
- * здание в `Config\Buildings` и забыть case ничего не ломает на этапе сборки:
- * постройка спокойно строится, показывается на базе кнопкой — и отвечает
- * «Неизвестное строение» на тап.
+ * Добавить здание в `Config\Buildings` и забыть его карточку ничего не ломает на этапе сборки:
+ * постройка спокойно строится, показывается на базе кнопкой — и отвечает «Неизвестное строение»
+ * на тап.
  *
  * Так уже было дважды:
  *  - ADR-041 — оборонные постройки (WoodenWall/BarbedFence/WatchTower);
@@ -21,80 +21,67 @@ use Config\Buildings;
  *    виде с 27.06 до 12.08, 21 владелец на проде, поймал игрок в Bugs-info,
  *    а не тесты.
  *
- * Класс бага повторился → гейт. Тест разбирает исходники (DB-независим,
- * Telegram-независим), поэтому работает в любой CI-полосе.
+ * С W2.N4b (ADR-190) карточки всех зданий — записи таблицы {@see BuildingCardService::CARDS}
+ * (раньше — `case` в switch диспетчера и класс на здание). Гейт сверяет таблицу с конфигом.
  *
  * @internal
  */
 final class BuildingHandlerCoverageTest extends CIUnitTestCase
 {
-    private const HANDLER = 'app/Controllers/Telegram/Commands/Actions/Camp/BuildingHandlerAction.php';
-
     /**
-     * Главный гейт: у каждой постройки из конфига есть case в switch.
+     * Главный гейт: у каждой постройки из конфига есть карточка в ядре.
      */
-    public function testEveryConfiguredBuildingHasHandlerCase(): void
+    public function testEveryConfiguredBuildingHasCard(): void
     {
         $configured = array_keys((new Buildings())->recipes);
-        $cases      = $this->handlerCases();
-
-        $missing = array_values(array_diff($configured, $cases));
+        $missing    = array_values(array_diff($configured, array_keys(BuildingCardService::CARDS)));
 
         $this->assertSame([], $missing, sprintf(
-            "Постройки без case в BuildingHandlerAction: %s.\n"
-            . "Игрок построит их, увидит кнопку на базе — и получит «Неизвестное строение» на тап.\n"
-            . 'Заведи case + экран-handler (образцы: LeanToHandler, DefensiveBuildingHandler).',
+            "Постройки без карточки в BuildingCardService::CARDS: %s.\n"
+            . "Игрок построит их, увидит кнопку на базе — и получит «Не удалось открыть это строение» на тап.\n"
+            . 'Заведи запись (образцы: LeanTo, WoodenWall).',
             implode(', ', $missing)
         ));
     }
 
     /**
-     * Обратная сторона: case на постройку, которой нет в конфиге, — мёртвая ветка.
-     * Обычно означает переименование ключа, при котором старый case забыли убрать.
+     * Обратная сторона: карточка постройки, которой нет в конфиге, — мёртвая запись.
+     * Обычно означает переименование ключа, при котором старую запись забыли убрать.
      */
-    public function testNoHandlerCaseForUnknownBuilding(): void
+    public function testNoCardForUnknownBuilding(): void
     {
         $configured = array_keys((new Buildings())->recipes);
-        $orphanCases = array_values(array_diff($this->handlerCases(), $configured));
+        $orphans    = array_values(array_diff(array_keys(BuildingCardService::CARDS), $configured));
 
-        $this->assertSame([], $orphanCases, sprintf(
-            'case в BuildingHandlerAction без записи в Config\Buildings: %s.',
-            implode(', ', $orphanCases)
+        $this->assertSame([], $orphans, sprintf(
+            'Карточка в BuildingCardService::CARDS без записи в Config\Buildings: %s.',
+            implode(', ', $orphans)
         ));
     }
 
     /**
-     * Ветка `default` обязана оставаться дружелюбной: с выходом на базу, а не
-     * голым текстом-тупиком. Тупик — это то, из-за чего игроки идут в чат
-     * за помощью (ADR-103, навигационная устойчивость).
+     * Каждая картинка карточки лежит на диске: иначе бот уйдёт в текстовый фолбэк молча.
      */
-    public function testDefaultBranchOffersWayBack(): void
+    public function testEveryCardImageExists(): void
     {
-        $src = $this->handlerSource();
-        $tail = substr($src, strpos($src, 'default:') ?: 0);
+        foreach (BuildingCardService::CARDS as $key => $card) {
+            $this->assertFileExists(FCPATH . $card['image'], "Карточка {$key}: нет картинки {$card['image']}.");
+        }
+    }
+
+    /**
+     * Неопознанная постройка не оставляет игрока в тупике: кнопка возврата на базу (ADR-103).
+     */
+    public function testUnknownBuildingOffersWayBack(): void
+    {
+        $path = ROOTPATH . 'app/Controllers/Telegram/Commands/Actions/Camp/BuildingHandlerAction.php';
+        $src  = (string) file_get_contents($path);
+        $tail = substr($src, strpos($src, 'private function unknown(') ?: 0);
 
         $this->assertStringContainsString(
             "'callback_data' => 'Base'",
             $tail,
-            'Ветка default в BuildingHandlerAction обязана давать кнопку возврата на базу, а не оставлять игрока в тупике.'
+            'Отказ «не удалось открыть строение» обязан давать кнопку возврата на базу, а не оставлять игрока в тупике.'
         );
-    }
-
-    /**
-     * @return list<string> Значения всех `case '...':` в switch хендлера.
-     */
-    private function handlerCases(): array
-    {
-        preg_match_all("/case\s+'([A-Za-z0-9]+)'\s*:/", $this->handlerSource(), $m);
-
-        return array_values(array_unique($m[1]));
-    }
-
-    private function handlerSource(): string
-    {
-        $path = ROOTPATH . self::HANDLER;
-        $this->assertFileExists($path, 'BuildingHandlerAction не найден — гейт был бы фиктивно зелёным.');
-
-        return (string) file_get_contents($path);
     }
 }
