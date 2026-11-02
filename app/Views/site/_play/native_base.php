@@ -153,12 +153,16 @@ $home = ['b' => $baseId];
                                         <span class="play-base-building-meta">ур. <?= max(1, $int($row['level'] ?? 1)) ?> · налог <?= $int($row['tax'] ?? 0) ?></span>
                                         <span class="play-base-building-actions">
                                             <?= $go($home + ['section' => 'upgrade', 'id' => $int($row['building_id'] ?? 0)], '⬆️ Улучшить', 'play-kb-btn') ?>
-                                            <?= $bridgeBtn($str($row['bridge_callback'] ?? null), '⚙️ Действия') ?>
+                                            <?php if (($row['has_card'] ?? false) === true): ?>
+                                                <?= $go($home + ['section' => 'card', 'key' => $str($row['key'] ?? null)], '📋 Подробнее', 'play-kb-btn') ?>
+                                            <?php else: ?>
+                                                <?= $bridgeBtn($str($row['bridge_callback'] ?? null), '⚙️ Действия') ?>
+                                            <?php endif ?>
                                         </span>
                                     </li>
                                 <?php endforeach ?>
                             </ul>
-                            <p class="play-native-hint">«⚙️ Действия» — карточка постройки в боте: роботы, теплица, маяки, дрон и остальное, что умеет здание.</p>
+                            <p class="play-native-hint">«📋 Подробнее» — карточка постройки: уровень, налог, эффект и всё, что умеет здание (грядки, роботы, маяки, ремонт).</p>
                         <?php endif ?>
                     </section>
 
@@ -257,6 +261,77 @@ $home = ['b' => $baseId];
                         <?php endif ?>
                         <div class="play-kb-grid"><?= $go($home + ['section' => 'catalog'], '↩️ К списку построек', 'play-kb-btn') ?></div>
                     </section>
+
+                <?php elseif ($section === 'card' && is_array($m['owned'] ?? null)): ?>
+                    <?php
+                    // W2.N4b (ADR-190): карточка «моей» постройки — модель BuildingCardService, та же, что у бота.
+                    $own   = $m['owned'];
+                    $date  = static fn (mixed $v): string => is_string($v) && $v !== '' && strtotime($v) !== false ? date('d.m.Y', (int) strtotime($v)) : '';
+                    $okOwn = ($own['state'] ?? '') === 'ok';
+                    ?>
+                    <?php if (! $okOwn): ?>
+                        <div class="play-native-note" data-building-gate><?= esc($plain($str($own['text'] ?? null, 'Карточка постройки сейчас недоступна.'))) ?></div>
+                        <div class="play-kb-grid"><?= $go($home, '↩️ К постройкам', 'play-kb-btn') ?></div>
+                    <?php else: ?>
+                        <?php
+                        $ownAmount = $int($own['amount'] ?? 1);
+                        $hpMax     = $own['hp_max'] ?? null;
+                        $hpCur     = $own['hp_cur'] ?? null;
+                        $farming   = is_array($own['farming'] ?? null) ? $own['farming'] : null;
+                        $template  = $str($own['template'] ?? null);
+                        ?>
+                        <section class="play-craft-card" aria-labelledby="play-base-own-title" data-building-card="<?= esc($str($own['key'] ?? null), 'attr') ?>">
+                            <h3 class="play-craft-card-title" id="play-base-own-title"><?= esc(trim($str($own['emoji'] ?? null) . ' ' . $str($own['name'] ?? null, 'Постройка'))) ?><?= $ownAmount > 1 ? ' ×' . $ownAmount : '' ?></h3>
+                            <dl class="play-craft-facts">
+                                <div><dt>📈 Уровень</dt><dd><?= max(1, $int($own['level'] ?? 1)) ?></dd></div>
+                                <?php if (is_int($hpMax) && $hpMax > 0): ?>
+                                    <div><dt>❤️ Прочность</dt><dd><?= $int($hpCur) ?> / <?= $hpMax ?></dd></div>
+                                <?php endif ?>
+                                <div><dt>💰 Налог</dt><dd><?= $template === 'leanto' ? '0 — Навес не облагается' : esc(number_format($int($own['tax'] ?? 0), 0, '.', ' ')) . ' зол./сутки' ?></dd></div>
+                                <?php if ($date($own['built_at'] ?? null) !== ''): ?>
+                                    <div><dt>📅 Построена</dt><dd><?= $date($own['built_at']) ?></dd></div>
+                                <?php endif ?>
+                                <?php if ($date($own['disappears_at'] ?? null) !== ''): ?>
+                                    <div><dt>⏳ Исчезнет</dt><dd><?= $date($own['disappears_at']) ?></dd></div>
+                                <?php endif ?>
+                                <?php if (is_int($own['uses_limit'] ?? null)): ?>
+                                    <div><dt>🔄 Использований</dt><dd><?= $int($own['uses_used'] ?? 0) ?> из <?= $own['uses_limit'] ?></dd></div>
+                                <?php endif ?>
+                                <?php if ($str($own['usage_label'] ?? null) !== '' && $template !== 'defensive' && $template !== 'leanto'): ?>
+                                    <div><dt>🔒 Доступность</dt><dd><?= esc($str($own['usage_label'])) ?></dd></div>
+                                <?php endif ?>
+                            </dl>
+                            <?php if ($str($own['effect'] ?? null) !== ''): ?>
+                                <p class="play-base-effect"><?= $template === 'defensive' ? '⚔️ Эффект: ' : '' ?><?= esc($plain($str($own['effect']))) ?></p>
+                            <?php endif ?>
+                            <?php if ($template === 'defensive' && is_int($hpMax)): ?>
+                                <p class="play-native-hint"><?= $int($hpCur) < $hpMax ? 'Структура повреждена. Почини её — иначе сломается в бою и перестанет защищать.' : 'Структура в полном порядке.' ?></p>
+                            <?php endif ?>
+                            <?php if ($farming !== null): ?>
+                                <p class="play-native-hint">🌱 Грядки: растёт <?= $int($farming['used'] ?? 0) ?> из <?= $int($farming['max'] ?? 0) ?>.</p>
+                            <?php endif ?>
+                            <?php if ($str($own['description'] ?? null) !== ''): ?>
+                                <p class="play-base-effect"><?= esc($plain($str($own['description']))) ?></p>
+                            <?php endif ?>
+                            <?php if ($template === 'leanto'): ?>
+                                <p class="play-native-hint">Навес — стартовое укрытие: постоянного эффекта не даёт и не улучшается. Дальше базу усилят Склад, Теплица, Мастерская и оборона — что каждая даёт, видно в «🏗 Развитие базы».</p>
+                            <?php endif ?>
+                            <div class="play-kb-grid">
+                                <?php foreach (is_array($own['rows'] ?? null) ? $own['rows'] : [] as $ownRow): ?>
+                                    <?php foreach (is_array($ownRow) ? $ownRow : [] as $btn): ?>
+                                        <?php if (! is_array($btn)) { continue; } $kind = $str($btn['kind'] ?? null); ?>
+                                        <?php if ($kind === 'upgrade'): ?>
+                                            <?= $go($home + ['section' => 'upgrade', 'id' => $int($own['building_id'] ?? 0)], $str($btn['text'] ?? null, '🆙 Поднять уровень'), 'play-kb-btn') ?>
+                                        <?php elseif ($kind === 'base'): ?>
+                                            <?= $go($home, $str($btn['text'] ?? null, '🏠 База'), 'play-kb-btn') ?>
+                                        <?php else: ?>
+                                            <?= $bridgeBtn($str($btn['data'] ?? null), $str($btn['text'] ?? null)) ?>
+                                        <?php endif ?>
+                                    <?php endforeach ?>
+                                <?php endforeach ?>
+                            </div>
+                        </section>
+                    <?php endif ?>
 
                 <?php elseif ($section === 'upgrade' && is_array($m['upgrade'] ?? null)): ?>
                     <?php $up = $m['upgrade']; $req = is_array($up['requirements'] ?? null) ? $up['requirements'] : []; $code = $str($up['code'] ?? null); ?>

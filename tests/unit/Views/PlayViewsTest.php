@@ -554,6 +554,90 @@ final class PlayViewsTest extends CIUnitTestCase
         $this->assertStringNotContainsString('✨ Эффект', $render(null, null), 'нет эффекта — нет строки');
     }
 
+    /**
+     * W2.N4b (ask 2, 3, 5): нативная карточка постройки рисует модель ядра BuildingCardService — чистые подписи
+     * (без «lvl», «$», Markdown), использования только при лимите, собственные действия здания — мостом с той же
+     * `callback_data`, апгрейд — нативно, у Навеса апгрейда нет.
+     */
+    public function testOwnedBuildingCardRendersCoreModelAndBridgesOwnActions(): void
+    {
+        $card = static fn (array $over): array => $over + [
+            'state' => 'ok', 'refusal' => '', 'text' => '', 'key' => 'Greenhouse', 'template' => 'generic',
+            'building_id' => 7, 'char_building_id' => 41, 'name' => 'Теплица', 'emoji' => '🏗️', 'image' => '',
+            'level' => 5, 'amount' => 1, 'tax' => 0, 'built_at' => '2026-02-20 08:30:00', 'disappears_at' => '',
+            'uses_used' => 0, 'uses_left' => null, 'uses_limit' => null, 'usage' => 'collective', 'usage_label' => 'коллективная',
+            'description' => 'Свои посевы.', 'hp_cur' => null, 'hp_max' => null,
+            'effect' => '⚡ *Даёт сейчас:* за сутки примерно 4320 фруктов', 'stack_on' => false, 'stackable' => false,
+            'farming' => ['used' => 1, 'max' => 2],
+            'rows' => [
+                [['kind' => 'bridge', 'text' => '🌱 Грядки', 'data' => 'plantSeedMenu']],
+                [['kind' => 'upgrade', 'text' => '🆙 Поднять уровень', 'data' => 'upgrade_building_7_b9'], ['kind' => 'base', 'text' => '🏠 База', 'data' => 'Base']],
+            ],
+        ];
+        $render = static fn (array $owned): string => html_entity_decode(view('site/_play/native_base', [
+            'base' => [
+                'state' => 'base', 'base_id' => 9, 'section' => 'card', 'owned' => $owned,
+                'overview' => ['base' => ['x' => 1, 'y' => 2, 'biome' => 'Лес', 'count' => 1, 'tax_total' => 0], 'coverage' => null, 'buildings' => []],
+            ],
+            'dock' => [],
+        ]), ENT_QUOTES | ENT_HTML5);
+
+        $green = $render($card([]));
+        $this->assertStringContainsString('data-building-card="Greenhouse"', $green, 'карточки нет: строка постройки ведёт в нативную карточку — её и рисуем');
+        $this->assertMatchesRegularExpression('~<dt>📈 Уровень</dt><dd>5</dd>~u', $green);
+        $this->assertMatchesRegularExpression('~<dt>📅 Построена</dt><dd>20\.02\.2026</dd>~u', $green);
+        $this->assertMatchesRegularExpression('~<dt>🔒 Доступность</dt><dd>коллективная</dd>~u', $green);
+        $this->assertStringContainsString('⚡ Даёт сейчас: за сутки примерно 4320 фруктов', $green, 'эффект без Markdown');
+        $this->assertStringContainsString('🌱 Грядки: растёт 1 из 2', $green);
+        $this->assertStringContainsString('Свои посевы.', $green);
+        $this->assertMatchesRegularExpression('~name="op" value="bridge">.*?name="data" value="plantSeedMenu"><button class="play-kb-btn" type="submit">🌱 Грядки~su', $green, 'кнопка действия здания — мостом');
+        $this->assertMatchesRegularExpression('~name="section" value="upgrade"><input type="hidden" name="id" value="7"><button class="play-kb-btn" type="submit">🆙 Поднять уровень~su', $green);
+        $this->assertStringNotContainsString('Использований', $green, 'без лимита — без строки использований');
+        foreach (['lvl', '$', '*'] as $junk) {
+            $this->assertStringNotContainsString($junk, strip_tags($green), "в подписях веба нет «{$junk}»");
+        }
+
+        $limited = $render($card(['uses_used' => 3, 'uses_left' => 7, 'uses_limit' => 10, 'disappears_at' => '2026-12-31 00:00:00']));
+        $this->assertMatchesRegularExpression('~<dt>🔄 Использований</dt><dd>3 из 10</dd>~u', $limited);
+        $this->assertMatchesRegularExpression('~<dt>⏳ Исчезнет</dt><dd>31\.12\.2026</dd>~u', $limited);
+
+        $wall = $render($card([
+            'key' => 'WoodenWall', 'template' => 'defensive', 'name' => 'Деревянная стена', 'emoji' => '🪵', 'level' => 3, 'amount' => 3,
+            'hp_cur' => 7, 'hp_max' => 140, 'effect' => '−21% получаемого урона в PvP у базы (суммарно до cap)', 'farming' => null, 'description' => '',
+            'rows' => [[['kind' => 'upgrade', 'text' => '🆙 Поднять уровень', 'data' => 'upgrade_building_13'], ['kind' => 'bridge', 'text' => '🔧 Ремонт', 'data' => 'repairBuilding_52']], [['kind' => 'base', 'text' => '🏠 База', 'data' => 'Base']]],
+        ]));
+        $this->assertStringContainsString('Деревянная стена ×3', $wall);
+        $this->assertMatchesRegularExpression('~<dt>❤️ Прочность</dt><dd>7 / 140</dd>~u', $wall);
+        $this->assertStringContainsString('Структура повреждена', $wall);
+        $this->assertMatchesRegularExpression('~name="data" value="repairBuilding_52"><button class="play-kb-btn" type="submit">🔧 Ремонт~su', $wall);
+
+        $leanTo = $render($card([
+            'key' => 'LeanTo', 'template' => 'leanto', 'name' => 'Навес', 'emoji' => '⛺', 'level' => 1, 'effect' => null, 'farming' => null,
+            'rows' => [[['kind' => 'bridge', 'text' => '🏗 Развитие базы', 'data' => 'baseDevelopment']], [['kind' => 'base', 'text' => '🏠 База', 'data' => 'Base'], ['kind' => 'bridge', 'text' => '📖 Путь новичка', 'data' => 'guide_base']]],
+        ]));
+        $this->assertMatchesRegularExpression('~name="data" value="baseDevelopment"><button class="play-kb-btn" type="submit">🏗 Развитие базы~su', $leanTo);
+        $this->assertMatchesRegularExpression('~name="data" value="guide_base"><button class="play-kb-btn" type="submit">📖 Путь новичка~su', $leanTo);
+        $this->assertStringNotContainsString('Поднять уровень', $leanTo, 'Навес не улучшается');
+
+        $refused = $render($card(['state' => 'refused', 'refusal' => 'relocation', 'text' => "Сейчас идёт *Планируемый переезд базы*.\nПока эта задача активна, это действие недоступно!"]));
+        $this->assertStringContainsString('Сейчас идёт Планируемый переезд базы.', $refused);
+        $this->assertStringNotContainsString('data-building-card=', $refused);
+
+        $overview = html_entity_decode(view('site/_play/native_base', [
+            'base' => [
+                'state' => 'base', 'base_id' => 9, 'section' => 'overview',
+                'overview' => ['base' => ['x' => 1, 'y' => 2, 'biome' => 'Лес', 'count' => 2, 'tax_total' => 0], 'coverage' => null, 'buildings' => [
+                    ['building_id' => 7, 'key' => 'Greenhouse', 'name' => 'Теплица', 'icon' => '🌱', 'level' => 5, 'amount' => 1, 'tax' => 0, 'has_card' => true, 'bridge_callback' => 'building_7_Greenhouse_b9'],
+                    ['building_id' => 99, 'key' => 'Mystery', 'name' => 'Нечто', 'icon' => '🏠', 'level' => 1, 'amount' => 1, 'tax' => 0, 'has_card' => false, 'bridge_callback' => 'building_99_Mystery_b9'],
+                ]],
+            ],
+            'dock' => [],
+        ]), ENT_QUOTES | ENT_HTML5);
+        $this->assertMatchesRegularExpression('~name="section" value="card"><input type="hidden" name="key" value="Greenhouse">~su', $overview, 'строка постройки ведёт в нативную карточку');
+        $this->assertStringNotContainsString('value="building_7_Greenhouse_b9"', $overview, 'строка постройки ведёт в нативную карточку, а не в мост');
+        $this->assertStringContainsString('value="building_99_Mystery_b9"', $overview, 'здание без карточки в ядре — мостом, не тупиком');
+    }
+
     /** w2-n4-tails2 (ask 1): ресурсы апгрейда подписаны именем игрока из ядра, ключ `Water` на экран не попадает. */
     public function testUpgradeCardNamesResourcesInRussian(): void
     {

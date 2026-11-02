@@ -8,6 +8,7 @@ use App\Models\ActionLogModel;
 use App\Services\Bases\BaseCallbackSuffix;
 use App\Services\Bases\BaseScreenService;
 use App\Services\Bases\BaseStorageService;
+use App\Services\Bases\BuildingCardService;
 use App\Services\Buildings\BuildingUpgradeService;
 use App\Services\Buildings\BuildOrderService;
 use App\Models\CraftedItemsLogModel;
@@ -207,7 +208,7 @@ class WebNativeScreenService
     private const TASKS_ENTRY = '/tasks';
 
     /** «🏠 База»: разделы экрана и мутации с дедупом по `intent_id`. */
-    public const BASE_SECTIONS    = ['overview', 'catalog', 'building', 'upgrade'];
+    public const BASE_SECTIONS    = ['overview', 'catalog', 'building', 'upgrade', 'card'];
     public const OP_BUILD_START   = 'build_start';
     public const OP_UPGRADE       = 'upgrade';
 
@@ -303,6 +304,8 @@ class WebNativeScreenService
 
     private BuildingUpgradeService $upgrades;
 
+    private BuildingCardService $cards;
+
     private TasksSurfaceService $tasks;
 
     private QuestListService $questLists;
@@ -345,7 +348,8 @@ class WebNativeScreenService
         ?ResourceShopScreenService $shop = null,
         ?BaseStorageService $storage = null,
         ?BattleJournalService $journal = null,
-        ?ArenaScreenService $arena = null
+        ?ArenaScreenService $arena = null,
+        ?BuildingCardService $cards = null
     ) {
         $this->sheets    = $sheets ?? new CharacterSheetService();
         $this->inventory = $inventory ?? new InventoryViewService();
@@ -368,6 +372,7 @@ class WebNativeScreenService
         $this->storage     = $storage ?? new BaseStorageService();
         $this->journal     = $journal ?? new BattleJournalService();
         $this->arena       = $arena ?? new ArenaScreenService();
+        $this->cards       = $cards ?? new BuildingCardService();
     }
 
     public static function isView(mixed $view): bool
@@ -765,6 +770,7 @@ class WebNativeScreenService
             'refusal'  => '',
             'card'     => null,
             'upgrade'  => null,
+            'owned'    => null,
         ];
         if ($resolved['state'] === BaseScreenService::STATE_FAR) {
             $model['overview'] = $this->bases->overview($characterId, $resolved['base_id']);
@@ -802,6 +808,9 @@ class WebNativeScreenService
             $model['card'] = $this->builds->preview($characterId, $baseId, $nav['key']);
         } elseif ($section === 'upgrade' && isset($nav['id'])) {
             $model['upgrade'] = $this->upgrades->preview($characterId, $baseId, $nav['id']);
+        } elseif ($section === 'card' && isset($nav['key'])) {
+            // W2.N4b: карточка «моей» постройки — то же ядро, что у бота; номер базы и переезд оно перепроверяет.
+            $model['owned'] = $this->cards->card($characterId, $this->characterCell($characterId) ?? 0, $nav['key'], $baseId);
         } else {
             // Карточка без ключа или апгрейд без постройки — обзор.
             $model['section'] = 'overview';

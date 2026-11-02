@@ -93,7 +93,7 @@ namespace Tests\Unit\Camp {
 
         private const TABLES = [
             'telegram_users', 'characters', 'buildings', 'character_buildings',
-            'claimed_cells', 'tasks', 'character_tasks',
+            'claimed_cells', 'tasks', 'character_tasks', 'game_settings',
         ];
 
         private string $origPrefix = '';
@@ -184,8 +184,42 @@ namespace Tests\Unit\Camp {
          */
         public function testEveryCardMatchesSnapshotOfOldHandler(): void
         {
+            $this->assertMatchesSnapshot('', $this->capture(array_keys(self::KEYS), ''));
+        }
+
+        /**
+         * Ветки под флагами GameSettings (на дефолтах их не видно): стопка обороны включена — строка
+         * «🏗 Построено на базе: ×N», усиленный эффект и подсказка про стопку; грядки теплицы выключены —
+         * карточка без блока «Грядки» и без кнопки. Снимки — тоже со старых классов.
+         */
+        public function testFlaggedBranchesMatchSnapshotOfOldHandler(): void
+        {
+            $this->createOwnTable('game_settings', 'CREATE TABLE __TABLE__ (
+                id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(128) NULL, category VARCHAR(64) NULL,
+                value_type VARCHAR(16) NULL, value_int INT NULL, value_float FLOAT NULL, value_bool TINYINT NULL,
+                value_string TEXT NULL, hard_min DOUBLE NULL, hard_max DOUBLE NULL)');
+            foreach (['defense.stack.enabled' => 1, 'farming.enabled' => 0] as $settingKey => $on) {
+                $this->db()->table('game_settings')->insert([
+                    'setting_key' => $settingKey, 'category' => 'experimental', 'value_type' => 'bool', 'value_bool' => $on,
+                ]);
+            }
+            $cache = service('cache');
+            if (is_object($cache) && method_exists($cache, 'clean')) {
+                $cache->clean();
+            }
+
+            $this->assertMatchesSnapshot('flags:', $this->capture(['WoodenWall', 'BarbedFence', 'WatchTower', 'Greenhouse'], 'flags:'));
+        }
+
+        /**
+         * @param list<string> $keys
+         *
+         * @return array<string, array{kind:string, text:string, parse_mode:string, keyboard:list<list<array{text:string,data:string}>>}>
+         */
+        private function capture(array $keys, string $prefix): array
+        {
             $actual = [];
-            foreach (array_keys(self::KEYS) as $key) {
+            foreach ($keys as $key) {
                 foreach ($this->variantsOf($key) as $variant => $row) {
                     foreach (['plain', 'suffix'] as $cb) {
                         $this->db()->table('character_buildings')->where('character_id', $this->charId)->delete();
@@ -194,18 +228,36 @@ namespace Tests\Unit\Camp {
                             'map_cell_id' => self::CELL, 'building_type' => self::KEYS[$key][1],
                         ]);
                         $data = 'building_' . $this->buildingIds[$key] . '_' . $key . ($cb === 'suffix' ? '_b' . $this->baseId : '');
-                        $actual["{$key}/{$variant}/{$cb}"] = $this->render($data);
+                        $actual["{$prefix}{$key}/{$variant}/{$cb}"] = $this->render($data);
                     }
                 }
             }
             ksort($actual);
 
+            return $actual;
+        }
+
+        /**
+         * Сравнить снимки группы `$prefix` ('' — дефолты, 'flags:' — флаги). Режим записи дописывает группу,
+         * не трогая другую.
+         *
+         * @param array<string, mixed> $actual
+         */
+        private function assertMatchesSnapshot(string $prefix, array $actual): void
+        {
+            $inGroup = static fn (string $case): bool => $prefix === '' ? ! str_contains($case, ':') : str_starts_with($case, $prefix);
+
             if (getenv('BUILDING_CARD_SNAPSHOT') === 'write') {
-                file_put_contents(self::SNAPSHOT, json_encode($actual, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
+                $all = is_file(self::SNAPSHOT) ? (array) json_decode((string) file_get_contents(self::SNAPSHOT), true) : [];
+                $all = array_filter($all, static fn (string $case): bool => ! $inGroup($case), ARRAY_FILTER_USE_KEY) + $actual;
+                ksort($all);
+                file_put_contents(self::SNAPSHOT, json_encode($all, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
             }
             $this->assertFileExists(self::SNAPSHOT, 'Снимков нет: их снимают со старых классов (BUILDING_CARD_SNAPSHOT=write).');
-            $expected = json_decode((string) file_get_contents(self::SNAPSHOT), true);
-            $this->assertIsArray($expected);
+            $all = json_decode((string) file_get_contents(self::SNAPSHOT), true);
+            $this->assertIsArray($all);
+            $expected = array_filter($all, static fn (string $case): bool => $inGroup($case), ARRAY_FILTER_USE_KEY);
+            $this->assertNotSame([], $expected, "Снимков группы «{$prefix}» нет.");
 
             foreach ($expected as $case => $want) {
                 $this->assertArrayHasKey($case, $actual, "Карточка {$case} пропала.");
