@@ -72,7 +72,7 @@
 
 **Approved:** Andrei (владелец), 2026-11-02 — запуском /vulyk-build w2-n4b-cards
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/w2-n4b-cards
 **Checked:**
 **Council:**
 **Shipped:**
