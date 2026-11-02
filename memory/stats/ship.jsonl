@@ -47,3 +47,5 @@
 {"ts":"2026-11-01T15:35:03Z","spec":"e-first-rollback","version":"v0.51.708","head":"e3b4c58c","pack":"5adb80c20183","note":"merged to develop, publish pending (вместе с e-first)"}
 {"ts":"2026-11-01T21:50:41Z","spec":"d-dead-res","version":"v0.51.709","head":"14d21c9f","pack":"4cfa3dfc4269","note":"merged to develop, publish pending"}
 {"ts":"2026-11-01T22:10:44Z","spec":"d-dead-res-heal-line","version":"v0.51.709","head":"f25b369d","pack":"83618f32a2d7","note":"merged to develop, publish pending (один тег с d-dead-res)"}
+{"ts":"2026-11-02T08:57:15Z","spec":"d-dead-res","version":"v0.51.709","head":"7afe9ecf","pack":"4cfa3dfc4269","note":"тег на develop 7afe9ecf, прод 2026-11-02 10:56, preprod-смоук: вебхук-тапы карточка+старт ok, крафт завершён кроном, мазь в инвентаре, итог доставлен; parity зелёная после выката"}
+{"ts":"2026-11-02T08:57:16Z","spec":"d-dead-res-heal-line","version":"v0.51.709","head":"7afe9ecf","pack":"83618f32a2d7","note":"тег на develop 7afe9ecf, прод 2026-11-02 10:56, preprod-смоук: вебхук-тапы карточка+старт ok, крафт завершён кроном, мазь в инвентаре, итог доставлен; parity зелёная после выката"}

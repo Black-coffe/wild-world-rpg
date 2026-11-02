@@ -40,3 +40,4 @@ none
 **Council:** GREEN round 1, 2026-11-01, at efdb7648, pack 83618f32a2d7
 **Shipped:**
 **Shipped:** v0.51.709, 2026-11-01, at f25b369d - merged to develop, publish pending (один тег с d-dead-res)
+**Shipped:** v0.51.709, 2026-11-02, at 7afe9ecf - тег на develop 7afe9ecf, прод 2026-11-02 10:56, preprod-смоук: вебхук-тапы карточка+старт ok, крафт завершён кроном, мазь в инвентаре, итог доставлен; parity зелёная после выката
