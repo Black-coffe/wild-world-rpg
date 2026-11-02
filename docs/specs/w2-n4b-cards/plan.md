@@ -82,3 +82,4 @@
 **Council:** RED round 1, 2026-11-02, at e6bf0949, pack 762348ceedbe
 **Council:** GREEN round 2, 2026-11-02, at fb55165a, pack 2deb0f3f5201
 **Shipped:**
+**Shipped:** v0.51.710, 2026-11-02, at 0fcf9229 - merged to develop, publish pending

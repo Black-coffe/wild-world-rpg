@@ -49,3 +49,4 @@
 {"ts":"2026-11-01T22:10:44Z","spec":"d-dead-res-heal-line","version":"v0.51.709","head":"f25b369d","pack":"83618f32a2d7","note":"merged to develop, publish pending (один тег с d-dead-res)"}
 {"ts":"2026-11-02T08:57:15Z","spec":"d-dead-res","version":"v0.51.709","head":"7afe9ecf","pack":"4cfa3dfc4269","note":"тег на develop 7afe9ecf, прод 2026-11-02 10:56, preprod-смоук: вебхук-тапы карточка+старт ok, крафт завершён кроном, мазь в инвентаре, итог доставлен; parity зелёная после выката"}
 {"ts":"2026-11-02T08:57:16Z","spec":"d-dead-res-heal-line","version":"v0.51.709","head":"7afe9ecf","pack":"83618f32a2d7","note":"тег на develop 7afe9ecf, прод 2026-11-02 10:56, preprod-смоук: вебхук-тапы карточка+старт ok, крафт завершён кроном, мазь в инвентаре, итог доставлен; parity зелёная после выката"}
+{"ts":"2026-11-02T10:06:49Z","spec":"w2-n4b-cards","version":"v0.51.710","head":"0fcf9229","pack":"2deb0f3f5201","note":"merged to develop, publish pending"}
