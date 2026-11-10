@@ -83,7 +83,15 @@ Quiet variants only: their output is resent every turn. A story's `## Verificati
 | Purpose | Command |
 |---|---|
 | Single test file | `vendor/bin/phpunit --no-coverage --no-progress tests/<Path>Test.php` |
-| Full suite / build (round-only) | `vendor/bin/phpunit --no-coverage --no-progress` |
+| Full suite unit (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/unit` |
+| Full suite db1 (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[AC]*Test.php` |
+| Full suite db2 (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[BE]*Test.php` |
+| Full suite db3 (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[DF]*Test.php` |
+| Full suite db4 (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[G-O]*Test.php tests/database/*/` |
+| Full suite db5 (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/database/P[!v-z]*Test.php tests/database/U*Test.php` |
+| Full suite db8 (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/database/P[v-z]*Test.php` |
+| Full suite db6 (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[Q-S]*Test.php` |
+| Full suite db7 (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[TV-Z]*Test.php tests/session` |
 | Lint / static analysis | `vendor/bin/phpstan analyse --memory-limit=512M --no-progress` |
 | Migrations syntax | `git ls-files 'app/Database/Migrations/*.php' \| xargs -n1 php -l > /dev/null` |
 | Build / typecheck | none — PHP ничего не собирает; ближайший эквивалент типчека это phpstan-строка выше |
@@ -93,6 +101,12 @@ Quiet variants only: their output is resent every turn. A story's `## Verificati
 | Story gate, per spec | `bash scripts/wave-check.sh docs/specs/<slug>` |
 | Ship gate, per spec | `bash scripts/ship-check.sh docs/specs/<slug>` |
 | Preprod parity, before a preprod smoke | `bash scripts/preprod-parity.sh` |
+
+Полный набор разбит на 9 частей (лимит гейта — 300 с на часть, ADR-029 рамки): `tests/unit` целиком и
+`tests/database` по первой букве файла, вместе A–Z без пересечений, подпапки `tests/database/*/` — в db4.
+Новая папка прямо в `tests/` (не `unit`/`database`/`session`) в гейт **сама не попадёт** — добавить её
+строкой. Сверка покрытия: сумма `--list-tests` по девяти строкам = `vendor/bin/phpunit --list-tests`
+без `exploit-poc` (2026-11-10: 3538 + 1557 + 1).
 
 Почему именно эти формы, а не то, что написано в README:
 

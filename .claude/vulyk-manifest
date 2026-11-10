@@ -30,6 +30,7 @@
 .claude/hooks/defect-intake.sh
 .claude/hooks/defects-inject.sh
 .claude/hooks/defects_lib.py
+.claude/hooks/git-guard.sh
 .claude/hooks/handoff.py
 .claude/hooks/handoff.sh
 .claude/hooks/session-start-brief.sh
@@ -54,9 +55,6 @@ bootstrap/interview.md
 docs/defects/README.md
 memory/learnings/README.md
 memory/map/README.md
-memory/map/agents-and-commands.md
-memory/map/cycle.md
-memory/map/scripts.md
 memory/memory.md
 memory/stats/skills.json
 scripts/acceptance-log.sh
@@ -82,6 +80,7 @@ scripts/run-capped.py
 scripts/scope-check.sh
 scripts/ship-check.sh
 scripts/state.sh
+scripts/suite-parts-check.sh
 scripts/symbol-map.py
 scripts/symbol-map.sh
 scripts/telemetry.sh

@@ -58,23 +58,31 @@ json_escape() { # json_escape <text> -> the JSON-string-safe form of <text>: bac
   # every value through, so the last stdout line is one parsable JSON object whatever a
   # hive's `## Commands` cell or a report's own text contains. Order matters: backslash first,
   # or a later substitution's own backslash would be escaped a second time.
-  local s="$1"
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\t'/\\t}"
-  s="${s//$'\n'/\\n}"
-  printf '%s' "$s"
+  json_escape_to "$1"
+  printf '%s' "$JE"
+}
+
+json_escape_to() { # json_escape_to <text> -> JE: json_escape's result in a variable, no subshell -
+  # for free text interpolated into a council.jsonl row (P9-01) or `status --json` (P9-06), where a
+  # note or a frontmatter value holding a quote broke the line for jq or forged a key.
+  JE="$1"
+  JE="${JE//\\/\\\\}"
+  JE="${JE//\"/\\\"}"
+  JE="${JE//$'\t'/\\t}"
+  JE="${JE//$'\n'/\\n}"
 }
 
 emit() { # emit <true|false> <verb> <exit> <next> [error] [status-json]
   # C5: <status-json> is a whole `status --json` object, appended verbatim as the last key -
-  # exit-0 mutating verbs only (see emit_status below); every other call passes nothing and
-  # the line is byte-for-byte what it was.
+  # exit-0 mutating verbs only (see emit_status below); every other call passes nothing.
+  # ab-run-fixes-09: every line carries `now` (epoch seconds) just before `status`, the clock
+  # the driver's 50-minute checkpoint reads (it has none of its own); `status` stays last, since
+  # advance cuts the carried object off the end of the line.
   local ok="$1" verb="$2" ex="$3" next="$4" err="${5:-}" st="${6:-}"
   verb="$(json_escape "$verb")"
   next="$(json_escape "$next")"
-  local tail=""
-  [ -n "$st" ] && tail=",\"status\":$st"
+  local tail=",\"now\":$(date +%s)"
+  [ -n "$st" ] && tail="$tail,\"status\":$st"
   if [ -n "$err" ]; then
     err="$(json_escape "$err")"
     printf '{"ok":%s,"verb":"%s","exit":%s,"next":"%s","error":"%s"%s}\n' "$ok" "$verb" "$ex" "$next" "$err" "$tail"
@@ -241,7 +249,17 @@ fm_line_value() { # fm_line_value <line> -> FMV: the value fm_field reads off a 
   v="${v%%#*}"
   v="${v#"${v%%[![:space:]]*}"}"
   v="${v%"${v##*[![:space:]]}"}"
-  FMV="$v"
+  fm_unquote "$v"; FMV="$FMQ"
+}
+
+fm_unquote() { # fm_unquote <value> -> FMQ: the value with one layer of matching YAML quotes ("x" or
+  # 'x') stripped, else as given (ask 3): fm_field and blockers_of read `story: "x-01"` as x-01, together.
+  # A variable, not a subshell: fm_field runs per story per status call.
+  FMQ="$1"
+  case "$FMQ" in
+    \"*\") FMQ="${FMQ#\"}"; FMQ="${FMQ%\"}" ;;
+    \'*\') FMQ="${FMQ#\'}"; FMQ="${FMQ%\'}" ;;
+  esac
 }
 
 fm_status_wave() { # fm_status_wave <story-file> -> FM_STATUS, FM_WAVE, each by fm_field's rule
@@ -261,6 +279,25 @@ fm_status_wave() { # fm_status_wave <story-file> -> FM_STATUS, FM_WAVE, each by 
   done < "$1"
 }
 
+story_status_guard() { # story_status_guard <spec> <verb> - ab-run-fixes C6: a story whose status: is
+  # none of todo, in-progress, done, blocked (an `open`, a typo) exits 2 naming the file and the value.
+  # status counted it as todo and listed it in no wave, so the build stopped with no word why. An absent
+  # status: stays todo, as before.
+  local f
+  for f in "$1"/*.md; do
+    [ -f "$f" ] || continue
+    is_story_file "$f" || continue
+    fm_status_wave "$f"
+    case "$FM_STATUS" in
+      ''|todo|in-progress|done|blocked) ;;
+      *)
+        echo "cycle: $2 - unknown story status '$FM_STATUS' in $f (todo, in-progress, done or blocked)" >&2
+        emit false "$2" 2 error "unknown story status '$FM_STATUS' in $f"
+        exit 2 ;;
+    esac
+  done
+}
+
 story_status_for_id() { # story_status_for_id <spec> <story-id>
   local spec="$1" id="$2" f
   for f in "$spec"/*.md; do
@@ -272,13 +309,15 @@ story_status_for_id() { # story_status_for_id <spec> <story-id>
 
 blockers_of() { # blockers_of <story-file> -> its `blocked_by:` entries, space-separated. Not
   # fm_field, which cuts a value at its next colon: `manual:<id>` carries one (0.19, package C).
-  local line v
+  local line v t out=""
   [ -f "$1" ] || return 0
   while IFS= read -r line || [ -n "$line" ]; do
     [ "${line%%:*}" = blocked_by ] || continue
     v="${line#*:}"; v="${v%%#*}"; v="${v//$'\r'/}"
     v="${v//\[/}"; v="${v//\]/}"; v="${v//,/ }"
-    printf '%s\n' "$v"
+    # ask 3: each entry loses one layer of matching quotes, as fm_field's values do (`["x-01"]`)
+    for t in $v; do fm_unquote "$t"; out="${out:+$out }$FMQ"; done
+    printf '%s\n' "$out"
     return 0
   done < "$1"
 }
@@ -379,15 +418,16 @@ tier_ceiling() { # tier_ceiling <tier> -> the default round ceiling for a tier (
 }
 
 required_seats_for_tier() { # required_seats_for_tier <tier> -> the space-separated seats a
-  # round of this tier must have before judge will run (ADR-013 D1, superseding C15's roster):
-  # one reviewer below Tier 3; the intent seat and the reviewer from Tier 3, plus the black box
-  # only where a client can actually be walked. 3 and 4 (and any value outside 1-4, which
-  # tier_of never produces) share one roster - Tier 4's second reviewer folds into `review`.
-  # `sonnet` is in no roster any more; record-seat still accepts it so old rounds stay readable.
+  # round of this tier must have before judge will run (ADR-013 D1, amended by ab-run-fixes C1):
+  # one reviewer below Tier 3; from Tier 3 the reviewer plus exactly one blind seat - the black box
+  # (haiku) where a client can actually be walked, else the intent seat (opus). 3 and 4 (and any
+  # value outside 1-4, which tier_of never produces) share one roster; Tier 4's second reviewer is
+  # `review2`, called by round_needed_seats, never frozen here. `sonnet` is in no roster any more;
+  # record-seat still accepts it so old rounds stay readable.
   case "$1" in
     1|2) printf 'review' ;;
     *)
-      if client_path_filled "$(constitution_file "$ROOT")"; then printf 'haiku opus review'
+      if client_path_filled "$(constitution_file "$ROOT")"; then printf 'haiku review'
       else printf 'opus review'
       fi ;;
   esac
@@ -406,16 +446,69 @@ round_required_seats() { # round_required_seats <spec> <round-dir> -> the round'
   required_seats_for_tier "$(round_tier "$spec" "$rd")"
 }
 
+review2_called() { # review2_called <spec> <round-dir> -> 0 iff the round needs the Tier 4 second reviewer
+  # (ab-run-fixes C2): a Tier 4 round that is not a narrow repair round, and either open-round froze
+  # second=risk (a C3 path in the reviewed range) or the recorded `review` is a BLOCK. A round with
+  # no second= line (opened before C2) reads as none.
+  [ "$(round_tier "$1" "$2")" = 4 ] || return 1
+  [ "$(round_field "$2" narrow)" = 1 ] && return 1
+  [ "$(round_field "$2" second)" = risk ] && return 0
+  [ -f "$2/review.md" ] && [ "$(review_verdict_of "$2/review.md")" = BLOCK ]
+}
+
+round_needed_seats() { # round_needed_seats <spec> <round-dir> -> the frozen seats, plus review2 when
+  # review2_called - what `next` dispatches and judge waits for
+  local req; req="$(round_required_seats "$1" "$2")"
+  if review2_called "$1" "$2"; then printf '%s review2' "$req"; else printf '%s' "$req"; fi
+}
+
+risk_path() { # risk_path <path> -> 0 iff the path is in the fixed C3 risk set (ab-run-fixes), case-insensitive.
+  # Security: a segment or file stem equal to, or starting with, auth, security, secret, crypt, permission,
+  # password or credential, or a file named .env / .env.*. Data: a segment migrations or migrate, a file
+  # stem schema, or a *.sql file. Fixed in code on purpose: no Profile row, no env.
+  local p seg base stem
+  p="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  base="${p##*/}"; stem="${base%.*}"; [ -n "$stem" ] || stem="$base"
+  case "$base" in .env|.env.*|*.sql) return 0 ;; esac
+  [ "$stem" = schema ] && return 0
+  local IFS=/
+  for seg in $p $stem; do
+    case "$seg" in
+      auth*|security*|secret*|crypt*|permission*|password*|credential*|migrations|migrate) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+round_second() { # round_second <spec> <n> <head> <since> -> risk | none: whether a path in the range
+  # lead-review reads for round n (since..head; round 1: the branch against its base) is a risk_path.
+  # A range git cannot name reads as risk - the second reviewer is never dropped on a missing input.
+  local base="$4" names p
+  if [ -z "$base" ]; then
+    local db; db="$(default_branch)"
+    [ -n "$db" ] && base="$(git merge-base "$db" "$3" 2>/dev/null)"
+  fi
+  [ -n "$base" ] || { printf 'risk'; return; }
+  names="$(git diff --name-only "$base" "$3" 2>/dev/null)" || { printf 'risk'; return; }
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    risk_path "$p" && { printf 'risk'; return; }
+  done <<EOF
+$names
+EOF
+  printf 'none'
+}
+
 is_required_seat() { # is_required_seat <seat> <required-list> -> 0 iff seat is in the list
   case " $2 " in *" $1 "*) return 0 ;; *) return 1 ;; esac
 }
 
 missing_required_seats() { # missing_required_seats <round-dir> <required-list> -> space-sep
-  # required seats with no accepted report yet, in canonical haiku/sonnet/opus/review order.
+  # required seats with no accepted report yet, in canonical haiku/sonnet/opus/review/review2 order.
   # A seat that exhausted both attempts (attempt-2 exists, no final <seat>.md) is ABSENT, not
   # missing (R3/C-2, autonomous-cycle-19) - it must not block `next` from ever reaching `judge`.
   local rd="$1" required="$2" seat out=""
-  for seat in haiku sonnet opus review; do
+  for seat in haiku sonnet opus review review2; do
     [ -f "$rd/$seat.md" ] && continue
     [ -f "$rd/$seat.attempt-2.md" ] && continue
     is_required_seat "$seat" "$required" && out="$out $seat"
@@ -576,7 +669,7 @@ cmd_status() {
   [ -n "$APPROVED_V" ] && APPROVED_B=true
   [ -n "$SHIPPED_V" ] && SHIPPED_B=true
   [ -f "$SPEC/PAUSE" ] && PAUSED_B=true
-  local BRANCH_JSON="null"; [ -n "$BRANCH_V" ] && BRANCH_JSON="\"$BRANCH_V\""
+  local BRANCH_JSON="null"; [ -n "$BRANCH_V" ] && { json_escape_to "$BRANCH_V"; BRANCH_JSON="\"$JE\""; } # P9-06: a quoted marker value
 
   # --- stories: counts, and the lowest wave that is either dispatchable or closeable -------
   # One read per story (status and wave together), kept in arrays for the wave walk below -
@@ -584,10 +677,14 @@ cmd_status() {
   local TODO=0 PROG=0 DONE=0 BLOCKED=0 f st
   local BUILD_WAVE="" CLOSE_FILE="" WAVE_STORIES="" MAXWAVE=0 wv MANUAL_IDS=""
   local -a S_FILE=() S_ST=() S_WV=()
+  # ADR-032 D2: `done` is closed only with close-story's own commit in the spec's log; without one the
+  # story is in progress, so wave_stories keeps it and `next` stays build:/close-story:.
+  local CS=""; close_subjects "$SPEC"
   for f in "$SPEC"/*.md; do
     [ -f "$f" ] || continue
     is_story_file "$f" || continue
     fm_status_wave "$f"; st="$FM_STATUS"; wv="$FM_WAVE"; [ -n "$wv" ] || wv=1
+    [ "$st" = done ] && ! has_close_commit "$CS" "$(fm_field "$f" story)" && st=in-progress
     case "$st" in
       done) DONE=$((DONE+1)) ;;
       blocked) BLOCKED=$((BLOCKED+1)) ;;
@@ -659,12 +756,12 @@ cmd_status() {
     local RCOURT
     RCOURT="$(round_field "$RD" court)"
     CEILING="$(round_field "$RD" ceiling)"; [ -n "$CEILING" ] || CEILING="$(tier_ceiling "$(round_tier "$SPEC" "$RD")")"
-    [ -n "$RCOURT" ] && COURT_JSON="\"$RCOURT\""
+    [ -n "$RCOURT" ] && { json_escape_to "$RCOURT"; COURT_JSON="\"$JE\""; }
     if ! row_exists "$SLUG" "$ROUND_N"; then
       OPEN_B=true
       local seat
       REQUIRED="$(round_required_seats "$SPEC" "$RD")"
-      MISSING="$(missing_required_seats "$RD" "$REQUIRED")"
+      MISSING="$(missing_required_seats "$RD" "$(round_needed_seats "$SPEC" "$RD")")"
       for seat in $MISSING; do
         SEAT_ATTEMPT_JSON="${SEAT_ATTEMPT_JSON:+$SEAT_ATTEMPT_JSON,}\"$seat\":$(seat_next_attempt "$RD" "$seat")"
       done
@@ -710,9 +807,9 @@ cmd_status() {
   # else null - it must never be null during a round (lead-review minor 18, live on this spec) -
   local ROUND_DIR_JSON="null"
   if [ "$OPEN_B" = true ]; then
-    ROUND_DIR_JSON="\"$RD\""
+    json_escape_to "$RD"; ROUND_DIR_JSON="\"$JE\""
   elif [ -n "$NEWEST_ROUND" ]; then
-    ROUND_DIR_JSON="\"$SPEC/council/round-$NEWEST_ROUND\""
+    json_escape_to "$SPEC/council/round-$NEWEST_ROUND"; ROUND_DIR_JSON="\"$JE\""
   fi
 
   # --- next: first match wins (C3) ----------------------------------------------------------
@@ -746,10 +843,13 @@ cmd_status() {
   else
     NEXT="open-round"
   fi
+  # ask 3: spec, slug and next carry the caller's paths (next names a story file): JSON-escaped
+  local SPEC_J SLUG_J NEXT_J
+  json_escape_to "$SPEC"; SPEC_J="$JE"; json_escape_to "$SLUG"; SLUG_J="$JE"; json_escape_to "$NEXT"; NEXT_J="$JE"
 
-  printf '{"spec":"%s","slug":"%s","stage":"%s","next":"%s","briefed":%s,"approved":%s,"branch":%s,"head":"%s","pack":"%s","stories":{"todo":%s,"in-progress":%s,"done":%s,"blocked":%s},"wave":%s,"wave_stories":[%s],"round":%s,"ceiling":%s,"tier":%s,"open":%s,"court":%s,"missing":[%s],"stale":%s,"verdict":%s,"review":%s,"red":[%s],"round_dir":%s,"paused":%s,"shipped":%s,"since":%s,"seat_attempt":{%s},"seats":[%s],"manual":[%s]}\n' \
-    "$SPEC" "$SLUG" "$(compute_stage "$SPEC" "$PLAN" "$BRIEFED_B" "$BRANCH_V" "$((TODO+PROG+DONE+BLOCKED))" "$DONE" "$NEWEST_VERDICT" "$SHIPPED_B")" \
-    "$NEXT" "$BRIEFED_B" "$APPROVED_B" "$BRANCH_JSON" "$HEAD" "$PACK" \
+  printf '{"spec":"%s","slug":"%s","stage":"%s","next":"%s","briefed":%s,"approved":%s,"branch":%s,"head":"%s","pack":"%s","now":%s,"stories":{"todo":%s,"in-progress":%s,"done":%s,"blocked":%s},"wave":%s,"wave_stories":[%s],"round":%s,"ceiling":%s,"tier":%s,"open":%s,"court":%s,"missing":[%s],"stale":%s,"verdict":%s,"review":%s,"red":[%s],"round_dir":%s,"paused":%s,"shipped":%s,"since":%s,"seat_attempt":{%s},"seats":[%s],"manual":[%s]}\n' \
+    "$SPEC_J" "$SLUG_J" "$(compute_stage "$SPEC" "$PLAN" "$BRIEFED_B" "$BRANCH_V" "$((TODO+PROG+DONE+BLOCKED))" "$DONE" "$NEWEST_VERDICT" "$SHIPPED_B")" \
+    "$NEXT_J" "$BRIEFED_B" "$APPROVED_B" "$BRANCH_JSON" "$HEAD" "$PACK" "$(date +%s)" \
     "$TODO" "$PROG" "$DONE" "$BLOCKED" \
     "$WAVE_JSON" "$WAVE_STORIES_JSON" \
     "$ROUND_N" "$CEILING" "$TIER_JSON" "$OPEN_B" "$COURT_JSON" "$(json_str_array "$MISSING")" "$STALE_B" \
@@ -904,8 +1004,12 @@ reopen_names_round() { # reopen_names_round <spec> <n> -> 0 iff council/REOPEN h
 git_commit_or_fail() { # git_commit_or_fail <verb-label> <message> - commits what is already
   # staged; on failure, reports it (naming "git commit", R17) and terminates the process -
   # never called when there is nothing staged (callers check first, or see commit_paperwork).
-  local verb="$1" msg="$2" err
-  if ! err="$(git commit -q -m "$msg" 2>&1)"; then
+  # S5: with paths after the message, `--only` commits those paths alone; whatever else is staged
+  # (a wave-mate's `git add`) stays staged and out of this commit.
+  local verb="$1" msg="$2" err; shift 2
+  local -a only=()
+  [ "$#" -gt 0 ] && only=(--only -- "$@")
+  if ! err="$(git commit -q -m "$msg" ${only[@]+"${only[@]}"} 2>&1)"; then
     echo "cycle: $verb - git commit failed: $err" >&2
     emit false "$verb" 2 error "git commit failed"
     exit 2
@@ -925,7 +1029,7 @@ commit_paperwork() { # commit_paperwork <verb-label> <message> <path...> - stage
   [ -e memory/stats/anomalies.jsonl ] && paths+=(memory/stats/anomalies.jsonl)
   [ -n "$(git status --porcelain -- ${paths[@]+"${paths[@]}"} 2>/dev/null)" ] || return 0
   git add -A -- ${paths[@]+"${paths[@]}"} >/dev/null 2>&1
-  git_commit_or_fail "$verb" "$(commit_subject "$msg")"
+  git_commit_or_fail "$verb" "$(commit_subject "$msg")" ${paths[@]+"${paths[@]}"}
 }
 
 # --- escalate row/plan-line helpers (R5/C-3, autonomous-cycle-21) -----------------------------
@@ -1008,11 +1112,12 @@ ASKS
 
   if ! escalate_row_exists "$slug" "$n"; then
     mkdir -p memory/stats
+    json_escape_to "$note" # P9-01: the note is free text - a quote in it must not forge a key
     printf '{"ts":"%s","spec":"%s","round":%s,"verdict":"ESCALATE","head":"%s","pack":"%s","asks":%s,"red":[%s],"red_unevidenced":[%s],"review_asks":[%s],"na":0,"review":"%s","haiku":"%s","haiku_model":"%s","sonnet":"%s","sonnet_model":"%s","opus":"%s","opus_model":"%s","attempts":%s,"escalate":"%s","note":"%s"}\n' \
       "$(now_ts)" "$slug" "$n" "$rhead" "$rpack" "$a" \
       "$(json_num_csv "$red_e")" "$(json_num_csv "$red_u")" "$(json_num_csv "$review_asks")" \
       "$review_v" "$haiku_v" "$haiku_model" "$sonnet_v" "$sonnet_model" "$opus_v" "$opus_model" \
-      "$attempts" "$reason" "$note" >> memory/stats/council.jsonl
+      "$attempts" "$reason" "$JE" >> memory/stats/council.jsonl
   fi
 
   if [ -f "$plan" ] && ! escalate_council_line_exists "$plan" "$n"; then
@@ -1070,12 +1175,13 @@ cmd_judge() { # cmd_judge <spec> <commit:0|1> [<verb-label>] [<stamp>]
   RPACK="$(round_field "$RD" pack)"
   ROPENED="$(round_field "$RD" opened)"
   RCEILING="$(round_field "$RD" ceiling)"; [ -n "$RCEILING" ] || RCEILING="$(tier_ceiling "$(round_tier "$SPEC" "$RD")")"
-  local REQUIRED; REQUIRED="$(round_required_seats "$SPEC" "$RD")"
+  # ab-run-fixes C2: REQUIRED is the frozen roster plus review2 when the round calls for it
+  local REQUIRED; REQUIRED="$(round_needed_seats "$SPEC" "$RD")"
 
   # --- presence pass: every REQUIRED seat must be present or ABSENT, in order (C15: a seat
   # this round's tier does not call for simply may never have been dispatched) --------------
   local seat pres
-  for seat in haiku sonnet opus review; do
+  for seat in haiku sonnet opus review review2; do
     is_required_seat "$seat" "$REQUIRED" || continue
     pres="$(seat_presence "$RD" "$seat")"
     if [ "$pres" = missing ]; then
@@ -1129,7 +1235,21 @@ ASKS
   red_e_count="$(printf '%s' "$red_e" | wc -w | tr -d ' ')"
   red_u_count="$(printf '%s' "$red_u" | wc -w | tr -d ' ')"
 
-  local rf="$RD/review.md" review_asks="" review_note=""
+  local rf="$RD/review.md" review_asks="" review_note="" rfold=""
+  # ab-run-fixes C2: with a recorded review2 the review judged below is the fold of both - BLOCK if
+  # either, both bodies kept (the second under its own heading, so its lines never join the first
+  # report's last section); every rule after this (anchors, unanchored, SUITE: FAIL) reads the fold.
+  if [ -f "$rf" ] && [ -f "$RD/review2.md" ]; then
+    local fv=PASS
+    [ "$(review_verdict_of "$rf")" = PASS ] || fv=BLOCK
+    [ "$(review_verdict_of "$RD/review2.md")" = PASS ] || fv=BLOCK
+    rfold="$(mktemp)"
+    { head -1 "$rf"; printf 'VERDICT: %s
+' "$fv"; sed '1d' "$rf"; printf '
+## Second reviewer (review2)
+'; sed '1d' "$RD/review2.md"; } > "$rfold"
+    rf="$rfold"
+  fi
   if [ -f "$rf" ]; then
     review_v="$(review_verdict_of "$rf")"
     if [ "$review_v" = "BLOCK" ]; then
@@ -1143,9 +1263,13 @@ ASKS
     fi
     [ -n "$review_v" ] || review_v="BLOCK" # an unreadable stored report stays a block
     # fast-verification-07: a failed full suite is never green, whatever the VERDICT line says:
-    # `SUITE: FAIL` is the reviewer's BLOCK (a [regression]), anchored or not.
-    if sed '1d' "$rf" 2>/dev/null | grep -qE '^SUITE: FAIL'; then
-      [ "$review_v" = "BLOCK" ] || review_note="review PASS with SUITE: FAIL"
+    # `SUITE: FAIL` is the reviewer's BLOCK (a [regression]), anchored or not. A legacy
+    # `SUITE: TIMEOUT` line (a reviewer from before the gate split) is the same FAIL: repair, never
+    # the old suite-timeout escalation (post-045-tails, owner: «Считать как FAIL»). Read anywhere in
+    # the stored review, so a Tier 4 fold keeps it.
+    local sfail; sfail="$(sed '1d' "$rf" 2>/dev/null | grep -oE '^SUITE: (FAIL|TIMEOUT)' | head -1)"
+    if [ -n "$sfail" ]; then
+      [ "$review_v" = "BLOCK" ] || review_note="review PASS with $sfail"
       review_v="BLOCK"
     fi
   elif is_required_seat review "$REQUIRED"; then
@@ -1153,20 +1277,7 @@ ASKS
   else
     review_v="" # C15: review not required at this tier and never recorded - not ABSENT
   fi
-
-  # --- fast-verification-06: the reviewer's `SUITE: TIMEOUT <N>s [budget <B>s]` line, read
-  # anywhere in the stored review (fold-proof at Tier 4). An over-budget full suite is neither
-  # GREEN nor a repair: the owner raises the budget or cuts the suite.
-  local suite_secs="" suite_budget=""
-  if [ -f "$rf" ]; then
-    local suite_line
-    suite_line="$(sed '1d' "$rf" 2>/dev/null | grep -E '^SUITE: TIMEOUT [0-9]+s' | head -1)"
-    if [ -n "$suite_line" ]; then
-      suite_secs="$(printf '%s' "$suite_line" | sed -n 's/^SUITE: TIMEOUT \([0-9][0-9]*\)s.*/\1/p')"
-      suite_budget="$(printf '%s' "$suite_line" | sed -n 's/.*budget \([0-9][0-9]*\)s.*/\1/p')"
-      [ -n "$suite_budget" ] || suite_budget="${VULYK_SUITE_TIMEOUT:-590}"
-    fi
-  fi
+  [ -n "$rfold" ] && rm -f "$rfold"
 
   # --- env escalation is "at least one REQUIRED seat is ABSENT" (R16/M-5), not "all three" -
   # a partial absence with nothing RED anywhere and review not BLOCK is a court/tooling defect
@@ -1181,6 +1292,8 @@ ASKS
     esac
   done
   is_required_seat review "$REQUIRED" && [ "$review_v" = ABSENT ] && absent_seats="$absent_seats review"
+  # a called review2 that spent both attempts is ABSENT like any required seat (C2)
+  is_required_seat review2 "$REQUIRED" && [ ! -f "$RD/review2.md" ] && absent_seats="$absent_seats review2"
   absent_seats="${absent_seats# }"
 
   local na_count=0 v
@@ -1221,8 +1334,6 @@ ASKS
   local half=$(( (A+1)/2 )); [ "$half" -lt 2 ] && half=2  # R10: max(2, ceil(A/2))
   if [ "$override_red" -eq 1 ]; then
     overall="RED"; next_val="repair"
-  elif [ -n "$suite_secs" ]; then
-    overall="ESCALATE"; escalate_reason="suite-timeout"; next_val="escalated"
   elif [ -n "$absent_seats" ] && [ "$red_e_count" -eq 0 ] && [ "$red_u_count" -eq 0 ] && [ "$review_v" != "BLOCK" ]; then
     overall="ESCALATE"; escalate_reason="env"; next_val="escalated"
   elif [ "$red_e_count" -gt 0 ] && [ "$red_e_count" -ge "$half" ]; then
@@ -1252,13 +1363,13 @@ ASKS
     mkdir -p memory/stats
     local escjson="null"; [ -n "$escalate_reason" ] && escjson="\"$escalate_reason\""
     local attempts=0
-    for seat in haiku sonnet opus review; do
+    for seat in haiku sonnet opus review review2; do
       attempts=$((attempts + $(seat_attempt_count "$RD" "$seat")))
     done
     local noteval=""
     [ "$escalate_reason" = "env" ] && noteval="$(redact_note "$(printf '%s' "$absent_seats" | sed 's/ /, /g') ABSENT")"
-    [ "$escalate_reason" = "suite-timeout" ] && noteval="$(redact_note "full suite timed out: ${suite_secs}s, budget ${suite_budget}s")"
     [ -n "$review_note" ] && noteval="${noteval:+$noteval; }$review_note"
+    json_escape_to "$noteval"; noteval="$JE" # P9-01: same as write_escalate_row_for_round
     printf '{"ts":"%s","spec":"%s","round":%s,"verdict":"%s","head":"%s","pack":"%s","asks":%s,"red":[%s],"red_unevidenced":[%s],"review_asks":[%s],"na":%s,"review":"%s","haiku":"%s","haiku_model":"%s","sonnet":"%s","sonnet_model":"%s","opus":"%s","opus_model":"%s","attempts":%s,"escalate":%s,"note":"%s"}\n' \
       "$(now_ts)" "$SLUG" "$N" "$overall" "$head7" "$RPACK" "$A" \
       "$(json_num_csv "$red_e")" "$(json_num_csv "$red_u")" "$(json_num_csv "$review_asks")" "$na_count" \
@@ -1285,9 +1396,6 @@ ASKS
       done
       if [ "$escalate_reason" = "no-progress" ]; then
         printf -- '- no progress: ask %s RED in rounds %s and %s\n' "$(json_num_csv "$repeated" | sed 's/,/, /g')" "$((N-1))" "$N"
-      fi
-      if [ "$escalate_reason" = "suite-timeout" ]; then
-        printf -- '- suite: %s s, budget %s s - raise VULYK_SUITE_TIMEOUT or cut the suite\n' "$suite_secs" "$suite_budget"
       fi
       if [ "$escalate_reason" = "env" ]; then
         local aseat att
@@ -1370,7 +1478,7 @@ cmd_escalate() { # cmd_escalate <spec-dir> [--commit] [--reason <ceiling|half|en
   local N="${RD##*/round-}"
 
   local required missing
-  required="$(round_required_seats "$SPEC" "$RD")"
+  required="$(round_needed_seats "$SPEC" "$RD")"
   missing="$(missing_required_seats "$RD" "$required")"
 
   if [ -z "$missing" ]; then
@@ -1399,10 +1507,27 @@ cmd_escalate() { # cmd_escalate <spec-dir> [--commit] [--reason <ceiling|half|en
 
 # --- briefed / branch -------------------------------------------------------------------------
 
-cmd_briefed() { # cmd_briefed <spec> <commit:0|1> <mode: ""|mini-brief|assumed>
-  local SPEC="$1" DOCOMMIT="$2" MODE="$3"
+go_guard() { # go_guard <spec> <verb> <go:0|1> - ADR-032 D4: a Tier 2-4 plan opens its build only on
+  # the owner's **Approved:**, an explicit --go on this call, or (branch) a Briefed line that recorded
+  # one. Tier 1 and a plan with no tier pass as before. The --go bypass is the owner's opt-out, and it
+  # is written down: briefed puts `(--go)` on the Briefed line, and ship-check stage 02 wants it there.
+  local spec="$1" verb="$2" go="$3" t
+  t="$(tier_of "$spec")"
+  case "$t" in 2|3|4) ;; *) return 0 ;; esac
+  [ -n "$(marker "$spec/plan.md" Approved)" ] && return 0
+  [ "$go" = 1 ] && return 0
+  if [ "$verb" = branch ]; then
+    case "$(marker "$spec/plan.md" Briefed)" in *--go*) return 0 ;; esac
+  fi
+  echo "cycle: $verb - Tier $t plan needs **Approved:** or an explicit --go (the owner approves the plan, or opts out with: bash scripts/cycle.sh briefed $spec --go --commit)" >&2
+  emit false "$verb" 2 error "Tier $t plan needs **Approved:** or an explicit --go"
+  exit 2
+}
+
+cmd_briefed() { # cmd_briefed <spec> <commit:0|1> <mode: ""|mini-brief|assumed> [<go:0|1>]
+  local SPEC="$1" DOCOMMIT="$2" MODE="$3" GO="${4:-0}"
   [ -n "$SPEC" ] && [ -d "$SPEC" ] || {
-    echo "cycle: usage: $0 briefed <spec-dir> [--commit] [--mode mini-brief|assumed]" >&2
+    echo "cycle: usage: $0 briefed <spec-dir> [--go] [--commit] [--mode mini-brief|assumed]" >&2
     emit false briefed 1 error "usage"
     exit 1
   }
@@ -1422,16 +1547,29 @@ cmd_briefed() { # cmd_briefed <spec> <commit:0|1> <mode: ""|mini-brief|assumed>
     exit 2
   }
 
+  go_guard "$SPEC" briefed "$GO"
+
   local SLUG; SLUG="$(slug_of "$SPEC")"
-  local briefed_v approved_v
+  local briefed_v approved_v restamp=0
   briefed_v="$(marker "$PLAN" Briefed)"
   approved_v="$(marker "$PLAN" Approved)"
-  if [ -z "$briefed_v" ] && [ -z "$approved_v" ]; then
+  # --go on a Briefed line written without it re-stamps that line once; a line that has it is left alone
+  if [ "$GO" = 1 ] && [ -z "$approved_v" ] && [ -n "$briefed_v" ]; then
+    case "$briefed_v" in *--go*) ;; *) restamp=1 ;; esac
+  fi
+  if { [ -z "$briefed_v" ] && [ -z "$approved_v" ]; } || [ "$restamp" = 1 ]; then
     local variant="via grill"
     case "$MODE" in
       mini-brief) variant="via mini-brief" ;;
       assumed)    variant="via grill (assumed)" ;;
     esac
+    if [ "$GO" = 1 ]; then
+      case "$MODE" in
+        mini-brief) variant="via mini-brief (--go)" ;;
+        assumed)    variant="via grill (assumed, --go)" ;;
+        *)          variant="via grill (--go)" ;;
+      esac
+    fi
     local OWNER_V="${OWNER:-${USER:-${USERNAME:-owner}}}"
     local dateonly; dateonly="$(date -u +%Y-%m-%d)"
     local line="**Briefed:** $variant, $OWNER_V, $dateonly"
@@ -1440,7 +1578,11 @@ cmd_briefed() { # cmd_briefed <spec> <commit:0|1> <mode: ""|mini-brief|assumed>
     else
       printf '%s\n' "$line" >> "$PLAN"
     fi
-    bash "$HERE/journal.sh" "$SPEC" "02-approved" "briefed $variant, $OWNER_V" "branch" >/dev/null
+    if [ "$restamp" = 1 ]; then
+      bash "$HERE/journal.sh" "$SPEC" "02-approved" "briefed --go recorded, $OWNER_V" "branch" >/dev/null
+    else
+      bash "$HERE/journal.sh" "$SPEC" "02-approved" "briefed $variant, $OWNER_V" "branch" >/dev/null
+    fi
   fi
 
   [ "$DOCOMMIT" = "1" ] && commit_paperwork briefed "vulyk($SLUG): briefed" "$SPEC"
@@ -1450,10 +1592,10 @@ cmd_briefed() { # cmd_briefed <spec> <commit:0|1> <mode: ""|mini-brief|assumed>
   exit 0
 }
 
-cmd_branch() { # cmd_branch <spec> <commit:0|1>
-  local SPEC="$1" DOCOMMIT="$2"
+cmd_branch() { # cmd_branch <spec> <commit:0|1> [<go:0|1>]
+  local SPEC="$1" DOCOMMIT="$2" GO="${3:-0}"
   [ -n "$SPEC" ] && [ -d "$SPEC" ] || {
-    echo "cycle: usage: $0 branch <spec-dir> [--commit]" >&2
+    echo "cycle: usage: $0 branch <spec-dir> [--go] [--commit]" >&2
     emit false branch 1 error "usage"
     exit 1
   }
@@ -1473,6 +1615,12 @@ cmd_branch() { # cmd_branch <spec> <commit:0|1>
     echo "cycle: branch - $SPEC has neither Briefed nor Approved; run briefed first" >&2
     emit false branch 2 error "no Briefed or Approved"
     exit 2
+  fi
+  go_guard "$SPEC" branch "$GO"
+  if [ "$GO" = 1 ] && [ -z "$approved_v" ]; then
+    case "$briefed_v" in *--go*) ;; *)
+      echo "cycle: branch - note: this --go is not recorded; ship-check stage 02 wants it on the Briefed line (cycle.sh briefed $SPEC --go --commit)" >&2 ;;
+    esac
   fi
 
   local SLUG; SLUG="$(slug_of "$SPEC")"
@@ -1575,6 +1723,15 @@ ask_line_of() { # ask_line_of <report> <n> -> the first line starting "ASK <n>:"
     case "$line" in "ASK $2:"*) printf '%s\n' "$line"; return ;; esac
   done <<<"$1"
 }
+replace_ask_line() { # replace_ask_line <report> <n> <new-line> -> <report>, each line starting
+  # "ASK <n>:" replaced by <new-line> verbatim. Not sed: <new-line> carries the seat's own text,
+  # and a `#`, `&` or `\` in it broke the s### expression and lost the whole report (P9-02).
+  local line
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in "ASK $2:"*) line="$3" ;; esac
+    printf '%s\n' "$line"
+  done <<<"$1"
+}
 ask_num_of() { # ask_num_of <ask-line> -> its ask number
   local re='^ASK ([0-9]+):'
   [[ $1 =~ $re ]] && printf '%s\n' "${BASH_REMATCH[1]}"
@@ -1599,37 +1756,61 @@ ask_evidenced_of() { # ask_evidenced_of <ask-line> -> "1" iff run:+saw: or url:+
   esac
 }
 
-full_suite_row_round_only() { # full_suite_row_round_only <constitution> -> 0 iff its ## Commands
-  # has a row whose Purpose cell names the full suite and carries `round-only` (fast-verification-07)
-  # and whose command cell is runnable: `<fill in...>`, `none` or an empty cell is no suite to run
-  # (fast-verification-08), so `SUITE: none` is the right report for it.
+full_suite_row() { # full_suite_row <constitution> -> "<purpose><TAB><command>", one line per ## Commands
+  # row whose Purpose cell names the full suite and carries `round-only` (fast-verification-07), unless its
+  # command cell says `<fill in...>` or `none`: no suite to run (fast-verification-08), so `SUITE: none` is
+  # the right report for it. An empty or missing command cell is never dropped: it prints the row with an
+  # empty command, which cmd_suite turns into a red step naming the row (gate-split-10). Every such row,
+  # in table order: a hive may split its full run into several part rows (gate-split-08). The command is exactly the
+  # second cell (an escaped \| stays inside it); later cells are never part of it. Nothing (exit 1) when none.
   [ -f "$1" ] || return 1
   awk '
     /^## Commands[[:space:]]*$/ { inblock=1; next }
     /^##[[:space:]]/            { if (inblock) exit }
     inblock && /^\|/ {
-      line = $0; sub(/^\|/, "", line); i = index(line, "|"); if (!i) next
-      p = tolower(substr(line, 1, i - 1))
+      line = $0; sub(/\r$/, "", line); gsub(/\\[|]/, "\001", line)
+      n = split(line, cell, "|"); if (n < 2) next
+      po = cell[2]; gsub(/\001/, "|", po); sub(/^[[:space:]]+/, "", po); sub(/[[:space:]]+$/, "", po)
+      p = tolower(po)
       if (p ~ /full suite/ && p ~ /(^|[^[:alnum:]_-])round-only($|[^[:alnum:]_-])/) {
-        c = tolower(substr(line, i + 1)); gsub(/`/, "", c); sub(/^[[:space:]]+/, "", c)
-        if (c == "" || c ~ /^\|/ || c ~ /^<fill in/ || c ~ /^none([^[:alnum:]_-]|$)/) next
-        found = 1; exit
+        c = (n >= 3) ? cell[3] : ""; gsub(/\001/, "|", c); gsub(/`/, "", c); sub(/^[[:space:]]+/, "", c); sub(/[[:space:]]+$/, "", c)
+        lc = tolower(c)
+        if (lc ~ /^<fill in/ || lc ~ /^none([^[:alnum:]_-]|$)/) next
+        printf "%s\t%s\n", po, c; found = 1
       }
     }
     END { exit !found }
   ' "$1"
 }
 
-cmd_record_seat_review() { # cmd_record_seat_review <spec> <rd> <n> <attempt> <report> <model-opt> <head>
-  local SPEC="$1" RD="$2" N="$3" ATTEMPT="$4" REPORT="$5" MODEL_OPT="$6" HEAD="$7"
+full_suite_row_round_only() { # full_suite_row_round_only <constitution> -> 0 iff full_suite_row finds a row
+  full_suite_row "$1" >/dev/null
+}
+
+cmd_record_seat_review() { # cmd_record_seat_review <spec> <rd> <n> <attempt> <report> <model-opt> <head> [<seat>]
+  # <seat> is review (default) or review2, the Tier 4 second reviewer (ab-run-fixes C2): the same
+  # checks, stored as <seat>.md, folded with review.md by judge.
+  local SPEC="$1" RD="$2" N="$3" ATTEMPT="$4" REPORT="$5" MODEL_OPT="$6" HEAD="$7" SEAT="${8:-review}"
   local RPACK; RPACK="$(round_field "$RD" pack)"
   local model="$MODEL_OPT"; [ -n "$model" ] || model="$(seat_field_str "$REPORT" MODEL)"; [ -n "$model" ] || model="unknown"
 
+  # post-045-tails: with a round-only full-suite row that has a runnable command, the round's gate
+  # (`cycle.sh suite`) runs before the seats. No finished suite.log keyed to the round's head means
+  # the gate never ran: exit 2, nothing written and no attempt spent, so the same report records
+  # once it has. Never a re-ask - the reviewer cannot fix a gate the loop skipped.
+  local logline; logline="$(suite_log_line "$RD")"
+  if [ -z "$logline" ] && full_suite_row_round_only "$(constitution_file "$ROOT")"; then
+    local why; why="no suite.log for round $N at head $(round_field "$RD" head) - run cycle.sh suite $SPEC first, then record the same report again"
+    echo "cycle: record-seat - $SEAT round $N: $why" >&2
+    emit false record-seat 2 error "$why"
+    exit 2
+  fi
+
   local verdict; verdict="$(review_verdict_of_text "$REPORT")"
   if [ -z "$verdict" ]; then
-    write_seat_file "$RD/review.attempt-$ATTEMPT.md" review "$model" "$N" "$HEAD" "$RPACK" "$ATTEMPT" "" "$REPORT"
-    echo "cycle: record-seat - review round $N attempt $ATTEMPT: MALFORMED: review: first line is not VERDICT: PASS|BLOCK" >&2
-    emit false record-seat 4 error "MALFORMED: review: first line is not VERDICT: PASS|BLOCK"
+    write_seat_file "$RD/$SEAT.attempt-$ATTEMPT.md" "$SEAT" "$model" "$N" "$HEAD" "$RPACK" "$ATTEMPT" "" "$REPORT"
+    echo "cycle: record-seat - $SEAT round $N attempt $ATTEMPT: MALFORMED: $SEAT: first line is not VERDICT: PASS|BLOCK" >&2
+    emit false record-seat 4 error "MALFORMED: $SEAT: first line is not VERDICT: PASS|BLOCK"
     exit 4
   fi
 
@@ -1637,36 +1818,30 @@ cmd_record_seat_review() { # cmd_record_seat_review <spec> <rd> <n> <attempt> <r
   # an anchor tag; otherwise it is MALFORMED like any seat - kept, exit 4, re-asked once. The tag
   # is not validated further here (ask range, regression claim: judge's business).
   if [ "$verdict" = BLOCK ] && ! review_blocking_lines_text "$REPORT" | grep -qE '\[ask [0-9]+\]|\[regression\]|\[unanchored\]'; then
-    local why="review: BLOCK has no tagged finding - no list line under ## Critical / ## Major carries [ask N], [regression] or [unanchored]"
-    write_seat_file "$RD/review.attempt-$ATTEMPT.md" review "$model" "$N" "$HEAD" "$RPACK" "$ATTEMPT" "" "$REPORT"
-    echo "cycle: record-seat - review round $N attempt $ATTEMPT: MALFORMED: $why" >&2
+    local why="$SEAT: BLOCK has no tagged finding - no list line under ## Critical / ## Major carries [ask N], [regression] or [unanchored]"
+    write_seat_file "$RD/$SEAT.attempt-$ATTEMPT.md" "$SEAT" "$model" "$N" "$HEAD" "$RPACK" "$ATTEMPT" "" "$REPORT"
+    echo "cycle: record-seat - $SEAT round $N attempt $ATTEMPT: MALFORMED: $why" >&2
     emit false record-seat 4 error "MALFORMED: $why"
     exit 4
   fi
 
-  # fast-verification-07/08: when the constitution has a round-only full-suite row with a runnable
-  # command, the reviewer ran it and says so: the first `SUITE:` line must be `ok <N>s`, `FAIL <N>s`
-  # or `TIMEOUT <N>s [budget <B>s]`. A missing line, `SUITE: none`, or a malformed form (no seconds,
-  # `571 s`) is MALFORMED - re-asked, never recorded, never judged green.
-  if full_suite_row_round_only "$(constitution_file "$ROOT")"; then
-    local sline; sline="$(printf '%s\n' "$REPORT" | grep -E '^SUITE:' | head -1 | tr -d '\r')"
-    if ! printf '%s\n' "$sline" | grep -qE '^SUITE: (ok|FAIL|TIMEOUT) [0-9]+s([[:space:]].*)?$'; then
-      local why
-      if [ -z "$sline" ]; then why="review: no SUITE: line, but ## Commands has a round-only Full suite row - run it and report its SUITE: line"
-      else why="review: $sline, but ## Commands has a round-only Full suite row - report SUITE: ok <N>s | FAIL <N>s | TIMEOUT <N>s budget <B>s"
-      fi
-      write_seat_file "$RD/review.attempt-$ATTEMPT.md" review "$model" "$N" "$HEAD" "$RPACK" "$ATTEMPT" "" "$REPORT"
-      echo "cycle: record-seat - review round $N attempt $ATTEMPT: MALFORMED: $why" >&2
-      emit false record-seat 4 error "MALFORMED: $why"
-      exit 4
-    fi
+  # gate-split-04: the round's own gate ran before the seats (`cycle.sh suite`); a finished
+  # council/round-N/suite.log keyed to this round's head is the SUITE line, whatever the report says:
+  # every reported `SUITE:` line is dropped and the log's goes right under the VERDICT line.
+  # Without a log (no round-only row, refused above otherwise) the report's own line stands.
+  if [ -n "$logline" ]; then
+    REPORT="$(printf '%s\n' "$REPORT" | tr -d '\r' | awk -v s="$logline" '
+      /^SUITE:/ { next }
+      { print }
+      !done && NF { print s; done = 1 }
+      END { if (!done) print s }')"
   fi
 
   local extra; extra="$(printf ' \xc2\xb7 verdict: %s' "$verdict")"
-  write_seat_file "$RD/review.md" review "$model" "$N" "$HEAD" "$RPACK" "$ATTEMPT" "$extra" "$REPORT"
-  echo "cycle: record-seat - review recorded for round $N (verdict $verdict)"
+  write_seat_file "$RD/$SEAT.md" "$SEAT" "$model" "$N" "$HEAD" "$RPACK" "$ATTEMPT" "$extra" "$REPORT"
+  echo "cycle: record-seat - $SEAT recorded for round $N (verdict $verdict)"
   local missing required next_val
-  required="$(round_required_seats "$SPEC" "$RD")"
+  required="$(round_needed_seats "$SPEC" "$RD")"
   missing="$(missing_required_seats "$RD" "$required")"
   next_val="judge"; [ -n "$missing" ] && next_val="dispatch:$(printf '%s' "$missing" | tr ' ' ',')"
   emit_status record-seat "$SPEC" "$next_val"
@@ -1756,7 +1931,7 @@ REPORTEOF
         # this): the description before the final dash-separated segment, same as before.
         short="$(printf '%s' "$line" | sed -E "s/^ASK $u: (GREEN|RED|N\/A) - //")"
         short="$(printf '%s' "$short" | sed 's/ - [^-]*$//')"
-        FINAL_REPORT="$(printf '%s\n' "$FINAL_REPORT" | sed "s#^ASK $u:.*#ASK $u: N/A - $short - why: unevidenced on attempt 2#")"
+        FINAL_REPORT="$(replace_ask_line "$FINAL_REPORT" "$u" "ASK $u: N/A - $short - why: unevidenced on attempt 2")"
       else
         red_u_list="$red_u_list $u"
       fi
@@ -1780,7 +1955,7 @@ REPORTEOF
   echo "cycle: record-seat - $SEAT recorded for round $N (attempt $ATTEMPT)$( [ -n "$red_u_list" ] && printf ', unevidenced: %s' "$(json_num_csv "$red_u_list")" )"
 
   local missing required next_val
-  required="$(round_required_seats "$SPEC" "$RD")"
+  required="$(round_needed_seats "$SPEC" "$RD")"
   missing="$(missing_required_seats "$RD" "$required")"
   next_val="judge"; [ -n "$missing" ] && next_val="dispatch:$(printf '%s' "$missing" | tr ' ' ',')"
   emit_status record-seat "$SPEC" "$next_val"
@@ -1803,9 +1978,9 @@ cmd_record_seat() { # cmd_record_seat <spec> <N> <seat> [--model <id>] [--stamp 
   done
 
   case "$SEAT" in
-    haiku|sonnet|opus|review) ;;
+    haiku|sonnet|opus|review|review2) ;;
     *)
-      echo "cycle: usage: $0 record-seat <spec-dir> <N> <haiku|sonnet|opus|review> [--model <id>] [--stamp <s>] [--file <path>] [< report]" >&2
+      echo "cycle: usage: $0 record-seat <spec-dir> <N> <haiku|sonnet|opus|review|review2> [--model <id>] [--stamp <s>] [--file <path>] [< report]" >&2
       emit false record-seat 1 error "usage"
       exit 1
       ;;
@@ -1844,6 +2019,13 @@ cmd_record_seat() { # cmd_record_seat <spec> <N> <seat> [--model <id>] [--stamp 
     emit false record-seat 2 error "$SEAT already recorded"
     exit 2
   }
+  # ab-run-fixes C2: review2 is taken only while the round calls for it (a Tier 4 risk round, or a
+  # recorded review BLOCK); otherwise nothing is written and no attempt is spent.
+  if [ "$SEAT" = review2 ] && ! review2_called "$SPEC" "$RD"; then
+    echo "cycle: record-seat - round $N does not call for review2 (Tier 4 only: a risk path in the range, or a review BLOCK first)" >&2
+    emit false record-seat 2 error "review2 not called in round $N"
+    exit 2
+  fi
   local ATTEMPT=1
   if [ -f "$RD/$SEAT.attempt-2.md" ]; then
     echo "cycle: record-seat - $SEAT has exhausted both attempts for round $N; the seat is ABSENT" >&2
@@ -1867,8 +2049,8 @@ cmd_record_seat() { # cmd_record_seat <spec> <N> <seat> [--model <id>] [--stamp 
     REPORT="$(cat)"
   fi
 
-  if [ "$SEAT" = review ]; then
-    cmd_record_seat_review "$SPEC" "$RD" "$N" "$ATTEMPT" "$REPORT" "$MODEL_OPT" "$HEAD"
+  if [ "$SEAT" = review ] || [ "$SEAT" = review2 ]; then
+    cmd_record_seat_review "$SPEC" "$RD" "$N" "$ATTEMPT" "$REPORT" "$MODEL_OPT" "$HEAD" "$SEAT"
   else
     cmd_record_seat_council "$SPEC" "$RD" "$N" "$SEAT" "$ATTEMPT" "$REPORT" "$MODEL_OPT" "$HEAD"
   fi
@@ -1921,7 +2103,34 @@ wave_story_json() { # wave_story_json <story-file> - one C3 wave_stories object,
   # `model:` applies, as it does for the seats (a hive's pin there holds). The driver never reads the
   # story file to learn it.
   model="$(fm_field "$f" model)"
-  printf '{"file":"%s","story":"%s","worker":"%s","model":"%s","repeat":%s}' "$f" "$id" "$worker" "$model" "$(repeat_of "$f")"
+  # P9-06 + ask 3: fm_field strips one layer of matching YAML quotes (`story: "x-01"` is x-01); what is
+  # left is JSON-escaped, so the line stays one parsable object.
+  json_escape_to "$f"; f="$JE"; json_escape_to "$id"; id="$JE"
+  json_escape_to "$worker"; worker="$JE"; json_escape_to "$model"; model="$JE"
+  printf '{"file":"%s","story":"%s","worker":"%s","model":"%s","repeat":%s}' "$f" "$id" "$worker" "$model" "$(repeat_of "$1")"
+}
+
+verify_cell_hint() { # verify_cell_hint <constitution> <segment> - ab-run-fixes C7: up to 3 `try: <cell>`
+  # lines, the cells that are not round-only and whose first two words are the segment's; with none,
+  # one `try: see ## Commands in <constitution>` line. close-story's refusal prints it, nothing else.
+  local c n=0 seen="" w1 w2 c1 c2 rest
+  read -r w1 w2 rest <<EOF
+$2
+EOF
+  while IFS= read -r c; do
+    [ -n "$c" ] || continue
+    read -r c1 c2 rest <<EOF2
+$c
+EOF2
+    [ "$c1" = "$w1" ] && [ "$c2" = "${w2:-}" ] || continue
+    case "$seen" in *"|$c|"*) continue ;; esac
+    command_cell_round_only "$1" "$c" && continue
+    seen="$seen|$c|"; printf 'try: %s\n' "$c"; n=$((n+1))
+    [ "$n" -ge 3 ] && break
+  done <<EOF
+$(command_cells "$1")
+EOF
+  [ "$n" -gt 0 ] || printf 'try: see ## Commands in %s\n' "$1"
 }
 
 verify_cells_check() { # verify_cells_check <verb> <cmd-list> - C2 amended (R11/C-4): every &&-segment
@@ -1949,6 +2158,7 @@ verify_cells_check() { # verify_cells_check <verb> <cmd-list> - C2 amended (R11/
       [ -n "$seg" ] || continue
       command_cell_exists "$CONSTITUTION" "$seg" || {
         echo "cycle: $verb - verification command not in $CONSTITUTION's ## Commands: $seg" >&2
+        [ "$verb" = close-story ] && verify_cell_hint "$CONSTITUTION" "$seg" >&2
         emit false "$verb" 2 error "verification not in ## Commands: $seg"
         exit 2
       }
@@ -1966,46 +2176,56 @@ EOF
 }
 
 verify_run() { # verify_run <cmd-list> <reps> [<outdir>] - the one verification runner (close-story,
-  # stamp-red). ADR-013 D5: the whole run - every line, every repeat - shares one budget under
-  # `timeout`, so verification slower than the Bash tool's 10-minute cap reports 124 instead of
-  # dying with the tool call. A per-command budget would not do: a repair story unions every story's
-  # lines, and five 500 s commands still pass five 540 s limits. 540 s leaves the verb its own
-  # margin inside that cap. Each line runs under lib.sh's run_capped (timeout, gtimeout or the Python
-  # cap, else uncapped with its warning); capped_by says whether a cap exists, so an uncapped run never
-  # reads a command's own 124 as a timeout.
+  # stamp-red). gate-split-02: every line runs under its own cap, VULYK_VERIFY_TIMEOUT (default 300,
+  # never above 300), so one slow line names itself and a timeout is that line's. The call has a budget,
+  # VULYK_VERIFY_CALL (default 540, inside the Bash tool's 10-minute cap): a line starts only when its
+  # cap still fits what is left of it (the first line of a call always runs); otherwise the runner stops
+  # with VR_PAUSE = the number of the line it would run next, and the verb writes a resume mark and exits
+  # 7. VR_START (set by the verb) is the line a resumed call begins at; lines count across <reps>. Each
+  # line runs under lib.sh's run_capped (timeout, gtimeout or the Python cap, else uncapped with its
+  # warning); capped_by says whether a cap exists, so an uncapped run never reads a command's own 124 as
+  # a timeout.
   # Without <outdir> (close-story): one command at a time, the whole block repeated <reps> times
   # (R18/M-3 - a single `bash -c "$multi_line_block"` used to report only the last line's exit
   # status), stopping at the first non-zero line. With <outdir> (stamp-red): every line once, its
-  # stdout+stderr in <outdir>/<k>.out (and echoed), its exit in VR_CODES[k], its text in VR_LINES[k];
-  # only a timeout stops it. Sets VR_VT, VR_TIMEOUT_OK, VR_RC (the stopping or last exit), VR_LINE,
-  # VR_RUN.
-  local cmds="$1" reps="$2" outdir="${3:-}" vline vrc left k=0 vstart="$SECONDS"
-  VR_VT="${VULYK_VERIFY_TIMEOUT:-540}"; VR_TIMEOUT_OK=0; VR_RC=0; VR_LINE=""; VR_RUN=0
+  # stdout+stderr in <outdir>/<k>.out (and echoed), its exit in <k>.code and VR_CODES[k], its text in
+  # <k>.line and VR_LINES[k] (a resumed call reads the earlier lines back from those files); only a
+  # timeout stops it. Sets VR_VT, VR_TIMEOUT_OK, VR_RC (the stopping or last exit), VR_LINE, VR_RUN,
+  # VR_PAUSE.
+  local cmds="$1" reps="$2" outdir="${3:-}" vline vrc k=0 vstart="$SECONDS" vcall start="${VR_START:-1}"
+  VR_VT="${VULYK_VERIFY_TIMEOUT:-300}"; VR_TIMEOUT_OK=0; VR_RC=0; VR_LINE=""; VR_RUN=0; VR_PAUSE=0
   VR_CODES=(); VR_LINES=()
-  case "$VR_VT" in ''|*[!0-9]*|0) VR_VT=540 ;; esac
+  case "$VR_VT" in ''|*[!0-9]*|0) VR_VT=300 ;; esac
+  [ "$VR_VT" -gt 300 ] && VR_VT=300
+  vcall="${VULYK_VERIFY_CALL:-540}"
+  case "$vcall" in ''|*[!0-9]*|0) vcall=540 ;; esac
   capped_by && VR_TIMEOUT_OK=1
   [ -n "$outdir" ] && reps=1
+  if [ -n "$outdir" ]; then
+    local j=1
+    while [ "$j" -lt "$start" ]; do
+      VR_CODES[$j]="$(cat "$outdir/$j.code" 2>/dev/null)"; VR_LINES[$j]="$(cat "$outdir/$j.line" 2>/dev/null)"
+      j=$((j+1))
+    done
+  fi
   local i=1
   while [ "$i" -le "$reps" ]; do
     VR_RUN="$i"
     while IFS= read -r vline; do
       [ -n "$vline" ] || continue
       [ "$vline" = "none — reviewed by lead-review" ] && continue
+      k=$((k+1))
+      [ "$k" -lt "$start" ] && continue
+      if [ "$k" -gt "$start" ] && [ $(( (SECONDS - vstart) + VR_VT )) -gt "$vcall" ]; then VR_PAUSE="$k"; return 0; fi
       if [ -n "$outdir" ]; then
-        k=$((k+1))
-        left=$(( VR_VT - (SECONDS - vstart) ))
-        if [ "$left" -le 0 ] && [ "$VR_TIMEOUT_OK" -eq 1 ]; then vrc=124; : > "$outdir/$k.out"
-        else run_capped_as "$VULYK_CAP" "$(( left > 0 ? left : 1 ))" bash -c "$vline" > "$outdir/$k.out" 2>&1; vrc=$?
-        fi
+        run_capped_as "$VULYK_CAP" "$VR_VT" bash -c "$vline" < /dev/null > "$outdir/$k.out" 2>&1; vrc=$?
         cat "$outdir/$k.out"
+        printf '%s' "$vrc" > "$outdir/$k.code"; printf '%s' "$vline" > "$outdir/$k.line"
         VR_CODES[$k]="$vrc"; VR_LINES[$k]="$vline"; VR_RC="$vrc"; VR_LINE="$vline"
         [ "$vrc" -eq 124 ] && [ "$VR_TIMEOUT_OK" -eq 1 ] && return 0
         continue
       fi
-      left=$(( VR_VT - (SECONDS - vstart) ))
-      if [ "$left" -le 0 ] && [ "$VR_TIMEOUT_OK" -eq 1 ]; then vrc=124
-      else run_capped_as "$VULYK_CAP" "$(( left > 0 ? left : 1 ))" bash -c "$vline"; vrc=$?
-      fi
+      run_capped_as "$VULYK_CAP" "$VR_VT" bash -c "$vline" < /dev/null; vrc=$?
       VR_RC="$vrc"; VR_LINE="$vline"
       [ "$vrc" -ne 0 ] && return 0
     done <<EOF
@@ -2014,6 +2234,61 @@ EOF
     i=$((i+1))
   done
   return 0
+}
+
+verify_files_hash() { # verify_files_hash <story-file> -> set_hash of the files its ## Files entries name (the
+  # story itself left out: the resume mark is written into it). G5: a directory or glob entry is expanded
+  # as red_sets expands it (git ls-files -co --exclude-standard, a literal file entry kept even while
+  # missing), sorted, so an edit under `src/` changes the hash and drops a verify_resume mark.
+  local story="${1#./}" e p; local -a specs=() ps=()
+  while IFS= read -r e; do
+    [ -n "$e" ] && [ "${e#./}" != "$story" ] && specs+=("$e")
+  done <<EOF
+$(files_of "$1")
+EOF
+  [ "${#specs[@]}" -gt 0 ] && while IFS= read -r p; do
+    [ -n "$p" ] && [ "$p" != "$story" ] && ps+=("$p")
+  done <<EOF
+$({
+  git -c core.quotePath=false ls-files -co --exclude-standard -- ${specs[@]+"${specs[@]}"} 2>/dev/null
+  for e in ${specs[@]+"${specs[@]}"}; do
+    case "$e" in (*[*?[]*|*/) ;; (*) [ -d "$e" ] || printf '%s\n' "$e" ;; esac
+  done
+} | LC_ALL=C sort -u)
+EOF
+  set_hash ${ps[@]+"${ps[@]}"}
+}
+
+verify_resume_set() { # verify_resume_set <story-file> [<verb> <k> <hash>] - drop the frontmatter
+  # `verify_resume:` line, and write a new one before the closing `---` when given
+  local tmp
+  [ -n "${2:-}" ] || grep -q '^verify_resume:' "$1" || return 0
+  tmp="$(mktemp)"
+  awk -v line="${2:+verify_resume: $2 $3 $4}" '
+    NR == 1 && /^---[[:space:]]*$/ { infm=1; print; next }
+    infm && /^---[[:space:]]*$/    { if (line != "") print line; infm=0; print; next }
+    infm && /^verify_resume:/      { next }
+    { print }
+  ' "$1" > "$tmp" && cat "$tmp" > "$1"
+  rm -f "$tmp"
+}
+
+verify_resume_start() { # verify_resume_start <story-file> <verb> <hash> -> the line to start at: the
+  # mark's when it names this verb and this ## Files hash, else 1
+  local m v k h
+  m="$(fm_raw "$1" verify_resume)"
+  read -r v k h <<EOF
+$m
+EOF
+  if [ "$v" = "$2" ] && [ "$h" = "$3" ]; then case "$k" in ''|*[!0-9]*|0) echo 1 ;; *) echo "$k" ;; esac
+  else echo 1; fi
+}
+
+verify_pause() { # verify_pause <verb> <story-file> <k> <hash> - write the mark, print the exit-7 line, exit 7
+  verify_resume_set "$2" "$1" "$3" "$4"
+  echo "cycle: $1 - verification paused before line $3 (call budget); run the same command again, it resumes" >&2
+  printf '{"ok":false,"verb":"%s","exit":7,"next":"resume","resume":%s,"error":"verification paused before line %s: run the same command again"}\n' "$1" "$3" "$3"
+  exit 7
 }
 
 verify_cmd_list() { # verify_cmd_list <story-file> -> the ## Verification command lines, `repeat:` dropped
@@ -2033,6 +2308,119 @@ fm_red() { # fm_red <story-file> - the `red:` mark from the frontmatter only, cu
   # and trimmed as fm_field cuts it: a body line `red: ...` marks nothing (0.40.1)
   local v; v="$(fm_raw "$1" red)"; v="${v%%#*}"
   printf '%s' "${v%"${v##*[![:space:]]}"}"
+}
+
+approved_rev() { # approved_rev <story-file> -> the sha of the newest commit touching the story whose
+  # subject is a paperwork subject of its spec, `vulyk(<slug>): ...` or `chore(vulyk-<slug>): ...`
+  # (ADR-032 D1), or nothing: the story's approved version.
+  local slug sha subj
+  slug="$(slug_of "$(dirname "$1")")"
+  while IFS="$(printf '\t')" read -r sha subj; do
+    case "$subj" in
+      "vulyk($slug): "*|"chore(vulyk-$slug): "*) printf '%s' "$sha"; return 0 ;;
+    esac
+  done <<EOF
+$(git log --format='%H%x09%s' -- "$1" 2>/dev/null)
+EOF
+  return 0
+}
+
+story_blocks_guard() { # story_blocks_guard <story-file> <verb> - ADR-032 D1: the gate blocks
+  # (`## Verification` with `repeat:`, `## Files`, `red:`) of the working copy must equal the approved
+  # version's, each read through its own parser; any difference is exit 4. No approved version is
+  # exit 2 at Tier 3-4, a stderr note at Tier 1-2 or with no tier.
+  local story="$1" verb="$2" sha rel base diffs="" msg
+  sha="$(approved_rev "$story")"
+  if [ -z "$sha" ]; then
+    case "$(tier_of "$(dirname "$story")")" in
+      3|4)
+        msg="no approved version in git for $story: commit the plan or a revision first"
+        echo "cycle: $verb - $msg" >&2
+        emit false "$verb" 2 error "$msg"
+        exit 2 ;;
+    esac
+    echo "cycle: $verb - note: no approved version in git for $story; its working copy stands" >&2
+    return 0
+  fi
+  rel="${story#./}"
+  case "$rel" in /*|[A-Za-z]:/*) rel="$(git -c core.quotePath=false ls-files --full-name -- "$story" | head -n 1)" ;; esac
+  base="$(mktemp)"
+  git show "$sha:$rel" 2>/dev/null | tr -d '\r' > "$base"
+  [ "$(verify_of "$base")" = "$(verify_of "$story" | tr -d '\r')" ] || diffs="## Verification"
+  [ "$(files_of "$base")" = "$(files_of "$story" | tr -d '\r')" ] || diffs="${diffs:+$diffs, }## Files"
+  [ "$(fm_red "$base")" = "$(fm_red "$story" | tr -d '\r')" ] || diffs="${diffs:+$diffs, }red:"
+  rm -f "$base"
+  [ -n "$diffs" ] || return 0
+  msg="story blocks differ from the approved version ($(git rev-parse --short "$sha")): $diffs"
+  echo "cycle: $verb - $story: $msg" >&2
+  emit false "$verb" 4 repair "$msg"
+  exit 4
+}
+
+close_subjects() { # close_subjects <spec-dir> -> CS: the subjects of every commit touching the spec,
+  # one per line, read once (ADR-032 D2)
+  CS="$(git log --format=%s -- "$1" 2>/dev/null)"
+}
+
+has_close_commit() { # has_close_commit <subjects> <story-id> -> 0 iff a `story(<id>):` subject (or its
+  # conventional `chore(story-<id>):` form) is among <subjects>: close-story's own commit (ADR-032 D2)
+  local nl='
+'
+  [ -n "$2" ] || return 1
+  case "$nl$1" in
+    *"${nl}story($2):"*|*"${nl}chore(story-$2):"*) return 0 ;;
+  esac
+  return 1
+}
+
+path_overlap() { # path_overlap <path-or-glob> <path-or-glob> - 0 if the two can hit one file
+  # (wave-check.sh's overlap rule: exact path, glob, directory prefix)
+  local a="$1" b="$2"
+  [ "$a" = "$b" ] && return 0
+  case "$a" in */) case "$b" in "$a"*) return 0 ;; esac ;; esac
+  case "$b" in */) case "$a" in "$b"*) return 0 ;; esac ;; esac
+  # shellcheck disable=SC2254
+  case "$b" in $a) return 0 ;; esac
+  # shellcheck disable=SC2254
+  case "$a" in $b) return 0 ;; esac
+  return 1
+}
+
+finding_paths() { # finding_paths <findings> -> the path each finding starts with, one per line: its
+  # leading `- ` and `[tag]`s dropped, the first word cut at a `:`, kept only if it holds a `/` or a `.`
+  local line tok
+  while IFS= read -r line; do
+    line="${line#- }"
+    while :; do case "$line" in "["*"] "*) line="${line#*] }" ;; *) break ;; esac; done
+    tok="${line%% *}"; tok="${tok%%:*}"; tok="${tok//\`/}"
+    case "$tok" in */*|*.*) printf '%s\n' "$tok" ;; esac
+  done <<< "$1"
+}
+
+verify_lines_hitting() { # verify_lines_hitting <verification-lines> <paths> -> the lines with a path token
+  # overlapping one of <paths>, in order; none when <paths> is empty
+  local line tok p
+  [ -n "$2" ] || return 0
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    while IFS= read -r tok; do
+      while IFS= read -r p; do
+        [ -n "$p" ] || continue
+        if path_overlap "$tok" "$p"; then printf '%s\n' "$line"; continue 3; fi
+      done <<< "$2"
+    done <<< "$(verify_path_tokens "$line")"
+  done <<< "$1"
+}
+
+repair_verification() { # repair_verification <verifs> <findings> <files> -> the repair's ## Verification lines,
+  # deduped: those covering a path the findings name; else those covering ## Files; else all of them
+  local all fp hit
+  all="$(printf '%s' "$1" | awk 'NF && !seen[$0]++')"
+  fp="$(finding_paths "$2")"
+  hit="$(verify_lines_hitting "$all" "$fp")"
+  [ -n "$hit" ] || hit="$(verify_lines_hitting "$all" "$3")"
+  [ -n "$hit" ] || hit="$all"
+  printf '%s\n' "$hit"
 }
 
 repair_unmarks() { # repair_unmarks <findings> <union-paths> <marked-paths> - exit 0 only when every
@@ -2123,12 +2511,101 @@ red_gate() { # red_gate <story-file> - close-story's refusals for a marked story
   exit 4
 }
 
-cmd_stamp_red() { # cmd_stamp_red <story-file> [<stamp>] - red-receipt: run the story's
+block_card_gate() { # block_card_gate <story-file> - ADR-032 D3: when a defect card says `status: block`,
+  # every such card's check runs on the story's ## Files, expanded the way close-story's commit expands
+  # them (defects-check.sh --files). Red -> exit 4 naming the card and the file; a gate that cannot run
+  # (no python, no parser, the script missing) -> exit 2, never a pass. No block card: nothing runs.
+  local story="$1" dir="${DEFECTS_DIR:-docs/defects}" e f out rc line ref file
+  [ -d "$dir" ] && grep -rqsE --include='*.md' '^status:[[:space:]]*block[[:space:]]*$' "$dir" || return 0
+  local -a specs=() files=()
+  while IFS= read -r e; do [ -n "$e" ] && specs+=("$e"); done <<EOF
+$(files_of "$story")
+EOF
+  [ "${#specs[@]}" -gt 0 ] || return 0
+  while IFS= read -r f; do [ -n "$f" ] && [ -f "$f" ] && files+=("$f"); done <<EOF
+$(git -c core.quotePath=false ls-files -co --exclude-standard -- ${specs[@]+"${specs[@]}"} 2>/dev/null | LC_ALL=C sort -u)
+EOF
+  [ "${#files[@]}" -gt 0 ] || return 0
+  if [ -f "$HERE/defects-check.sh" ]; then
+    out="$(bash "$HERE/defects-check.sh" --files ${files[@]+"${files[@]}"} 2>&1)"; rc=$?
+  else
+    out="defects-check.sh missing beside cycle.sh"; rc=2
+  fi
+  line=""; [ "$rc" = 1 ] && line="$(printf '%s\n' "$out" | grep -m1 ' fails on ')"
+  [ "$rc" = 1 ] && [ -z "$line" ] && rc=3   # exit 1 with no red line is the gate crashing, never a pass
+  case "$rc" in
+    0) return 0 ;;
+    1)
+      ref="${line%% fails on *}"; file="${line#* fails on }"; file="${file%%: *}"
+      printf '%s\n' "$out" >&2
+      echo "cycle: close-story - defect card $ref fails on $file" >&2
+      emit false close-story 4 repair "defect card $ref fails on $file"
+      exit 4 ;;
+    *)
+      printf '%s\n' "$out" >&2
+      echo "cycle: close-story - defect gate could not run (defects-check.sh --files exit $rc)" >&2
+      emit false close-story 2 error "defect gate could not run"
+      exit 2 ;;
+  esac
+}
+
+red_baseline_swap() { # red_baseline_swap - ADR-032 D5, `stamp-red --baseline`: copy every RED_IMPL file
+  # aside, write each back to its HEAD content (a file new since HEAD is removed), and arm an EXIT trap
+  # that puts the copies back whatever the exit. No `git stash`: nothing enters git, nothing can be lost.
+  local p i=0
+  RB_DIR="$(mktemp -d)" || { emit false stamp-red 2 error "mktemp failed"; exit 2; }
+  : > "$RB_DIR/list"
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    i=$((i+1))
+    if [ -f "$p" ]; then
+      cp -p -- "$p" "$RB_DIR/$i" || { rm -rf "$RB_DIR"; RB_DIR=""; emit false stamp-red 2 error "baseline: cannot copy $p aside"; exit 2; }
+      printf '%s\ty\t%s\n' "$i" "$p" >> "$RB_DIR/list"
+    else
+      printf '%s\tn\t%s\n' "$i" "$p" >> "$RB_DIR/list"
+    fi
+  done <<EOF
+$RED_IMPL
+EOF
+  trap red_baseline_restore EXIT
+  trap 'exit 130' INT; trap 'exit 143' TERM; trap 'exit 129' HUP
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    if git cat-file -e "HEAD:$p" 2>/dev/null; then
+      mkdir -p "$(dirname "$p")" && git show "HEAD:$p" > "$p" \
+        || { emit false stamp-red 2 error "baseline: cannot write HEAD's $p"; exit 2; }
+    else
+      rm -f -- "$p"
+    fi
+  done <<EOF
+$RED_IMPL
+EOF
+}
+
+red_baseline_restore() { # red_baseline_restore - the EXIT trap of red_baseline_swap: each file back byte for
+  # byte (cp -p of the copy), a file that was absent removed again; then the copies are dropped
+  local i flag p
+  [ -n "${RB_DIR:-}" ] && [ -f "$RB_DIR/list" ] || return 0
+  while IFS="$(printf '\t')" read -r i flag p; do
+    [ -n "$p" ] || continue
+    if [ "$flag" = y ]; then
+      mkdir -p "$(dirname "$p")"; rm -f -- "$p"; cp -p -- "$RB_DIR/$i" "$p" \
+        || echo "cycle: stamp-red - baseline: could not restore $p; its copy is kept in $RB_DIR/$i" >&2
+    else
+      rm -f -- "$p"
+    fi
+  done < "$RB_DIR/list"
+  rm -rf "$RB_DIR"; RB_DIR=""
+}
+
+cmd_stamp_red() { # cmd_stamp_red <story-file> [<stamp>] [<baseline 0|1>] - red-receipt: run the story's
   # ## Verification once, the close-story way, and write the receipt only for a red for the
-  # declared reason - never a launch failure, a timeout, or a green. Commits nothing.
-  local STORY="$1" STAMP="${2:-}"
+  # declared reason - never a launch failure, a timeout, or a green. Commits nothing. With
+  # --baseline (ADR-032 D5, the Queen's re-stamp after a sealed-test edit) the run and the receipt's
+  # impl hash are taken against HEAD's implementation, and the working copy is put back after.
+  local STORY="$1" STAMP="${2:-}" BASELINE="${3:-0}"
   [ -n "$STORY" ] && [ -f "$STORY" ] || {
-    echo "cycle: usage: $0 stamp-red <story-file> [--stamp <s>]" >&2
+    echo "cycle: usage: $0 stamp-red <story-file> [--stamp <s>] [--baseline]" >&2
     emit false stamp-red 1 error "usage"
     exit 1
   }
@@ -2136,6 +2613,7 @@ cmd_stamp_red() { # cmd_stamp_red <story-file> [<stamp>] - red-receipt: run the 
   pause_guard "$SPECDIR" stamp-red
   driver_guard "$SPECDIR" stamp-red "$STAMP"
   branch_guard "$SPECDIR" stamp-red
+  story_blocks_guard "$STORY" stamp-red # ADR-032 D1: before anything reads red:, ## Files or ## Verification
 
   red_refuse() { echo "cycle: stamp-red - $STORY: $1" >&2; emit false stamp-red 4 repair "$1"; exit 4; }
   [ "$(fm_red "$STORY")" = required ] || red_refuse "story is not red: required"
@@ -2155,9 +2633,18 @@ cmd_stamp_red() { # cmd_stamp_red <story-file> [<stamp>] - red-receipt: run the 
 
   local CMD_LIST; CMD_LIST="$(verify_cmd_list "$STORY")"
   verify_cells_check stamp-red "$CMD_LIST"
+  [ "$BASELINE" = 1 ] && red_baseline_swap
 
-  local OUTD; OUTD="$(mktemp -d)" || { emit false stamp-red 2 error "mktemp failed"; exit 2; }
-  verify_run "$CMD_LIST" 1 "$OUTD"
+  # gate-split-02: the call budget can stop the run between lines (exit 7); the earlier lines' results
+  # wait in a per-story directory under the temp dir until the resumed call has them all.
+  local VH VSTART OUTD; VH="$(verify_files_hash "$STORY")"
+  VSTART="$(verify_resume_start "$STORY" stamp-red "$VH")"
+  OUTD="${TMPDIR:-/tmp}/vulyk-sr-$(printf '%s' "$STORY" | cksum | cut -d' ' -f1)"
+  [ "$VSTART" -gt 1 ] && [ -d "$OUTD" ] || { VSTART=1; rm -rf "$OUTD"; }
+  mkdir -p "$OUTD" || { emit false stamp-red 2 error "mkdir failed"; exit 2; }
+  VR_START="$VSTART" verify_run "$CMD_LIST" 1 "$OUTD"
+  if [ "$VR_PAUSE" -gt 0 ]; then verify_pause stamp-red "$STORY" "$VR_PAUSE" "$VH"; fi
+  verify_resume_set "$STORY"
   if [ "$VR_RC" -eq 124 ] && [ "$VR_TIMEOUT_OK" -eq 1 ]; then
     rm -rf "$OUTD"; red_refuse "not red: timed out after ${VR_VT}s"
   fi
@@ -2179,7 +2666,9 @@ cmd_stamp_red() { # cmd_stamp_red <story-file> [<stamp>] - red-receipt: run the 
   TS="$(now_ts)"
   TH="$(red_hash "$RED_SEALED")"
   IH="$(red_hash "$RED_IMPL")"
-  TAIL="$(tail -n 10 "$OUTD/$HIT.out" | tr -d '\r' | bash "$HERE/redact.sh")"
+  # The lines carrying red_reason (at most 3) lead the tail, so the receipt shows the failing check even
+  # when ten passing lines follow it (post-046-tails).
+  TAIL="$( { grep -F -- "$REASON" "$OUTD/$HIT.out" | head -n 3; tail -n 10 "$OUTD/$HIT.out"; } | tr -d '\r' | bash "$HERE/redact.sh")"
   rm -rf "$OUTD"
   PATHS="$(printf '%s\n' "$RED_SEALED" | sed '/^$/d' | paste -sd, - | sed 's/,/, /g')"
 
@@ -2212,6 +2701,18 @@ cmd_stamp_red() { # cmd_stamp_red <story-file> [<stamp>] - red-receipt: run the 
   exit 0
 }
 
+set_story_status() { # set_story_status <story-file> <from-ERE> <to> - rewrites the value of the
+  # first `status:` line only, the one fm_field reads, never a later `status:` line in the body
+  # (P9-13: a body line such as an example or a quoted log was rewritten to `done` too).
+  local f="$1" n=0 at="" line
+  while IFS= read -r line || [ -n "$line" ]; do
+    n=$((n+1))
+    case "$line" in status:*) at="$n"; break ;; esac
+  done < "$f"
+  [ -n "$at" ] && sed_inplace -E "${at}s/^(status:[[:space:]]*)$2/\1$3/" "$f"
+  return 0
+}
+
 cmd_close_story() { # cmd_close_story <story-file> <commit:0|1> [<stamp>]
   local STORY="$1" DOCOMMIT="$2" STAMP="${3:-}"
   [ -n "$STORY" ] && [ -f "$STORY" ] || {
@@ -2224,7 +2725,7 @@ cmd_close_story() { # cmd_close_story <story-file> <commit:0|1> [<stamp>]
   driver_guard "$SPECDIR" close-story "$STAMP"
   branch_guard "$SPECDIR" close-story
 
-  local ST SELFMARKED=0; ST="$(fm_field "$STORY" status)"
+  local ST SELFMARKED=0 HANDCOMMITTED=0; ST="$(fm_field "$STORY" status)"
   case "$ST" in
     todo|in-progress) ;;
     done)
@@ -2244,9 +2745,15 @@ $(files_of "$STORY")
 EOF
       local DONE_DIRTY; DONE_DIRTY="$(git status --porcelain -- ${DONE_PATHS[@]+"${DONE_PATHS[@]}"} 2>/dev/null)"
       if [ -z "$DONE_DIRTY" ]; then
-        echo "cycle: $(fm_field "$STORY" story) - already done, nothing to close"
-        emit_status close-story "$SPECDIR"
-        exit 0
+        # ADR-032 D2: a clean tree is a real prior close only when close-story's own commit is in
+        # the spec's log; a `done` committed by hand takes the self-marked path and is closed here.
+        local CS=""; close_subjects "$SPECDIR"
+        if has_close_commit "$CS" "$(fm_field "$STORY" story)"; then
+          echo "cycle: $(fm_field "$STORY" story) - already done, nothing to close"
+          emit_status close-story "$SPECDIR"
+          exit 0
+        fi
+        HANDCOMMITTED=1
       fi
       # C3 revised (Minors 5, 6): the journal line is written once, below, only after
       # verification is green - every exit-4 path leaves journal.md untouched, so a retried
@@ -2278,6 +2785,9 @@ EOF
       exit 4
       ;;
   esac
+
+  # ADR-032 D1: every gate below reads a working copy proven equal to the story's approved version.
+  story_blocks_guard "$STORY" close-story
 
   local SCOPE_OUT; SCOPE_OUT="$(bash "$HERE/scope-check.sh" "$STORY")"
   printf '%s\n' "$SCOPE_OUT"
@@ -2321,6 +2831,8 @@ EOF
   # tests unchanged since and its implementation changed since. An unmarked story runs none of this.
   [ "$(fm_red "$STORY")" = required ] && red_gate "$STORY"
 
+  block_card_gate "$STORY"
+
   # prompt-check (docs/specs/prompt-check): a story touching scripts or prompts closes only when no finding
   # involves its own ## Files; a finding elsewhere prints as a warn, so an old drift in a hive stops nothing
   # unrelated. Exit 2 (no python, usage) is a note: a lint, not a security gate. CI runs it over everything.
@@ -2361,7 +2873,11 @@ EOF
 
   verify_cells_check close-story "$CMD_LIST"
 
-  verify_run "$CMD_LIST" "$REPS"
+  local VH VSTART; VH="$(verify_files_hash "$STORY")"
+  VSTART="$(verify_resume_start "$STORY" close-story "$VH")"
+  VR_START="$VSTART" verify_run "$CMD_LIST" "$REPS"
+  if [ "$VR_PAUSE" -gt 0 ]; then verify_pause close-story "$STORY" "$VR_PAUSE" "$VH"; fi
+  verify_resume_set "$STORY"
   if [ "$VR_RC" -eq 124 ] && [ "$VR_TIMEOUT_OK" -eq 1 ]; then
     echo "cycle: close-story - verification timed out after ${VR_VT}s (run $VR_RUN/$REPS): $VR_LINE" >&2
     emit false close-story 4 repair "verification timed out after ${VR_VT}s: $VR_LINE"
@@ -2378,7 +2894,11 @@ EOF
     # with the story's own wave as `next` (Minor 5: never a hardcoded build:1).
     local SMWAVE; SMWAVE="$(fm_field "$STORY" wave)"
     case "$SMWAVE" in ''|*[!0-9]*) SMWAVE=1 ;; esac
-    bash "$HERE/journal.sh" "$SPECDIR" "03-building" "close-story $(fm_field "$STORY" story): worker marked status: done itself, closing on the uncommitted diff" "build:$SMWAVE" >/dev/null
+    if [ "$HANDCOMMITTED" = "1" ]; then
+      bash "$HERE/journal.sh" "$SPECDIR" "03-building" "close-story $(fm_field "$STORY" story): closed over a hand-committed tree" "build:$SMWAVE" >/dev/null
+    else
+      bash "$HERE/journal.sh" "$SPECDIR" "03-building" "close-story $(fm_field "$STORY" story): worker marked status: done itself, closing on the uncommitted diff" "build:$SMWAVE" >/dev/null
+    fi
   fi
 
   if [ "$DOCOMMIT" = "1" ]; then
@@ -2391,18 +2911,32 @@ EOF
     local ID TITLE f
     ID="$(fm_field "$STORY" story)"
     TITLE="$(grep -m1 '^# ' "$STORY" | sed 's/^#[[:space:]]*//; s/`//g')"
+    # G6: every add is checked; a failed one unstages what this close staged, puts status: back and
+    # exits 2 - never a commit missing a declared file. An entry that names nothing git lists (never
+    # created, or ignored) has nothing to stage and is skipped, as before.
+    local -a CS_ADDED=(); local CS_STATUS_SET=0
+    cs_add() { # cs_add <path> - git add one path or exit 2 naming it
+      local err
+      if err="$(git add -- "$1" 2>&1)"; then CS_ADDED+=("$1"); return 0; fi
+      [ "${#CS_ADDED[@]}" -eq 0 ] || git reset -q -- ${CS_ADDED[@]+"${CS_ADDED[@]}"} >/dev/null 2>&1
+      [ "$CS_STATUS_SET" = 1 ] && set_story_status "$STORY" done "$ST"
+      echo "cycle: close-story - git add failed: $1: $(printf '%s' "$err" | head -1)" >&2
+      emit false close-story 2 error "git add failed: $1"
+      exit 2
+    }
     while IFS= read -r f; do
       [ -n "$f" ] || continue
-      git add -- "$f" >/dev/null 2>&1
+      [ -n "$(git -c core.quotePath=false ls-files -co --exclude-standard -- "$f" 2>/dev/null | head -1)" ] || continue
+      cs_add "$f"
     done <<EOF
 $(files_of "$STORY")
 EOF
-    [ -f memory/stats/scope.jsonl ] && git add -- memory/stats/scope.jsonl >/dev/null 2>&1
+    [ -f memory/stats/scope.jsonl ] && cs_add memory/stats/scope.jsonl
     # Story 09: the anomaly-scan hook's log rides this commit too, same as scope.jsonl above.
-    [ -n "$(git status --porcelain -- memory/stats/anomalies.jsonl 2>/dev/null)" ] && git add -- memory/stats/anomalies.jsonl >/dev/null 2>&1
+    [ -n "$(git status --porcelain -- memory/stats/anomalies.jsonl 2>/dev/null)" ] && cs_add memory/stats/anomalies.jsonl
 
-    sed_inplace -E "s/^(status:[[:space:]]*)[^[:space:]#]+/\1done/" "$STORY"
-    git add -- "$STORY" >/dev/null 2>&1
+    set_story_status "$STORY" '[^[:space:]#]+' done; CS_STATUS_SET=1
+    cs_add "$STORY"
 
     # Commit exactly what this story staged (`--only` by pathspec), never whatever else sits in
     # the index; on a failed commit (a hook, an index.lock) unstage it again, so the next story's
@@ -2411,16 +2945,23 @@ EOF
     while IFS= read -r p; do [ -n "$p" ] && SPECS+=("$p"); done <<EOF
 $(files_of "$STORY")
 EOF
+    # ADR-032 D2: over a hand-committed tree nothing of the story is left to stage, so the close
+    # commit carries the spec's journal line (status reads the spec's log) and may be empty.
+    local -a ALLOW=()
+    if [ "$HANDCOMMITTED" = "1" ]; then
+      ALLOW=(--allow-empty)
+      [ -f "$SPECDIR/journal.md" ] && cs_add "$SPECDIR/journal.md" && SPECS+=("$SPECDIR/journal.md")
+    fi
     # -z and quotePath off: a non-ASCII name must come back as itself, not as a C-quoted string
     # that matches no path. The globs of `## Files` expand here, and only here: the commit and the
     # resets below read OWN literally (GIT_LITERAL_PATHSPECS), so `app/[id]/p.ts` is one file.
     while IFS= read -r -d '' p; do OWN+=("$p"); done < <(git -c core.quotePath=false diff --cached \
       --name-only -z --no-renames -- ${SPECS[@]+"${SPECS[@]}"} 2>/dev/null)
     local commit_err="nothing of this story is staged"
-    if [ "${#OWN[@]}" -eq 0 ] \
-      || ! commit_err="$(GIT_LITERAL_PATHSPECS=1 git commit -q -m "$(commit_subject "story($ID): $TITLE")" --only -- ${OWN[@]+"${OWN[@]}"} 2>&1)"; then
+    if { [ "${#OWN[@]}" -eq 0 ] && [ "${#ALLOW[@]}" -eq 0 ]; } \
+      || ! commit_err="$(GIT_LITERAL_PATHSPECS=1 git commit -q ${ALLOW[@]+"${ALLOW[@]}"} -m "$(commit_subject "story($ID): $TITLE")" --only -- ${OWN[@]+"${OWN[@]}"} 2>&1)"; then
       [ "${#OWN[@]}" -eq 0 ] || GIT_LITERAL_PATHSPECS=1 git reset -q -- ${OWN[@]+"${OWN[@]}"} >/dev/null 2>&1
-      sed_inplace -E "s/^(status:[[:space:]]*)done/\1$ST/" "$STORY"
+      set_story_status "$STORY" done "$ST"
       echo "cycle: close-story - git commit failed: $commit_err" >&2
       emit false close-story 2 error "git commit failed"
       exit 2
@@ -2429,7 +2970,7 @@ EOF
     # (lint-staged, a formatter) changed the commit but not the real index. Sync it to HEAD.
     GIT_LITERAL_PATHSPECS=1 git reset -q -- ${OWN[@]+"${OWN[@]}"} >/dev/null 2>&1
   else
-    sed_inplace -E "s/^(status:[[:space:]]*)[^[:space:]#]+/\1done/" "$STORY"
+    set_story_status "$STORY" '[^[:space:]#]+' done
   fi
 
   echo "cycle: $(fm_field "$STORY" story) - closed, verification green"
@@ -2452,10 +2993,15 @@ clean_court() { # clean_court <slug> - removes every worktree (registered or orp
   # .vulyk/court/<slug>/ before a fresh one is built (D5: "an orphaned court ... is removed
   # by the next open-round before it creates its own" - covers a crashed judge's leftover
   # worktree and the previous round's court alike, unconditionally).
+  # One path per line, never word-split (P9-03): a hive path with a space split into fragments,
+  # and the first one ("/home/me/my" of "/home/me/my hive/...") was rm -rf'd.
   local slug="$1" wt
-  for wt in $(git worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | grep -F "/.vulyk/court/$slug/"); do
+  while IFS= read -r wt; do
+    [ -n "$wt" ] || continue
     remove_worktree_path "$wt"
-  done
+  done <<WTEOF
+$(git worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | grep -F "/.vulyk/court/$slug/")
+WTEOF
   rm -rf "$ROOT/.vulyk/court/$slug"
   git worktree prune >/dev/null 2>&1 || true
 }
@@ -2536,18 +3082,44 @@ run_court_setup() { # run_court_setup <slug> <n> <court-abs> <round-dir> - the h
   exit 2
 }
 
-carry_seats() { # carry_seats <round-dir n> <round-dir n-1> <n-1> -> the space-separated blind
+repair_story_of_round() { # repair_story_of_round <spec> <n> -> the repair story cut for round n, or nothing
+  local f
+  for f in "$1"/*-repair-round-"$2".md; do
+    [ -f "$f" ] && is_story_file "$f" && { printf '%s' "$f"; return; }
+  done
+}
+
+repair_touched_asks() { # repair_touched_asks <story> -> " n n " - the asks a repair story touches (C4):
+  # a `> N. ` line under ## Requirements, or an `[ask N]` tag under ## Findings
+  tr -d '\r' < "$1" | awk '/^## / { sec = $0; next }
+    sec == "## Requirements" && /^> [0-9]+\. / { n = $2; sub(/\.$/, "", n); print n + 0 }
+    sec == "## Findings" { s = $0; while (match(s, /\[ask [0-9]+\]/)) { print substr(s, RSTART + 5, RLENGTH - 6) + 0; s = substr(s, RSTART + RLENGTH) } }' \
+    | awk 'BEGIN { printf " " } !seen[$0]++ { printf "%s ", $0 }'
+}
+
+carry_seats() { # carry_seats <round-dir n> <round-dir n-1> <n-1> [<spec>] -> the space-separated blind
   # seats copied forward (ADR-013 D3): a GREEN or N/A report of round n-1 is copied into round n
   # as <seat>.md, its header marked ` · carried: round <n-1>` (inside the comment, so the header
   # stays one well-formed line). `review` is never carried - the reviewer always reads the new
   # diff. A seat round n already holds is left alone, so a re-stamp in place carries nothing twice.
-  local rd="$1" prev="$2" pn="$3" seat src v out=""
+  # ab-run-fixes C4: nor is a seat whose report judged (an `ASK <n>:` line) an ask that round n-1's
+  # repair story touched - the repair changed what it saw. A round with no repair story carries as before.
+  local rd="$1" prev="$2" pn="$3" spec="${4:-}" seat src v out="" touched="" rs="" a hit
+  [ -n "$spec" ] && rs="$(repair_story_of_round "$spec" "$pn")"
+  [ -n "$rs" ] && touched="$(repair_touched_asks "$rs")"
   for seat in haiku sonnet opus; do
     src="$prev/$seat.md"
     [ -f "$src" ] || continue
     [ -f "$rd/$seat.md" ] && continue
     v="$(seat_field "$src" VERDICT)"
     case "$v" in GREEN|N/A) ;; *) continue ;; esac
+    if [ -n "${touched// /}" ]; then
+      hit=0
+      for a in $(grep -E '^ASK [0-9]+:' "$src" | sed -n 's/^ASK \([0-9][0-9]*\):.*/\1/p'); do
+        case "$touched" in *" $((10#$a)) "*) hit=1; break ;; esac
+      done
+      [ "$hit" = 1 ] && continue
+    fi
     {
       head -1 "$src" | awk -v m=" $(printf '\xc2\xb7') carried: round $pn" '
         /[[:space:]]*-->[[:space:]]*$/ { sub(/[[:space:]]*-->[[:space:]]*$/, m " -->"); print; next }
@@ -2566,13 +3138,21 @@ build_round() { # build_round <spec> <slug> <n> <head> <pack> <ceiling> <commit:
   local rd="$spec/council/round-$n"
   mkdir -p "$rd"
   clean_court "$slug"
+  rm -f "$rd/suite.log" # gate-split-04: a re-stamp in place starts the round's gate over
 
   # C15/ADR-013 D3: the tier and the roster are derived once, here, and frozen into the round
   # (tier=, seats=) - a plan.md or Profile edit mid-round (or a stale re-stamp) never changes
   # what this round already requires.
-  local tier required
+  local tier required narrow="" second=""
   tier="$(tier_of "$spec")"
   required="$(required_seats_for_tier "$tier")"
+  # ab-run-fixes C5: the round after a narrow repair story (`narrow: true`, cut for round n-1) is
+  # review-only: seats=review, narrow=1 - no blind seat, no court, no second reviewer, and `suite`
+  # runs no step. Every other round is a full one.
+  if [ "$n" -gt 1 ]; then
+    local nrs; nrs="$(repair_story_of_round "$spec" "$((n-1))")"
+    [ -n "$nrs" ] && [ "$(fm_field "$nrs" narrow)" = true ] && { narrow=1; required="review"; }
+  fi
 
   # No blind seat, no court (D3): the reviewer never enters one, so a review-only round would
   # pay a worktree for nobody.
@@ -2586,7 +3166,11 @@ build_round() { # build_round <spec> <slug> <n> <head> <pack> <ceiling> <commit:
   local since="" carried=""
   if [ "$n" -gt 1 ]; then
     since="$(round_field "$spec/council/round-$((n-1))" head)"
-    carried="$(carry_seats "$rd" "$spec/council/round-$((n-1))" "$((n-1))")"
+    [ -n "$narrow" ] || carried="$(carry_seats "$rd" "$spec/council/round-$((n-1))" "$((n-1))" "$spec")"
+  fi
+  # ab-run-fixes C2/C3: a Tier 4 round freezes whether its reviewed range touches the risk set
+  if [ "$tier" = 4 ]; then
+    if [ -n "$narrow" ]; then second=none; else second="$(round_second "$spec" "$n" "$head" "$since")"; fi
   fi
 
   {
@@ -2598,13 +3182,17 @@ build_round() { # build_round <spec> <slug> <n> <head> <pack> <ceiling> <commit:
     printf 'tier=%s\n' "$tier"
     printf 'seats=%s\n' "$required"
     [ -n "$since" ] && printf 'since=%s\n' "$since"
+    [ -n "$second" ] && printf 'second=%s\n' "$second"
+    [ -n "$narrow" ] && printf 'narrow=1\n'
   } > "$rd/ROUND"
 
   local missing dispatch_val
-  missing="$(missing_required_seats "$rd" "$required")"
+  missing="$(missing_required_seats "$rd" "$(round_needed_seats "$spec" "$rd")")"
   dispatch_val="judge"; [ -n "$missing" ] && dispatch_val="dispatch:$(printf '%s' "$missing" | tr ' ' ',')"
   local where="court at $court_abs"; [ -n "$court_abs" ] || where="no court (no blind seat required)"
   local note="round $n opened, $where"
+  [ -n "$narrow" ] && note="$note, narrow repair round (review only)"
+  [ "$second" = risk ] && note="$note, second reviewer: a risk path in the range"
   [ -n "$carried" ] && note="$note, carried from round $((n-1)): $(printf '%s' "$carried" | sed 's/ /, /g')"
   bash "$HERE/journal.sh" "$spec" "04-council:open" "$note" "$dispatch_val" >/dev/null
 
@@ -2649,7 +3237,7 @@ write_stale_row() { # write_stale_row <spec> <slug> <round-dir> <n> <a> - a STAL
     if [ -f "$rd/review.md" ]; then
       review_v="$(review_verdict_of "$rd/review.md")"; [ -n "$review_v" ] || review_v="ABSENT"
     fi
-    attempts=$((attempts + $(seat_attempt_count "$rd" review)))
+    attempts=$((attempts + $(seat_attempt_count "$rd" review) + $(seat_attempt_count "$rd" review2)))
     printf '{"ts":"%s","spec":"%s","round":%s,"verdict":"STALE","head":"%s","pack":"%s","asks":%s,"red":[],"red_unevidenced":[],"review_asks":[],"na":0,"review":"%s","haiku":"%s","haiku_model":"%s","sonnet":"%s","sonnet_model":"%s","opus":"%s","opus_model":"%s","attempts":%s,"escalate":null,"note":"code moved after dispatch"}\n' \
       "$(now_ts)" "$slug" "$n" "${rhead:-unknown}" "$rpack" "$a" "$review_v" \
       "$haiku_v" "$haiku_model" "$sonnet_v" "$sonnet_model" "$opus_v" "$opus_model" "$attempts" >> memory/stats/council.jsonl
@@ -2770,7 +3358,7 @@ cmd_open_round() { # cmd_open_round <spec> <commit:0|1> [<stamp>]
       # uncommitted under this spec's own paperwork is finished now, not silently left behind.
       [ "$DOCOMMIT" = "1" ] && commit_paperwork open-round "vulyk($SLUG): open-round $N" "$SPEC"
       local missing required next_val
-      required="$(round_required_seats "$SPEC" "$RD")"
+      required="$(round_needed_seats "$SPEC" "$RD")"
       missing="$(missing_required_seats "$RD" "$required")"
       next_val="judge"; [ -n "$missing" ] && next_val="dispatch:$(printf '%s' "$missing" | tr ' ' ',')"
       echo "cycle: $SLUG - round $N already open at current HEAD, no-op"
@@ -2780,7 +3368,7 @@ cmd_open_round() { # cmd_open_round <spec> <commit:0|1> [<stamp>]
     # A carried report is round n-1's evidence, not a dispatch of this round - a round holding
     # only carried seats re-stamps in place like an empty one (ADR-013 D3), no STALE fold.
     local has_seat=0 seat2
-    for seat2 in haiku sonnet opus review; do
+    for seat2 in haiku sonnet opus review review2; do
       [ -f "$RD/$seat2.md" ] && ! seat_is_carried "$RD/$seat2.md" && has_seat=1
     done
     if [ "$has_seat" -eq 0 ]; then
@@ -2816,6 +3404,247 @@ cmd_open_round() { # cmd_open_round <spec> <commit:0|1> [<stamp>]
     exit 6
   }
   build_round "$SPEC" "$SLUG" "$((ROUND_COUNT+1))" "$HEAD" "$PACK" "$CEILING" "$DOCOMMIT"
+}
+
+# --- suite: the round's integration gate, one step per call (gate-split-04) ------------------
+# The open round's round-only full-suite row runs here, before the seats, into
+# council/round-N/suite.log (paperwork): `head=<ROUND head> steps=<S>`, then per step
+# `STEP K/S: ok|FAIL <N>s` and that step's PART lines, then one `SUITE: ok <N>s | FAIL <N>s - <why> |
+# none` line. A stepped row (Purpose has `steps`) is `<cmd> --steps` / `<cmd> --step K` under a 590 s
+# call cap; any other row is one part under VULYK_PART_CAP (default 300, never above). A red part
+# (FAIL, CAP, or one suite-parts-check.sh names) makes the gate FAIL: data, exit 0.
+
+suite_log_line() { # suite_log_line <round-dir> -> the SUITE: line of a finished suite.log keyed to the
+  # round's ROUND head=, or nothing (no log, another head, not finished)
+  local log="$1/suite.log" rh lh last
+  [ -f "$log" ] || return 0
+  rh="$(round_field "$1" head)"
+  lh="$(head -1 "$log" | tr -d '\r' | sed -n 's/^head=\([^ ]*\).*/\1/p')"
+  [ -n "$rh" ] && [ "$rh" = "$lh" ] || return 0
+  last="$(tail -1 "$log" | tr -d '\r')"
+  case "$last" in "SUITE: "*) printf '%s' "$last" ;; esac
+}
+
+suite_cut_names() { # suite_cut_names <log> -> each part name suite-parts-check.sh says to cut, one per line
+  bash "$HERE/suite-parts-check.sh" "$1" 2>/dev/null | sed -n 's/^suite-parts-check: cut part \(.*\): [0-9]*s of cap .*/\1/p'
+}
+
+suite_red_parts() { # suite_red_parts <log> -> its red PART lines: FAIL, CAP, or named by suite-parts-check.sh
+  [ -f "$1" ] || return 0
+  tr -d '\r' < "$1" | awk -v cut="$(suite_cut_names "$1")" '
+    BEGIN { n = split(cut, a, "\n"); for (i = 1; i <= n; i++) if (a[i] != "") c[a[i]] = 1 }
+    $1 == "PART" && ($3 == "FAIL" || $3 == "CAP" || ($2 in c)) { print }'
+}
+
+suite_verdict() { # suite_verdict <log> -> the closing `SUITE: ok <N>s` or `SUITE: FAIL <N>s - <why>` line
+  local log="$1" secs why
+  secs="$(tr -d '\r' < "$log" | awk '$1 == "STEP" { v = $4; sub(/s$/, "", v); t += v } END { print t + 0 }')"
+  why="$(tr -d '\r' < "$log" | awk -v cut="$(suite_cut_names "$log")" '
+    BEGIN { n = split(cut, a, "\n"); for (i = 1; i <= n; i++) if (a[i] != "" && !(a[i] in c)) { c[a[i]] = 1; out = out sep "cut part " a[i]; sep = ", " } }
+    $1 == "PART" && $3 == "FAIL" && !($2 in c) && !($2 in f) { f[$2] = 1; out = out sep "part " $2 " failed"; sep = ", " }
+    $1 == "STEP" && $3 == "FAIL" { k = $2; sub(/:$/, "", k); h = index($0, "no end from: ")
+      if (h) { out = out sep "step " k " no end from: " substr($0, h + 13); sep = ", " }
+      else { st = st ssep "step " k " failed"; ssep = ", " } }
+    END { if (out != "") print out; else if (st != "") print st }')"
+  if [ -n "$why" ]; then printf 'SUITE: FAIL %ss - %s' "$secs" "$why"; else printf 'SUITE: ok %ss' "$secs"; fi
+}
+
+suite_load() { # suite_load <start|end> [<cap secs>] -> one `LOAD: ...` line, always exit 0 (post-046-tails):
+  # lib.sh load_sample under a cap (default 10 s), or VULYK_LOAD_SAMPLER (a bash -c command; the tests' seam).
+  # A sampler that fails, times out or prints no cpu line gives `LOAD: unavailable - <when>: <why>`.
+  local when="$1" cap="${2:-10}" out rc line
+  if [ -n "${VULYK_LOAD_SAMPLER:-}" ]; then out="$(run_capped "$cap" bash -c "$VULYK_LOAD_SAMPLER" 2>&1)"; rc=$?
+  else out="$(run_capped "$cap" bash -c '. "$1"; load_sample' _ "$HERE/lib.sh" 2>&1)"; rc=$?; fi
+  out="$(printf '%s\n' "$out" | tr -d '\r')"
+  line="$(printf '%s\n' "$out" | grep -m1 '^cpu ')"
+  if [ "$rc" -eq 0 ] && [ -n "$line" ]; then printf 'LOAD: %s %s\n' "$when" "$line"
+  elif [ "$rc" -eq 124 ]; then printf 'LOAD: unavailable - %s: timed out after %ss\n' "$when" "$cap"
+  elif [ "$rc" -eq 0 ]; then printf 'LOAD: unavailable - %s: no cpu line\n' "$when"
+  else
+    line="$(printf '%s\n' "$out" | grep -m1 .)"
+    printf 'LOAD: unavailable - %s: exit %s%s\n' "$when" "$rc" "${line:+: $line}"
+  fi
+  return 0
+}
+
+suite_emit() { # suite_emit <spec> <step> <steps> <done:true|false> <suite> - the verb's exit-0 line
+  local st rc next tail=""
+  st="$(cmd_status "$1")"; rc=$?
+  next="$(json_field "$st" next)"
+  [ "$rc" -eq 0 ] && [ -n "$st" ] && ! printf '%s' "$st" | grep -q '"ok":false' && tail=",\"status\":$st"
+  printf '{"ok":true,"verb":"suite","exit":0,"next":"%s","step":%s,"steps":%s,"done":%s,"suite":"%s"%s}\n' \
+    "$(json_escape "$next")" "$2" "$3" "$4" "$5" "$tail"
+}
+
+cmd_suite() { # cmd_suite <spec> <commit:0|1> [<stamp>]
+  local SPEC="$1" DOCOMMIT="$2" STAMP="${3:-}"
+  [ -n "$SPEC" ] && [ -d "$SPEC" ] || {
+    echo "cycle: usage: $0 suite <spec-dir> [--commit] [--stamp <s>]" >&2
+    emit false suite 1 error "usage"
+    exit 1
+  }
+  pause_guard "$SPEC" suite
+  driver_guard "$SPEC" suite "$STAMP"
+  branch_guard "$SPEC" suite
+
+  local SLUG RD N; SLUG="$(slug_of "$SPEC")"; RD="$(current_round_dir "$SPEC")"
+  if [ -z "$RD" ] || [ ! -f "$RD/ROUND" ] || row_exists "$SLUG" "${RD##*/round-}"; then
+    echo "cycle: suite - $SLUG has no open round; run open-round first" >&2
+    emit false suite 2 error "no open round"
+    exit 2
+  fi
+  N="${RD##*/round-}"
+  if round_is_stale "$SPEC" "$N"; then
+    echo "cycle: suite - round $N is stale (ROUND head=$(round_field "$RD" head), current HEAD=$(git rev-parse --short HEAD 2>/dev/null)); run open-round" >&2
+    emit false suite 5 stale "stale"
+    exit 5
+  fi
+
+  local LOG="$RD/suite.log" RHEAD S K
+  RHEAD="$(round_field "$RD" head)"
+  local done_line; done_line="$(suite_log_line "$RD")"
+  if [ -n "$done_line" ]; then # a finished log: no-op
+    S="$(head -1 "$LOG" | tr -d '\r' | sed -n 's/.* steps=\([0-9][0-9]*\).*/\1/p')"; S="${S:-0}"
+    [ "$DOCOMMIT" = "1" ] && commit_paperwork suite "vulyk($SLUG): suite round $N" "$LOG"
+    echo "cycle: $SLUG - round $N suite already finished: $done_line"
+    suite_emit "$SPEC" "$S" "$S" true "$(printf '%s' "$done_line" | awk '{ print $2 }')"
+    exit 0
+  fi
+
+  # Several round-only full-suite rows (gate-split-08): each row is one step, run as one capped part,
+  # and a `steps` marker is read only on a single row. One row keeps the stepped / plain split.
+  local rows row purpose cmd stepped=0 nrows=0
+  rows="$(full_suite_row "$(constitution_file "$ROOT")")"
+  [ -n "$rows" ] && nrows="$(printf '%s\n' "$rows" | grep -c .)"
+  row="$(printf '%s\n' "$rows" | sed -n 1p)"
+  purpose="${row%%$'\t'*}"; cmd="${row#*$'\t'}"
+  [ "$nrows" -le 1 ] && [ -n "$cmd" ] && case " $(printf '%s' "$purpose" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' ' ') " in *" steps "*) stepped=1 ;; esac
+
+  # A log keyed to another head (an earlier code state) is discarded, never resumed.
+  local lh=""; [ -f "$LOG" ] && lh="$(head -1 "$LOG" | tr -d '\r' | sed -n 's/^head=\([^ ]*\).*/\1/p')"
+  [ -f "$LOG" ] && [ "$lh" != "$RHEAD" ] && rm -f "$LOG"
+
+  if [ ! -f "$LOG" ]; then
+    # ab-run-fixes C5: a narrow repair round runs no gate step - the finished log keyed to the round
+    # head says so, and record-seat takes the review against it.
+    if [ "$(round_field "$RD" narrow)" = 1 ]; then
+      printf 'head=%s steps=0\nSUITE: none - narrow repair round\n' "$RHEAD" > "$LOG"
+      [ "$DOCOMMIT" = "1" ] && commit_paperwork suite "vulyk($SLUG): suite round $N none (narrow)" "$LOG"
+      echo "cycle: $SLUG - round $N: narrow repair round, SUITE: none, no step run"
+      suite_emit "$SPEC" 0 0 true none
+      exit 0
+    fi
+    if [ -z "$row" ]; then
+      printf 'head=%s steps=0\nSUITE: none\n' "$RHEAD" > "$LOG"
+      [ "$DOCOMMIT" = "1" ] && commit_paperwork suite "vulyk($SLUG): suite round $N none" "$LOG"
+      echo "cycle: $SLUG - round $N: no round-only full-suite row, SUITE: none"
+      suite_emit "$SPEC" 0 0 true none
+      exit 0
+    fi
+    S=1; [ "$nrows" -gt 1 ] && S="$nrows"
+    if [ "$stepped" = 1 ]; then
+      local sout src
+      sout="$(run_capped 590 bash -c "$cmd --steps" 2>/dev/null)"; src=$?
+      S="$(printf '%s\n' "$sout" | tr -d '\r' | awk 'NF { l = $1 } END { print l }')"
+      case "$S" in ''|*[!0-9]*|0)
+        printf 'head=%s steps=0\nSUITE: FAIL 0s - %s --steps gave no step count (exit %s)\n' "$RHEAD" "$cmd" "$src" > "$LOG"
+        [ "$DOCOMMIT" = "1" ] && commit_paperwork suite "vulyk($SLUG): suite round $N FAIL" "$LOG"
+        echo "cycle: $SLUG - round $N: $cmd --steps gave no step count (exit $src)" >&2
+        suite_emit "$SPEC" 0 0 true FAIL
+        exit 0 ;;
+      esac
+    fi
+    printf 'head=%s steps=%s\n' "$RHEAD" "$S" > "$LOG"
+  fi
+  S="$(head -1 "$LOG" | tr -d '\r' | sed -n 's/.* steps=\([0-9][0-9]*\).*/\1/p')"; S="${S:-1}"
+  K=$(( $(tr -d '\r' < "$LOG" | grep -c '^STEP ') + 1 ))
+  # Step K runs row K; a K past the rows (the log's steps= outgrew the table) has no row to run, and
+  # neither has a row with an empty command cell: both are a red step below, never `ok` from `bash -c ""`.
+  if [ "$stepped" != 1 ]; then
+    if [ "$K" -le "$nrows" ]; then
+      row="$(printf '%s\n' "$rows" | sed -n "${K}p")"
+      purpose="${row%%$'\t'*}"; cmd="${row#*$'\t'}"
+    else
+      purpose="step $K: no row"; cmd=""
+    fi
+  fi
+
+  # --- run step K: its STEP line and its PART lines, appended as one block ---------------------
+  # post-046-tails: the box's load is sampled at the step's start and, for a FAIL step only, at its end; only
+  # a FAIL step writes the two lines. X-08: the start sample runs in the foreground before t0 (cap 5 s), so
+  # it reads the box before the step and never overlaps it; the stepped call cap pays for it below.
+  local loadstart loads=""
+  loadstart="$(suite_load start 5)"
+  local t0="$SECONDS" out rc parts secs sres=ok note="" tmp
+  if [ "$stepped" = 1 ]; then
+    # The call cap: 590 s (one Bash call), cut by the seconds this call already spent (the --steps call,
+    # the start sample), so no call passes 600 s. VULYK_STEP_CAP only lowers it, for tests.
+    local stepcap="${VULYK_STEP_CAP:-590}"
+    case "$stepcap" in ''|*[!0-9]*|0) stepcap=590 ;; esac
+    [ "$stepcap" -gt 590 ] && stepcap=590
+    stepcap=$((stepcap - SECONDS)); [ "$stepcap" -lt 1 ] && stepcap=1
+    out="$(run_capped "$stepcap" bash -c "$cmd --step $K" 2>&1)"; rc=$?
+    secs=$((SECONDS - t0))
+    parts="$(printf '%s\n' "$out" | tr -d '\r' | grep '^PART ')"
+    if [ "$rc" -eq 124 ]; then
+      # post-045-tails: the runner names its parts first (`PARTS K/S: <names>`) and prints a PART line
+      # as each ends; the listed names with no PART line are the parts that never ended.
+      local hung; hung="$(printf '%s\n' "$out" | tr -d '\r' | awk '
+        $1 == "PARTS" { for (i = 3; i <= NF; i++) want[++n] = $i }
+        $1 == "PART"  { ended[$2]++ }
+        END { for (i = 1; i <= n; i++) { if (ended[want[i]] > 0) ended[want[i]]--; else { printf "%s%s", sep, want[i]; sep = " " } } }')"
+      note=" - timed out after ${stepcap}s${hung:+ - no end from: $hung}"
+    fi
+  else
+    local cap="${VULYK_PART_CAP:-300}" pname pres=ok
+    case "$cap" in ''|*[!0-9]*|0) cap=300 ;; esac
+    [ "$cap" -gt 300 ] && cap=300
+    # A Purpose's PART name: lower case, each run of other characters one hyphen, none at either end.
+    part_slug() { tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9][^a-z0-9]*/-/g; s/^-//; s/-$//'; }
+    pname="$(printf '%s' "$purpose" | part_slug)"
+    # Two rows whose Purposes give one name: each part takes its step number, so the log tells them apart.
+    if [ "$(printf '%s\n' "$rows" | cut -f1 | part_slug | grep -cxF -- "$pname")" -gt 1 ]; then
+      pname="$pname-$K"
+    fi
+    if [ -z "$cmd" ]; then
+      rc=1; secs=0; parts="PART $pname FAIL 0s cap ${cap}s - no command in its row"
+    else
+      run_capped "$cap" bash -c "$cmd" >/dev/null 2>&1; rc=$?
+      secs=$((SECONDS - t0))
+      [ "$rc" -ne 0 ] && pres=FAIL
+      if [ "$rc" -eq 124 ]; then parts="PART $pname CAP ${secs}s cap ${cap}s - timed out"
+      else parts="PART $pname $pres ${secs}s cap ${cap}s"; fi
+    fi
+  fi
+  tmp="$RD/.suite-step.tmp"
+  printf '%s\n' "$parts" > "$tmp"
+  { [ "$rc" -ne 0 ] || ! bash "$HERE/suite-parts-check.sh" "$tmp" >/dev/null 2>&1; } && sres=FAIL
+  rm -f "$tmp"
+  if [ "$sres" = FAIL ]; then
+    # The end sample fits inside the one Bash call (600 s) this verb runs in: at most 10 s, none when
+    # under 2 s are left (a stepped step killed at its 590 s cap).
+    local left=$((580 - SECONDS)); [ "$left" -gt 10 ] && left=10
+    loads="$loadstart"
+    if [ "$left" -ge 2 ]; then loads="$loads"$'\n'"$(suite_load end "$left")"
+    else loads="$loads"$'\n'"LOAD: unavailable - end: no time left in this call"; fi
+  fi
+  {
+    printf 'STEP %s/%s: %s %ss%s\n' "$K" "$S" "$sres" "$secs" "$note"
+    [ -n "$parts" ] && printf '%s\n' "$parts"
+    [ -n "$loads" ] && printf '%s\n' "$loads"
+  } >> "$LOG"
+  local sv=pending is_done=false
+  if [ "$K" -ge "$S" ]; then
+    local verdict; verdict="$(suite_verdict "$LOG")"
+    printf '%s\n' "$verdict" >> "$LOG"
+    sv="$(printf '%s' "$verdict" | awk '{ print $2 }')"; is_done=true
+  fi
+  # ab-run-fixes C8: one commit per suite, on the call that finishes it; a middle step leaves the log
+  # written and uncommitted (paperwork: the round stays fresh, the next call resumes from it).
+  [ "$DOCOMMIT" = "1" ] && [ "$is_done" = true ] && commit_paperwork suite "vulyk($SLUG): suite round $N $sv" "$LOG"
+  echo "cycle: $SLUG - round $N suite step $K/$S: $sres ${secs}s"
+  suite_emit "$SPEC" "$K" "$S" "$is_done" "$sv"
+  exit 0
 }
 
 # --- reopen: the tier's own ceiling again after ESCALATE (D6; convergent-judge) - Tier 1 +1,
@@ -2865,7 +3694,9 @@ cmd_reopen() { # cmd_reopen <spec> <decision> <commit:0|1>
 
   local dateonly; dateonly="$(date -u +%Y-%m-%d)"
   local marker_text="**After escalation (round $N, $dateonly).**"
-  local already=0; grep -qF "$marker_text" "$BRIEF" 2>/dev/null && already=1
+  # P9-16: idempotent per round, not per day - the date stays in the marker but out of the key,
+  # or a re-run the next day appended a second decision and raised the ceiling again.
+  local already=0; grep -qF "**After escalation (round $N, " "$BRIEF" 2>/dev/null && already=1
 
   local STEP; STEP="$(tier_ceiling "$(tier_of "$SPEC")")"
   local OLDCEIL; OLDCEIL="$(head -1 "$SPEC/council/CEILING" 2>/dev/null | tr -d '[:space:]')"; [ -n "$OLDCEIL" ] || OLDCEIL="$STEP"
@@ -2883,7 +3714,8 @@ cmd_reopen() { # cmd_reopen <spec> <decision> <commit:0|1>
   fi
 
   if [ "$already" -eq 0 ]; then
-    append_after_answers "$BRIEF" "$(printf '\n%s\n> %s\n' "$marker_text" "$DECISION")"
+    # P9-07: the owner's decision is free text bound for the committed brief.md - masked first
+    append_after_answers "$BRIEF" "$(printf '\n%s\n> %s\n' "$marker_text" "$(redact_note "$DECISION")")"
     NEWCEIL=$((OLDCEIL+STEP))
     mkdir -p "$SPEC/council"
     printf '%s\n' "$NEWCEIL" > "$SPEC/council/CEILING"
@@ -2915,6 +3747,7 @@ cmd_pause() { # cmd_pause <spec> <why>
   }
   local WHO="${OWNER:-${USER:-${USERNAME:-owner}}}"
   [ -n "$WHY" ] || WHY="no reason given"
+  WHY="$(redact_note "$WHY")" # P9-07: the reason reaches PAUSE, stdout and the committed journal masked
   local HEAD; HEAD="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
   {
     printf '%s \xc2\xb7 %s \xc2\xb7 %s\n' "$WHO" "$WHY" "$(now_ts)"
@@ -2967,6 +3800,60 @@ cmd_resume() { # cmd_resume <spec>
 
 # --- claim/release (ADR-004/K3: the DRIVER semaphore, no --commit accepted) ----------------
 
+in_files() { # in_files <path> <newline-separated ## Files patterns> - scope-check's matches_any rule:
+  # the literal path, a `dir/` prefix, or a glob
+  local file="$1" pattern
+  while IFS= read -r pattern; do
+    [ -n "$pattern" ] || continue
+    [ "$file" = "$pattern" ] && return 0
+    case "$pattern" in */) case "$file" in "$pattern"*) return 0 ;; esac ;; esac
+    # shellcheck disable=SC2254
+    case "$file" in $pattern) return 0 ;; esac
+  done <<EOF
+$2
+EOF
+  return 1
+}
+
+claim_leftover() { # claim_leftover <spec> <dirty lines> - ab-run-fixes C9: a worker that returned
+  # without closing leaves edits in its story's ## Files (and its story file). Sets CL_LEFT, the
+  # todo stories of the current build wave holding a dirty path (space-separated), and CL_REST,
+  # the dirty lines no such story covers - claim refuses on those exactly as before.
+  local spec="$1" dirty="$2" w f line p ok hit i rest
+  local -a LS=() LF=() PP=()
+  CL_LEFT=""; CL_REST=""
+  w="$(json_field "$(cmd_status "$spec" 2>/dev/null)" wave)"
+  if [ -n "$w" ]; then
+    for f in "$spec"/*.md; do
+      [ -f "$f" ] || continue
+      is_story_file "$f" || continue
+      fm_status_wave "$f"
+      case "$FM_STATUS" in todo|'') ;; *) continue ;; esac
+      [ "${FM_WAVE:-1}" = "$w" ] || continue
+      LS+=("${f#./}"); LF+=("$(files_of "$f")")
+    done
+  fi
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    ok=1; rest="${line:3}"
+    # dirty_outside_paperwork prints a rename as `<orig> -> <path>`: both sides must be covered
+    case "$rest" in *' -> '*) PP=("${rest%% -> *}" "${rest#* -> }") ;; *) PP=("$rest") ;; esac
+    for p in ${PP[@]+"${PP[@]}"}; do
+      is_paperwork_path "$p" && continue
+      hit=""
+      for i in "${!LS[@]}"; do
+        if [ "$p" = "${LS[$i]}" ] || in_files "$p" "${LF[$i]}"; then hit="${LS[$i]}"; break; fi
+      done
+      if [ -z "$hit" ]; then ok=0; break; fi
+      case " $CL_LEFT " in *" $hit "*) ;; *) CL_LEFT="${CL_LEFT:+$CL_LEFT }$hit" ;; esac
+    done
+    [ "$ok" -eq 1 ] || CL_REST="${CL_REST:+$CL_REST
+}$line"
+  done <<EOF
+$dirty
+EOF
+}
+
 cmd_claim() { # cmd_claim <spec> <stamp>
   local SPEC="$1" STAMP="${2:-}"
   [ -n "$SPEC" ] && [ -d "$SPEC" ] && [ -n "$STAMP" ] || {
@@ -2992,17 +3879,29 @@ cmd_claim() { # cmd_claim <spec> <stamp>
   # ADR-013 D5: the same predicate open-round applies, checked before the build instead of
   # after it - an owner's stray file used to surface only when the first round tried to open.
   # A re-claim by the holder (above) is exempt: that run is already under way.
+  # ab-run-fixes C9: edits inside a todo wave story's ## Files are a worker's leftover, not dirt -
+  # claim names those stories under `leftover` and the driver re-dispatches them with a note.
   local dirty; dirty="$(dirty_outside_paperwork)"
+  local CL_LEFT="" CL_REST="" LEFT_JSON="" lf
   if [ -n "$dirty" ]; then
-    echo "cycle: claim - working tree has changes outside the cycle's own paperwork:" >&2
-    printf '%s\n' "$dirty" | sed 's/^/  /' >&2
-    emit false claim 2 error "working tree not clean"
-    exit 2
+    claim_leftover "$SPEC" "$dirty"
+    if [ -n "$CL_REST" ]; then
+      echo "cycle: claim - working tree has changes outside the cycle's own paperwork:" >&2
+      printf '%s\n' "$CL_REST" | sed 's/^/  /' >&2
+      emit false claim 2 error "working tree not clean"
+      exit 2
+    fi
+    for lf in $CL_LEFT; do LEFT_JSON="${LEFT_JSON:+$LEFT_JSON,}\"$(json_escape "$lf")\""; done
   fi
 
   if ( set -o noclobber; { printf 'stamp=%s\n' "$STAMP"; printf 'claimed=%s\n' "$(now_ts)"; } > "$SPEC/DRIVER" ) 2>/dev/null; then
     echo "cycle: $(slug_of "$SPEC") - claimed by $STAMP"
-    emit true claim 0 claimed
+    if [ -n "$LEFT_JSON" ]; then
+      echo "cycle: claim - leftover edits in the ## Files of: $CL_LEFT"
+      printf '{"ok":true,"verb":"claim","exit":0,"next":"claimed","leftover":[%s]}\n' "$LEFT_JSON"
+    else
+      emit true claim 0 claimed
+    fi
     exit 0
   fi
 
@@ -3170,15 +4069,22 @@ cmd_repair() { # cmd_repair <spec> <commit:0|1> [<stamp>]
   # round that judged that work wrong, so it climbs a rung, as a missed story's retry climbs to the gate.
 
   local findings
+  # findings, in order: seat RED asks; anchored review findings; red gate parts; owner REJECTED
+  # (comments stay out of the $( ) body: the portability gate, and likely bash 3.2, read them as code).
+  # `[unanchored]` findings are never copied: they wait for /vulyk-ship's next circle.
+  # ab-run-fixes C2: a second reviewer's anchored findings join the one repair story (recall)
+  # gate-split-04: the gate of the round - each red PART line of a finished suite.log is a finding.
+  # An owner's REJECTED check at or after the round's opening turns it RED with no ask and no
+  # finding (judge's override) - its note is then the only condition the repair can meet.
   findings="$(
     for seat in haiku sonnet opus; do
       [ -f "$RD/$seat.md" ] && grep -E '^ASK [0-9]+:[[:space:]]*RED' "$RD/$seat.md"
     done
-    # `[unanchored]` findings are never copied: they wait for /vulyk-ship's next circle.
-    [ -f "$RD/review.md" ] && review_blocking_lines "$RD/review.md" \
-      | grep -E '\[ask [0-9]+\]|\[regression\]' | grep -vF '[unanchored]'
-    # An owner's REJECTED check at or after the round's opening turns it RED with no ask and no
-    # finding (judge's override) - its note is then the only condition the repair can meet.
+    for seat in review review2; do
+      [ -f "$RD/$seat.md" ] && review_blocking_lines "$RD/$seat.md" \
+        | grep -E '\[ask [0-9]+\]|\[regression\]' | grep -vF '[unanchored]'
+    done
+    [ -n "$(suite_log_line "$RD")" ] && suite_red_parts "$RD/suite.log" | sed 's/^/- [regression] /'
     ropened="$(round_field "$RD" opened)"
     hlast="$(grep -F "\"spec\":\"$SLUG\"" memory/stats/human.jsonl 2>/dev/null | tail -1)"
     if [ -n "$hlast" ] && [ "$(json_field "$hlast" verdict)" = REJECTED ]; then
@@ -3192,8 +4098,45 @@ cmd_repair() { # cmd_repair <spec> <commit:0|1> [<stamp>]
   # ## Files and none names a marked story's; a finding that names no file keeps it (fail closed).
   [ "$marked" = 1 ] && repair_unmarks "$findings" "$files" "$mfiles" && marked=0
 
+  # ab-run-fixes C5: narrow - exactly one RED item (one ask, or one [regression] / gate / owner
+  # finding) whose reach (the paths its findings name, else the ## Files union) is one non-test file.
+  # Its story names that file, its exact tests and the defect cards; the next round is review-only.
+  local NARROW="" nfile="" reach items
+  items=$(( $(printf '%s\n' $asks | grep -c .) + $(printf '%s\n' "$findings" | grep -cE '\[regression\]|^- owner REJECTED') ))
+  if [ "$items" -eq 1 ]; then
+    reach="$(finding_paths "$findings" | awk 'NF && !seen[$0]++')"
+    [ -n "$reach" ] || reach="$(printf '%s' "$files" | awk 'NF && !seen[$0]++')"
+    if [ "$(printf '%s\n' "$reach" | grep -c .)" -eq 1 ]; then
+      case "$reach" in *[*?[]*|*/) ;; *) is_test_path "$reach" || { NARROW=1; nfile="$reach"; } ;; esac
+    fi
+  fi
+  local nfiles="" nverifs=""
+  if [ -n "$NARROW" ]; then
+    nfiles="$nfile
+"
+    [ -f "$HERE/symbol-map.sh" ] && nfiles="$nfiles$(bash "$HERE/symbol-map.sh" --exact "$nfile" 2>/dev/null \
+      | awk '/^[^ ]/ { on = ($0 == "tests:"); next } on && $1 == "exact" { print $2 }')
+"
+    nfiles="${nfiles}docs/defects/*
+"
+    local e named
+    for sf in "$SPEC"/*.md; do
+      is_story_file "$sf" || continue
+      [ "$(fm_field "$sf" status)" = done ] || continue
+      named=0
+      while IFS= read -r e; do
+        [ -n "$e" ] && path_overlap "$e" "$nfile" && { named=1; break; }
+      done <<EOF
+$(files_of "$sf")
+EOF
+      [ "$named" = 1 ] && nverifs="$nverifs$(verify_of "$sf" | grep -vE '^repeat[[:space:]]*:')
+"
+    done
+  fi
+
   {
     printf -- '---\nstory: %s-%s\nstatus: todo\nreturned:\nworker: worker-code\nmodel: opus\nwave: %s\nblocked_by: []\n' "$SLUG" "$NN" "$WAVE"
+    [ -n "$NARROW" ] && printf 'narrow: true\n'
     # red-receipt: a repair that keeps the mark gets an empty red_reason for its builder to write.
     [ "$marked" = 1 ] && printf 'red: required\nred_reason:\n'
     printf -- '---\n\n'
@@ -3210,16 +4153,29 @@ cmd_repair() { # cmd_repair <spec> <commit:0|1> [<stamp>]
     fi
     printf '\n## Findings\n'
     [ -n "$findings" ] && printf '%s\n' "$findings"
-    printf '\n## Files\n'
-    printf '%s' "$files" | awk 'NF && !seen[$0]++ { print "- " $0 }'
-    printf '\n## Verification\n'
-    printf '%s' "$verifs" | awk 'NF && !seen[$0]++ { print "`" $0 "`" }'
+    if [ -n "$NARROW" ]; then
+      printf '\n## Acceptance criteria\n'
+      printf -- '- [ ] The class card under docs/defects/ (its quote, Never line or check:) is added or updated in the same commit as the fix.\n'
+      printf '\n## Files\n'
+      printf '%s' "$nfiles" | awk 'NF && !seen[$0]++ { print "- " $0 }'
+      printf '\n## Verification\n'
+      if [ -n "$(printf '%s' "$nverifs" | tr -d '[:space:]')" ]; then
+        printf '%s' "$nverifs" | awk 'NF && !seen[$0]++ { print "`" $0 "`" }'
+      else
+        repair_verification "$verifs" "$findings" "$files" | awk 'NF { print "`" $0 "`" }'
+      fi
+    else
+      printf '\n## Files\n'
+      printf '%s' "$files" | awk 'NF && !seen[$0]++ { print "- " $0 }'
+      printf '\n## Verification\n'
+      repair_verification "$verifs" "$findings" "$files" | awk 'NF { print "`" $0 "`" }'
+    fi
   } > "$STORY"
 
   bash "$HERE/journal.sh" "$SPEC" "03-building" "repair round $N: $(basename "$STORY")" "build:$WAVE" >/dev/null
   [ "$DOCOMMIT" = "1" ] && commit_paperwork repair "vulyk($SLUG): repair round $N" "$STORY" "$SPEC/journal.md"
 
-  echo "cycle: $SLUG - repair story for round $N: $STORY"
+  echo "cycle: $SLUG - repair story for round $N: $STORY${NARROW:+ (narrow: $nfile, the next round is review-only)}"
   emit_status repair "$SPEC"
   exit 0
 }
@@ -3235,30 +4191,6 @@ verb_json_str() { # verb_json_str <verb-line> <key> -> a string field of a verb'
   printf '%s' "${1%%,\"status\":\{*}" | sed -nE "s/.*\"$2\":\"(([^\"\\\\]|\\\\.)*)\".*/\\1/p" | head -1
 }
 
-review_first_line() { # review_first_line <text> -> its first non-blank line, leading blanks and
-  # a trailing CR dropped - the driver's foldReviews read `trim().split('\n')[0]`
-  printf '%s\n' "$1" | awk 'NF { sub(/^[[:space:]]+/, ""); sub(/\r$/, ""); print; exit }'
-}
-
-fold_reviews() { # fold_reviews <top-file> <second-file> -> the Tier 4 `review` text (D2): the
-  # 0.17 driver's foldReviews, moved here. Both first lines `VERDICT: PASS|BLOCK` -> one
-  # verdict, BLOCK if either blocks, both bodies below; anything else -> `NO VERDICT: ...`,
-  # which record-seat rejects, so the attempt is spent exactly as the driver spent it. A
-  # missing file is an empty body.
-  local r1="" r2="" f1 f2 v=PASS
-  [ -f "$1" ] && r1="$(cat "$1")"
-  [ -f "$2" ] && r2="$(cat "$2")"
-  f1="$(review_first_line "$r1")"; f2="$(review_first_line "$r2")"
-  if printf '%s' "$f1" | grep -qE '^VERDICT:[[:space:]]*(PASS|BLOCK)([^A-Za-z0-9_]|$)' \
-    && printf '%s' "$f2" | grep -qE '^VERDICT:[[:space:]]*(PASS|BLOCK)([^A-Za-z0-9_]|$)'; then
-    printf '%s\n%s\n' "$f1" "$f2" | grep -qE '^VERDICT:[[:space:]]*BLOCK([^A-Za-z0-9_]|$)' && v=BLOCK
-    printf 'VERDICT: %s\n%s\n%s\n' "$v" "$r1" "$r2"
-    return
-  fi
-  printf 'NO VERDICT: top=%s \xc2\xb7 second=%s\n%s\n%s\n' "${f1:-(no report)}" "${f2:-(no report)}" \
-    "${r1:-(no report)}" "${r2:-(no report)}"
-}
-
 run_verb() { # run_verb <verb> <args...> - runs one cycle.sh verb as a subprocess (stdin is the
   # caller's redirect), forwards its prose lines, and leaves its last line in VERB_LINE and
   # its exit code in VERB_RC. Called in the current shell, never in a pipeline.
@@ -3272,7 +4204,7 @@ cmd_advance() { # cmd_advance <spec> <stamp> <claim:0|1> <ingest:0|1>
   local SPEC="$1" STAMP="$2" CLAIM="$3" INGEST="$4"
   local SLUG; SLUG="$(slug_of "$SPEC")"
   local -a SARG=(); [ -n "$STAMP" ] && SARG=(--stamp "$STAMP")
-  local STEPS="" REJECTED="" VERB_LINE="" VERB_RC=0
+  local STEPS="" REJECTED="" VERB_LINE="" VERB_RC=0 LEFTOVER_KEY=""
 
   advance_stop() { # advance_stop <failed-verb> - the stop line, built from VERB_LINE/VERB_RC; a
     # verb that exited 0 without an ok:true line (garbled output) still stops as exit 2
@@ -3286,6 +4218,9 @@ cmd_advance() { # cmd_advance <spec> <stamp> <claim:0|1> <ingest:0|1>
   if [ "$CLAIM" = 1 ]; then
     run_verb claim "$SPEC" "$STAMP" </dev/null
     case "$VERB_LINE" in *'"ok":true'*) ;; *) advance_stop claim ;; esac
+    # ab-run-fixes C9: claim's leftover stories ride on advance's own line for the driver
+    local re_left='"leftover":(\[[^]]*\])'
+    [[ $VERB_LINE =~ $re_left ]] && LEFTOVER_KEY=",\"leftover\":${BASH_REMATCH[1]}"
   fi
 
   # --- ingest: every missing seat of the open, non-stale round is recorded from the report
@@ -3294,14 +4229,12 @@ cmd_advance() { # cmd_advance <spec> <stamp> <claim:0|1> <ingest:0|1>
   if [ "$INGEST" = 1 ]; then
     local RD N; RD="$(current_round_dir "$SPEC")"; N="${RD##*/round-}"
     if [ -n "$RD" ] && [ -f "$RD/ROUND" ] && ! row_exists "$SLUG" "$N" && ! round_is_stale "$SPEC" "$N"; then
-      local REPDIR=".vulyk/reports/$SLUG/round-$N" TIER seat k err
-      TIER="$(round_tier "$SPEC" "$RD")"
-      for seat in $(missing_required_seats "$RD" "$(round_required_seats "$SPEC" "$RD")"); do
+      local REPDIR=".vulyk/reports/$SLUG/round-$N" seat k err
+      # ab-run-fixes C2: each seat, review2 included, is recorded from its own file; judge folds
+      # review and review2. A review2 called by this ingest's own BLOCK is the next dispatch.
+      for seat in $(missing_required_seats "$RD" "$(round_needed_seats "$SPEC" "$RD")"); do
         k="$(seat_next_attempt "$RD" "$seat")"
-        if [ "$seat" = review ] && [ "$TIER" = 4 ]; then
-          run_verb record-seat "$SPEC" "$N" review ${SARG[@]+"${SARG[@]}"} \
-            <<<"$(fold_reviews "$REPDIR/review-top.attempt-$k.md" "$REPDIR/review-second.attempt-$k.md")"
-        elif [ -s "$REPDIR/$seat.attempt-$k.md" ]; then
+        if [ -s "$REPDIR/$seat.attempt-$k.md" ]; then
           run_verb record-seat "$SPEC" "$N" "$seat" ${SARG[@]+"${SARG[@]}"} --file "$REPDIR/$seat.attempt-$k.md" </dev/null
         else
           run_verb record-seat "$SPEC" "$N" "$seat" ${SARG[@]+"${SARG[@]}"} </dev/null
@@ -3353,12 +4286,20 @@ cmd_advance() { # cmd_advance <spec> <stamp> <claim:0|1> <ingest:0|1>
         echo "cycle: waiting on manual step '$mid' - do it, then: bash scripts/cycle.sh manual-done $SPEC $mid [note]"
       done ;;
   esac
-  printf '{"ok":true,"verb":"advance","exit":0,"next":"%s","steps":[%s],"rejected":[%s],"status":%s}\n' \
-    "$next" "$STEPS" "$REJECTED" "$st"
+  printf '{"ok":true,"verb":"advance","exit":0,"next":"%s","steps":[%s],"rejected":[%s]%s,"status":%s}\n' \
+    "$next" "$STEPS" "$REJECTED" "$LEFTOVER_KEY" "$st"
   exit 0
 }
 
 # --- dispatch ---------------------------------------------------------------------------------
+
+# C6: every verb that derives status refuses an unknown story status before it reads or writes anything.
+case "$VERB" in
+  status|judge|branch|record-seat|resume|manual-done|open-round|suite|reopen|repair|advance)
+    [ -n "$SPEC" ] && [ -d "$SPEC" ] && story_status_guard "$SPEC" "$VERB" ;;
+  close-story)
+    [ -f "$SPEC" ] && story_status_guard "$(dirname "$SPEC")" close-story ;;
+esac
 
 case "$VERB" in
   status)
@@ -3383,19 +4324,23 @@ case "$VERB" in
     cmd_escalate "$SPEC" "${@:3}"
     ;;
   briefed)
-    COMMIT=0; MODE=""
+    COMMIT=0; MODE=""; GO=0
     prevarg=""
     for a in "$@"; do
       [ "$a" = "--commit" ] && COMMIT=1
+      [ "$a" = "--go" ] && GO=1
       [ "$prevarg" = "--mode" ] && MODE="$a"
       prevarg="$a"
     done
-    cmd_briefed "$SPEC" "$COMMIT" "$MODE"
+    cmd_briefed "$SPEC" "$COMMIT" "$MODE" "$GO"
     ;;
   branch)
-    COMMIT=0
-    for a in "$@"; do [ "$a" = "--commit" ] && COMMIT=1; done
-    cmd_branch "$SPEC" "$COMMIT"
+    COMMIT=0; GO=0
+    for a in "$@"; do
+      [ "$a" = "--commit" ] && COMMIT=1
+      [ "$a" = "--go" ] && GO=1
+    done
+    cmd_branch "$SPEC" "$COMMIT" "$GO"
     ;;
   record-seat)
     shift
@@ -3417,13 +4362,14 @@ case "$VERB" in
     cmd_manual_done "$SPEC" "${3:-}" "${*:4}"
     ;;
   stamp-red)
-    STAMP=""
+    STAMP=""; BASELINE=0
     prevarg=""
     for a in "$@"; do
+      [ "$a" = "--baseline" ] && BASELINE=1
       [ "$prevarg" = "--stamp" ] && STAMP="$a"
       prevarg="$a"
     done
-    cmd_stamp_red "$SPEC" "$STAMP"
+    cmd_stamp_red "$SPEC" "$STAMP" "$BASELINE"
     ;;
   close-story)
     COMMIT=0; STAMP=""
@@ -3444,6 +4390,16 @@ case "$VERB" in
       prevarg="$a"
     done
     cmd_open_round "$SPEC" "$COMMIT" "$STAMP"
+    ;;
+  suite)
+    COMMIT=0; STAMP=""
+    prevarg=""
+    for a in "$@"; do
+      [ "$a" = "--commit" ] && COMMIT=1
+      [ "$prevarg" = "--stamp" ] && STAMP="$a"
+      prevarg="$a"
+    done
+    cmd_suite "$SPEC" "$COMMIT" "$STAMP"
     ;;
   reopen)
     DECISION="${3:-}"

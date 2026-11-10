@@ -63,7 +63,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/anomaly-scan.sh\""
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/anomaly-scan.sh\"",
+            "timeout": 30
           }
         ]
       }
@@ -143,6 +144,15 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/defects-inject.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/git-guard.sh\""
           }
         ]
       }

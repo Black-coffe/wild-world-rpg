@@ -4,7 +4,18 @@ argument-hint: [spec slug; defaults to the newest briefed or approved spec with 
 ---
 
 Build: "$ARGUMENTS" (default: the newest spec under `docs/specs/` whose plan.md carries `**Briefed:**`
-or `**Approved:**` and no `**Branch:**`).
+or `**Approved:**` and no `**Branch:**`). At Tier 2-4 a `**Briefed:**` line opens the build only when it
+records `--go`: without `**Approved:**`, `branch` refuses (`Tier <N> plan needs **Approved:** or an explicit
+--go`); stop for the owner, and only on the owner's opt-out run `bash scripts/cycle.sh briefed
+docs/specs/<slug> --go --commit`.
+
+A story you change after a worker's `NEEDS_CONTEXT` (its `## Files`, `## Verification` or `red:`) is
+committed before its worker runs again: `git add <story> && git commit -m "vulyk(<slug>): revised
+<story-id>"` (`chore(vulyk-<slug>): revised <story-id>` under conventional commits). close-story compares
+those blocks with that commit and refuses a copy that differs (`story blocks differ from the approved
+version`). A sealed test changed after its red receipt, with the implementation already written: after
+`/vulyk-pause`, run `bash scripts/cycle.sh stamp-red <story> --baseline` (it stamps against HEAD's
+implementation and puts the working copy back), then resume; never `git stash`.
 
 plan.md's `**Tier:**` picks the path: Tier 1-2 solo, Tier 3-4 hive. Every `cycle.sh` verb prints one
 JSON object as its last stdout line; decide from its `ok`, `next` and `status`, never from prose. Bash
@@ -27,10 +38,14 @@ No driver, no clerk, no court. Loop:
    editing it, greps only what it cannot vouch for (names marked `textual`, every caller of a file it
    reports `imports not parsed`) and fixes the shared code once; targeted checks while
    working), add `## Implementation notes`, set `returned: DONE`, and run
-   `bash scripts/cycle.sh close-story <file> --commit`. On exit 4, read the error, fix, rerun; after
+   `bash scripts/cycle.sh close-story <file> --commit`. On exit 7 (verification paused, longer than one call)
+   run the same `close-story` or `stamp-red` command again: it resumes, it is not a failure and costs no retry.
+   On exit 4, read the error, fix, rerun; after
    three failed reruns write `## Findings` and stop for the owner. A repair story (`# Repair round <n>`)
    is built the same way; its `## Findings` are the conditions to meet. Back to 1.
-3. `dispatch:review`: dispatch `lead-review` with the Agent tool, with `model: <r>` from
+3. `dispatch:review`: first the round's test gate: `bash scripts/cycle.sh suite docs/specs/<slug> --commit`, one Bash
+   call per step with `timeout: 600000`, repeated until the last line says `"done":true` (`ok:false`: print its
+   `error` and stop). Then dispatch `lead-review` with the Agent tool, with `model: <r>` from
    `r="$(bash scripts/model-profile.sh --role review)"` only when the profile (`bash scripts/model-profile.sh`)
    is not `sonnet-builds`, else no model parameter:
    `Review <slug>, round <round>. Spec: <spec>. Branch <branch> at <head>. Report: .vulyk/reports/<slug>/round-<round>/review.attempt-<k>.md`
@@ -58,7 +73,8 @@ No driver, no clerk, no court. Loop:
    docs/specs/<slug> 03-building "launching the hive" "the loop holds the working tree of vulyk/<slug>; to edit, run /vulyk-pause <slug>"`.
 3. Call the Workflow tool with `scriptPath: ".claude/workflows/vulyk-cycle.js"` (never `name:`, which
    its permission handler rejects) and `args: {spec: "docs/specs/<slug>", stamp, top_model,
-   second_model}`, plus `worker_model`, `review_model`, `seat_model` only when the profile is not
+   second_model, launched_at}`, `launched_at="$(date +%s)"` resolved right before the call (the driver's
+   50-minute checkpoint counts from it against the `now` each verb answer carries), plus `worker_model`, `review_model`, `seat_model` only when the profile is not
    `sonnet-builds` (absent, each agent's frontmatter decides). The driver claims the spec itself; run no `claim` first, and nothing else while it
    runs. If the call itself throws, run `bash scripts/telemetry.sh record driver_refused 1 0 --spec
    <slug> --ref driver:<slug>:$(date -u +%Y-%m-%d)`, print the error and stop.
@@ -68,12 +84,23 @@ No driver, no clerk, no court. Loop:
    - First, every entry `{agent, where, from, to}` of the returned `fallbacks`: the driver already
      redispatched that role on `opus` after the Fable-limit refusal; write the journal line, the
      telemetry row and the owner sentence of the Fable-limit fallback (below), once per entry.
+   - `status` `checkpoint` (50 min since launch, at a wave, gate-step or seat boundary; the driver
+     released its claim): run `bash scripts/journal.sh docs/specs/<slug> 03-building "checkpoint after
+     <elapsed_min> min at <next>" "relaunching with a fresh stamp"`, make a fresh `stamp`, and call step 3
+     again with the same other args. This keeps your cache warm between waves; one wave or seat dispatch
+     longer than ~55 min still lets it lapse.
+   - A worker that returned without closing left edits in its `## Files`: the relaunch's claim accepts
+     them (`leftover`, only for todo stories of the current wave; any other dirty path is still refused)
+     and the driver dispatches that story again with a note to read `git diff` and finish.
    - `stop` with a `file` (a story missed twice): set that story's `status: blocked`, append the error
      under `## Findings`, dispatch `lead-architect` (`model: <top_model>`) with the story and both
      failures, and stop.
    - `stop.verb` `claim`: another driver holds the spec. Run the release command the error names only
      if that driver is known dead.
    - Any other `stop`: print `stop.error` and the journal tail, and stop. No `stop`: see Terminal.
+   - A story a worker returned unclosed is never finished here (Law 5): no edit to its files, no
+     `close-story` (the git guard denies it at Tier 3-4). Its error goes under `## Findings`, its worker is
+     dispatched again, or the owner decides.
 
 Without the Workflow tool, run the solo loop from this session with the stamp, but agents do the work:
 - Begin with `advance --stamp <S> --claim`; every later call carries `--stamp <S>`; every exit runs
@@ -83,15 +110,17 @@ Without the Workflow tool, run the solo loop from this session with the stamp, b
   frontmatter applies; `<top_model>` on its second dispatch, `opus` when `<top_model>` is also `<review_model>`): `Your story: <file>. Stamp: <S>. Your last step is bash
   scripts/cycle.sh close-story <file> --commit --stamp <S>.` Then `advance --stamp <S>`. A story still
   listed is a miss; a second miss is handled as a `stop` with a `file`.
-- `dispatch:<seats>`: one message, every seat, each told to write its report to
+- `dispatch:<seats>`: first the round's test gate: `bash scripts/cycle.sh suite docs/specs/<slug> --commit --stamp <S>`,
+  one Bash call per step with `timeout: 600000`, repeated until the last line says `"done":true` (`ok:false`: stop
+  as for any refused verb). Then one message, every seat, each told to write its report to
   `.vulyk/reports/<slug>/round-<round>/<seat>.attempt-<k>.md`, k from `status.seat_attempt`. `opus` or
   `haiku`: `council-<seat>` with `Council round <round> for <slug>, seat <seat>. COURT: <court>.
   Report: <path>.` and nothing more (never `round_dir`), with `model: <seat_model>` only when the profile is not
   `sonnet-builds`. `review`: `lead-review` as in solo, with `model: <review_model>` only when the profile is not
-  `sonnet-builds`; at Tier 4
-  two dispatches, `model: <top_model>` writing `review-top.attempt-<k>.md` and `model: <second_model>`
-  writing `review-second.attempt-<k>.md`, the second told to probe concurrency, security and migration
-  safety. Then `advance --stamp <S> --ingest`. A seat still listed is re-dispatched once with its
+  `sonnet-builds`; at Tier 4 `review` is one dispatch on `model: <top_model>`. `review2` (Tier 4
+  only, named by `next` on a risk path or after a `review` BLOCK): one `lead-review` on
+  `model: <second_model>` writing `review2.attempt-<k>.md`, told to probe concurrency, security and
+  migration safety. Dispatch exactly the seats `next` names, never doubled by tier. Then `advance --stamp <S> --ingest`. A seat still listed is re-dispatched once with its
   `rejected` error; one needing a third dispatch in a round stops the loop.
 - Any dispatch above (worker, retry, seat, reviewer, architect) that returns the Fable-limit refusal
   (`You've reached your Fable limit` / `model_requires_usage_credits`) gets the Fable-limit fallback
@@ -114,21 +143,24 @@ Then go on. A refusal on the redispatch is the existing stop: an absent seat, a 
 
 ## Terminal
 
-- `green`: print the round count and the newest `**Council:**` line, then ask the owner once with
+- `green`: print the round count, the newest `**Council:**` line and the output of `bash scripts/human-check.sh
+  --show docs/specs/<slug>` as a fenced block in the reply text (tool output is collapsed), then ask the owner once with
   `AskUserQuestion`, in the owner's language: «<slug>: council GREEN, round <n>. Выпускаем?», the yes
   option first and marked recommended. Yes: run `vulyk-ship` with the Skill tool (args `<slug>`) in
-  this session. No, or no `AskUserQuestion` (`claude -p`): recommend `/vulyk-ship` in one line. Push
-  and publish stay the owner's: ship prints them and never runs them.
+  this session. No, or no `AskUserQuestion` (`claude -p`): recommend `/vulyk-ship` in one line. Ship
+  pushes the spec branch for its CI run, then prints the tag and publish steps; it never runs those.
 - `escalated`: print plan.md's `## Needs a human` verbatim (a `suite-timeout` reason carries its `- suite:
-  <N> s, budget <B> s` line: raise `VULYK_SUITE_TIMEOUT` or cut the suite, then reopen). The owner chooses: `bash
-  scripts/human-check.sh docs/specs/<slug> ACCEPTED "<note>"`, `bash scripts/cycle.sh reopen
+  <N> s, budget <B> s` line: cut the part that ran long, then reopen), then the output of `bash
+  scripts/human-check.sh --show docs/specs/<slug>` as a fenced block in the reply text. The owner chooses: `bash
+  scripts/human-check.sh docs/specs/<slug> ACCEPTED "<note>"` (the note is the owner's own words, never yours), `bash scripts/cycle.sh reopen
   docs/specs/<slug> "<decision>"`, or leaving it open.
 - `paused`: stop; `/vulyk-resume <slug>` continues. `shipped`: nothing to build. `briefed`: point at
   `/vulyk-plan`.
 - `manual:<ids>` (or a driver `stop.verb` `manual`): a story waits on a hand step. Do it (or ask the
   owner), run `bash scripts/cycle.sh manual-done docs/specs/<slug> <id> "<note>"` per id, then build again.
 - `close-story:<file>`: a story from before 0.18 still says `status: in-progress`. Set it to `todo`
-  if its work is unfinished, or run `bash scripts/cycle.sh close-story <file> --commit` if it is done,
+  if its work is unfinished, or, if it is done, run `bash scripts/cycle.sh close-story <file> --commit`
+  (Tier 1-2) or dispatch its worker to close it (Tier 3-4),
   then build again.
 - `ok:false` from any verb: print `failed` and `error`, run `bash scripts/journal.sh docs/specs/<slug>
   03-building "<failed> exit <exit>" "<error>, stopped for a human"`, and stop.

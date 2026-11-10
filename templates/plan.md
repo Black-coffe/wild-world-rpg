@@ -1,6 +1,7 @@
 # <Spec title> (plan)
 
 **Tier:** <1|2|3|4> · **Spec slug:** `<slug>` · **Brief:** [brief.md](brief.md)
+**Model profile:** <name - what `bash scripts/model-profile.sh` printed at plan time: sonnet-builds | opus-builds | economy>
 **Governed by:** <ADRs, DESIGN.md sections, wiki notes that constrain this work>
 **Depends on:** <prior specs / merged work this plan builds on, with commits if known>
 
@@ -33,8 +34,8 @@ this section and records it under ## Plan deltas. Tier 1-2: usually "none".
 - <...>
 
 ## Integration gate
-<!-- The full quiet suite: the constitution's `round-only` row from ## Commands. lead-review runs it once
-per round under VULYK_SUITE_TIMEOUT (default 590 s); a timeout escalates with the time it ran.
+<!-- The full quiet suite: the constitution's `round-only` row from ## Commands. It runs once per round
+via `cycle.sh suite`, step by step, each part capped at 300 s; a red part (at its cap) is cut, not escalated.
 wave-check.sh runs before each wave. -->
 `<command>`
 
@@ -67,7 +68,7 @@ There is no default tier: `cycle.sh open-round` refuses to open a round while th
 is missing or unparsable.
 -->
 **Approved:** <owner, date - stage 02, the unconditional gate. /vulyk-build refuses without this line.>
-**Briefed:** <written by scripts/cycle.sh briefed - stage 01+02 on the straight-through path (--go, Tier 1): "via grill, <owner>, <date>" (or "via grill (assumed)" / "via mini-brief"). Alternative to **Approved:** above.>
+**Briefed:** <written by scripts/cycle.sh briefed - stage 01+02 on the straight-through path: Tier 1 "via grill, <owner>, <date>" (or "via grill (assumed)" / "via mini-brief"); Tier 2-4 only with `cycle.sh briefed <spec> --go`, "via grill (--go), <owner>, <date>". Alternative to **Approved:** above.>
 **Branch:** <written by /vulyk-build before wave 1 - stage 03: the branch every story commit lives on>
 **Checked:** <written by scripts/human-check.sh after the owner has looked - stage 05, and the override for stage 04+05. /vulyk-ship refuses without either this or a GREEN **Council:** line.>
 **Council:** <written by scripts/cycle.sh judge/escalate - stages 04+05: "<GREEN|RED|ESCALATE|STALE> round <N>, <date>, at <sha7>, pack <fp12>[ - red: 2,5]", appended once per round.>
