@@ -1,7 +1,7 @@
 <!-- Срез-указатель, а не копия территории. Подробность — в mmorpg-vault; здесь только то,
      что нужно, чтобы понять, куда идти, и не вляпаться. Посеян обследованием дерева репозитория
      и конституцией проекта 2026-08-19; углубляется /vulyk-map <path> через drone-scout. -->
-last-verified: 2026-11-01
+last-verified: 2026-11-11
 
 # Scout report: Крафт, ремонт, экономика предметов
 
@@ -80,6 +80,13 @@ outbound: ресурсы персонажа, `GameSettings`, `Images`.
   Вывод из обращения — ADR-185, ветка `vulyk/craft-shelf-coverage` не влита и правит тот же файл.
 - **(2026-11, d-dead-res) Новый `type='drug'` обязан попасть в `Config\Consumables::MEDICINE`**
   (`Consumables.php:29`): неизвестный `name_eng` падает на полку «Провизия» (`shelfFor`, стр. ~100).
+  Волна 2: ещё пять — `SealBalm`, `ThermalCulture`, `CaveTallow`, `DesertSalt`, `PainkillerShot` (`Consumables.php:51-56`),
+  рецепты в `Config\CraftRecipes`, ветка в `CraftCatalog`, миграции `2026-12-24-1000{00,10}` (предметы, GameSettings).
+  **Добавил лекарство в `Consumables::MEDICINE` или медветку `CraftCatalog` — обнови
+  `tests/unit/Player/ConsumableShelfTest::productionCatalog()` и счёт в `/play` (`tests/database/PlayViewControllerTest.php`)**,
+  иначе падают оба. Гейт рецептов — `tests/unit/Config/CraftRecipesDeadResourcesWave2Test.php`.
+- **Меню «💊 Лекарства»** (`MedicalCraft1Action.php:30`, callback `medicinesCraft1`): 17 кнопок, последний ряд из трёх
+  (`:67-71`), чтобы ни одна не стояла одна; новые карточки — `craftPreviewT3Medical_<Key>`. Добавляя 18-ю, пересчитай ряды.
 - **`MedicalRecipePreviewT3Action` — общая медкарточка, не только T3:** без `required_crafted_items` нет «(T3)»,
   «Назад» → `medicinesCraft1`, сырьё через `CraftCardHelper::available()`, время — `CraftDurationService`.
 - **Оверрайд длительности из GameSettings (`duration_override_setting_key`) — только целые часы**
