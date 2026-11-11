@@ -83,7 +83,8 @@ Quiet variants only: their output is resent every turn. A story's `## Verificati
 | Purpose | Command |
 |---|---|
 | Single test file | `vendor/bin/phpunit --no-coverage --no-progress tests/<Path>Test.php` |
-| Full suite unit (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/unit` |
+| Full suite unit1 (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Se*` |
+| Full suite unit2 (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/unit/[!S]* tests/unit/S[!e]*` |
 | Full suite db1 (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[AC]*Test.php` |
 | Full suite db2 (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[BE]*Test.php` |
 | Full suite db3 (round-only) | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[DF]*Test.php` |
@@ -102,11 +103,11 @@ Quiet variants only: their output is resent every turn. A story's `## Verificati
 | Ship gate, per spec | `bash scripts/ship-check.sh docs/specs/<slug>` |
 | Preprod parity, before a preprod smoke | `bash scripts/preprod-parity.sh` |
 
-Полный набор разбит на 9 частей (лимит гейта — 300 с на часть, ADR-029 рамки): `tests/unit` целиком и
+Полный набор разбит на 10 частей (лимит гейта — 300 с на часть, ADR-029 рамки): `tests/unit` на `Se*` (Services) и остальное,
 `tests/database` по первой букве файла, вместе A–Z без пересечений, подпапки `tests/database/*/` — в db4.
 Новая папка прямо в `tests/` (не `unit`/`database`/`session`) в гейт **сама не попадёт** — добавить её
-строкой. Сверка покрытия: сумма `--list-tests` по девяти строкам = `vendor/bin/phpunit --list-tests`
-без `exploit-poc` (2026-11-10: 3538 + 1557 + 1).
+строкой. Сверка покрытия: сумма `--list-tests` по десяти строкам = `vendor/bin/phpunit --list-tests`
+без `exploit-poc` (2026-11-10: 1943 + 1595 + 1557 + 1).
 
 Почему именно эти формы, а не то, что написано в README:
 
