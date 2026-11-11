@@ -73,3 +73,4 @@
 **Council:** GREEN round 2, 2026-11-11, at e49b7a7b, pack a4f304e86cc0
 **Council:** GREEN round 3, 2026-11-11, at e73bd636, pack a4f304e86cc0
 **Shipped:**
+**Shipped:** v0.51.711, 2026-11-11, at 487b2719 - merged to develop, publish pending
