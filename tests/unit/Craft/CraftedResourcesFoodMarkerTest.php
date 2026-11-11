@@ -60,7 +60,14 @@ final class CraftedResourcesFoodMarkerTest extends CIUnitTestCase
         $this->assertInstanceOf(Forge::class, $forge);
 
         // Миграция лога несёт FK на characters/tasks — сами таблицы экрану не нужны.
+        // С FOREIGN_KEY_CHECKS = 0 MySQL пускает FK на отсутствующую таблицу, но не на
+        // несовместимую: db-тесты оставляют в общей тест-базе свою `tasks` с `id int` со знаком,
+        // и тогда миграция падала («task_id … incompatible») — тест зависел от того, что гоняли
+        // перед ним. Сносим остатки: эти две таблицы здесь только цели FK.
         $this->conn->query('SET FOREIGN_KEY_CHECKS = 0');
+        $this->conn->query('DROP TABLE IF EXISTS tasks');
+        $this->conn->query('DROP TABLE IF EXISTS characters');
+        $this->conn->resetDataCache();
         (new CreateCraftedItemsTable($forge))->up();
         (new CreateCraftedItemsLogTable($forge))->up();
         $this->conn->query('SET FOREIGN_KEY_CHECKS = 1');

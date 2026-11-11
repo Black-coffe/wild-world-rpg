@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Services\PVE;
 
 use App\Models\TelegramUserModel;
+use App\Services\Logging\TelegramDeliveryProbe;
 use App\Services\PVE\PveNotificationSender;
 use App\Services\Telegram\TelegramBridge;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -39,6 +40,7 @@ final class PveNotificationSenderNoKeyTest extends CIUnitTestCase
     private string|false $savedUser;
     private mixed $savedRequestTelegram;
     private mixed $savedRequestClient;
+    private mixed $savedProbeInstalled;
 
     /** @var list<array<string, mixed>> */
     private array $httpHistory = [];
@@ -55,6 +57,13 @@ final class PveNotificationSenderNoKeyTest extends CIUnitTestCase
 
         TelegramBridge::reset();
         $this->requestStatic('telegram')->setValue(null, null);
+
+        // `TelegramBridge::ensure()` ставит `TelegramDeliveryProbe`, а та меняет клиент Longman
+        // на свой настоящий Guzzle — MockHandler ниже пропадал, и запрос уходил в api.telegram.org
+        // (401 → InvalidBotTokenException). Зелёным тест был, только если пробу уже поставил
+        // кто-то раньше в том же процессе. Помечаем её поставленной: клиент остаётся нашим.
+        $this->savedProbeInstalled = $this->probeInstalled()->getValue();
+        $this->probeInstalled()->setValue(null, true);
 
         $this->httpHistory = [];
         $stack = HandlerStack::create(new MockHandler([
@@ -75,6 +84,7 @@ final class PveNotificationSenderNoKeyTest extends CIUnitTestCase
         TelegramBridge::reset();
         $this->requestStatic('telegram')->setValue(null, $this->savedRequestTelegram);
         $this->requestStatic('client')->setValue(null, $this->savedRequestClient);
+        $this->probeInstalled()->setValue(null, $this->savedProbeInstalled);
 
         parent::tearDown();
     }
@@ -126,6 +136,11 @@ final class PveNotificationSenderNoKeyTest extends CIUnitTestCase
         $prop->setAccessible(true);
 
         return $prop;
+    }
+
+    private function probeInstalled(): ReflectionProperty
+    {
+        return new ReflectionProperty(TelegramDeliveryProbe::class, 'installed');
     }
 }
 
