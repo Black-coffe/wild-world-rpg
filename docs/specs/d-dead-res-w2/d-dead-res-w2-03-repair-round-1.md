@@ -7,7 +7,7 @@ model: opus
 wave: 3
 blocked_by: []
 red: required
-red_reason:
+red_reason: Undefined array key "SealBalm"
 ---
 
 # Repair round 1
@@ -42,7 +42,11 @@ No brief ask is RED in round 1 - the findings below are the whole task.
 - app/Database/Migrations/2026-12-24-100020_SeedTailMedicineTip.php
 - GAME_DESCRIPTION.md
 - ROADMAP.md
+- tests/unit/Player/ConsumableShelfTest.php
+- tests/database/PlayViewControllerTest.php
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Config/CraftRecipesDeadResourcesWave2Test.php`
+`vendor/bin/phpunit --no-coverage --no-progress tests/unit/Player/ConsumableShelfTest.php`
+`vendor/bin/phpunit --no-coverage --no-progress tests/database/PlayViewControllerTest.php`
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
