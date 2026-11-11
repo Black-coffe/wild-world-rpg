@@ -1,6 +1,6 @@
 ---
 story: d-dead-res-w2-03
-status: todo
+status: done
 returned: DONE
 worker: worker-code
 model: opus
