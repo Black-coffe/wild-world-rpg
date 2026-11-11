@@ -62,7 +62,7 @@
 
 ## Plan deltas
 
-**Approved:**
+**Approved:** владелец («Утверждаю»), 2026-11-11
 **Briefed:**
 **Branch:**
 **Checked:**
