@@ -9,3 +9,4 @@
 - 2026-11-11T16:05:16Z · 04-council:open · round 2 opened, no court (no blind seat required) · next: dispatch:review
 - 2026-11-11T16:13:33Z · 03-building · fallback: lead-review round-2/review fable -> opus (Fable limit; ADR-015 exception) · next: review round 2 on opus
 - 2026-11-11T16:14:23Z · 04-council:GREEN · round 2 verdict GREEN at e49b7a7b pack a4f304e86cc0 · next: green
+- 2026-11-11T16:19:37Z · 04-council:open · round 3 opened, no court (no blind seat required) · next: dispatch:review
