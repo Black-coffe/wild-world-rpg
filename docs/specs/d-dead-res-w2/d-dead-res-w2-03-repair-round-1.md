@@ -1,13 +1,11 @@
 ---
 story: d-dead-res-w2-03
 status: todo
-returned:
+returned: DONE
 worker: worker-code
 model: opus
 wave: 3
 blocked_by: []
-red: required
-red_reason: Undefined array key "SealBalm"
 ---
 
 # Repair round 1
@@ -50,3 +48,24 @@ No brief ask is RED in round 1 - the findings below are the whole task.
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Player/ConsumableShelfTest.php`
 `vendor/bin/phpunit --no-coverage --no-progress tests/database/PlayViewControllerTest.php`
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
+
+## Red receipt
+- command: vendor/bin/phpunit --no-coverage --no-progress tests/unit/Player/ConsumableShelfTest.php
+- exit: 2
+- tests: da339d9e60318544afecfe764ebb4c881d1d3b409024f1e5beedff4f6bd5ec64 (tests/database/PlayViewControllerTest.php, tests/unit/Config/CraftRecipesDeadResourcesWave2Test.php, tests/unit/Player/ConsumableShelfTest.php)
+- impl: 587dd81e4b072229c17f4a219a6e4e3af4eb72d1c6b4be63eb8c5816313d1585
+- stamped: 2026-11-11T16:01:47Z
+
+```
+ErrorException: Undefined array key "SealBalm"
+
+1) Tests\Unit\Player\ConsumableShelfTest::testFullCatalogScreenFitsTelegramTextLimit
+ErrorException: Undefined array key "SealBalm"
+
+C:\laragon\www\mmorpg\tests\unit\Player\ConsumableShelfTest.php:204
+C:\laragon\www\mmorpg\tests\unit\Player\ConsumableShelfTest.php:253
+C:\laragon\www\mmorpg\tests\unit\Player\ConsumableShelfTest.php:253
+
+[37;41mERRORS![0m
+[37;41mTests: 10[0m[37;41m, Assertions: 29[0m[37;41m, Errors: 1[0m[37;41m, PHPUnit Deprecations: 1[0m[37;41m.[0m
+```
