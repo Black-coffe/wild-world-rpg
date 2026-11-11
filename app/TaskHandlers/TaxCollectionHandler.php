@@ -45,7 +45,7 @@ class TaxCollectionHandler extends BaseTaskHandler
         $now = $currentDateTime->format('Y-m-d H:i:s');
 
         // F2.10 wire-in: час сбора налогов через config/GameBalance вместо hardcoded.
-        // Дефолт 3 (03:xx Europe/Kiev), можно переопределить через .env
+        // Дефолт 3 (03:xx Europe/Kyiv), можно переопределить через .env
         // переменной `gamebalance.taxCollectionHour`.
         $taxHour = config('GameBalance')->taxCollectionHour ?? 3;
         $currentHour   = (int) $currentDateTime->format('H');

@@ -132,7 +132,7 @@ class GameBalance extends BaseConfig
     // Сейчас захардкожено в handler'е и в админке (Admin/TaskController).
     // ===================================================================
 
-    /** Час суток, в который TaxCollectionHandler собирает налоги (Europe/Kiev). */
+    /** Час суток, в который TaxCollectionHandler собирает налоги (Europe/Kyiv). */
     public int $taxCollectionHour = 3;
 
     // ===================================================================
