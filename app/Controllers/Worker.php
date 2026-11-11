@@ -176,6 +176,11 @@ class Worker extends Controller
         'craftChitinPatch'         => 'generic_craft', // D-DEAD-RES
         'craftSulfurOintment'      => 'generic_craft', // D-DEAD-RES
         'craftMineralTablets'      => 'generic_craft', // D-DEAD-RES
+        'craftSealBalm'            => 'generic_craft', // D-DEAD-RES
+        'craftThermalCulture'      => 'generic_craft', // D-DEAD-RES
+        'craftCaveTallow'          => 'generic_craft', // D-DEAD-RES
+        'craftDesertSalt'          => 'generic_craft', // D-DEAD-RES
+        'craftPainkillerShot'      => 'generic_craft', // D-DEAD-RES
         'craftLumberjackAxe'        => 'generic_craft',
         'craftStonePickaxe'         => 'generic_craft',
         'craftIronShovel'           => 'generic_craft',
@@ -297,6 +302,11 @@ class Worker extends Controller
         'craftChitinPatch'         => 'Craft\GenericCraftCompletionHandler', // D-DEAD-RES
         'craftSulfurOintment'      => 'Craft\GenericCraftCompletionHandler', // D-DEAD-RES
         'craftMineralTablets'      => 'Craft\GenericCraftCompletionHandler', // D-DEAD-RES
+        'craftSealBalm'            => 'Craft\GenericCraftCompletionHandler', // D-DEAD-RES
+        'craftThermalCulture'      => 'Craft\GenericCraftCompletionHandler', // D-DEAD-RES
+        'craftCaveTallow'          => 'Craft\GenericCraftCompletionHandler', // D-DEAD-RES
+        'craftDesertSalt'          => 'Craft\GenericCraftCompletionHandler', // D-DEAD-RES
+        'craftPainkillerShot'      => 'Craft\GenericCraftCompletionHandler', // D-DEAD-RES
         // F3.B7 (v0.23.0) cutover: 8 tools крафтов через GenericCraftCompletionHandler.
         'craftLumberjackAxe'        => 'Craft\GenericCraftCompletionHandler',
         'craftStonePickaxe'         => 'Craft\GenericCraftCompletionHandler',

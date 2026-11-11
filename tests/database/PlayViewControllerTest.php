@@ -809,7 +809,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('Оружие T3', $locked, 'запертый раздел не открывается подделанной формой');
 
         $bench = html_entity_decode($this->json($this->postWithCsrf($session, 'play/view', ['view' => 'craft', 'bench' => 'general'], true))['html'], ENT_QUOTES | ENT_HTML5);
-        $this->assertStringContainsString('💊 Лекарства · 12', $bench, 'D-DEAD-RES: +4 полевых лекарства');
+        $this->assertStringContainsString('💊 Лекарства · 17', $bench, 'D-DEAD-RES: +4 полевых лекарства, волна 2: +5');
         $this->assertStringContainsString('🔥 Костёр · 5', $bench, 'рыбные блюда скрыты тем же флагом, что у бота');
 
         $card = $this->json($this->postWithCsrf($session, 'play/view', ['view' => 'craft', 'bench' => 'general', 'cat' => 'medicine', 'recipe' => 'Bandage'], true));

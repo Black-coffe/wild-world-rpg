@@ -48,6 +48,12 @@ class Consumables extends BaseConfig
         'ChitinPatch',
         'SulfurOintment',
         'MineralTablets',
+        // D-DEAD-RES волна 2.
+        'SealBalm',
+        'ThermalCulture',
+        'CaveTallow',
+        'DesertSalt',
+        'PainkillerShot',
     ];
 
     /**

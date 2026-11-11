@@ -62,9 +62,14 @@
 
 ## Plan deltas
 
+- **2026-11-11, story 02 — имя меню.** Меню лекарств первого верстака в боте называется «💊 Лекарства» (`MedicalCraft1Action.php:30`), а не «⚕️ Медикаменты», как ошибочно записано в brief, asks 5 и 7 и в `effect_text` сида настроек. Asks по смыслу те же («меню лекарств первого верстака»); `effect_text` в `…100010` правится в story 02 — файл добавлен в её `## Files`. Отвергнуто: оставить неверное имя в админке.
+
 **Approved:** владелец («Утверждаю»), 2026-11-11
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/d-dead-res-w2
 **Checked:**
 **Council:**
+**Council:** RED round 1, 2026-11-11, at b0d708a4, pack 527d798eedc6
+**Council:** GREEN round 2, 2026-11-11, at e49b7a7b, pack a4f304e86cc0
+**Council:** GREEN round 3, 2026-11-11, at e73bd636, pack a4f304e86cc0
 **Shipped:**
