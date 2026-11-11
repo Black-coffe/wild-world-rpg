@@ -64,7 +64,7 @@
 
 **Approved:** владелец («Утверждаю»), 2026-11-11
 **Briefed:**
-**Branch:**
+**Branch:** vulyk/d-dead-res-w2
 **Checked:**
 **Council:**
 **Shipped:**
