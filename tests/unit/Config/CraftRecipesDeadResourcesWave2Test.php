@@ -18,7 +18,7 @@ use Config\CraftRecipes;
  *   - каждый из 14 — во входах хотя бы одного нового рецепта;
  *   - «крафт не печатает золото»: цена продажи × 1.10 ≤ золото + Σ qty × sell_price;
  *   - лечение — ключи GameSettings medical.<snake>.heal_* с rationale и границами;
- *   - меню «⚕️ Медикаменты» без кнопки одной в ряду.
+ *   - меню «💊 Лекарства» без кнопки одной в ряду.
  *
  * DB-независим: цены предметов и ключи настроек читаются из констант миграций,
  * цены сырья — снимок прода 2026-11-11.
@@ -195,7 +195,7 @@ final class CraftRecipesDeadResourcesWave2Test extends CIUnitTestCase
     {
         $src = (string) file_get_contents(self::BOT_MENU);
         foreach (array_keys(self::NEW_KEYS) as $key) {
-            $this->assertStringContainsString("'craftPreviewT3Medical_{$key}'", $src, "{$key}: нет кнопки в «Медикаментах»");
+            $this->assertStringContainsString("'craftPreviewT3Medical_{$key}'", $src, "{$key}: нет кнопки в «💊 Лекарствах»");
         }
 
         // Ряд меню — `[` на своей строке, затем строки `[ 'label' => …],`, затем `],`.
@@ -207,6 +207,29 @@ final class CraftRecipesDeadResourcesWave2Test extends CIUnitTestCase
             $total += $buttons;
             $this->assertGreaterThanOrEqual(2, $buttons, "ряд {$i}: кнопка одна в ряду");
         }
-        $this->assertSame(17, $total, 'в «Медикаментах» 17 кнопок');
+        $this->assertSame(17, $total, 'в «💊 Лекарствах» 17 кнопок');
+    }
+
+    /**
+     * ADR-022: у каждого рецепта своя картинка на диске и в реестре генерации.
+     */
+    public function testEachRecipeHasArtOnDiskAndInImageRegistry(): void
+    {
+        $registry = [];
+        foreach ((new \Config\ImageRegistry())->images as $entry) {
+            $registry[$entry['file']] = $entry;
+        }
+
+        foreach (self::NEW_KEYS as $key => $snake) {
+            $recipe = $this->recipe($key);
+            foreach (['image_in_progress', 'image_completed'] as $field) {
+                $rel = $recipe[$field] ?? null;
+                $this->assertSame("uploads/telegram/craft/{$snake}.jpg", $rel, "{$key}: {$field}");
+                $this->assertFileExists(FCPATH . $rel, "{$key}: {$field} нет на диске");
+                $this->assertArrayHasKey($rel, $registry, "{$key}: {$rel} нет в Config\\ImageRegistry");
+                $this->assertSame('loot.medicine', $registry[$rel]['lexicon'] ?? null, "{$key}: lexicon");
+                $this->assertSame('generated', $registry[$rel]['status'] ?? null, "{$key}: status");
+            }
+        }
     }
 }

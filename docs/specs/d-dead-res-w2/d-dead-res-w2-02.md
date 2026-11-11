@@ -1,8 +1,8 @@
 ---
 story: d-dead-res-w2-02
 spec: d-dead-res-w2
-status: todo
-returned:
+status: done
+returned: DONE
 tier: 2
 worker: worker-code
 wave: 2
@@ -52,5 +52,12 @@ blocked_by: [d-dead-res-w2-01]
 `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`
 
 ## Implementation notes
+- Арт: 5 записей `craft/<snake>` в `Config\ImageRegistry` (`loot.medicine`, V4), `php spark images:generate --key …` — 5 ок, просмотрены: стиль «Найденная фотоплёнка», текста нет, предмет в центре; статус `generated`. Тест `testEachRecipeHasArtOnDiskAndInImageRegistry` — путь, `is_file`, реестр, lexicon, status.
+- Совет `2026-12-24-100020_SeedTailMedicineTip`: `title_en=TailMedicineFromBiomeStock`, «крафт», без чисел и магической лексики; путь «🔨 Крафт → 🔨 Общий крафт → 💊 Лекарства» и «💊 Аптечка» — те же, что сверены в волне 1. Локально применён.
+- **Plan delta — имя меню:** меню называется «💊 Лекарства» (`MedicalCraft1Action.php:30`), не «⚕️ Медикаменты», как ошибочно стояло в brief/asks; `effect_text` десяти ключей в `…100010` и тексты теста исправлены (файл добавлен в `## Files` коммитом revised). Локальная БД держит старый `effect_text` — миграция уже прошла до правки; preprod/прод получат исправленный.
+- Канон: `GAME_DESCRIPTION.md` — «Волна 2» под «Полевыми лекарствами из сырья пустошей» и строка про четыре редких трофея.
+- ROADMAP: §2 п.1 → E-FIRST.M (6/20 новичков на 11.11); пункт D-DEAD-RES из §4 удалён; строка §6 с тегами v0.51.709 + v0.51.711 (тег волны 2 — при выпуске, сверить).
+- Tech-writing (vault `b72a9e3`): CraftRecipes, CraftCatalog, Consumables, MedicalCraft1Action, ImageRegistry, Worker — `last_reviewed: 2026-11-11`.
+- Вердикты: `/guide` — нет (раздел «🩺 Раны и лекарства» уже ведёт к лекарствам, механики новой нет); совет — да (выше); вход — существующее меню «💊 Лекарства», нехватка уровня — 🔒 на карточке.
 
 ## Findings
