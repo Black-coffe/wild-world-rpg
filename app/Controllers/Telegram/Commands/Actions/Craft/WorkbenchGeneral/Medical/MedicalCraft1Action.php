@@ -59,6 +59,16 @@ class MedicalCraft1Action extends BaseAction
                 [ 'label' => '🧴 Серная мазь',           'callback' => 'craftPreviewT3Medical_SulfurOintment', 'name_eng' => 'SulfurOintment', ],
                 [ 'label' => '💊 Минеральные таблетки',  'callback' => 'craftPreviewT3Medical_MineralTablets', 'name_eng' => 'MineralTablets', ],
             ],
+            // D-DEAD-RES волна 2: 17 кнопок — последний ряд из трёх, чтобы ни одна не стояла одна.
+            [
+                [ 'label' => '🦭 Тюлений бальзам', 'callback' => 'craftPreviewT3Medical_SealBalm', 'name_eng' => 'SealBalm', ],
+                [ 'label' => '🧫 Термальная закваска', 'callback' => 'craftPreviewT3Medical_ThermalCulture', 'name_eng' => 'ThermalCulture', ],
+            ],
+            [
+                [ 'label' => '🫙 Пещерный жир', 'callback' => 'craftPreviewT3Medical_CaveTallow', 'name_eng' => 'CaveTallow', ],
+                [ 'label' => '🧂 Пустынная соль', 'callback' => 'craftPreviewT3Medical_DesertSalt', 'name_eng' => 'DesertSalt', ],
+                [ 'label' => '💉 Обезболивающий укол', 'callback' => 'craftPreviewT3Medical_PainkillerShot', 'name_eng' => 'PainkillerShot', ],
+            ],
         ];
 
         // Формируем клавиатуру

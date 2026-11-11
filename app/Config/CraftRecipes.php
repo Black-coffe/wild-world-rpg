@@ -353,6 +353,132 @@ class CraftRecipes extends BaseConfig
             'craft_again_callback' => 'genericCraft_MineralTablets_1',
         ],
 
+        // D-DEAD-RES волна 2: хвост из 14 ресурсов, сгруппирован по биомам добычи.
+
+        'SealBalm' => [
+            'task_name'            => 'craftSealBalm',
+            'required_level'       => 6,
+            'resources'            => [
+                'Масло тюленя'      => 6,
+                'Арктические цветы' => 3,
+                'Лед'               => 10,
+            ],
+            'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',
+            'image_in_progress'    => 'uploads/telegram/craft/seal_balm.jpg',
+            'start_caption_name'   => '🦭 *Тюлений бальзам*',
+            'info_callback'        => 'craftPreviewT3Medical_SealBalm',
+
+            'item_name_eng'        => 'SealBalm',
+            'item_name_rus'        => 'Тюлений бальзам',
+            'icon_emoji'           => '🦭',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/seal_balm.jpg',
+            'craft_again_callback' => 'genericCraft_SealBalm_1',
+        ],
+
+        'ThermalCulture' => [
+            'task_name'            => 'craftThermalCulture',
+            'required_level'       => 5,
+            'resources'            => [
+                'Термофильные микроорганизмы' => 6,
+                'Обсидиан'                    => 5,
+            ],
+            'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',
+            'image_in_progress'    => 'uploads/telegram/craft/thermal_culture.jpg',
+            'start_caption_name'   => '🧫 *Термальную закваску*',
+            'info_callback'        => 'craftPreviewT3Medical_ThermalCulture',
+
+            'item_name_eng'        => 'ThermalCulture',
+            'item_name_rus'        => 'Термальная закваска',
+            'icon_emoji'           => '🧫',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/thermal_culture.jpg',
+            'craft_again_callback' => 'genericCraft_ThermalCulture_1',
+        ],
+
+        'CaveTallow' => [
+            'task_name'            => 'craftCaveTallow',
+            'required_level'       => 4,
+            'resources'            => [
+                'Подземные животные'      => 6,
+                'Сталактиты и сталагмиты' => 5,
+            ],
+            'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',
+            'image_in_progress'    => 'uploads/telegram/craft/cave_tallow.jpg',
+            'start_caption_name'   => '🫙 *Пещерный жир*',
+            'info_callback'        => 'craftPreviewT3Medical_CaveTallow',
+
+            'item_name_eng'        => 'CaveTallow',
+            'item_name_rus'        => 'Пещерный жир',
+            'icon_emoji'           => '🫙',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/cave_tallow.jpg',
+            'craft_again_callback' => 'genericCraft_CaveTallow_1',
+        ],
+
+        'DesertSalt' => [
+            'task_name'            => 'craftDesertSalt',
+            'required_level'       => 15,
+            'resources'            => [
+                'Миражные кристаллы' => 4,
+                'Пустынный агат'     => 3,
+                'Фоссилии'           => 1,
+                'Драгоценные камни'  => 1,
+            ],
+            'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',
+            'image_in_progress'    => 'uploads/telegram/craft/desert_salt.jpg',
+            'start_caption_name'   => '🧂 *Пустынную соль*',
+            'info_callback'        => 'craftPreviewT3Medical_DesertSalt',
+
+            'item_name_eng'        => 'DesertSalt',
+            'item_name_rus'        => 'Пустынная соль',
+            'icon_emoji'           => '🧂',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/desert_salt.jpg',
+            'craft_again_callback' => 'genericCraft_DesertSalt_1',
+        ],
+
+        'PainkillerShot' => [
+            'task_name'            => 'craftPainkillerShot',
+            'required_level'       => 18,
+            'resources'            => [
+                'Медицинское сырьё' => 1,
+                'Яд животных'       => 4,
+                'Природный газ'     => 2,
+            ],
+            'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',
+            'image_in_progress'    => 'uploads/telegram/craft/painkiller_shot.jpg',
+            'start_caption_name'   => '💉 *Обезболивающий укол*',
+            'info_callback'        => 'craftPreviewT3Medical_PainkillerShot',
+
+            'item_name_eng'        => 'PainkillerShot',
+            'item_name_rus'        => 'Обезболивающий укол',
+            'icon_emoji'           => '💉',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/painkiller_shot.jpg',
+            'craft_again_callback' => 'genericCraft_PainkillerShot_1',
+        ],
+
         // ============================================================
         // F3.B6 (v0.22.0) — Components 10 крафтов
         // ============================================================
