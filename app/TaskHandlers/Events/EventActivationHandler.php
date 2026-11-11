@@ -66,7 +66,7 @@ class EventActivationHandler extends BaseTaskHandler
         $this->telegramUserModel = new TelegramUserModel();
 
         // Текущее время (Time::now() — CodeIgniter\I18n)
-        $this->now = Time::now('Europe/Kiev');
+        $this->now = Time::now('Europe/Kyiv');
 
         // Инициализация границ недели (startOfWeek / endOfWeek)
         $this->initializeTimeBoundaries();

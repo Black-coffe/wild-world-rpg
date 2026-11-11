@@ -34,7 +34,7 @@ class SpawnSandyWolfRaidersCron
     public function run()
     {
         // Устанавливаем таймзону и проверяем время (Киев, 04:14)
-        date_default_timezone_set('Europe/Kiev');
+        date_default_timezone_set('Europe/Kyiv');
         $currentTime = date('H:i');
         if ($currentTime !== '04:14') {
             return;

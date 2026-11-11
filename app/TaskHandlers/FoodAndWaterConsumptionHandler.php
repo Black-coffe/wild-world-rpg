@@ -69,7 +69,7 @@ class FoodAndWaterConsumptionHandler extends BaseTaskHandler
         $now = new \DateTime('now', new \DateTimeZone('UTC'));
 
         // Устанавливаем часовой пояс, который соответствует времени в Киеве
-        $now->setTimezone(new \DateTimeZone('Europe/Kiev'));
+        $now->setTimezone(new \DateTimeZone('Europe/Kyiv'));
 
         // Получаем текущий час
         $currentHour = (int)$now->format('H');
