@@ -98,7 +98,7 @@
 
 ## Plan deltas
 
-**Approved:**
+**Approved:** владелец («Утверждаю»; A2 — «Да, выключатель снимает всё»), 2026-11-11
 **Briefed:**
 **Branch:**
 **Checked:**
