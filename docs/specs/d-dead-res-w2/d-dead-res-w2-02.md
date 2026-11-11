@@ -31,6 +31,7 @@ blocked_by: [d-dead-res-w2-01]
 - public/uploads/telegram/craft/painkiller_shot.jpg
 - tests/unit/Config/CraftRecipesDeadResourcesWave2Test.php
 - app/Database/Migrations/2026-12-24-100020_SeedTailMedicineTip.php
+- app/Database/Migrations/2026-12-24-100010_DeadResW2SeedTailMedicineGameSettings.php
 - GAME_DESCRIPTION.md
 - ROADMAP.md
 
