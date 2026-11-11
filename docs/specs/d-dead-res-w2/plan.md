@@ -74,3 +74,4 @@
 **Council:** GREEN round 3, 2026-11-11, at e73bd636, pack a4f304e86cc0
 **Shipped:**
 **Shipped:** v0.51.711, 2026-11-11, at 487b2719 - merged to develop, publish pending
+**Shipped:** v0.51.711, 2026-11-11, at 9556cd3d - тег на develop, прод 2026-11-11, preprod-смоук: вебхук карточка+старт ok, крон завершил, укол в инвентаре; прод: 5 предметов/10 ключей/совет, лог без новых ERROR
