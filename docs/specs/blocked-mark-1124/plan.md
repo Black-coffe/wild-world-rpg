@@ -72,7 +72,7 @@ Relayed by the orchestrator from its cross-check with Fable (not the owner's wor
     because nothing marks.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/database/CronSenderBlockedMarkTest.php` and
     `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
-- [ ] S3 `kicked` in the private chat sets the mark - asks: 8, 6, 7
+- [x] S3 `kicked` in the private chat sets the mark - asks: 8, 6, 7
   - files: `app/Services/Telegram/UpdatePipeline.php` (a pure `isPrivateChatBlock($update, $telegramId)` next to
     `isPrivateChatSignOfLife`, conditional mark in the `finally` block, failure caught), `tests/database/UpdatePipelineTest.php`,
     vault notes `tech-writing/services/UpdatePipeline.md`, `models/TelegramUserModel.md`

@@ -26,6 +26,7 @@ use CodeIgniter\Events\Events;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use CodeIgniter\Test\TestLogger;
 use Config\Database;
 use GuzzleHttp\Client;
 use GuzzleHttp\Promise\Create;
@@ -45,6 +46,16 @@ final class PipelineSpyBotController extends BotController
     protected function dispatchToTelegram(): void
     {
         $this->dispatchCalls++;
+    }
+}
+
+/** Читает общий журнал TestLogger (все `log_message` теста). */
+final class PipelineLogTap extends TestLogger
+{
+    /** @return list<array{level: mixed, message: string, file: string|null}> */
+    public static function all(): array
+    {
+        return self::$op_logs;
     }
 }
 
@@ -504,6 +515,124 @@ final class UpdatePipelineTest extends CIUnitTestCase
         $this->assertSame('ok', $log['status']);
         $this->assertSame(self::REAL_TG, (int) $log['telegram_user_id'], 'веб пришёл с настоящим Telegram id');
         $this->assertSame(self::BLOCKED_AT, $this->row('telegram_users', ['id' => $tgUser])['blocked_at'], 'веб метку не снимает');
+    }
+
+    // ── blocked-mark-1124 S3: `kicked` в личке ставит «заблокировал бота» ──
+
+    /** Ask 8 — не отмеченный игрок блокирует бота в личке: вебхук ставит метку. */
+    public function testWebhookPrivateKickedMarksUnmarkedPlayer(): void
+    {
+        $tgUser = $this->makeTelegramUser(self::REAL_TG);
+        $this->makeCharacter($tgUser);
+
+        $this->controllerFor($this->kickedUpdate(930201))->webhook();
+
+        $this->assertNotNull($this->row('telegram_users', ['id' => $tgUser])['blocked_at'], '`kicked` в личке ставит метку');
+    }
+
+    /** Ask 8 — уже отмеченный игрок: повторный `kicked` дату метки не переписывает. */
+    public function testWebhookPrivateKickedKeepsExistingMarkDate(): void
+    {
+        $tgUser = $this->makeTelegramUser(self::REAL_TG, self::BLOCKED_AT);
+        $this->makeCharacter($tgUser);
+
+        $this->controllerFor($this->kickedUpdate(930202))->webhook();
+
+        $this->assertSame(self::BLOCKED_AT, $this->row('telegram_users', ['id' => $tgUser])['blocked_at']);
+    }
+
+    /** Ask 8 — `kicked` из группы (бота выгнали из группы) игрока не помечает. */
+    public function testWebhookGroupKickedDoesNotMark(): void
+    {
+        $tgUser = $this->makeTelegramUser(self::REAL_TG);
+        $this->makeCharacter($tgUser);
+        $update = $this->kickedUpdate(930203);
+        $update['my_chat_member']['chat'] = ['id' => -1001234567890, 'type' => 'supergroup', 'title' => 'Сообщество'];
+
+        $this->controllerFor($update)->webhook();
+
+        $this->assertNull($this->row('telegram_users', ['id' => $tgUser])['blocked_at'], 'группа не помечает');
+        $this->assertFalse(UpdatePipeline::isPrivateChatBlock($update, self::REAL_TG));
+    }
+
+    /** Ask 8 — `kicked` из чужой лички (chat.id ≠ отправитель) не помечает отправителя. */
+    public function testIsPrivateChatBlockNeedsChatOfTheSender(): void
+    {
+        $update = $this->kickedUpdate(930204);
+
+        $this->assertTrue(UpdatePipeline::isPrivateChatBlock($update, self::REAL_TG));
+        $this->assertFalse(UpdatePipeline::isPrivateChatBlock($update, self::REAL_TG + 1));
+        $this->assertFalse(UpdatePipeline::isPrivateChatBlock(self::privateChatUpdates()['unblock (my_chat_member member)'][0], self::REAL_TG), '`member` — не блок');
+        $this->assertFalse(UpdatePipeline::isPrivateChatBlock(self::privateChatUpdates()['text message'][0], self::REAL_TG), 'сообщение — не блок');
+    }
+
+    /** Ask 8 — тот же апдейт источником `web` метку не ставит. */
+    public function testWebSourceKickedDoesNotMark(): void
+    {
+        $tgUser = $this->makeTelegramUser(self::REAL_TG);
+        $this->makeCharacter($tgUser);
+
+        $this->realPipeline(static function (): void {
+        })->run($this->kickedUpdate(930205), UpdatePipeline::SOURCE_WEB);
+
+        $this->assertNull($this->row('telegram_users', ['id' => $tgUser])['blocked_at'], 'веб метку не ставит');
+    }
+
+    /**
+     * Ask 8 — после `kicked` настоящий апдейт из лички (сообщение или разблокировка `member`) метку снимает.
+     *
+     * @return array<string, array{0: array<string, mixed>}>
+     */
+    public static function signsOfLifeAfterKick(): array
+    {
+        $updates = self::privateChatUpdates();
+
+        return [
+            'private message'      => [$updates['text message'][0]],
+            'my_chat_member member' => [$updates['unblock (my_chat_member member)'][0]],
+        ];
+    }
+
+    /** @param array<string, mixed> $after */
+    #[\PHPUnit\Framework\Attributes\DataProvider('signsOfLifeAfterKick')]
+    public function testWebhookKickedThenSignOfLifeClearsMark(array $after): void
+    {
+        $tgUser = $this->makeTelegramUser(self::REAL_TG);
+        $this->makeCharacter($tgUser);
+
+        $this->controllerFor($this->kickedUpdate(930206))->webhook();
+        $this->assertNotNull($this->row('telegram_users', ['id' => $tgUser])['blocked_at'], '`kicked` поставил метку');
+
+        $this->controllerFor($after)->webhook();
+        $this->assertNull($this->row('telegram_users', ['id' => $tgUser])['blocked_at'], 'признак жизни снял метку');
+    }
+
+    /** Approval addition 5 — сбой записи метки логируется с причиной, апдейт не ломается. */
+    public function testMarkWriteFailureIsLoggedNotSwallowed(): void
+    {
+        $this->conn->query('SET FOREIGN_KEY_CHECKS = 0');
+        $this->conn->query('DROP TABLE `telegram_users`');
+        $this->conn->query('SET FOREIGN_KEY_CHECKS = 1');
+        $logStart = count(PipelineLogTap::all());
+
+        $this->controllerFor($this->kickedUpdate(930207))->webhook();
+
+        $lines = array_values(array_filter(
+            array_slice(PipelineLogTap::all(), $logStart),
+            static fn (array $l): bool => str_starts_with($l['message'], '[UpdatePipeline] markBlocked')
+        ));
+        $this->assertCount(1, $lines, 'сбой метки залогирован одной строкой');
+        $this->assertSame('error', strtolower((string) $lines[0]['level']));
+        $this->assertStringContainsString('telegram_users', $lines[0]['message'], 'причина в строке');
+    }
+
+    /** @return array<string, mixed> */
+    private function kickedUpdate(int $updateId): array
+    {
+        $update = self::notPrivateChatOrBlockingUpdates()['block (my_chat_member kicked)'][0];
+        $update['update_id'] = $updateId;
+
+        return $update;
     }
 
     // ── Фикстура ─────────────────────────────────────────────────────────
