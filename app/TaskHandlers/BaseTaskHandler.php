@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers;
 
+use App\Services\Notifications\BlockedRecipient;
 use App\TaskHandlers\Contracts\TaskHandlerInterface;
 use App\Services\Telegram\Request;
 use App\Services\Telegram\TelegramBridge;
@@ -16,6 +17,9 @@ use Longman\TelegramBot\Telegram;
  *  - Унифицированный `protected function safeSendMessage(...)` /
  *    `safeSendPhoto(...)` — ловят TelegramException, не дают handler'у
  *    упасть из-за rate-limit или сетевой ошибки.
+ *  - Отказ «игрок заблокировал бота» ({@see BlockedRecipient}, B16): метка
+ *    `telegram_users.blocked_at`, одна WARNING вместо ERROR, фото не повторяется
+ *    текстом. Прочие отказы — как раньше.
  *  - Общий слот для DI зависимостей (`config('GameBalance')`, etc.)
  *    подключается один раз в `__construct`.
  *
@@ -104,7 +108,8 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
                 'parse_mode' => 'HTML',
             ], $extra);
             $response = Request::sendMessage($payload);
-            if (!$response->isOk()) {
+            if (!$response->isOk()
+                && ! BlockedRecipient::handle($chatId, (string) $response->getDescription(), '[' . static::class . ']', 'sendMessage')) {
                 log_message('error', '[' . static::class . '] Telegram sendMessage not ok: '
                     . $response->getDescription());
             }
@@ -159,6 +164,10 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
             ], $extra);
             $response = \App\Services\Notifications\MediaSender::sendPhotoOrText($payload);
             if (!$response->isOk()) {
+                // B16: игрок заблокировал бота → метка, одна WARNING, текстом не повторяем.
+                if (BlockedRecipient::handle($chatId, (string) $response->getDescription(), '[' . static::class . ']', 'sendPhoto')) {
+                    return;
+                }
                 // (3) Реальный провал фото (media-off/длинный caption MediaSender отдаёт ok=true).
                 log_message('error', '[' . static::class . '] Telegram sendPhoto not ok, degrading to text: '
                     . $response->getDescription());
@@ -242,7 +251,8 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
                 'parse_mode' => 'HTML',
             ], $extra);
             $response = Request::sendMessage($payload);
-            if (!$response->isOk()) {
+            if (!$response->isOk()
+                && ! BlockedRecipient::handle($chatId, (string) $response->getDescription(), '[' . static::class . ']', 'sendMessage')) {
                 log_message('error', '[' . static::class . '] degradeToText not ok: '
                     . $response->getDescription());
             }

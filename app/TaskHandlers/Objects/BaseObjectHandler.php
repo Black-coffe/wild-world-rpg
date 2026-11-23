@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Objects;
 
+use App\Services\Notifications\BlockedRecipient;
 use App\Services\Telegram\Request;
 use App\Services\Telegram\TelegramBridge;
 use Longman\TelegramBot\Telegram;
@@ -17,6 +18,8 @@ use Longman\TelegramBot\Telegram;
  *    якщо реальний use-case не дійшов до send'у.
  *  - Уніфіковані `safeSendMessage()` / `safeSendPhoto()` — catch TelegramException,
  *    handler не падає при rate-limit / network error.
+ *  - Відмова «гравець заблокував бота» ({@see BlockedRecipient}, B16): мітка
+ *    `telegram_users.blocked_at` і один WARNING; інші відмови — як раніше.
  *
  * Конкретні нащадки додають `implements ObjectHandlerInterface` самі (не форсимо
  * це у parent — щоб не нав'язувати інтерфейс іншим потенційним об'єктним
@@ -47,7 +50,8 @@ abstract class BaseObjectHandler
                 'parse_mode' => 'HTML',
             ], $extra);
             $response = Request::sendMessage($payload);
-            if (!$response->isOk()) {
+            if (!$response->isOk()
+                && ! BlockedRecipient::handle($chatId, (string) $response->getDescription(), '[' . static::class . ']', 'sendMessage')) {
                 log_message('warning', '[' . static::class . '] Telegram sendMessage not ok: '
                     . $response->getDescription());
             }
@@ -71,7 +75,8 @@ abstract class BaseObjectHandler
                 'parse_mode' => 'HTML',
             ], $extra);
             $response = \App\Services\Notifications\MediaSender::sendPhotoOrText($payload);
-            if (!$response->isOk()) {
+            if (!$response->isOk()
+                && ! BlockedRecipient::handle($chatId, (string) $response->getDescription(), '[' . static::class . ']', 'sendPhoto')) {
                 log_message('warning', '[' . static::class . '] Telegram sendPhoto not ok: '
                     . $response->getDescription());
             }

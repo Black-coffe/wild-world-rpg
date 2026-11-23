@@ -54,7 +54,7 @@ Relayed by the orchestrator from its cross-check with Fable (not the owner's wor
     `assertFalse(UpdatePipeline::isPrivateChatSignOfLife($groupMessageUpdate, self::REAL_TG))` plus the private
     message `assertTrue` control.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/database/UpdatePipelineTest.php`
-- [ ] S2 Common cron senders mark blocked players - asks: 2, 3, 4, 5, 6, 9, 10, 7
+- [x] S2 Common cron senders mark blocked players - asks: 2, 3, 4, 5, 6, 9, 10, 7
   - files: new helper (e.g. `app/Services/Notifications/BlockedRecipient.php`: given chat id + Telegram
     description, decides blocked-and-markable, marks, returns true), `app/TaskHandlers/BaseTaskHandler.php`,
     `app/TaskHandlers/Objects/BaseObjectHandler.php`, new `tests/database/CronSenderBlockedMarkTest.php` (schema from
