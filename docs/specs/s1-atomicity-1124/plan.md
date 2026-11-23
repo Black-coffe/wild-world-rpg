@@ -1,5 +1,5 @@
 # S1 atomicity: finish the parked spec on thin VULYK (plan)
-**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/s1-atomicity-1124` · **Approved:** no
+**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/s1-atomicity-1124` · **Approved:** «Одобрить (Рекомендую)», 2026-11-24
 
 ## Goal
 Bring the atomicity package built on the old branch `vulyk/s1-atomicity` (DB-held 🔒 slot, UNIQUE on

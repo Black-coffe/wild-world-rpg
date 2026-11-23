@@ -26,7 +26,9 @@ Owner's order via the orchestrator: review the code only, against the RED findin
 finding/area.
 
 ## Answers
-<empty for now>
+- 2026-11-24, plan questions and approval: Вопрос 1: «Новая ветка, squash только кода (Рекомендую)». Вопрос 2:
+  «Оставить только на старой ветке (Рекомендую)». Вопрос 3: «Да, 1–8 плюс 9–13 (Рекомендую)». Вопрос 4:
+  «Одобрить (Рекомендую)».
 
 ## Asks
 Asks 1–8 are the old brief's asks (2026-11-11), carried over unchanged in meaning.
