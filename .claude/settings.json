@@ -1,6 +1,5 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "effortLevel": "medium",
   "permissions": {
     "allow": [
       "Bash(bash scripts/state.sh:*)",
@@ -12,24 +11,24 @@
       "Bash(bash scripts/vulyk-update.sh:*)",
       "Bash(bash scripts/cycle.sh:*)",
       "Bash(bash scripts/journal.sh:*)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push --tags*)",
+      "Bash(git push --mirror*)"
+    ],
+    "ask": [
+      "Bash(git push*)",
+      "Bash(git tag*)",
+      "Bash(gh release*)",
+      "Bash(npm publish*)"
     ]
   },
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start-brief.sh\"",
-            "timeout": 20,
-            "statusMessage": "VULYK: сводка улья…"
-          },
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/vulyk-update-check.sh\"",
-            "timeout": 20,
-            "statusMessage": "VULYK: проверяю версию фреймворка…"
-          },
           {
             "type": "command",
             "command": "$ErrorActionPreference='SilentlyContinue'; function st($p){ if(Test-Path $p){ git -C $p fetch -q --all --tags 2>$null; (git -C $p status -sb 2>$null | Select-Object -First 1) } else { \"missing: $p\" } }; $code=st 'C:\\laragon\\www\\mmorpg'; $vault=st 'C:\\Projects\\mmorpg-vault'; $ctx=\"Multi-machine git check (PC<->laptop) at session start. code: $code | vault: $vault. If either shows 'behind' run git pull --rebase before working; if 'diverged' rebase, do not force.\"; @{hookSpecificOutput=@{hookEventName='SessionStart';additionalContext=$ctx}} | ConvertTo-Json -Compress",
@@ -42,57 +41,11 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/community-pull.sh\"",
             "timeout": 20,
             "statusMessage": "ADR-176: тяну открытые вопросы из чата сообщества…"
-          },
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/top-model-brief.sh\""
-          },
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/defects-inject.sh\" reset"
-          },
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/ysk-offer.sh\""
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/anomaly-scan.sh\"",
-            "timeout": 30
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/context-guard.sh\"",
-            "timeout": 20,
-            "statusMessage": "VULYK: снимок памяти улья…"
           }
         ]
       }
     ],
     "PostToolUse": [
-      {
-        "matcher": "Skill",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-usage-counter.sh\"",
-            "timeout": 20,
-            "statusMessage": "VULYK: счётчик скиллов…"
-          }
-        ]
-      },
       {
         "matcher": "Write|Edit",
         "hooks": [
@@ -116,47 +69,12 @@
             "statusMessage": "Wipe-coverage: не миграция ли это…"
           }
         ]
-      },
-      {
-        "matcher": "AskUserQuestion",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/defect-intake.sh\" answer"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/defect-intake.sh\""
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Read|Bash|WebFetch|WebSearch|Agent|mcp__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/defects-inject.sh\""
-          }
-        ]
-      },
-      {
-        "matcher": "Bash|PowerShell",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/git-guard.sh\""
-          }
-        ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "litopys@litopys": true,
+    "vulyk@vulyk-thin": true
   },
   "extraKnownMarketplaces": {
     "litopys": {
@@ -166,7 +84,5 @@
       }
     }
   },
-  "enabledPlugins": {
-    "litopys@litopys": true
-  }
+  "effortLevel": "medium"
 }

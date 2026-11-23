@@ -4,11 +4,6 @@ Telegram-MMORPG «Wild World» на CodeIgniter 4 + longman/telegram-bot: исс
 PvE, базы, PvP в персистентном мире через чат. Три поверхности в одном репо: бот, сайт
 `wildworld.fun`, админка.
 
-**Модель верхней касты: Opus.** Сам пин `TOP_MODEL = opus` с VULYK 0.34 стоит в `CLAUDE.vulyk.md`:
-`scripts/top-model.sh` читает его только там. Opus держим сознательно
-(вне 30-дневного retention Fable, вдвое дешевле). Проверка: `bash scripts/top-model.sh --explain`
-→ `decided by: constitution`.
-
 ## Опорные документы
 
 - [`GAME_DESCRIPTION.md`](./GAME_DESCRIPTION.md) — канон геймплея; атомарные ноты — `mmorpg-vault/lore/`.
@@ -19,15 +14,12 @@ PvE, базы, PvP в персистентном мире через чат. Т�
 - `C:\Projects\mmorpg-vault\` — Obsidian-vault соседом (ADR-009): tech-writing, glossary, ADR, daily,
   `wiki/hot.md`. Читается обычным `Read`.
 
-## Рамка работы: VULYK (ADR-170)
+## Рамка работы: VULYK thin (ADR-170)
 
-`CLAUDE.vulyk.md` (импорт ниже) отвечает за **КАК** (тиры, касты, гейты, модели, память улья),
-этот файл — за **ЧТО** (канон и предметные правила). При конфликте выигрывает этот файл. Привязки
-рамки к нашим путям — `CLAUDE.vulyk.md` → `## Project bindings`; отличия от ванили —
-`docs/vulyk/ADAPTATION.md`. Перед задачей назови тир (0–4). С VULYK 0.12.0 предметные ворота
-отсюда **записываются строками `## Asks` в `brief.md`** — слепой совет знает только бриф.
-
-@CLAUDE.vulyk.md
+VULYK (блок `## VULYK` в конце файла, команда `/vulyk:go`) отвечает за **КАК**: бриф словами владельца, план,
+одно одобрение, сборка, ревью моделью другого семейства, локальный мердж. Этот файл — за **ЧТО** (канон и
+предметные правила); при конфликте выигрывает этот файл. Предметные ворота отсюда **записываются строками
+`## Asks` в `brief.md`** — ревьюер знает только бриф и код (раздел «Предметные ворота → строки `## Asks`»).
 
 ## Начало сессии
 
@@ -131,6 +123,126 @@ player-поверхности — вердикт обычно «нет», но �
 - Карта подсистем с обратными ссылками — `mmorpg-vault/apps/index.md`.
 - Окружение: `.env` из `.env.example` (`telegram.API_KEY`, `telegram.BOT_USERNAME`, MySQL).
 
-Команды (тихие варианты для тестов, phpstan, миграций) — `CLAUDE.vulyk.md` → `## Commands`.
+Команды (тихие варианты для тестов, phpstan, миграций) — раздел `## Команды` ниже.
 Полные тексты разделов, сокращённых здесь 2026-09-14 (рамка, смоук, архитектура, гайдлайны), —
 `docs/claude/reference.md`; полные тексты правил 1–10 — в указанных `.claude/rules/*.md`.
+
+## Профиль проекта
+
+Перенесено из `CLAUDE.vulyk.md` (старый VULYK) при переходе на VULYK thin.
+
+| Поле | Значение |
+|---|---|
+| Stack | PHP 8.3 · CodeIgniter 4 · MySQL/MariaDB · longman/telegram-bot. Один репозиторий несёт три поверхности: Telegram-бота, публичный сайт `wildworld.fun` и админку. |
+| Package manager / runner | Composer; CLI-задачи через `php spark <command>`. Локально — Laragon (Apache + MySQL). |
+| Where source lives | `app/` — Models (~80), Services (~247 файлов в 40 доменных папках), Controllers (~346, из них `Telegram/Commands/Actions/` ~54 и `Admin/` 22), TaskHandlers (74), Database/Migrations (524). Тесты — `tests/{unit,database,session}`. Публичные ассеты и точка входа — `public/`. |
+| Test framework | PHPUnit 11.5, конфиг `phpunit.xml.dist`, bootstrap CI4. Часть тестов ходит в **отдельную** MySQL-базу `wildworld_tests` на 127.0.0.1 (root/пусто). Если MySQL не поднят — они падают на `Unable to connect to the database`, и это состояние машины, а не регресс. |
+| Commit convention | Conventional Commits с русским текстом сообщения: `feat(дрон): заряжается и в поле`, `fix(раны): источник ран не видел биом`. Ветка работы — `develop`, `master` — мёртв и в релиз-путь не входит. |
+| Configurations that exist today | Три живых окружения. **Локальное**: Laragon, MySQL должен быть запущен. **Preprod-testbot**: SSH-доступ (`~/.ssh/wildworld_deploy`), разрешены любые `UPDATE` и ad-hoc `php spark`. **Прод `wildworld.fun`**: живые игроки, деструктивные смоки запрещены, INFO не логируется — мониторинг через `action_log`. Деплой — GitHub Actions: тег на `develop` → rsync релиза → `deploy/post-deploy.sh` применяет миграции. Один узел приложения и одна БД; очереди/воркер-пула **нет** — фоновая обработка идёт через cron → `Controllers/Worker.php` → `app/TaskHandlers/`. Контейнеров, staging-кластера и blue-green нет и не планируется. |
+| Client path | Три двери, и почти всегда нужна первая. **Игрок** — Telegram-бот `@wildworldrpg_bot` (прод) и его близнец на preprod-testbot; живой проход — MCP Chrome + Telegram Web со **второго** аккаунта, тест-чар на testbot `telegram_user_id=25`. Автономная альтернатива, когда браузер не нужен: POST игрового апдейта прямо на вебхук testbot'а с секрет-заголовком (`reference_autonomous_webhook_tier3_smoke`). **Публичный сайт** — https://wildworld.fun, тихая проверка маршрута: `curl -sS -o /dev/null -w '%{http_code}' <route>`. **Админка** — `/admin/*` через MCP Chrome под аккаунтом владельца (пароль — `writable/secrets/`, в переписку не попадает). На проде живой проход по игроцкой двери не делаем — там живые игроки. |
+| Browser MCP | Субагентам — нет. Оба доступных MCP-браузера ходят под живыми аккаунтами: `chrome-devtools` — под владельцем в `/admin/*`, Telegram Web — под вторым личным аккаунтом; отдельного read-only тест-профиля нет. Агенты проходят `Client path` без логина (публичный сайт `curl`, автономный POST на вебхук testbot'а), а живой проход в Telegram — ручной Tier-3 смоук главной сессии на preprod-testbot'е. |
+| Release / deploy | Работа идёт в `develop`; версия публикуется **тегом на `develop`** (`v0.51.x`, инкремент патча; отдельного файла-стампа и CHANGELOG'а нет), GitHub Actions гонит rsync релиза и `deploy/post-deploy.sh` применяет миграции. Порядок: коммиты в `develop` → push → деплой на preprod-testbot → `bash scripts/preprod-parity.sh` зелёный (preprod играет ту же игру, что прод: `docs/defects/preprod-settings-drift.md`) → смоук нужного тира → тег на прод → смоук на проде. **Перед тегом сверить состав диффа** — в репозитории бывает параллельная сессия. Push в `develop` (он запускает деплой на preprod) — только по слову владельца на этот шаг. Постоянное разрешение владельца: **зелёный смоук на preprod = добро на прод-тег без отдельного вопроса**, после сверки состава диффа (`feedback_preprod_ok_means_prod_auto`). |
+
+## Команды
+
+Только тихие варианты: их вывод пересылается каждый ход.
+
+| Назначение | Команда |
+|---|---|
+| Один тест-файл | `vendor/bin/phpunit --no-coverage --no-progress tests/<Path>Test.php` |
+| Полный набор unit1 | `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Se*` |
+| Полный набор unit2 | `vendor/bin/phpunit --no-coverage --no-progress tests/unit/[!S]* tests/unit/S[!e]*` |
+| Полный набор db1 | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[AC]*Test.php` |
+| Полный набор db2 | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[BE]*Test.php` |
+| Полный набор db3 | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[DF]*Test.php` |
+| Полный набор db4 | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[G-O]*Test.php tests/database/*/` |
+| Полный набор db5 | `vendor/bin/phpunit --no-coverage --no-progress tests/database/P[!v-z]*Test.php tests/database/U*Test.php` |
+| Полный набор db8 | `vendor/bin/phpunit --no-coverage --no-progress tests/database/P[v-z]*Test.php` |
+| Полный набор db6 | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[Q-S]*Test.php` |
+| Полный набор db7 | `vendor/bin/phpunit --no-coverage --no-progress tests/database/[TV-Z]*Test.php tests/session` |
+| Статический анализ | `vendor/bin/phpstan analyse --memory-limit=512M --no-progress` |
+| Синтаксис миграций | `git ls-files 'app/Database/Migrations/*.php' \| xargs -n1 php -l > /dev/null` |
+| Сборка / типчек | нет — PHP ничего не собирает; ближайший эквивалент типчека это phpstan-строка выше |
+| Рендер вьюх | `curl -sS -o /dev/null -w '%{http_code}' <route>` |
+| Паритет preprod, до preprod-смоука | `bash scripts/preprod-parity.sh` |
+
+Полный набор разбит на 10 частей (каждая укладывается примерно в 300 с): `tests/unit` на `Se*` (Services) и
+остальное, `tests/database` по первой букве файла, вместе A–Z без пересечений, подпапки `tests/database/*/` —
+в db4. Новая папка прямо в `tests/` (не `unit`/`database`/`session`) в эти части **сама не попадёт** — добавить
+её строкой. Сверка покрытия: сумма `--list-tests` по десяти строкам = `vendor/bin/phpunit --list-tests` без
+`exploit-poc` (2026-11-10: 1943 + 1595 + 1557 + 1). Полный набор не запускать параллельно с другим полным
+набором: он пересоздаёт тест-БД.
+
+Почему именно эти формы, а не то, что написано в README:
+
+- `composer test` запускает `phpunit` **с** coverage-конфигом из `phpunit.xml.dist`, который печатает
+  текстовый отчёт в `php://stdout`. Эта простыня осядет в транскрипте и будет пересылаться каждый
+  следующий ход. `--no-coverage --no-progress` даёт тот же вердикт молча.
+- phpstan работает на level 9, смотрит **только** `app` и исключает `app/Database/Migrations`,
+  `app/ThirdParty`, `app/Views/{errors,site,admin}`. Поэтому миграции проверяются отдельной строкой
+  `php -l` — иначе синтаксическая ошибка в миграции не ловится ничем до самого деплоя.
+- Рендер вьюх (`app/Views/**`) PHPUnit не покрывает: проверка — HTTP-запрос по маршруту.
+- Игровой рендер (Telegram-сообщения, caption, кнопки, markdown-эскейпинг) не ловится ни одним из
+  этих гейтов — для него Tier-3 смоук (раздел «Смоук: три уровня»).
+
+## Где что живёт
+
+| Что | Где |
+|---|---|
+| Спеки VULYK (бриф, план, ревью) | `docs/specs/<slug>/` на ветке `vulyk/<slug>` до мерджа |
+| Архитектурные решения | **`mmorpg-vault/decisions/ADR-NNN-*.md`** (+ строка в `decisions/index.md`); `docs/adr/` — указатель |
+| Доменные знания | **`mmorpg-vault/tech-writing/`** (модели · сервисы · handler'ы · task-handler'ы · контроллеры · db) и **`mmorpg-vault/lore/`** (канон); `docs/wiki/` — указатель |
+| Карта кода | `mmorpg-vault/apps/<подсистема>/index.md` |
+| Классы дефектов | `docs/defects/` — карточки старого VULYK с цитатами владельца; читать перед работой в их области. Автоматически их проверки больше не запускаются; перенос в `.claude/rules/` — отдельный шаг |
+| Уроки по коду и процессу | `.claude/rules/lessons.md` или `.claude/rules/<тема>.md` с `paths:` (блок `## VULYK`) |
+| Уроки «как со мной работать» | `C:\Projects\mmorpg-vault\claude-memory\` (личная память Claude) |
+| Что в работе сейчас | `mmorpg-vault/wiki/hot.md` — читать до планирования |
+| `memory/` | архив старого VULYK (карта, уроки, леджеры), только для чтения |
+
+**Поправка владельца** делится надвое. Класс дефекта результата — то, что видно в коде, тексте игроку,
+рендере, данных (caption >1024, английский текст в UI, одна кнопка в ряд, hardcoded баланс) → правило с
+дословной цитатой владельца в `.claude/rules/` (а проверку, которую может сделать код, — тестом проекта).
+Урок о процессе — как работать, что спрашивать, в каком порядке → `claude-memory/` (`type: feedback`). Одна
+поправка часто даёт оба; тогда память ссылается на правило, а не пересказывает его.
+
+## Предметные ворота → строки `## Asks`
+
+Ревьюер VULYK видит только бриф и код и не знает правил этого файла. **Ворота, не превращённые в строку
+`## Asks` брифа, не проверяет никто.** Формулировать проверяемо: «экран X читается в media-off: caption несёт
+имя, эффект и числа», а не «соблюдён media-off».
+
+| Правило проекта | Как попадает в работу |
+|---|---|
+| 7 ворот `GAME_RULES_AND_VALIDATION_FRAMEWORK.md` + 🔴/🟠/🟡/🟢 | на плане, до одобрения; для 🟠 — ADR |
+| Tech-writing нота на каждую тронутую модель/сервис/handler/контроллер | story того, кто строит, в той же спеке; пишется в `mmorpg-vault/tech-writing/` |
+| ADR на значимое решение | главная сессия на плане; пишется в `mmorpg-vault/decisions/` |
+| WIPE-COVERAGE → `Config\WipeManifest` | ask + story того, кто строит |
+| ADMIN-TUNABLE BALANCE → `GameSettings` | ask: hardcoded число баланса — BLOCK на ревью |
+| MEDIA-OFF | ask на каждый экран с фото |
+| UX-DISCOVERABILITY / ONBOARDING / GUIDE / TIPS | вердикт строкой ask, включая «нет — потому что» |
+| Дизайн-системы сайта и админки | `.claude/rules/web-public.md`, `.claude/rules/web-admin.md` |
+
+Маленькая очевидная правка без брифа: вердикты guide/tips пишутся в сообщении в конце работы.
+
+## Секреты и контекст
+
+- Секрет называем именем переменной окружения (`STRIPE_KEY`), никогда значением. Попавший в git секрет
+  ротируется, а не удаляется.
+- Вывод команды остаётся в транскрипте навсегда — только тихие формы из `## Команды`, шумное — субагенту.
+  Отладка крутится ~10 ходов без прогресса — стоп, находки в спеку, перепланировать; отвергнутые фиксы не
+  предлагать повторно.
+
+<!-- vulyk:begin -->
+## VULYK
+- Work goes through `/vulyk:go`: brief with the owner's words, plan, one approval, build, review by
+  another model family, local merge. Small obvious fixes skip it.
+- Specs: `docs/specs` (each spec in `<folder>/<slug>/`; `brief.md` keeps the owner's words verbatim and is
+  the contract). A project that keeps specs elsewhere writes its folder here.
+- Publishing (push, tag, release, deploy) only on the owner's explicit word, each step named.
+- Never discard uncommitted work: no `git reset --hard`, `git checkout -- .`, `git clean -f` or
+  `git stash drop` on changes that are not committed elsewhere. Ask.
+- When the owner corrects your work and says why, record the lesson as a rule: a line in
+  `.claude/rules/lessons.md` (at most 60 lines; merge or drop old lines to stay under), or a
+  `.claude/rules/<topic>.md` with `paths:` when it applies to certain files. No new hooks or scripts for it:
+  a check the project wants goes into its own tests.
+<!-- vulyk:end -->

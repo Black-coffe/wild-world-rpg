@@ -74,5 +74,9 @@
   "vulyk-pause": {
     "count": 1,
     "last_used": "2026-10-12"
+  },
+  "vulyk:go": {
+    "count": 1,
+    "last_used": "2026-11-23"
   }
 }
