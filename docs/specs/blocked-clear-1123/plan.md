@@ -1,5 +1,5 @@
 # A returning player gets messages again (plan)
-**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/blocked-clear-1123` · **Approved:** no
+**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/blocked-clear-1123` · **Approved:** «Одобрить с проверками Fable (Рекомендую)», 2026-11-23
 
 ## Goal
 The "blocked the bot" mark is `telegram_users.blocked_at`. Today only a successful outgoing send clears it, but the
@@ -25,7 +25,7 @@ conditional `TelegramUserModel::clearBlocked()`, which writes nothing when the p
 - Goes live: merge to `develop` deploys nothing by itself. Deploy is a tag/push, which this spec does not do.
 
 ## Stories
-- [ ] S1 Clear the blocked mark on a real Telegram update - asks: 1, 2, 3, 4, 5, 6, 7
+- [ ] S1 Clear the blocked mark on a real Telegram update - asks: 1, 2, 3, 4, 5, 6, 7, 8, 9
   - files: `app/Services/Telegram/UpdatePipeline.php`, `app/Models/TelegramUserModel.php` (docblock only),
     `tests/database/UpdatePipelineTest.php` (add migration `2026-06-16-130000_AddBlockedAtToTelegramUsers` to its
     list and new tests), vault notes `mmorpg-vault/tech-writing/services/UpdatePipeline.md` and
@@ -34,7 +34,12 @@ conditional `TelegramUserModel::clearBlocked()`, which writes nothing when the p
     webhook message → `blocked_at` is NULL; (b) a marked linked player (real Telegram id) acts through the web
     pipeline → `blocked_at` unchanged; (c) a marked player's `my_chat_member` `kicked` webhook update →
     `blocked_at` unchanged; (d) a never-marked player sends a webhook message → `blocked_at` stays NULL and the
-    clear affects 0 rows. (a) fails before the code because nothing clears the mark on incoming updates.
+    clear affects 0 rows; (e) a marked player's message in a group chat / an inline query → `blocked_at`
+    unchanged, unless the code shows such updates never reach the pipeline (then that is written here with
+    `file:line`); (f) the web case (b) runs through `WebActService`, and every caller of `UpdatePipeline::run()`
+    is listed in the commit message with its `$source`; (g) only if the pipeline itself marks on `kicked`: an
+    unmarked player plus `kicked` ends up marked (recon: nothing marks on `kicked` today, so expect "not needed").
+    (a) fails before the code because nothing clears the mark on incoming updates.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/database/UpdatePipelineTest.php` and
     `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
 
