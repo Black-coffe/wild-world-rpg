@@ -48,7 +48,7 @@ Relayed by the orchestrator from its cross-check with Fable (not the owner's wor
 - Goes live: merge to `develop` deploys nothing; deploy starts with a push of `develop`, a separate question.
 
 ## Stories
-- [ ] S1 Follow-up test: the group check, directly - asks: 1
+- [x] S1 Follow-up test: the group check, directly - asks: 1
   - files: `tests/database/UpdatePipelineTest.php`
   - test first: none: it pins existing behaviour (owner's condition from `blocked-clear-1123`); a direct
     `assertFalse(UpdatePipeline::isPrivateChatSignOfLife($groupMessageUpdate, self::REAL_TG))` plus the private

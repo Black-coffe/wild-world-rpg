@@ -450,6 +450,20 @@ final class UpdatePipelineTest extends CIUnitTestCase
         $this->assertSame(self::BLOCKED_AT, $this->row('telegram_users', ['id' => $tgUser])['blocked_at']);
     }
 
+    /**
+     * Follow-up blocked-clear-1123 — прямая проверка группового фильтра: сообщение из группы от настоящего
+     * Telegram id не признак жизни лички; то же сообщение из лички — признак (контроль).
+     */
+    public function testIsPrivateChatSignOfLifeRejectsGroupMessageFromRealTelegramId(): void
+    {
+        $groupMessage   = self::notPrivateChatOrBlockingUpdates()['group message'][0];
+        $privateMessage = self::privateChatUpdates()['text message'][0];
+
+        $this->assertSame(self::REAL_TG, $groupMessage['message']['from']['id'], 'группу пишет настоящий игрок');
+        $this->assertFalse(UpdatePipeline::isPrivateChatSignOfLife($groupMessage, self::REAL_TG), 'сообщение из группы метку не снимает');
+        $this->assertTrue(UpdatePipeline::isPrivateChatSignOfLife($privateMessage, self::REAL_TG), 'сообщение из лички снимает');
+    }
+
     /** Ask 4 — не отмеченный игрок: снятие идёт условным UPDATE и не трогает ни одной строки. */
     public function testNeverMarkedPlayerIsNotWrittenByTheClear(): void
     {
