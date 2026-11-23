@@ -24,3 +24,7 @@ TESTS: vendor/bin/phpunit --no-coverage --no-progress tests/database/UpdatePipel
 Other checks (reviewer): phpstan on the two touched app files reports no errors, and the brief is unchanged since `plan(blocked-clear-1123): approved`.
 
 Orchestrator, before the round: db5 (147 tests), unit1 (1943), unit2 (1603) and phpstan — all OK.
+
+Owner, 2026-11-24 (merge question): «Влить, тест до push (Рекомендую)». The round's minor finding stays open: a direct
+test of the pipeline predicate for a group message (`assertFalse(UpdatePipeline::isPrivateChatSignOfLife(...))`) is a
+condition before any push of `develop` (see plan.md `## Follow-up`).

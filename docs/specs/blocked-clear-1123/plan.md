@@ -48,5 +48,10 @@ conditional `TelegramUserModel::clearBlocked()`, which writes nothing when the p
 unit parts and the db part that holds `UpdatePipelineTest` (`tests/database/P[!v-z]*Test.php tests/database/U*Test.php`, db5)
 plus phpstan. Last run today (2026-11-23, after starting local MySQL): `Tests: 9, Assertions: 285` OK.
 
+## Follow-up
+- **Before any push of `develop`** (owner, 2026-11-24: «Влить, тест до push (Рекомендую)»): add the direct test from
+  review round 1's minor finding — `assertFalse(UpdatePipeline::isPrivateChatSignOfLife($groupMessageUpdate,
+  self::REAL_TG))` in `tests/database/UpdatePipelineTest.php` — and run that file green. Not done in this spec.
+
 ## Descoped
 (none)

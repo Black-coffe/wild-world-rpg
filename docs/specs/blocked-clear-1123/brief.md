@@ -19,6 +19,7 @@ the "Forbidden" classification stay untouched: that half of B16 is a later spec.
   the bot only receives private-chat updates; (2) check every caller of `UpdatePipeline::run()`: a web caller must
   not reach it as Telegram, and the web test goes through the real web entry point; (3) if the pipeline itself sets
   `blocked_at` on `kicked`, a test shows an unmarked player plus `kicked` ends up marked.
+- 2026-11-24, merge question: «Влить, тест до push (Рекомендую)»; vault notes: «Закоммитить локально (Рекомендую)».
 
 ## Asks
 1. When a real Telegram update arrives from a player whose character is marked "blocked the bot", the mark is
