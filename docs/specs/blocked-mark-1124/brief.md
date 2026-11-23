@@ -15,19 +15,30 @@ before any push («Влить, тест до push»): a direct test of `UpdatePi
 message in `tests/database/UpdatePipelineTest.php`.
 
 ## Answers
-<empty for now>
+- 2026-11-24, plan questions: Вопрос 1: «Два общих отправщика (Рекомендую)». Вопрос 2: «Да, только в личке
+  (Рекомендую)». Вопрос 3: «Нет, только помечать (Рекомендую)».
+  (Q1 = only `BaseTaskHandler` and `BaseObjectHandler` safe senders; Q2 = a `my_chat_member` `kicked` update from
+  the player's private chat sets the mark; Q3 = senders do not skip marked players, they only mark.)
 
 ## Asks
 1. `tests/database/UpdatePipelineTest.php` has a direct test: `UpdatePipeline::isPrivateChatSignOfLife` returns
    false for a group message from a real Telegram id, and the file runs green.
-2. When a cron message to a player fails because the player blocked the bot (or deleted the account), the player
-   gets the "blocked the bot" mark (`telegram_users.blocked_at`), the same way `BroadcastService` does it.
-3. That failure is no longer logged as ERROR; one blocked player gives at most one log line per send, not two
-   (the photo-to-text fallback does not retry a blocked player).
-4. Other failures (network, bad request, too many requests, anything not "blocked") stay logged as ERROR as today
-   and do not mark anyone.
-5. A web-only (virtual) chat id is never marked, even though sends to it answer "Forbidden".
-6. Database tests (schema built from migrations) prove asks 2–5.
+2. When a cron message sent through the common senders (`BaseTaskHandler::safeSendMessage` / `safeSendPhoto`
+   and their copies in `BaseObjectHandler`) fails because the player blocked the bot (or deleted the account), the
+   player gets the "blocked the bot" mark (`telegram_users.blocked_at`), the same way `BroadcastService` does it.
+3. That failure is no longer logged as ERROR (a WARNING instead); one blocked player gives at most one log line per
+   send, not two (the photo-to-text fallback does not retry a blocked player).
+4. Other failures (network, exception, too many requests, anything not "blocked") stay logged as today and do not
+   mark anyone.
+5. A web-only (virtual) chat id or a group id (negative chat id) is never marked, even when the send answers
+   "Forbidden".
+6. Database tests (schema built from migrations) prove asks 2–5 and 8.
 7. Project gates: the tech-writing note of every touched class is updated in `mmorpg-vault/tech-writing/`; no
    hardcoded balance number; no new table or player column (else `WipeManifest`); verdicts recorded: `/guide` — no
    (no new player mechanic), tips — no (invisible plumbing); no new player surface.
+8. A `my_chat_member` update from the player's private chat with new status `kicked` sets the mark; the same
+   update from a group does not. Tests: unmarked + `kicked` → marked; marked + `kicked` → stays marked (date not
+   rewritten); `kicked` then a private message or `member` → cleared.
+9. Only the two common senders change; the ~18 handlers that send by other routes, `BroadcastService` and the
+   classifier's word list are not touched.
+10. The senders do not skip players who already have the mark: they still try to send, and only mark on failure.
