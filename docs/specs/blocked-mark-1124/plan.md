@@ -1,5 +1,5 @@
 # Cron marks players who blocked the bot instead of logging ERROR (plan)
-**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/blocked-mark-1124` · **Approved:** no
+**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/blocked-mark-1124` · **Approved:** «Одобрить с добавками Fable (Рекомендую)», 2026-11-24
 
 ## Goal
 Close B16. The common cron senders (`BaseTaskHandler::safeSendMessage` / `safeSendPhoto` / `degradeToText` and the
@@ -9,6 +9,21 @@ conditional, keyed on `telegram_id`), log one WARNING and stop (no photo-to-text
 today. One small shared helper does the decision so both base classes behave the same. Separately, the update
 pipeline sets the mark when the player's private chat sends `my_chat_member` with status `kicked`, next to where
 `blocked-clear-1123` clears it. And the Follow-up test from `blocked-clear-1123` lands first.
+
+## Approval additions (owner, 2026-11-24: «Одобрить с добавками Fable (Рекомендую)»)
+Relayed by the orchestrator from its cross-check with Fable (not the owner's words); folded into S2/S3:
+1. Other refusals (403 "bot can't initiate conversation", 400 "chat not found", generic "Forbidden") do not mark;
+   a test shows it. **Exactly what counts as blocked here:** the Telegram description contains
+   `bot was blocked by the user` or `user is deactivated` (case-insensitive). The helper does not reuse
+   `BroadcastDeliveryClassifier::isBlocked` (its list is wider: generic "forbidden", "chat not found", …) and does
+   not change it (ask 9).
+2. An already-marked player's mark date is not rewritten on every cron run (test).
+3. A call-site test that both `BaseTaskHandler` and `BaseObjectHandler` really go through the helper (driven through
+   each base's own senders, not only a helper unit test).
+4. A photo failure that is not a block still falls back to text (test).
+5. A caught mark-write failure is logged (WARNING/ERROR with the cause), not swallowed silently.
+- S3 on the servers stays **unverified** until the owner checks `getWebhookInfo` → `allowed_updates` himself; this
+  session makes no live Telegram call.
 
 ## Assumptions
 - The recipient of every `safeSend*` call is a `telegram_users.telegram_id` (recon: all traced callers pass it,
@@ -49,9 +64,11 @@ pipeline sets the mark when the player's private chat sends `my_chat_member` wit
     and a new note for the helper.
   - test first: (a) "Forbidden: bot was blocked by the user" on sendMessage → player marked, one WARNING, no ERROR;
     (b) the same on sendPhoto → marked, exactly one Telegram call (no text fallback), one WARNING; (c) a 429 / "Bad
-    Request" answer and a thrown exception → not marked, logged as today; (d) a "Forbidden" answer for a virtual chat
+    Request: chat not found", "Forbidden: bot can't initiate conversation with a user" and a plain "Forbidden" answer and a
+    thrown exception → not marked, logged as today; (b2) a non-block photo failure still falls back to text;
+    (g) the mark write failing (e.g. table missing) → logged, the handler goes on; (d) a "Forbidden" answer for a virtual chat
     id and for a negative group id → nobody marked; (e) an already-marked player → `blocked_at` keeps its date and
-    the send is still attempted (ask 10); (f) the `BaseObjectHandler` pair, (a) and (c). (a) fails before the code
+    the send is still attempted (ask 10); (f) the `BaseObjectHandler` pair, (a) and (c), through its own senders. (a) fails before the code
     because nothing marks.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/database/CronSenderBlockedMarkTest.php` and
     `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
