@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Telegram;
 
+use App\Models\TelegramUserModel;
 use App\Services\Logging\ActionOrigin;
 use App\Services\Logging\PlayerActionLogger;
 use App\Services\Logging\TelegramDeliveryProbe;
@@ -27,6 +28,10 @@ use Longman\TelegramBot\Telegram;
  * Исключения: источник `telegram` ведёт себя как прежний вебхук — `TelegramException` глотается,
  * прочий `Throwable` пробрасывается (HTTP 500). Источник `web` не бросает никогда: ошибка → строка
  * firehose `status=error` и `false`.
+ *
+ * blocked-clear-1123: в `finally` рядом с `last_seen` вебхук снимает `telegram_users.blocked_at`,
+ * если апдейт пришёл из лички с ботом и это не блокировка ({@see isPrivateChatSignOfLife()}).
+ * Единственное место снятия метки по входящему апдейту; `web` её не снимает никогда.
  */
 final class UpdatePipeline
 {
@@ -165,6 +170,13 @@ final class UpdatePipeline
             if ($telegramUserId !== null) {
                 (new LastSeenService())->stampByTelegramId($telegramUserId);
             }
+            // blocked-clear-1123 — пришёл настоящий апдейт из лички с ботом: игрок снова достижим,
+            // снимаем «заблокировал бота». Только вебхук: `/play` приходит и с настоящим id
+            // привязанного аккаунта, а о доступности бота в Telegram ничего не говорит.
+            if (! $isWeb && $telegramUserId !== null && is_array($update)
+                && self::isPrivateChatSignOfLife($update, $telegramUserId)) {
+                $this->clearBlocked($telegramUserId);
+            }
             // ADR-148 — одна строка firehose, и при исключении тоже (defensive, no-op без begin).
             PlayerActionLogger::current()->commit();
             // ADR-168 — метка живёт ровно один апдейт.
@@ -172,6 +184,54 @@ final class UpdatePipeline
         }
 
         return $ok;
+    }
+
+    /**
+     * blocked-clear-1123 — апдейт пришёл из личного чата игрока с ботом и не является блокировкой:
+     * сообщение / правка / нажатие кнопки с `chat.type = private` и `chat.id` = отправитель, либо
+     * `my_chat_member` того же чата с новым статусом не `kicked`. Группа, inline-запрос, кнопка
+     * inline-сообщения (без `message`) и `chat_member` — нет. Чистая функция.
+     *
+     * @param array<array-key, mixed> $update
+     */
+    public static function isPrivateChatSignOfLife(array $update, int $telegramId): bool
+    {
+        $chatOf = static function (mixed $wrapper) use ($telegramId): bool {
+            $chat = is_array($wrapper) ? ($wrapper['chat'] ?? null) : null;
+
+            return is_array($chat)
+                && ($chat['type'] ?? null) === 'private'
+                && is_numeric($chat['id'] ?? null)
+                && (int) $chat['id'] === $telegramId;
+        };
+
+        foreach (['message', 'edited_message'] as $key) {
+            if (isset($update[$key])) {
+                return $chatOf($update[$key]);
+            }
+        }
+        $callback = $update['callback_query'] ?? null;
+        if (is_array($callback)) {
+            return $chatOf($callback['message'] ?? null);
+        }
+        $member = $update['my_chat_member'] ?? null;
+        if (is_array($member) && $chatOf($member)) {
+            $new = $member['new_chat_member'] ?? null;
+
+            return is_array($new) && is_string($new['status'] ?? null) && $new['status'] !== 'kicked';
+        }
+
+        return false;
+    }
+
+    /** Условное снятие метки: не отмеченный игрок не пишется; сбой не ломает апдейт. */
+    private function clearBlocked(int $telegramId): void
+    {
+        try {
+            (new TelegramUserModel())->clearBlocked((string) $telegramId);
+        } catch (\Throwable $e) {
+            log_message('error', '[UpdatePipeline] clearBlocked: ' . $e->getMessage());
+        }
     }
 
     /** @param array<array-key, mixed>|null $update */
