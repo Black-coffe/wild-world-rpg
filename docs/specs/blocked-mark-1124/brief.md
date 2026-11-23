@@ -19,6 +19,8 @@ message in `tests/database/UpdatePipelineTest.php`.
   (Рекомендую)». Вопрос 3: «Нет, только помечать (Рекомендую)».
   (Q1 = only `BaseTaskHandler` and `BaseObjectHandler` safe senders; Q2 = a `my_chat_member` `kicked` update from
   the player's private chat sets the mark; Q3 = senders do not skip marked players, they only mark.)
+- 2026-11-24, plan approval: «Одобрить с добавками Fable (Рекомендую)». The additions (relayed, not the owner's
+  words) are listed in plan.md `## Approval additions`; asks 4, 6 and 2 below follow them.
 
 ## Asks
 1. `tests/database/UpdatePipelineTest.php` has a direct test: `UpdatePipeline::isPrivateChatSignOfLife` returns
@@ -28,8 +30,10 @@ message in `tests/database/UpdatePipelineTest.php`.
    player gets the "blocked the bot" mark (`telegram_users.blocked_at`), the same way `BroadcastService` does it.
 3. That failure is no longer logged as ERROR (a WARNING instead); one blocked player gives at most one log line per
    send, not two (the photo-to-text fallback does not retry a blocked player).
-4. Other failures (network, exception, too many requests, anything not "blocked") stay logged as today and do not
-   mark anyone.
+4. Other failures (network, exception, too many requests, other refusals such as "chat not found" or "bot can't
+   initiate conversation", anything not "blocked") stay logged as today and do not mark anyone; a non-block photo
+   failure still falls back to text; an already-marked player's mark date is not rewritten; a failed mark write is
+   logged, not swallowed.
 5. A web-only (virtual) chat id or a group id (negative chat id) is never marked, even when the send answers
    "Forbidden".
 6. Database tests (schema built from migrations) prove asks 2–5 and 8.
