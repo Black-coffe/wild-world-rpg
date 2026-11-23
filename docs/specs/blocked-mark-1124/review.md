@@ -26,3 +26,5 @@ TESTS: vendor/bin/phpunit --no-coverage --no-progress tests/database/UpdatePipel
 Two things I checked that are not findings:
 - Ask 4 was widened after `plan(blocked-mark-1124): approved`, and the same commit adds an owner quote under `## Answers` («Одобрить с добавками Fable (Рекомендую)»), so the change is the owner's.
 - `phpstan` on the four changed app files reports no errors.
+
+Owner: merge - «Влить (Рекомендую)», 2026-11-24

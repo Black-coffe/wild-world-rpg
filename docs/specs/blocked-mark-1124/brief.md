@@ -21,6 +21,7 @@ message in `tests/database/UpdatePipelineTest.php`.
   the player's private chat sets the mark; Q3 = senders do not skip marked players, they only mark.)
 - 2026-11-24, plan approval: «Одобрить с добавками Fable (Рекомендую)». The additions (relayed, not the owner's
   words) are listed in plan.md `## Approval additions`; asks 4, 6 and 2 below follow them.
+- 2026-11-24, merge question: «Влить (Рекомендую)».
 
 ## Asks
 1. `tests/database/UpdatePipelineTest.php` has a direct test: `UpdatePipeline::isPrivateChatSignOfLife` returns
