@@ -1,4 +1,5 @@
 # Cron marks players who blocked the bot instead of logging ERROR (plan)
+**Shipped:** 2026-11-24, 375d910e
 **Brief:** [brief.md](brief.md) · **Branch:** `vulyk/blocked-mark-1124` · **Approved:** «Одобрить с добавками Fable (Рекомендую)», 2026-11-24
 
 ## Goal
@@ -87,6 +88,16 @@ the review also the parts that hold the touched tests and the safe-sender stubs:
 (`tests/database/P[!v-z]*Test.php tests/database/U*Test.php`), db7 (`WebOnlyCharacterWorkerTest`), db6
 (`RobotGatheringRelativeAwardTest`), db1 (`CronSenderBlockedMarkTest`), plus phpstan. Local MySQL must be started
 first. Last run today (2026-11-24): `UpdatePipelineTest.php` — `Tests: 18, Assertions: 561` OK.
+
+## Follow-up
+Before any push of `develop` (owner, 2026-11-24: «Влить (Рекомендую)»; conditions relayed by the orchestrator from its
+cross-check, not the owner's words):
+- Fix the log line in `BlockedRecipient::handle` (`app/Services/Notifications/BlockedRecipient.php` ~84-85): it says
+  "marked" even when no `telegram_users` row matched (review round 1, minor finding 2). Log what really happened
+  (affected rows) and pin it with a test in `tests/database/CronSenderBlockedMarkTest.php`.
+- The owner checks `getWebhookInfo` → `allowed_updates` on testbot and prod: `my_chat_member` must be delivered for
+  S3 (`kicked` marks) to work on the servers. This session made no live Telegram call.
+- The vault notes (5 files under `tech-writing/`) are committed by the orchestrator with the owner's word.
 
 ## Descoped
 (none)
