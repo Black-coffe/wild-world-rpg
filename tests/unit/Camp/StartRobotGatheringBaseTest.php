@@ -57,8 +57,12 @@ final class StartRobotGatheringBaseTest extends CIUnitTestCase
         'character_buildings' => 'id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NULL, building_id INT NULL, map_cell_id INT NULL, level INT NULL DEFAULT 1, created_at DATETIME NULL, updated_at DATETIME NULL',
         'claimed_cells'       => 'id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NULL, map_cell_id INT NULL, claimed_at DATETIME NULL, status VARCHAR(16) NULL, camp_name VARCHAR(64) NULL',
         'map'                 => 'id INT PRIMARY KEY, cell_number INT NULL, coordinate_x INT NULL, coordinate_y INT NULL, biome_id INT NULL, created_at DATETIME NULL, updated_at DATETIME NULL',
-        'tasks'               => 'id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64) NULL, name_rus VARCHAR(64) NULL',
-        'character_tasks'     => 'id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NULL, telegram_user_id INT NULL, task_id INT NULL, status VARCHAR(16) NULL, start_time DATETIME NULL, end_time DATETIME NULL, task_settings TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL',
+        'tasks'               => 'id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64) NULL, name_rus VARCHAR(64) NULL, parallel_execution_allowed TINYINT NOT NULL DEFAULT 1',
+        'character_tasks'     => 'id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NULL, telegram_user_id INT NULL, task_id INT NULL, status VARCHAR(16) NULL, start_time DATETIME NULL, end_time DATETIME NULL, task_settings TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL, '
+            // S1 (2026-12-25-100000_S1CharacterTasksExclusiveSlot): колонки слота дословно — запуск пишет через ядро.
+            . '`is_exclusive` TINYINT(1) NOT NULL DEFAULT 0, '
+            . "`exclusive_slot` INT UNSIGNED GENERATED ALWAYS AS (IF(`status` = 'in_work' AND `is_exclusive` = 1, `character_id`, NULL)) VIRTUAL, "
+            . 'UNIQUE KEY `uq_ct_exclusive_slot` (`exclusive_slot`)',
         'crafted_items'       => 'id INT AUTO_INCREMENT PRIMARY KEY, name_rus VARCHAR(255) NULL, name_eng VARCHAR(255) NULL, durability_count INT NULL, status VARCHAR(16) NULL, created_at DATETIME NULL, updated_at DATETIME NULL',
         'crafted_items_log'   => 'id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NULL, task_id INT NULL, crafted_item_id INT NULL, type VARCHAR(100) NULL, direction_craft VARCHAR(100) NULL, crafting_location VARCHAR(255) NULL, durability_count INT NULL, durability_time DATETIME NULL, quantity INT NULL, insured TINYINT NULL, custom_setting TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL',
     ];

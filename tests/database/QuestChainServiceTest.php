@@ -78,7 +78,8 @@ final class QuestChainServiceTest extends CIUnitTestCase
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 quest_id INT NOT NULL, character_id INT NOT NULL, step_order INT NOT NULL,
                 description TEXT NULL, is_completed TINYINT DEFAULT 0,
-                created_at DATETIME NULL, updated_at DATETIME NULL
+                created_at DATETIME NULL, updated_at DATETIME NULL,
+                UNIQUE KEY uq_qs_quest_character (quest_id, character_id)
             )
         ');
     }

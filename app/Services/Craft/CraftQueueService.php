@@ -15,6 +15,7 @@ use App\Models\ResourceModel;
 use App\Models\TaskModel;
 use App\Services\Db\ConditionalWriteService;
 use App\Services\Db\WriteOutcome;
+use App\Services\Tasks\ActiveTasksService;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\I18n\Time;
@@ -211,7 +212,8 @@ class CraftQueueService
      * Продвижение очереди рецепта после завершения: старейшая `queued`-строка того же персонажа и
      * `task_id` → `in_work` с длительностью {@see CraftDurationService} × qty. Запись условна
      * (`WHERE status='queued'`): строку, снятую отменой или уже продвинутую другим воркером, не
-     * запускает — берёт следующую.
+     * запускает — берёт следующую. Занятый 🔒-слот (`moveToInWork()` → `Refused`) — `null`, строка
+     * остаётся `queued` (s1-atomicity-03, A4).
      *
      * @return Promoted|null
      */
@@ -253,12 +255,18 @@ class CraftQueueService
                 return null;
             }
 
-            $db = $this->db();
-            $db->query(
-                'UPDATE ' . $db->prefixTable('character_tasks') . ' SET status = ?, start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND status = ?',
-                ['in_work', $start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s'), $start->format('Y-m-d H:i:s'), $nextId, 'queued']
-            );
-            if ($db->affectedRows() >= 1) {
+            // s1-atomicity-03 (C4, A4): перевод — через ядро слота. `Refused` — 🔒-слот персонажа
+            // занят другой задачей: строка остаётся `queued` (видна в очереди, отменяется с
+            // возвратом), продвижение ждёт следующего завершения, без исключения.
+            $outcome = (new ActiveTasksService($this->db()))->moveToInWork($nextId, 'queued', [
+                'start_time' => $start->format('Y-m-d H:i:s'),
+                'end_time'   => $end->format('Y-m-d H:i:s'),
+                'updated_at' => $start->format('Y-m-d H:i:s'),
+            ]);
+            if ($outcome === WriteOutcome::Refused) {
+                return null;
+            }
+            if ($outcome === WriteOutcome::Applied) {
                 return [
                     'charTaskId'       => $nextId,
                     'telegram_user_id' => $this->int($next['telegram_user_id'] ?? null),

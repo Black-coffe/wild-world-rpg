@@ -37,27 +37,14 @@ class CharacterResourceModel extends Model
         return $this->deductResourceForCraft($resourceName, $characterId, $amount);
     }
 
+    /**
+     * s1-atomicity-02 (C8): начисление одной инструкцией по `UNIQUE (id_characters, id_resources)`
+     * — два одновременных начисления складываются, вторая строка пары невозможна. Возврат прежний:
+     * id новой строки, если пары не было, `true`, если прибавили к существующей.
+     */
     public function increaseResources($characterId, $resourceId, $amount)
     {
-        // exploit-fix-24: `(id_characters, id_resources)` не несёт UNIQUE — `first()` без
-        // `orderBy` возвращает произвольную строку, если пара продублирована. `orderBy('id')`
-        // делает выбор детерминированным (всегда самая старая строка пары), а не убирает сами
-        // дубли — те вне scope этой story.
-        $existingResource = $this->where([
-            'id_characters' => $characterId,
-            'id_resources'  => $resourceId
-        ])->orderBy('id', 'ASC')->first();
-
-        if ($existingResource) {
-            $newQuantity = $existingResource['quantity'] + $amount;
-            return $this->update($existingResource['id'], ['quantity' => $newQuantity]);
-        } else {
-            return $this->insert([
-                'id_characters' => $characterId,
-                'id_resources'  => $resourceId,
-                'quantity'      => $amount
-            ]);
-        }
+        return $this->upsertQuantity($characterId, $resourceId, $amount);
     }
 
     /**
@@ -112,26 +99,34 @@ class CharacterResourceModel extends Model
         return $result ? (int)$result->total_quantity : 0;
     }
 
+    /** s1-atomicity-02 (C8): то же атомарное начисление, что {@see increaseResources()}. */
     public function addOrIncreaseResource($characterId, $resourceId, $amount)
     {
-        // exploit-fix-24: та же детерминизация, что в increaseResources()/decrementIfAtLeast() —
-        // пара `(id_characters, id_resources)` без UNIQUE.
-        $existingResource = $this->where([
-            'id_characters' => $characterId,
-            'id_resources'  => $resourceId
-        ])->orderBy('id', 'ASC')->first();
+        return $this->upsertQuantity($characterId, $resourceId, $amount);
+    }
 
-        if ($existingResource) {
-            return $this->update($existingResource['id'], [
-                'quantity' => $existingResource['quantity'] + $amount,
-            ]);
-        } else {
-            return $this->insert([
-                'id_characters' => $characterId,
-                'id_resources'  => $resourceId,
-                'quantity'      => $amount,
-            ]);
+    /**
+     * `INSERT … ON DUPLICATE KEY UPDATE quantity = quantity + ?` (параметр, не `VALUES()`).
+     * `affectedRows()`: 1 — вставлена новая строка (возврат — её id, как у прежнего `insert()`),
+     * 2 или 0 — существующая строка пары (возврат `true`, как у прежнего `update()`).
+     *
+     * @return bool|int
+     */
+    private function upsertQuantity(mixed $characterId, mixed $resourceId, mixed $amount): bool|int
+    {
+        $now   = date('Y-m-d H:i:s');
+        $table = $this->db->prefixTable($this->table);
+
+        $result = $this->db->query(
+            "INSERT INTO {$table} (id_characters, id_resources, quantity, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
+            . ' ON DUPLICATE KEY UPDATE quantity = quantity + ?, updated_at = ?',
+            [$characterId, $resourceId, $amount, $now, $now, $amount, $now]
+        );
+        if ($result === false) {
+            return false;
         }
+
+        return $this->db->affectedRows() === 1 ? (int) $this->db->insertID() : true;
     }
 
     /**
@@ -149,29 +144,14 @@ class CharacterResourceModel extends Model
     }
 
     /**
-     * СТАРЫЙ метод (не меняем!). Списывает ресурсы, но страдает той же проблемой alias'ов...
+     * s1-atomicity-02 (C8): списание условной записью `quantity >= n` в самом UPDATE. Нулевой
+     * остаток строку не удаляет — как и раньше. Прежняя форма читала строку через
+     * {@see getResourceByNameAndCharacterId()}, где `id` перекрыт `resources.id`, и писала не ту
+     * строку; id строки персонажа здесь берётся алиасом `charResId`.
      */
     public function deductResource($resourceName, $characterId, $amount)
     {
-        $this->db->transStart();
-        $resource = $this->getResourceByNameAndCharacterId($resourceName, $characterId);
-
-        if ($resource && isset($resource['quantity']) && $resource['quantity'] >= $amount) {
-            $newQuantity = $resource['quantity'] - $amount;
-
-            if (!is_int($resource['id'])) {
-                $resourceId = (int) $resource['id'];
-            } else {
-                $resourceId = $resource['id'];
-            }
-
-            $affectedRows = $this->update($resourceId, ['quantity' => $newQuantity]);
-
-            $this->db->transComplete();
-            return ($affectedRows > 0);
-        }
-        $this->db->transRollback();
-        return false;
+        return $this->deductByName((string) $resourceName, (int) $characterId, (int) $amount, false);
     }
 
     // === ДОБАВЛЯЕМ НОВЫЙ метод, который работает через alias'ы: ===
@@ -198,54 +178,52 @@ class CharacterResourceModel extends Model
     }
 
     /**
-     * Новый метод для "безопасного" списания ресурса через alias'ы.
+     * Списание для крафта: s1-atomicity-02 (C8) — условной записью, опустошённая строка удаляется.
+     * `false` — строки нет или не хватило.
      */
     public function deductResourceForCraft(string $resourceName, int $characterId, int $amount): bool
     {
-        $this->db->transStart();
-
-        $row = $this->getResourceForCraft($resourceName, $characterId);
-        if (!$row) {
-            $this->db->transRollback();
-            return false;
-        }
-
-        $charResId  = (int) $row['charResId'];
-        $currentQty = (int) $row['charResQty'];
-
-        if ($currentQty < $amount) {
-            $this->db->transRollback();
-            return false;
-        }
-
-        $newQty = $currentQty - $amount;
-
-        if ($newQty <= 0) {
-            $this->delete($charResId);
-        } else {
-            $this->update($charResId, ['quantity' => $newQty]);
-        }
-
-        $this->db->transComplete();
-        return true;
+        return $this->deductByName($resourceName, $characterId, $amount, true);
     }
 
     /**
-     * Уменьшает quantity для строки с первичным ключом = $charResId на $amount.
-     * Если после уменьшения quantity <= 0, строка удаляется.
+     * Уменьшает quantity строки `$charResId` на `$amount`; опустошённая строка удаляется.
+     * s1-atomicity-02 (C8): условной записью — при `quantity < $amount` отказ (`false`), а не
+     * удаление «всего, что было».
      */
     public function decreaseQtyById(int $charResId, int $amount): bool
     {
-        $row = $this->find($charResId);
-        if (!$row) {
+        return $this->deductRow($charResId, $amount, true);
+    }
+
+    private function deductByName(string $resourceName, int $characterId, int $amount, bool $deleteWhenEmpty): bool
+    {
+        $row   = $this->getResourceForCraft($resourceName, $characterId);
+        $rowId = is_array($row) && is_numeric($row['charResId'] ?? null) ? (int) $row['charResId'] : 0;
+        if ($rowId <= 0) {
             return false;
         }
 
-        $newQty = (int)$row['quantity'] - $amount;
-        if ($newQty <= 0) {
-            return (bool) $this->delete($charResId);
-        }
-        return (bool) $this->update($charResId, ['quantity' => $newQty]);
+        return $this->deductRow($rowId, $amount, $deleteWhenEmpty);
     }
 
+    /**
+     * `ConditionalWriteService::decrementIfAtLeast()` — решает `WHERE quantity >= ?` и
+     * `affectedRows()`, не прочитанный остаток. `$amount <= 0` примитив отвергает; прежние методы
+     * на нём отвечали успехом без списания — так и оставлено.
+     */
+    private function deductRow(int $rowId, int $amount, bool $deleteWhenEmpty): bool
+    {
+        if ($amount <= 0) {
+            return $this->find($rowId) !== null;
+        }
+
+        return (new ConditionalWriteService($this->db))->decrementIfAtLeast(
+            $this->table,
+            $rowId,
+            'quantity',
+            $amount,
+            $deleteWhenEmpty
+        ) === WriteOutcome::Applied;
+    }
 }

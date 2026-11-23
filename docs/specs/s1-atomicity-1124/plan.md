@@ -36,7 +36,7 @@ asked for, and a green full suite on the merged result. Review is code-only and 
   2026-11-11; re-check before the push is a Follow-up item for the owner).
 
 ## Stories
-- [ ] S1 Import the old branch's code, code only - asks: 11, 6, 7, 2, 4, 5
+- [x] S1 Import the old branch's code, code only - asks: 11, 6, 7, 2, 4, 5
   - files: everything in `git diff f9b3bf3a..vulyk/s1-atomicity -- app tests phpstan-baseline.neon ROADMAP.md`
   - test first: none: the import carries the old branch's own tests; this story checks they run on develop's base
   - check: path check of ask 11; `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null`;
@@ -44,6 +44,9 @@ asked for, and a green full suite on the merged result. Review is code-only and 
     tests/database/ExclusiveTaskSlotConstraintTest.php tests/database/S1ExclusiveSlotOnRealSchemaTest.php
     tests/database/CharacterResourceAtomicWriteTest.php tests/database/QuestStepsUniqueStartTest.php`; list callers
     of `decreaseQtyById` and what they do with `false`
+  - result: `decreaseQtyById` has one caller in `app/`, `LootProcessor::deductUpTo()`: on `false` it re-reads the
+    row and retries with `min(amount, stock)` up to 3 times, then counts 0 taken. `ResourceTradeService` no longer
+    calls it (own conditional write); `DeathService::confirmedResourceLoss()` only reads rows afterwards.
 - [ ] S2 RED finding 1: repair deducts before it takes the slot - asks: 9, 3
   - files: `app/Controllers/Telegram/Commands/Actions/Craft/Repair/RepairCraftedItemAction.php`,
     `tests/unit/Player/PoolAdoptionRepairUpgradeTest.php`

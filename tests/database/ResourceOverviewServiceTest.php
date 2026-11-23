@@ -37,7 +37,7 @@ final class ResourceOverviewServiceTest extends CIUnitTestCase
         }
         $db->query('CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, gold BIGINT NULL)');
         $db->query('CREATE TABLE resources (id INT AUTO_INCREMENT PRIMARY KEY, sell_price DECIMAL(10,2) NULL, weight DECIMAL(10,2) NULL)');
-        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT NULL, id_resources INT NULL, quantity BIGINT NULL)');
+        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT NULL, id_resources INT NULL, quantity BIGINT NULL, UNIQUE KEY uq_cr_char_resource (id_characters, id_resources))');
         $db->query('CREATE TABLE crafted_items (id INT AUTO_INCREMENT PRIMARY KEY, price DECIMAL(10,2) NULL)');
         $db->query('CREATE TABLE crafted_items_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NULL, crafted_item_id INT NULL, quantity INT NULL)');
         $db->query('CREATE TABLE characters_weapons (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NULL, quantity INT NULL)');

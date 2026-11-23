@@ -38,7 +38,7 @@ final class LootTableServiceTest extends CIUnitTestCase
                     drop_chance INT DEFAULT 100, sort_order INT DEFAULT 0)');
         $db->query('CREATE TABLE resources (id INT PRIMARY KEY, name VARCHAR(100), rarity INT DEFAULT 5)');
         $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT,
-                    id_resources INT, quantity INT DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL)');
+                    id_resources INT, quantity INT DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL, UNIQUE KEY uq_cr_char_resource (id_characters, id_resources))');
         $db->query('CREATE TABLE weapons (id INT PRIMARY KEY, name VARCHAR(150), rarity VARCHAR(50), durability INT DEFAULT 100)');
         $db->query('CREATE TABLE characters_weapons (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT,
                     weapon_id INT, quantity INT DEFAULT 1, current_durability INT DEFAULT 0, equipped TINYINT DEFAULT 0, slot VARCHAR(50) NULL)');

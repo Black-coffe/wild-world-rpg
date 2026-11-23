@@ -76,7 +76,11 @@ final class BaseRelocationCompletionHandlerTest extends CIUnitTestCase
             status VARCHAR(16) NULL,
             task_settings TEXT NULL,
             created_at DATETIME NULL,
-            updated_at DATETIME NULL
+            updated_at DATETIME NULL,
+            -- s1-atomicity-04 (C9): дословно из 2026-12-25-100000_S1CharacterTasksExclusiveSlot
+            `is_exclusive` TINYINT(1) NOT NULL DEFAULT 0,
+            `exclusive_slot` INT UNSIGNED GENERATED ALWAYS AS (IF(`status` = "in_work" AND `is_exclusive` = 1, `character_id`, NULL)) STORED,
+            UNIQUE KEY `uq_ct_exclusive_slot` (`exclusive_slot`)
         )');
         $db->query('CREATE TABLE map (
             id INT AUTO_INCREMENT PRIMARY KEY,

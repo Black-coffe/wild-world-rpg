@@ -160,14 +160,26 @@ class StartCraftTeleportBackpack2Action extends BaseAction
             ], $chatId);
         }
 
-        $this->characterTaskModel->insert([
+        // s1-atomicity-03 (C2, C6): строка задачи — до списаний и только через ядро слота.
+        $activeTasks = new \App\Services\Tasks\ActiveTasksService();
+        if ($activeTasks->insertExclusiveTaskRow([
             'character_id'     => $characterId,
             'telegram_user_id' => $user['id'],
             'task_id'          => $taskRow['id'],
             'start_time'       => $startTime->format('Y-m-d H:i:s'),
             'end_time'         => $endTime->format('Y-m-d H:i:s'),
             'status'           => 'in_work',
-        ]);
+        ]) !== \App\Services\Db\WriteOutcome::Applied) {
+            // s1-atomicity-03 (C5): 🔒-слот занят между гейтом и вставкой — текст ADR-167, ничего не списано.
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $activeTasks->slotTakenText(
+                    is_numeric($characterId) ? (int) $characterId : 0,
+                    is_string($taskRow['name_rus'] ?? null) ? $taskRow['name_rus'] : ''
+                ),
+                'parse_mode' => 'Markdown',
+            ]);
+        }
 
         // 7) Списываем ресурсы/предметы/золото
         $this->decrementResources($characterId, $requiredResources);

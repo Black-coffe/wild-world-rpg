@@ -93,7 +93,8 @@ final class ResourceBankInsertRaceTest extends CIUnitTestCase
                 id_resources INT NOT NULL,
                 quantity INT NOT NULL DEFAULT 0,
                 created_at DATETIME NULL,
-                updated_at DATETIME NULL
+                updated_at DATETIME NULL,
+                UNIQUE KEY uq_cr_char_resource (id_characters, id_resources)
             )
         ');
         $db->query('

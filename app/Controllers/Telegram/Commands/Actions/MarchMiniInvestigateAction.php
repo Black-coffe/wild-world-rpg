@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controllers\Telegram\Commands\Actions;
 
+use App\Services\Db\WriteOutcome;
 use App\Services\Notifications\MediaSender;
+use App\Services\Tasks\ActiveTasksService;
 use App\Services\World\MarchMiniEventService;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
@@ -44,18 +46,24 @@ final class MarchMiniInvestigateAction extends BaseAction
 
         $svc = new MarchMiniEventService();
         if ($key === '' || ! $svc->has($key)) {
-            $this->resume($taskId, null);
+            if (! $this->resume($taskId, null)) {
+                return $this->render((new ActiveTasksService())->slotTakenText($charId, 'Поход'));
+            }
 
             return $this->render('🔍 Здесь уже ничего нет. Поход продолжается.');
         }
 
-        $result  = $svc->investigate($key, $charId);
-        $awarded = $result['awarded'];
-
-        // Возобновляем поход (как march_resume), очистив ключ мини-события.
+        // Возобновляем поход (как march_resume), очистив ключ мини-события. s1-atomicity-05 (C6):
+        // сначала перевод в `in_work`, потом находка — занятый 🔒-слот не выдаёт награду, событие
+        // остаётся на паузе (A3).
         unset($s['mini_event_key']);
         $encoded = json_encode($s);
-        $this->resume($taskId, $encoded !== false ? $encoded : null);
+        if (! $this->resume($taskId, $encoded !== false ? $encoded : null)) {
+            return $this->render((new ActiveTasksService())->slotTakenText($charId, 'Поход'));
+        }
+
+        $result  = $svc->investigate($key, $charId);
+        $awarded = $result['awarded'];
 
         $lines = $this->awardedLines($awarded);
         $head  = "{$result['icon']} *{$result['title']}*";
@@ -97,22 +105,27 @@ final class MarchMiniInvestigateAction extends BaseAction
         return $id;
     }
 
-    private function resume(int $taskId, ?string $settings): void
+    /**
+     * `paused` → `in_work` через ядро слота (s1-atomicity-05, C4). `false` — 🔒-слот занят другой
+     * задачей, строка осталась `paused`. Строки на паузе уже нет (гонка с «пройти мимо») — `true`,
+     * как раньше.
+     */
+    private function resume(int $taskId, ?string $settings): bool
     {
         if ($taskId <= 0) {
-            return;
+            return true;
         }
         $start = new \DateTime();
         $end   = (clone $start)->add(new \DateInterval('PT' . max(1, $this->gsInt('world.march.minutes_per_cell', 1)) . 'M'));
         $data  = [
-            'status'     => 'in_work',
             'start_time' => $start->format('Y-m-d H:i:s'),
             'end_time'   => $end->format('Y-m-d H:i:s'),
         ];
         if ($settings !== null) {
             $data['task_settings'] = $settings;
         }
-        Database::connect()->table('character_tasks')->where('id', $taskId)->update($data);
+
+        return (new ActiveTasksService())->moveToInWork($taskId, 'paused', $data) !== WriteOutcome::Refused;
     }
 
     /**

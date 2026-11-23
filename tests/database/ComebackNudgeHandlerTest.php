@@ -36,7 +36,7 @@ final class ComebackNudgeHandlerTest extends CIUnitTestCase
         }
         $db->query('CREATE TABLE game_settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(191) NOT NULL, category VARCHAR(64) NULL, value_type VARCHAR(16) NULL, value_int INT NULL, value_float DECIMAL(15,5) NULL, value_bool TINYINT NULL, value_string TEXT NULL, hard_min VARCHAR(32) NULL, hard_max VARCHAR(32) NULL)');
         $db->query('CREATE TABLE quests (id INT PRIMARY KEY, title_en VARCHAR(255) NULL, status VARCHAR(20) NULL)');
-        $db->query('CREATE TABLE quest_steps (id INT AUTO_INCREMENT PRIMARY KEY, quest_id INT, character_id INT, is_completed TINYINT DEFAULT 0, created_at DATETIME NULL)');
+        $db->query('CREATE TABLE quest_steps (id INT AUTO_INCREMENT PRIMARY KEY, quest_id INT, character_id INT, is_completed TINYINT DEFAULT 0, created_at DATETIME NULL, UNIQUE KEY uq_qs_quest_character (quest_id, character_id))');
         $db->query('CREATE TABLE characters (id INT PRIMARY KEY, telegram_user_id INT NULL, level INT NOT NULL DEFAULT 1, daily_tips_enabled TINYINT NOT NULL DEFAULT 1)');
         $db->query('CREATE TABLE telegram_users (id INT PRIMARY KEY, telegram_id BIGINT NULL, blocked_at DATETIME NULL, last_seen DATETIME NULL)');
         $db->query('CREATE TABLE action_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, chat_id BIGINT NULL, action_name VARCHAR(255), action_status VARCHAR(20), description TEXT NULL, created_at DATETIME NULL)');

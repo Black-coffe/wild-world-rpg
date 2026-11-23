@@ -79,10 +79,14 @@ final class MarchingTransportTest extends CIUnitTestCase
             id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NOT NULL, telegram_user_id INT NOT NULL,
             map_cell_id INT NOT NULL, biome_id INT NOT NULL, character_level INT NULL, cell_status VARCHAR(255) NULL,
             notes TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
-        $this->conn->query('CREATE TABLE character_tasks (
+        // s1-atomicity (C9): колонки и UNIQUE слота 🔒 — дословно из миграции S1CharacterTasksExclusiveSlot.
+        $this->conn->query("CREATE TABLE character_tasks (
             id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NOT NULL, telegram_user_id INT NOT NULL, task_id INT NOT NULL,
             start_time DATETIME NULL, end_time DATETIME NULL, status VARCHAR(50) NOT NULL, task_settings TEXT NULL,
-            created_at DATETIME NULL, updated_at DATETIME NULL)');
+            created_at DATETIME NULL, updated_at DATETIME NULL,
+            `is_exclusive` TINYINT(1) NOT NULL DEFAULT 0,
+            `exclusive_slot` INT UNSIGNED GENERATED ALWAYS AS (IF(`status` = 'in_work' AND `is_exclusive` = 1, `character_id`, NULL)) STORED,
+            UNIQUE KEY `uq_ct_exclusive_slot` (`exclusive_slot`))");
         $this->conn->query('CREATE TABLE crafted_items (id INT AUTO_INCREMENT PRIMARY KEY, name_eng VARCHAR(150) NULL, durability_count INT NULL)');
         $this->conn->query('CREATE TABLE crafted_items_log (
             id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NOT NULL, crafted_item_id INT NOT NULL,

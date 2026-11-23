@@ -138,18 +138,6 @@ class GatherAction extends BaseAction
 
             $chosenMinutes = (int) $parts[1]; // 10, 30, 60, 120, 360, 720
 
-            // v0.51.28 fix: deductTiredness тільки тут (на реальному старті задачі),
-            // не на показ меню вибору часу. Раніше — double-deduct (5 stamina × 2:
-            // натиснення `gather` + натиснення `gather_30`). Reported у Bugs-info.
-            if (!$this->deductTiredness($character)) {
-                Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-                return Request::sendMessage([
-                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                    'text' => $this->lowStaminaText($character),
-                    'parse_mode' => 'Markdown',
-                ]);
-            }
-
             // Дальше идёт обычная логика: проверяем локацию, биом, ресурсы, создаём задачу
             $cell = $this->mapModel->where('cell_number', $character['cell_number'])->first();
             if (!$cell) {
@@ -193,8 +181,40 @@ class GatherAction extends BaseAction
             $originalMax = $gatherTask['max_duration'];
             $gatherTask['max_duration'] = $chosenMinutes; // переопределяем
 
+            // s1-atomicity-05 (C6): строка задачи и списание выносливости — одной транзакцией,
+            // вставка первой. Занятый 🔒-слот (гонка двух стартов, прошедших гейт выше) или
+            // нехватка выносливости откатывают обе записи: ничего не списано, задачи нет.
+            $db = \Config\Database::connect();
+            $db->transBegin();
+
             // Теперь создаём задачу
             $taskID = $this->createGatherTask($character, $user, $gatherTask);
+            if ($taskID === 0) {
+                $db->transRollback();
+                Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text' => (new \App\Services\Tasks\ActiveTasksService())->slotTakenText(
+                        is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0,
+                        is_string($gatherTask['name_rus'] ?? null) ? $gatherTask['name_rus'] : ''
+                    ),
+                    'parse_mode' => 'Markdown',
+                ]);
+            }
+
+            // v0.51.28 fix: deductTiredness тільки тут (на реальному старті задачі),
+            // не на показ меню вибору часу. Раніше — double-deduct (5 stamina × 2:
+            // натиснення `gather` + натиснення `gather_30`). Reported у Bugs-info.
+            if (!$this->deductTiredness($character)) {
+                $db->transRollback();
+                Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text' => $this->lowStaminaText($character),
+                    'parse_mode' => 'Markdown',
+                ]);
+            }
+            $db->transCommit();
 
             // Восстанавливаем исходное значение, если нужно
             $gatherTask['max_duration'] = $originalMax;
@@ -251,8 +271,9 @@ class GatherAction extends BaseAction
         // Дальше считаем endTime
         $endTime = (clone $startTime)->add(new \DateInterval('PT' . $maxDuration . 'M'));
 
-        // Сохранение задачи
-        $this->characterTaskModel->save([
+        // Сохранение задачи — через ядро слота (s1-atomicity-05, C2): `0` — 🔒-слот занят, строки нет.
+        $tasks = new \App\Services\Tasks\ActiveTasksService();
+        $tasks->insertExclusiveTaskRow([
             'character_id'      => $character['id'],
             'telegram_user_id'  => $user['id'],
             'task_id'           => $gatherTask['id'],
@@ -261,7 +282,7 @@ class GatherAction extends BaseAction
             'status'            => 'in_work',
         ]);
 
-        return $this->characterTaskModel->insertID();
+        return $tasks->lastInsertedTaskId();
     }
 
     protected function sendGatherResponse($character, $biome, $gatherTask, $taskID)

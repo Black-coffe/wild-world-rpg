@@ -174,36 +174,6 @@ class StartCraftReinforcedLeather2Action extends BaseAction
             ], $chatId);
         }
 
-        // Списываем золото/предметы/ресурсы
-        // 1) золото
-        $this->characterModel
-            ->where('id', $character['id'])
-            ->set('gold', 'gold - ' . $totalGoldNeeded, false)
-            ->update();
-
-        // 2) Крафтовые предметы
-        foreach ($craftedNeed as $itemName => $qtyPerOne) {
-            $totalNeeded = $qtyPerOne * $this->quantity;
-            $craftedItem = $this->craftedItemsModel->getCraftedItemByName($itemName);
-            $logRow = $this->craftedItemsLogModel
-                ->where('character_id', $character['id'])
-                ->where('crafted_item_id', $craftedItem['id'])
-                ->first();
-            $newQty = $logRow['quantity'] - $totalNeeded;
-            $this->craftedItemsLogModel->update($logRow['id'], ['quantity' => $newQty]);
-        }
-
-        // 3) Сырьевые ресурсы
-        foreach ($rawNeeded as $res) {
-            $totalNeeded = $res['qty'] * $this->quantity;
-            $resourceRow = (new \App\Models\ResourceModel())->getResourceByName($res['name']);
-            $this->charResourceModel
-                ->where('id_characters', $character['id'])
-                ->where('id_resources', $resourceRow['id'])
-                ->set('quantity', 'quantity - ' . $totalNeeded, false)
-                ->update();
-        }
-
         // Создаём (или находим) запись задачи "craftReinforcedLeatherJacket"
         $taskRow = $this->taskModel->where('name', 'craftReinforcedLeatherJacket')->first();
         if (!$taskRow) {
@@ -244,7 +214,9 @@ class StartCraftReinforcedLeather2Action extends BaseAction
         $endTime    = (clone $startTime)->add(new \DateInterval("PT{$totalTime}M"));
 
         // Вставляем задачу
-        $this->characterTaskModel->insert([
+        // s1-atomicity-03 (C2, C6): строка задачи — до списаний и только через ядро слота.
+        $activeTasks = new \App\Services\Tasks\ActiveTasksService();
+        if ($activeTasks->insertExclusiveTaskRow([
             'character_id'     => $character['id'],
             'telegram_user_id' => $user['id'],
             'task_id'          => $taskRow['id'],
@@ -255,7 +227,47 @@ class StartCraftReinforcedLeather2Action extends BaseAction
                 'item_crafted' => 'ReinforcedLeatherJacket',
                 'quantity'     => $this->quantity,
             ]),
-        ]);
+        ]) !== \App\Services\Db\WriteOutcome::Applied) {
+            // s1-atomicity-03 (C5): 🔒-слот занят между гейтом и вставкой — текст ADR-167, ничего не списано.
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $activeTasks->slotTakenText(
+                    is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0,
+                    is_string($taskRow['name_rus'] ?? null) ? $taskRow['name_rus'] : ''
+                ),
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
+        // Списываем золото/предметы/ресурсы
+        // 1) золото
+        $this->characterModel
+            ->where('id', $character['id'])
+            ->set('gold', 'gold - ' . $totalGoldNeeded, false)
+            ->update();
+
+        // 2) Крафтовые предметы
+        foreach ($craftedNeed as $itemName => $qtyPerOne) {
+            $totalNeeded = $qtyPerOne * $this->quantity;
+            $craftedItem = $this->craftedItemsModel->getCraftedItemByName($itemName);
+            $logRow = $this->craftedItemsLogModel
+                ->where('character_id', $character['id'])
+                ->where('crafted_item_id', $craftedItem['id'])
+                ->first();
+            $newQty = $logRow['quantity'] - $totalNeeded;
+            $this->craftedItemsLogModel->update($logRow['id'], ['quantity' => $newQty]);
+        }
+
+        // 3) Сырьевые ресурсы
+        foreach ($rawNeeded as $res) {
+            $totalNeeded = $res['qty'] * $this->quantity;
+            $resourceRow = (new \App\Models\ResourceModel())->getResourceByName($res['name']);
+            $this->charResourceModel
+                ->where('id_characters', $character['id'])
+                ->where('id_resources', $resourceRow['id'])
+                ->set('quantity', 'quantity - ' . $totalNeeded, false)
+                ->update();
+        }
 
         // Снимаем "часики"
         Request::answerCallbackQuery([

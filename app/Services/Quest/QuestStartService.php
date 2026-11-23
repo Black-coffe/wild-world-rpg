@@ -6,6 +6,8 @@ namespace App\Services\Quest;
 
 use App\Models\CharacterFactionModel;
 use App\Models\QuestModel;
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\WriteOutcome;
 use Config\Database;
 
 /**
@@ -17,8 +19,9 @@ use Config\Database;
  * предусловие цепочки выполнено), фракция, уровень, не начат. `claimFirstStep()` — общий для
  * всех стартов шаг записи: проверка «уже есть строка `quest_steps`» и вставка идут в одной транзакции
  * под `SELECT … FOR UPDATE` строки персонажа. Двойной тап, повтор формы или бот+веб одновременно —
- * второй ждёт первого и видит его строку. `UNIQUE` на `quest_steps` не вводится (повторяемость квестов
- * не проверена), поэтому сериализация — по персонажу.
+ * второй ждёт первого и видит его строку. s1-atomicity-02 (C7): писателя мимо этой блокировки держит
+ * `UNIQUE (quest_id, character_id)` — вставка идёт через `insertUnique()`, и `Refused` даёт тот же
+ * исход «уже начат», что и чтение-гейт.
  */
 final class QuestStartService
 {
@@ -137,8 +140,8 @@ final class QuestStartService
 
                 return false;
             }
-            $now = date('Y-m-d H:i:s');
-            $db->table('quest_steps')->insert([
+            $now     = date('Y-m-d H:i:s');
+            $outcome = (new ConditionalWriteService($db))->insertUnique('quest_steps', [
                 'quest_id'     => $questId,
                 'character_id' => $characterId,
                 'step_order'   => 1,
@@ -147,6 +150,12 @@ final class QuestStartService
                 'created_at'   => $now,
                 'updated_at'   => $now,
             ]);
+            if ($outcome === WriteOutcome::Refused) {
+                // Строка пары вклинилась после чтения-гейта — тот же исход, что и у гейта.
+                $db->transRollback();
+
+                return false;
+            }
             $db->transCommit();
         } catch (\Throwable $e) {
             $db->transRollback();

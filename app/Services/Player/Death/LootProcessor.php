@@ -155,15 +155,26 @@ class LootProcessor
     // ---- apply (DB writes у проигравшего) ----
 
     /**
+     * s1-atomicity-10: план потерь посчитан ДО списания, а `decreaseQtyById()` при нехватке
+     * отказывает целиком. Поэтому списывается `min(lossAmount, текущий остаток)` условной
+     * записью, и наружу уходит ФАКТИЧЕСКИ списанное — победитель получает только его.
+     * Отказ условной записи (остаток успел уменьшиться ещё раз) — перечитать и повторить.
+     *
      * @param list<array{charResId:int,resourceId:int,lossAmount:int}> $lostResources
+     * @return list<array{charResId:int,resourceId:int,lossAmount:int}> списано на деле, без нулевых строк
      */
-    public function applyLosses(int $loserId, array $lostResources, int $lostGold): void
+    public function applyLosses(int $loserId, array $lostResources, int $lostGold): array
     {
+        $deducted = [];
         foreach ($lostResources as $lr) {
-            $this->characterResourceModel->decreaseQtyById(
-                $lr['charResId'],
-                $lr['lossAmount']
-            );
+            $taken = $this->deductUpTo($lr['charResId'], $lr['lossAmount']);
+            if ($taken > 0) {
+                $deducted[] = [
+                    'charResId'  => $lr['charResId'],
+                    'resourceId' => $lr['resourceId'],
+                    'lossAmount' => $taken,
+                ];
+            }
         }
 
         if ($lostGold > 0) {
@@ -172,6 +183,26 @@ class LootProcessor
             (new \App\Services\Player\CharacterStatsService())
                 ->adjust($loserId, ['gold' => -$lostGold]);
         }
+
+        return $deducted;
+    }
+
+    /** Списать до `$amount` со строки; вернуть, сколько списано на деле (0 — строки/остатка нет). */
+    private function deductUpTo(int $charResId, int $amount): int
+    {
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $row = $this->characterResourceModel->find($charResId);
+            $raw = is_array($row) ? ($row['quantity'] ?? null) : null;
+            $take = min($amount, is_numeric($raw) ? (int) $raw : 0);
+            if ($take <= 0) {
+                return 0;
+            }
+            if ($this->characterResourceModel->decreaseQtyById($charResId, $take)) {
+                return $take;
+            }
+        }
+
+        return 0;
     }
 
     /**

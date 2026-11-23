@@ -39,7 +39,10 @@ final class CraftQueueServiceTest extends CIUnitTestCase
                 character_id INT NOT NULL, task_id INT NOT NULL,
                 start_time DATETIME NULL, end_time DATETIME NULL,
                 status VARCHAR(50) NOT NULL, task_settings TEXT NULL,
-                created_at DATETIME NULL, updated_at DATETIME NULL
+                created_at DATETIME NULL, updated_at DATETIME NULL,
+                is_exclusive TINYINT(1) NOT NULL DEFAULT 0,
+                exclusive_slot INT UNSIGNED GENERATED ALWAYS AS (IF(`status` = \'in_work\' AND `is_exclusive` = 1, `character_id`, NULL)) STORED,
+                UNIQUE KEY uq_ct_exclusive_slot (exclusive_slot)
             )');
 
         $db->table('tasks')->insert(['name_rus' => 'Изготовление ножа', 'type' => 'craft']);

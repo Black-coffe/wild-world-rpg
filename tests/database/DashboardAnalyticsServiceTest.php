@@ -60,11 +60,15 @@ final class DashboardAnalyticsServiceTest extends CIUnitTestCase
         $db->query('CREATE TABLE resources (id INT PRIMARY KEY, name VARCHAR(255))');
         $db->query('CREATE TABLE resources_bank (id INT AUTO_INCREMENT PRIMARY KEY, resource_id INT, current_quantity BIGINT)');
         $db->query('CREATE TABLE tasks (id INT PRIMARY KEY, type VARCHAR(255))');
-        $db->query("CREATE TABLE character_tasks (id INT AUTO_INCREMENT PRIMARY KEY, task_id INT, status VARCHAR(20) DEFAULT 'in_work')");
+        $db->query("CREATE TABLE character_tasks (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NULL, task_id INT, status VARCHAR(20) DEFAULT 'in_work',
+                    `is_exclusive` TINYINT(1) NOT NULL DEFAULT 0,
+                    `exclusive_slot` INT UNSIGNED GENERATED ALWAYS AS (IF(`status` = 'in_work' AND `is_exclusive` = 1, `character_id`, NULL)) STORED,
+                    UNIQUE KEY `uq_ct_exclusive_slot` (`exclusive_slot`))");
         $db->query("CREATE TABLE world_objects (id INT PRIMARY KEY, status VARCHAR(20) DEFAULT 'active')");
         $db->query("CREATE TABLE active_events (id INT PRIMARY KEY, status VARCHAR(20) DEFAULT 'active')");
         $db->query('CREATE TABLE quests (id INT PRIMARY KEY)');
-        $db->query('CREATE TABLE quest_steps (id INT AUTO_INCREMENT PRIMARY KEY, is_completed TINYINT DEFAULT 0)');
+        $db->query('CREATE TABLE quest_steps (id INT AUTO_INCREMENT PRIMARY KEY, quest_id INT NULL, character_id INT NULL, is_completed TINYINT DEFAULT 0,
+                    UNIQUE KEY uq_qs_quest_character (quest_id, character_id))');
         $db->query('CREATE TABLE map (id INT PRIMARY KEY)');
 
         $daysAgo = static fn (int $d): string => date('Y-m-d H:i:s', strtotime("-{$d} days"));

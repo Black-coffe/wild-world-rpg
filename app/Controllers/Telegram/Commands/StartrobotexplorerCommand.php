@@ -256,6 +256,34 @@ class StartrobotexplorerCommand extends UserCommand
             return $this->sendMessage($chatId, "Прочность робота равна 0, запуск невозможен.");
         }
 
+        // 12) Создаём задачу исследования. s1-atomicity-04 (C2, C6): запись задачи — через ядро
+        //     слота и ДО списания прочности; робот параллелен, но `Refused` не списывает ничего.
+        $startTime = new DateTime();
+        $endTime   = (clone $startTime)->add(new DateInterval('PT' . $hoursUntilBreakdown . 'H'));
+
+        $taskSettings = json_encode([
+            'coordinates'        => ['x' => $x, 'y' => $y],
+            'duration_hours'     => $hoursUntilBreakdown,
+            'exploration_radius' => $workshopLevel,
+            // V18 (ADR-049): робот для tier-aware множителя (T2 Разведчик = больше клеток).
+            'crafted_item_id'    => $robotId,
+        ]);
+
+        $activeTasks = new \App\Services\Tasks\ActiveTasksService();
+        $outcome     = $activeTasks->insertExclusiveTaskRow([
+            'character_id'     => $characterId,
+            'telegram_user_id' => $telegramUser['id'],
+            'task_id'          => $taskId,
+            'start_time'       => $startTime->format('Y-m-d H:i:s'),
+            'end_time'         => $endTime->format('Y-m-d H:i:s'),
+            'status'           => 'in_work',
+            'task_settings'    => $taskSettings,
+        ]);
+        if ($outcome !== \App\Services\Db\WriteOutcome::Applied) {
+            return $this->sendMessage($chatId, $activeTasks->slotTakenText((int) $characterId, 'Робот-исследователь'));
+        }
+        $this->logger->debug("Создана задача ExploringLocationRobot для персонажа ID={$characterId}");
+
         // Списываем
         $newDurability = $currentDurability - $requiredDurability;
 
@@ -276,29 +304,6 @@ class StartrobotexplorerCommand extends UserCommand
                 'durability_count' => $newDurability,
             ]);
         }
-
-        // 12) Создаём задачу исследования
-        $startTime = new DateTime();
-        $endTime   = (clone $startTime)->add(new DateInterval('PT' . $hoursUntilBreakdown . 'H'));
-
-        $taskSettings = json_encode([
-            'coordinates'        => ['x' => $x, 'y' => $y],
-            'duration_hours'     => $hoursUntilBreakdown,
-            'exploration_radius' => $workshopLevel,
-            // V18 (ADR-049): робот для tier-aware множителя (T2 Разведчик = больше клеток).
-            'crafted_item_id'    => $robotId,
-        ]);
-
-        $characterTaskModel->insert([
-            'character_id'     => $characterId,
-            'telegram_user_id' => $telegramUser['id'],
-            'task_id'          => $taskId,
-            'start_time'       => $startTime->format('Y-m-d H:i:s'),
-            'end_time'         => $endTime->format('Y-m-d H:i:s'),
-            'status'           => 'in_work',
-            'task_settings'    => $taskSettings,
-        ]);
-        $this->logger->debug("Создана задача ExploringLocationRobot для персонажа ID={$characterId}");
 
         // 13) Подсчитываем остаток роботов
         $allRobotRows = $craftedItemsLogModel

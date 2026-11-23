@@ -323,7 +323,11 @@ class CraftOrderService
                 ]);
             }
 
-            $this->characterTaskModel->insert([
+            // s1-atomicity-03 (C2, C6): вставка — через ядро слота в той же транзакции, что списание.
+            // 🔒-слот, занятый между гейтом и вставкой (`UNIQUE uq_ct_exclusive_slot`), — `Refused`:
+            // откат всего списания и текст ADR-167, как у гейта.
+            $activeTasks = new ActiveTasksService();
+            $outcome     = $activeTasks->insertExclusiveTaskRow([
                 'character_id'     => $characterId,
                 'telegram_user_id' => $this->characterIntField($character, 'telegram_user_id'),
                 'task_id'          => $taskId,
@@ -338,7 +342,15 @@ class CraftOrderService
                     'consumed' => ['resources' => $consumedResources, 'crafted_items' => $consumedItems, 'gold' => $goldRequired],
                 ], JSON_UNESCAPED_UNICODE),
             ]);
-            $insertedId = (int) $this->characterTaskModel->getInsertID();
+            if ($outcome !== WriteOutcome::Applied) {
+                $db->transRollback();
+                $taskNameRus = is_string($taskRow['name_rus'] ?? null) ? $taskRow['name_rus'] : '';
+
+                return $fail(self::BUSY, $activeTasks->slotTakenText($characterId, $taskNameRus), [
+                    'reason' => 'exclusive_task_busy', 'extra' => [],
+                ]);
+            }
+            $insertedId = $activeTasks->lastInsertedTaskId();
 
             if ($db->transStatus() === false) {
                 $db->transRollback();

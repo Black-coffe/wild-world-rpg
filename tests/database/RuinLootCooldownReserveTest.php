@@ -62,7 +62,8 @@ final class RuinLootCooldownReserveTest extends CIUnitTestCase
         $db->query('
             CREATE TABLE character_resources (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                id_characters INT NOT NULL, id_resources INT NOT NULL, quantity INT NOT NULL DEFAULT 0
+                id_characters INT NOT NULL, id_resources INT NOT NULL, quantity INT NOT NULL DEFAULT 0,
+                UNIQUE KEY uq_cr_char_resource (id_characters, id_resources)
             )');
         $db->query('
             CREATE TABLE game_settings (

@@ -154,7 +154,8 @@ class MarchAction extends BaseAction
         // Тик Похода редактирует сообщение, на котором нажата кнопка: id уходят в саму вставку строки.
         $march   = new MarchService();
         $outcome = $march->start($characterId, $dir, $n, $chatId, (int) $this->callbackQuery->getMessage()->getMessageId());
-        if ($outcome['code'] === MarchService::NO_TASK) {
+        // BUSY — проигранная гонка за 🔒-слот (ADR-167): игрок видит, чем занят, а не тихий редроу выбора.
+        if ($outcome['code'] === MarchService::NO_TASK || $outcome['code'] === MarchService::BUSY) {
             return Request::sendMessage(['chat_id' => $chatId, 'text' => $outcome['message']]);
         }
         if (!$outcome['ok']) {

@@ -71,6 +71,7 @@ final class WebOnlyCharacterWorkerTest extends CIUnitTestCase
         '2024-03-22-132411_CreateCharacterTasksTable',
         '2026-05-09-200000_AddQueuedStatusToCharacterTasks',
         '2026-05-10-190000_AddPausedStatusToCharacterTasks',
+        '2026-12-25-100000_S1CharacterTasksExclusiveSlot',
         '2024-03-24-212921_CreateExploredCellsTable',
         '2024-04-16-100640_CreateCraftedItemsTable',
         '2024-04-16-122053_CreateCraftedItemsLogTable',

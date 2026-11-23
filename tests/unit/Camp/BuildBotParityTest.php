@@ -52,6 +52,7 @@ final class BuildBotParityTest extends CIUnitTestCase
         '2024-03-22-111828_CreateTasksTable',
         '2024-03-22-132411_CreateCharacterTasksTable',
         '2026-05-10-190000_AddPausedStatusToCharacterTasks',
+        '2026-12-25-100000_S1CharacterTasksExclusiveSlot',
         '2024-04-16-100640_CreateCraftedItemsTable',
         '2024-04-16-122053_CreateCraftedItemsLogTable',
         '2024-05-23-061031_CreateClaimedCellsTable',
@@ -1473,7 +1474,8 @@ final class BuildBotParityTest extends CIUnitTestCase
             );
             $this->conn->query(
                 'CREATE TABLE character_resources (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, id_characters INT UNSIGNED NOT NULL,'
-                . ' id_resources INT UNSIGNED NOT NULL, quantity INT NOT NULL DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)'
+                . ' id_resources INT UNSIGNED NOT NULL, quantity INT NOT NULL DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL,'
+                . ' UNIQUE KEY uq_cr_char_resource (id_characters, id_resources))'
             );
         } catch (\Throwable $e) {
             $this->dropTables();

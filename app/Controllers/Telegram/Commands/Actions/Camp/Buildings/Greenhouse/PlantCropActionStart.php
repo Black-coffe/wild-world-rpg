@@ -118,7 +118,10 @@ class PlantCropActionStart extends BaseAction
             return $this->sendError($chatId, "У тебя нет семян «{$meta['crop_ru']}». Сначала заготовь их.");
         }
 
-        $this->characterTaskModel->insert([
+        // s1-atomicity-04 (C2, C6): вставка через ядро слота в той же транзакции, что и списание
+        // семени; посадка параллельна, но `Refused` откатывает списание.
+        $activeTasks = new \App\Services\Tasks\ActiveTasksService($db);
+        $taskOutcome = $activeTasks->insertExclusiveTaskRow([
             'character_id'     => $charId,
             'telegram_user_id' => $user['id'],
             'task_id'          => $plantTaskId,
@@ -130,6 +133,10 @@ class PlantCropActionStart extends BaseAction
                 'rotation' => $willRot,
             ]),
         ]);
+        if ($taskOutcome !== WriteOutcome::Applied) {
+            $db->transRollback();
+            return $this->sendError($chatId, $activeTasks->slotTakenText($charId, $meta['crop_ru']));
+        }
 
         $db->transComplete();
         if ($db->transStatus() === false) {

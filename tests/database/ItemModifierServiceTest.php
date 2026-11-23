@@ -31,7 +31,7 @@ final class ItemModifierServiceTest extends CIUnitTestCase
         $db->query('CREATE TABLE game_settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(191) NOT NULL, category VARCHAR(64) NULL, value_type VARCHAR(16) NULL, value_int INT NULL, value_float DECIMAL(15,5) NULL, value_bool TINYINT NULL, value_string TEXT NULL, hard_min VARCHAR(32) NULL, hard_max VARCHAR(32) NULL)');
         $db->query('CREATE TABLE item_modifiers (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NOT NULL, item_type VARCHAR(16) NOT NULL, item_instance_id INT NOT NULL, stat VARCHAR(32) NOT NULL, bonus_pct INT NOT NULL DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL)');
         $db->query('CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100) NULL, gold INT NOT NULL DEFAULT 0)');
-        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT NOT NULL, id_resources INT NOT NULL, quantity INT NOT NULL DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
+        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT NOT NULL, id_resources INT NOT NULL, quantity INT NOT NULL DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL, UNIQUE KEY uq_cr_char_resource (id_characters, id_resources))');
         $db->query('CREATE TABLE resources (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100) NULL, rarity INT NULL)');
         $db->query('CREATE TABLE characters_weapons (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NOT NULL, weapon_id INT NOT NULL, equipped TINYINT NOT NULL DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL)');
     }
