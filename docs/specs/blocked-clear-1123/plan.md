@@ -1,4 +1,5 @@
 # A returning player gets messages again (plan)
+**Shipped:** 2026-11-24, 7995be06
 **Brief:** [brief.md](brief.md) · **Branch:** `vulyk/blocked-clear-1123` · **Approved:** «Одобрить с проверками Fable (Рекомендую)», 2026-11-23
 
 ## Goal
