@@ -25,7 +25,7 @@ conditional `TelegramUserModel::clearBlocked()`, which writes nothing when the p
 - Goes live: merge to `develop` deploys nothing by itself. Deploy is a tag/push, which this spec does not do.
 
 ## Stories
-- [ ] S1 Clear the blocked mark on a real Telegram update - asks: 1, 2, 3, 4, 5, 6, 7, 8, 9
+- [x] S1 Clear the blocked mark on a real Telegram update - asks: 1, 2, 3, 4, 5, 6, 7, 8, 9
   - files: `app/Services/Telegram/UpdatePipeline.php`, `app/Models/TelegramUserModel.php` (docblock only),
     `tests/database/UpdatePipelineTest.php` (add migration `2026-06-16-130000_AddBlockedAtToTelegramUsers` to its
     list and new tests), vault notes `mmorpg-vault/tech-writing/services/UpdatePipeline.md` and

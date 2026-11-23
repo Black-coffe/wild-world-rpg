@@ -17,9 +17,12 @@ use App\Services\Web\DeliveryContext;
 use App\Services\Web\SyntheticUpdateFactory;
 use App\Services\Web\VirtualChat;
 use App\Services\Web\VirtualIdentityService;
+use App\Services\Web\WebActService;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Forge;
 use CodeIgniter\Database\Migration;
+use CodeIgniter\Database\Query;
+use CodeIgniter\Events\Events;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -111,6 +114,7 @@ final class UpdatePipelineTest extends CIUnitTestCase
         '2026-05-08-220000_AddDisableMediaFlag',
         '2026-05-19-100000_CreateGameSettingsTable',
         '2026-05-22-330000_TipsCAddDailyToggle',
+        '2026-06-16-130000_AddBlockedAtToTelegramUsers',
         '2026-07-17-100000_E6AddLastSeenToTelegramUsers',
         '2026-07-19-100000_E6AddLoginStreakToCharacters',
         '2026-07-20-100000_E6LoginStreakGameSettings',
@@ -122,6 +126,7 @@ final class UpdatePipelineTest extends CIUnitTestCase
         '2026-12-10-100001_CreateAccountsTables',
         '2026-12-10-100002_LinkCharactersToAccounts',
         '2026-12-10-100010_NullableTelegramKeys',
+        '2026-12-11-100001_CreateWebPlayTables',
         '2026-12-11-100003_PlayerActionLogWebSource',
         '2026-12-11-100005_SignedTelegramIdColumns',
     ];
@@ -129,10 +134,12 @@ final class UpdatePipelineTest extends CIUnitTestCase
     private const TABLES = [
         'biomes', 'map', 'telegram_users', 'accounts', 'account_identities', 'account_tokens', 'account_link_codes',
         'characters', 'action_log', 'tasks', 'character_tasks', 'explored_cells', 'game_settings', 'player_action_log',
-        'telegram_updates_seen',
+        'telegram_updates_seen', 'web_play_state', 'web_inbox', 'web_play_intents',
     ];
 
     private const REAL_TG = 555000333;
+
+    private const BLOCKED_AT = '2026-11-01 10:00:00';
 
     private BaseConnection $conn;
 
@@ -344,6 +351,147 @@ final class UpdatePipelineTest extends CIUnitTestCase
         $this->assertSame('web', $log['source']);
     }
 
+    // ── blocked-clear-1123: настоящий апдейт из лички с ботом снимает «заблокировал бота» ──
+
+    /**
+     * Ask 1, 6, 8 — апдейты личного чата с ботом, которые снимают метку.
+     *
+     * @return array<string, array{0: array<string, mixed>}>
+     */
+    public static function privateChatUpdates(): array
+    {
+        $from = ['id' => self::REAL_TG, 'is_bot' => false, 'first_name' => 'Т'];
+        $chat = ['id' => self::REAL_TG, 'type' => 'private', 'first_name' => 'Т'];
+        $bot  = ['id' => 1, 'is_bot' => true, 'first_name' => 'Bot'];
+
+        return [
+            'text message' => [[
+                'update_id' => 930001,
+                'message'   => ['message_id' => 10, 'date' => 1, 'text' => 'база', 'from' => $from, 'chat' => $chat],
+            ]],
+            'button tap' => [[
+                'update_id'      => 930002,
+                'callback_query' => [
+                    'id' => '7', 'from' => $from, 'chat_instance' => '1', 'data' => 'guide',
+                    'message' => ['message_id' => 5, 'date' => 1, 'chat' => $chat, 'text' => 'x'],
+                ],
+            ]],
+            'unblock (my_chat_member member)' => [[
+                'update_id'      => 930003,
+                'my_chat_member' => [
+                    'chat' => $chat, 'from' => $from, 'date' => 1,
+                    'old_chat_member' => ['status' => 'kicked', 'user' => $bot, 'until_date' => 0],
+                    'new_chat_member' => ['status' => 'member', 'user' => $bot],
+                ],
+            ]],
+        ];
+    }
+
+    /**
+     * Ask 6, 8 — апдейты из Telegram, которые метку не снимают: блокировка, группа, inline.
+     *
+     * @return array<string, array{0: array<string, mixed>}>
+     */
+    public static function notPrivateChatOrBlockingUpdates(): array
+    {
+        $from  = ['id' => self::REAL_TG, 'is_bot' => false, 'first_name' => 'Т'];
+        $bot   = ['id' => 1, 'is_bot' => true, 'first_name' => 'Bot'];
+        $group = ['id' => -1001234567890, 'type' => 'supergroup', 'title' => 'Сообщество'];
+
+        return [
+            'block (my_chat_member kicked)' => [[
+                'update_id'      => 930101,
+                'my_chat_member' => [
+                    'chat' => ['id' => self::REAL_TG, 'type' => 'private', 'first_name' => 'Т'], 'from' => $from, 'date' => 1,
+                    'old_chat_member' => ['status' => 'member', 'user' => $bot],
+                    'new_chat_member' => ['status' => 'kicked', 'user' => $bot, 'until_date' => 0],
+                ],
+            ]],
+            'group message' => [[
+                'update_id' => 930102,
+                'message'   => ['message_id' => 11, 'date' => 1, 'text' => 'привет', 'from' => $from, 'chat' => $group],
+            ]],
+            'group my_chat_member' => [[
+                'update_id'      => 930103,
+                'my_chat_member' => [
+                    'chat' => $group, 'from' => $from, 'date' => 1,
+                    'old_chat_member' => ['status' => 'left', 'user' => $bot],
+                    'new_chat_member' => ['status' => 'member', 'user' => $bot],
+                ],
+            ]],
+            'inline query' => [[
+                'update_id'    => 930104,
+                'inline_query' => ['id' => '9', 'from' => $from, 'query' => 'база', 'offset' => ''],
+            ]],
+        ];
+    }
+
+    /** @param array<string, mixed> $update */
+    #[\PHPUnit\Framework\Attributes\DataProvider('privateChatUpdates')]
+    public function testWebhookUpdateFromPrivateChatClearsBlockedMark(array $update): void
+    {
+        $tgUser = $this->makeTelegramUser(self::REAL_TG, self::BLOCKED_AT);
+        $this->makeCharacter($tgUser);
+
+        $this->controllerFor($update)->webhook();
+
+        $this->assertNull($this->row('telegram_users', ['id' => $tgUser])['blocked_at'], 'настоящий апдейт из лички снимает метку');
+    }
+
+    /** @param array<string, mixed> $update */
+    #[\PHPUnit\Framework\Attributes\DataProvider('notPrivateChatOrBlockingUpdates')]
+    public function testWebhookUpdateOutsidePrivateChatOrBlockingKeepsBlockedMark(array $update): void
+    {
+        $tgUser = $this->makeTelegramUser(self::REAL_TG, self::BLOCKED_AT);
+        $this->makeCharacter($tgUser);
+
+        $this->controllerFor($update)->webhook();
+
+        $this->assertSame(self::BLOCKED_AT, $this->row('telegram_users', ['id' => $tgUser])['blocked_at']);
+    }
+
+    /** Ask 4 — не отмеченный игрок: снятие идёт условным UPDATE и не трогает ни одной строки. */
+    public function testNeverMarkedPlayerIsNotWrittenByTheClear(): void
+    {
+        $tgUser  = $this->makeTelegramUser(self::REAL_TG);
+        $this->makeCharacter($tgUser);
+        $cleared = [];
+        $listen  = function (Query $query) use (&$cleared): void {
+            $sql = $query->getQuery();
+            if (str_starts_with(ltrim($sql), 'UPDATE') && str_contains($sql, '`blocked_at` = NULL')) {
+                $cleared[] = $this->conn->affectedRows();
+            }
+        };
+        Events::on('DBQuery', $listen);
+
+        try {
+            $this->controllerFor($this->textUpdate(self::REAL_TG, 'база'))->webhook();
+        } finally {
+            Events::removeListener('DBQuery', $listen);
+        }
+
+        $this->assertSame([0], $cleared, 'снятие отработало ровно раз и не изменило ни одной строки');
+        $this->assertNull($this->row('telegram_users', ['id' => $tgUser])['blocked_at']);
+    }
+
+    /** Ask 2, 9 — действие привязанного игрока (настоящий Telegram id) через /play метку не снимает. */
+    public function testWebActionOfLinkedPlayerThroughWebActServiceKeepsBlockedMark(): void
+    {
+        $accountId = (new AccountService($this->conn))->createAccount('web');
+        $tgUser    = $this->makeTelegramUser(self::REAL_TG, self::BLOCKED_AT);
+        $charId    = $this->makeCharacter($tgUser, $accountId);
+
+        $result = (new WebActService($this->conn, $this->realPipeline()))
+            ->act($accountId, $charId, ['intent_id' => 'blocked-1', 'kind' => 'command', 'data' => '/guide']);
+
+        $this->assertNull($result['alert'], 'действие прошло конвейер');
+        $log = $this->row('player_action_log', ['character_id' => $charId]);
+        $this->assertSame('web', $log['source']);
+        $this->assertSame('ok', $log['status']);
+        $this->assertSame(self::REAL_TG, (int) $log['telegram_user_id'], 'веб пришёл с настоящим Telegram id');
+        $this->assertSame(self::BLOCKED_AT, $this->row('telegram_users', ['id' => $tgUser])['blocked_at'], 'веб метку не снимает');
+    }
+
     // ── Фикстура ─────────────────────────────────────────────────────────
 
     /** @param (callable(array<array-key, mixed>|null): void)|null $dispatch */
@@ -424,10 +572,10 @@ final class UpdatePipelineTest extends CIUnitTestCase
         return (int) $this->conn->insertID();
     }
 
-    private function makeTelegramUser(int $telegramId): int
+    private function makeTelegramUser(int $telegramId, ?string $blockedAt = null): int
     {
         $now = date('Y-m-d H:i:s');
-        $this->conn->table('telegram_users')->insert(['telegram_id' => $telegramId, 'created_at' => $now, 'updated_at' => $now]);
+        $this->conn->table('telegram_users')->insert(['telegram_id' => $telegramId, 'blocked_at' => $blockedAt, 'created_at' => $now, 'updated_at' => $now]);
 
         return (int) $this->conn->insertID();
     }

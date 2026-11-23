@@ -71,7 +71,9 @@ class TelegramUserModel extends Model
     }
 
     /**
-     * Снять отметку блокировки (пользователь вернулся — успешная отправка).
+     * Снять отметку блокировки (пользователь вернулся): успешная отправка рассыльщика или
+     * настоящий входящий апдейт из лички с ботом ({@see \App\Services\Telegram\UpdatePipeline},
+     * только вебхук, не `/play`, не `my_chat_member` со статусом `kicked`).
      * Условный UPDATE (только если был отмечен) — self-heal без лишних записей.
      */
     public function clearBlocked(string $telegramId): void
