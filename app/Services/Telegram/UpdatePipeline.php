@@ -32,6 +32,9 @@ use Longman\TelegramBot\Telegram;
  * blocked-clear-1123: в `finally` рядом с `last_seen` вебхук снимает `telegram_users.blocked_at`,
  * если апдейт пришёл из лички с ботом и это не блокировка ({@see isPrivateChatSignOfLife()}).
  * Единственное место снятия метки по входящему апдейту; `web` её не снимает никогда.
+ *
+ * blocked-mark-1124: там же вебхук ставит метку, если игрок заблокировал бота в своей личке
+ * (`my_chat_member` → `kicked`, {@see isPrivateChatBlock()}); условно, `web` — никогда.
  */
 final class UpdatePipeline
 {
@@ -177,6 +180,13 @@ final class UpdatePipeline
                 && self::isPrivateChatSignOfLife($update, $telegramUserId)) {
                 $this->clearBlocked($telegramUserId);
             }
+            // blocked-mark-1124 — игрок заблокировал бота в своей личке (`my_chat_member` → `kicked`):
+            // ставим метку сразу, не дожидаясь отказа рассылки. Только вебхук и только положительный
+            // id из лички (группа и виртуальный чат сюда не проходят: chat.id = отправитель, private).
+            if (! $isWeb && $telegramUserId !== null && $telegramUserId > 0 && is_array($update)
+                && self::isPrivateChatBlock($update, $telegramUserId)) {
+                $this->markBlocked($telegramUserId);
+            }
             // ADR-148 — одна строка firehose, и при исключении тоже (defensive, no-op без begin).
             PlayerActionLogger::current()->commit();
             // ADR-168 — метка живёт ровно один апдейт.
@@ -222,6 +232,39 @@ final class UpdatePipeline
         }
 
         return false;
+    }
+
+    /**
+     * blocked-mark-1124 — игрок заблокировал бота в своей личке: `my_chat_member` с `chat.type =
+     * private`, `chat.id` = отправитель и новым статусом `kicked`. Группа, чужой чат, прочие апдейты —
+     * нет. Чистая функция; зеркало ветки `my_chat_member` из {@see isPrivateChatSignOfLife()}.
+     *
+     * @param array<array-key, mixed> $update
+     */
+    public static function isPrivateChatBlock(array $update, int $telegramId): bool
+    {
+        $member = $update['my_chat_member'] ?? null;
+        if (! is_array($member)) {
+            return false;
+        }
+        $chat = $member['chat'] ?? null;
+        if (! is_array($chat) || ($chat['type'] ?? null) !== 'private'
+            || ! is_numeric($chat['id'] ?? null) || (int) $chat['id'] !== $telegramId) {
+            return false;
+        }
+        $new = $member['new_chat_member'] ?? null;
+
+        return is_array($new) && ($new['status'] ?? null) === 'kicked';
+    }
+
+    /** Условная простановка метки: уже отмеченный игрок даты не меняет; сбой в лог, апдейт не ломает. */
+    private function markBlocked(int $telegramId): void
+    {
+        try {
+            (new TelegramUserModel())->markBlocked((string) $telegramId);
+        } catch (\Throwable $e) {
+            log_message('error', '[UpdatePipeline] markBlocked: ' . $e->getMessage());
+        }
     }
 
     /** Условное снятие метки: не отмеченный игрок не пишется; сбой не ломает апдейт. */
