@@ -93,6 +93,21 @@ final class S1ExclusiveSlotOnRealSchemaTest extends CIUnitTestCase
         $this->assertTrue($this->conn->fieldExists('is_exclusive', 'character_tasks'));
     }
 
+    /** F11: падение после ADD COLUMN `exclusive_slot` — повторный up() доводит миграцию, а не стопорится на дубле колонки. */
+    public function testRerunAfterPartialApplyCompletes(): void
+    {
+        $this->applyS1();
+        $this->conn->query('ALTER TABLE `character_tasks` DROP INDEX `uq_ct_exclusive_slot`');
+        $this->conn->resetDataCache();
+
+        $this->applyS1();
+        $this->applyS1();
+
+        $idx = $this->conn->query("SHOW INDEX FROM `character_tasks` WHERE Key_name = 'uq_ct_exclusive_slot'");
+        $this->assertNotFalse($idx);
+        $this->assertNotSame([], $idx->getResultArray(), 'UNIQUE восстановлен повторным up()');
+    }
+
     public function testSecondExclusiveInWorkIsRefusedByUnique(): void
     {
         $this->applyS1();

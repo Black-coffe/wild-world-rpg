@@ -21,7 +21,11 @@ if [[ $code -ne 0 ]]; then
 fi
 
 # Цвета CLI срезаются (в пайпе их нет, но на всякий случай), затем ищется заголовок исключения.
-if printf '%s\n' "$out" | sed -E 's/\x1b\[[0-9;]*m//g' | grep -Eiq '^[[:space:]]*\[[A-Za-z0-9_\\]*(exception|error)[A-Za-z0-9_]*\][[:space:]]*$'; then
+# Поиск идёт по переменной (here-string), а не пайпом из printf: под `pipefail` `grep -q` выходит на
+# первом совпадении, писатель длинного вывода получает SIGPIPE (141), и пайп считался неуспехом —
+# исключение перед >~80 КБ вывода проходило зелёным.
+clean="$(sed -E 's/\x1b\[[0-9;]*m//g' <<<"$out")"
+if grep -Eiq '^[[:space:]]*\[[A-Za-z0-9_\\]*(exception|error)[A-Za-z0-9_]*\][[:space:]]*$' <<<"$clean"; then
     echo "ERROR: php spark migrate printed an exception (exit code 0 hides it) — release NOT switched" >&2
     exit 1
 fi

@@ -63,13 +63,21 @@ class S1CharacterTasksExclusiveSlot extends Migration
         // VIRTUAL, не STORED: у `character_id` FK ON DELETE/UPDATE CASCADE (`CreateCharacterTasksTable`),
         // а STORED-колонку от столбца с каскадным ключом MySQL отвергает (1215). UNIQUE по VIRTUAL
         // InnoDB держит так же — индекс хранит вычисленное значение (s1-atomicity-09).
-        $this->db->query(
-            'ALTER TABLE `character_tasks` ADD COLUMN `exclusive_slot` INT UNSIGNED '
-            . "GENERATED ALWAYS AS (IF(`status` = 'in_work' AND `is_exclusive` = 1, `character_id`, NULL)) VIRTUAL"
+        // F11: повторный запуск после падения между ALTER'ами не должен стопориться на «Duplicate column/key».
+        if (! $this->db->fieldExists('exclusive_slot', 'character_tasks')) {
+            $this->db->query(
+                'ALTER TABLE `character_tasks` ADD COLUMN `exclusive_slot` INT UNSIGNED '
+                . "GENERATED ALWAYS AS (IF(`status` = 'in_work' AND `is_exclusive` = 1, `character_id`, NULL)) VIRTUAL"
+            );
+        }
+        $hasKey = $this->db->query(
+            "SHOW INDEX FROM `character_tasks` WHERE Key_name = 'uq_ct_exclusive_slot'"
         );
-        $this->db->query(
-            'ALTER TABLE `character_tasks` ADD UNIQUE KEY `uq_ct_exclusive_slot` (`exclusive_slot`)'
-        );
+        if (! ($hasKey instanceof BaseResult) || $hasKey->getResultArray() === []) {
+            $this->db->query(
+                'ALTER TABLE `character_tasks` ADD UNIQUE KEY `uq_ct_exclusive_slot` (`exclusive_slot`)'
+            );
+        }
     }
 
     public function down(): void

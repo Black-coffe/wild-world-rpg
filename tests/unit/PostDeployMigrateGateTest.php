@@ -71,6 +71,20 @@ final class PostDeployMigrateGateTest extends CIUnitTestCase
         $this->assertStringContainsString('duplicate pairs', $out, 'вывод spark виден в логе деплоя');
     }
 
+    /**
+     * Под `set -o pipefail` `grep -q` выходит на первом совпадении, `printf | sed` получает SIGPIPE (141), и
+     * весь пайп считался неуспехом — исключение в начале длинного вывода (>~80 КБ) проходило зелёным.
+     */
+    public function testExceptionFollowedByLongOutputStillFails(): void
+    {
+        [$out, $code] = $this->fake(
+            "Running all new migrations...\n\n[RuntimeException]\n\nduplicate pairs\n\n" . str_repeat(str_repeat('x', 99) . "\n", 3000),
+            0
+        );
+        $this->assertSame(1, $code, 'исключение перед 300 КБ вывода должно валить шаг');
+        $this->assertStringContainsString('release NOT switched', $out);
+    }
+
     public function testDatabaseExceptionClassNameIsCaughtToo(): void
     {
         [, $code] = $this->fake("Running all new migrations...\n\n[CodeIgniter\\Database\\Exceptions\\DatabaseException]\n\nUnable to connect to the database.\n", 0);
