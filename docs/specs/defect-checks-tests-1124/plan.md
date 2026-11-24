@@ -1,4 +1,5 @@
 # Defect checks as PHPUnit tests (plan)
+**Shipped:** 2026-11-24, c1f15401
 **Brief:** [brief.md](brief.md) · **Branch:** `vulyk/defect-checks-tests-1124` · **Approved:** «Одобрить (Рекомендую)», 2026-11-24
 
 ## Goal
@@ -64,3 +65,7 @@ plans must exit 0 (the defect is not back).
 
 ## Descoped
 (none)
+
+## Follow-up
+- F2 (review round 1, minor): `testEveryFixtureFileIsDeclaredByACard` accepts a fixture of any card, but only the six wired cards run their fixtures. When a seventh card gets `fixtures:`, wire it into a test, or add the assertion «cards with fixtures = CODE_CARDS + entry-off-audience-path».
+- Full unit2 was not run end to end on this spec (local MySQL down, the run stalled past 10 min); `tests/unit/Defects` is green on the merge.
