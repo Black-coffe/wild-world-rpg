@@ -29,6 +29,9 @@ finding/area.
 - 2026-11-24, plan questions and approval: Вопрос 1: «Новая ветка, squash только кода (Рекомендую)». Вопрос 2:
   «Оставить только на старой ветке (Рекомендую)». Вопрос 3: «Да, 1–8 плюс 9–13 (Рекомендую)». Вопрос 4:
   «Одобрить (Рекомендую)».
+- 2026-11-24, merge question: «Влить (Рекомендую)». (The option said the minor findings go to plan.md
+  `## Follow-up` with conditions before any push; the orchestrator's relayed list of those conditions is in
+  plan.md `## Follow-up`, not the owner's words.)
 
 ## Asks
 Asks 1–8 are the old brief's asks (2026-11-11), carried over unchanged in meaning.
