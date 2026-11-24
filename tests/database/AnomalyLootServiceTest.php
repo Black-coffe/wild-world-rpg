@@ -54,6 +54,7 @@ final class AnomalyLootServiceTest extends CIUnitTestCase
             CREATE TABLE character_resources (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 id_characters INT NOT NULL, id_resources INT NOT NULL, quantity INT NOT NULL DEFAULT 0,
+                created_at DATETIME NULL, updated_at DATETIME NULL,
                 UNIQUE KEY uq_cr_char_resource (id_characters, id_resources)
             )');
         $db->query('

@@ -71,6 +71,14 @@ asked for, and a green full suite on the merged result. Review is code-only and 
   - check: the new/changed test files, then the db part(s) holding them
   - outside: `phpstan-baseline.neon` — six `GatherResultPersister` entries (nullable promoted property,
     read-add-write offsets) no longer match after the rewrite and phpstan fails on unmatched ignores
+  - review round 1 (ask 13, major 1): six more read-add-write credit paths moved to the model's upsert —
+    `app/Models/ResourceModel.php` (`addOrIncreaseResource`, keeps the `name_en` lookup and `false` on unknown
+    name, then delegates), `app/Controllers/Telegram/Commands/Actions/Games/FortuneWheelAction.php`,
+    `app/Controllers/Telegram/Commands/Actions/StartGame/GatherTips.php`, `app/Services/PVE/TributeService.php`,
+    `app/TaskHandlers/Built/HandPumpProductionHandler.php`, `app/TaskHandlers/GreenhouseProductionHandler.php`;
+    test `tests/database/ResourceCreditSitesUpsertTest.php`. Outside: the hand-written `character_resources`
+    fixtures of `tests/database/RuinLootServiceTest.php`, `MarchMiniEventServiceTest.php`,
+    `AnomalyLootServiceTest.php` lacked the real table's `created_at`/`updated_at`, which the upsert writes
 - [x] S5 ADR and tech-writing - asks: 8
   - files (vault, left uncommitted): `mmorpg-vault/decisions/ADR-NNN-*.md` + `decisions/index.md` line (or ADR-167
     addendum), tech-writing notes of every touched model/service/handler (`CharacterResourceModel`,
@@ -97,6 +105,10 @@ asked for, and a green full suite on the merged result. Review is code-only and 
     `ensureChainAssigned()` answers false on a wedged row (test: `tests/database/OnboardingChainInsertStepUniqueTest.php`;
     the unit double's `insertStep()` now returns `bool`). `CraftQueueServiceTest` fixture: STORED -> VIRTUAL. The six
     hand-written unit fixtures pass unchanged in unit2, so none was touched
+  - review round 1 (ask 6, major 2): `php spark migrate` exits 0 when a migration throws, so a refusing S1
+    migration did not stop the deploy. The migrate step moves to `deploy/migrate.sh` (exits 1 on a non-zero code
+    or an exception header in spark's output), called from `deploy/post-deploy.sh` before the switch; test
+    `tests/unit/PostDeployMigrateGateTest.php` (real spark on closed port 1, plus a stubbed `PHP_BIN`)
 
 ## Review split
 Code only, not spec files; one reviewer pass per area so no pass reads the whole 3.4k-line import:

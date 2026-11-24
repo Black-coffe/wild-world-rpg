@@ -263,23 +263,8 @@ class GatherTips extends Controller
     protected function saveFoundResources($foundResources, $character)
     {
         foreach ($foundResources as $resource) {
-            // Проверка на существование ресурса для персонажа
-            $existingResource = $this->characterResourceModel->where([
-                'id_characters' => $character['id'],
-                'id_resources' => $resource['resource_id'],
-            ])->first();
-
-            if ($existingResource) {
-                $newQuantity = $existingResource['quantity'] + $resource['amount'];
-                $this->characterResourceModel->update($existingResource['id'], ['quantity' => $newQuantity]);
-            } else {
-                $this->characterResourceModel->insert([
-                    'id_characters' => $character['id'],
-                    'id_resources' => $resource['resource_id'],
-                    'id_telegram_users' => $character['telegram_user_id'],
-                    'quantity' => $resource['amount'],
-                ]);
-            }
+            // s1-atomicity-1124 review round 1: атомарный upsert по UNIQUE пары, не read-add-write.
+            $this->characterResourceModel->addOrIncreaseResource($character['id'], $resource['resource_id'], $resource['amount']);
         }
     }
 

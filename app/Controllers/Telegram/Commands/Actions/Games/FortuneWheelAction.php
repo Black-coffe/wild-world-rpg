@@ -224,22 +224,8 @@ class FortuneWheelAction extends BaseAction
 
     protected function addOrUpdateCharacterResource($character, $resourceId, $quantity)
     {
-        $existingResource = $this->characterResourceModel->where([
-            'id_characters' => $character['id'],
-            'id_resources' => $resourceId
-        ])->first();
-
-        if ($existingResource) {
-            $newQuantity = $existingResource['quantity'] + $quantity;
-            $this->characterResourceModel->update($existingResource['id'], ['quantity' => $newQuantity]);
-        } else {
-            $this->characterResourceModel->insert([
-                'id_characters' => $character['id'],
-                'id_resources' => $resourceId,
-                'id_telegram_users' => $character['telegram_user_id'],
-                'quantity' => $quantity
-            ]);
-        }
+        // s1-atomicity-1124 review round 1: атомарный upsert по UNIQUE пары, не read-add-write.
+        $this->characterResourceModel->addOrIncreaseResource($character['id'], $resourceId, $quantity);
     }
 
     protected function subtractGoldFromCharacter($characterId, $amount)
