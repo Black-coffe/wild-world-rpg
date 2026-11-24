@@ -55,7 +55,7 @@ asked for, and a green full suite on the merged result. Review is code-only and 
     record the query when the order is wrong)
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Player/PoolAdoptionRepairUpgradeTest.php
     tests/unit/TaskHandlers/GreenhouseProductionWaterTest.php`, then the unit2 part
-- [ ] S3 RED finding 2: robot gathering takes the 🔒 slot through the core - asks: 10, 3
+- [x] S3 RED finding 2: robot gathering takes the 🔒 slot through the core - asks: 10, 3
   - files: `app/Controllers/Telegram/Commands/Actions/Camp/Buildings/Robots/StartRobotGatheringAction.php`,
     `tests/database/RobotGatheringStartSlotTest.php`, `tests/unit/Camp/StartRobotGatheringBaseTest.php`
   - test first: `RobotGatheringStartSlotTest` fails today (durability spent, no refusal); fix mirrors

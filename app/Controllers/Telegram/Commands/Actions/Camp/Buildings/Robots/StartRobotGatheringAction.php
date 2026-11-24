@@ -211,6 +211,35 @@ class StartRobotGatheringAction extends BaseAction
             }
         }
 
+        // 7) Создаём новую задачу (GatheringResourcesRobot) в character_tasks.
+        //    s1-atomicity (ask 10, finding 2 раунда 1): через ядро слота и ДО списания
+        //    прочности, как StartRobotExplorationAction; `Refused` не списывает ничего.
+        $startTime   = new \DateTime();
+        $endTime     = (clone $startTime)->add(new \DateInterval('PT' . $hoursUntilBreakdown . 'H'));
+        $activeTasks = new \App\Services\Tasks\ActiveTasksService();
+        $outcome     = $activeTasks->insertExclusiveTaskRow([
+            'character_id'     => $characterId,
+            'telegram_user_id' => $user['id'],
+            'task_id'          => $taskId,
+            'start_time'       => $startTime->format('Y-m-d H:i:s'),
+            'end_time'         => $endTime->format('Y-m-d H:i:s'),
+            'status'           => 'in_work',
+            // V18 (ADR-049): какой именно робот запущен — для tier-aware множителя
+            // в CompleteRobotGatheringHandler (T2 Промышленник = больше выхода + клеток).
+            // multibase-picker-05: `base_cell` — клетка базы запуска; завершение копает
+            // вокруг неё. Нет ключа (задание до выкатки) — легаси-правило в хендлере.
+            'task_settings'    => json_encode(['crafted_item_id' => (int) $robotId, 'base_cell' => $baseCell]),
+        ]);
+        if ($outcome !== \App\Services\Db\WriteOutcome::Applied) {
+            // Текст ADR-167 — Markdown, а `sendError()` шлёт без parse_mode.
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $activeTasks->slotTakenText((int) $characterId, 'Робот-добытчик'),
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
         // Списываем нужное количество
         $newDurability = $currentDurability - $requiredDurability;
         if ($newDurability <= 0) {
@@ -231,24 +260,6 @@ class StartRobotGatheringAction extends BaseAction
                 'durability_count' => $newDurability,
             ]);
         }
-
-        // 7) Создаём новую задачу (GatheringResourcesRobot) в character_tasks
-        $startTime = new \DateTime();
-        $endTime   = (clone $startTime)->add(new \DateInterval('PT' . $hoursUntilBreakdown . 'H'));
-
-        $this->characterTaskModel->save([
-            'character_id'     => $characterId,
-            'telegram_user_id' => $user['id'],
-            'task_id'          => $taskId,
-            'start_time'       => $startTime->format('Y-m-d H:i:s'),
-            'end_time'         => $endTime->format('Y-m-d H:i:s'),
-            'status'           => 'in_work',
-            // V18 (ADR-049): какой именно робот запущен — для tier-aware множителя
-            // в CompleteRobotGatheringHandler (T2 Промышленник = больше выхода + клеток).
-            // multibase-picker-05: `base_cell` — клетка базы запуска; завершение копает
-            // вокруг неё. Нет ключа (задание до выкатки) — легаси-правило в хендлере.
-            'task_settings'    => json_encode(['crafted_item_id' => (int) $robotId, 'base_cell' => $baseCell]),
-        ]);
 
         // E20 (ADR-120) — инструментация адопшена (успешные запуски раньше не логировались).
         $this->logActivity((int) $characterId, 'START_ROBOT_GATHERER', "robot={$robotId} hours={$hoursUntilBreakdown}");
