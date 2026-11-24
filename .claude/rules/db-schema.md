@@ -1,5 +1,5 @@
 ---
-paths: ["app/Database/Migrations/**", "app/Models/**", "app/Config/WipeManifest.php"]
+paths: ["app/Database/Migrations/**", "app/Models/**", "app/Config/WipeManifest.php", "app/Config/CraftRecipes.php"]
 ---
 # Схема и данные
 
@@ -73,3 +73,10 @@ paths: ["app/Database/Migrations/**", "app/Models/**", "app/Config/WipeManifest.
 - Изменения, НЕ создающие таблиц и НЕ добавляющие player-связи (индексы, FK, рефактор данных) — манифест трогать не нужно (но coverage-тест всё равно зелёный, т.к. таблица уже классифицирована).
 
 ---
+
+## Новый рецепт — три места (`docs/defects/craft-recipe-three-places.md`)
+
+Generic-craft рецепт без строки в `tasks` падает «Задача 'craftX' не найдена в базе», и unit-тесты конфига этого
+не ловят. Одна миграция сидит `crafted_items` и `tasks` (`name` = `task_name` рецепта,
+`handler_key='generic_craft'`), рецепт в `Config\CraftRecipes`; для готовки ещё ключ в меню костра и
+`GameSettings` лечения и сытости. Эталон — миграция `V8AddCookingItems`.

@@ -193,7 +193,8 @@ player-поверхности — вердикт обычно «нет», но �
 | Архитектурные решения | **`mmorpg-vault/decisions/ADR-NNN-*.md`** (+ строка в `decisions/index.md`); `docs/adr/` — указатель |
 | Доменные знания | **`mmorpg-vault/tech-writing/`** (модели · сервисы · handler'ы · task-handler'ы · контроллеры · db) и **`mmorpg-vault/lore/`** (канон); `docs/wiki/` — указатель |
 | Карта кода | `mmorpg-vault/apps/<подсистема>/index.md` |
-| Классы дефектов | `docs/defects/` — карточки старого VULYK с цитатами владельца; читать перед работой в их области. Автоматически их проверки больше не запускаются; перенос в `.claude/rules/` — отдельный шаг |
+| Классы дефектов | правила — в `.claude/rules/` (`player-text`, `game-integrity`, `web-links-assets`, `cron-and-notifications`, `db-schema`, `lessons`), перенесены 2026-11-24; `docs/defects/` — архив карточек с дословными цитатами владельца. Проверки `scripts/defects-*-check.php` запускаются руками, авто-гейта нет |
+| Карта кода старого улья | `memory/map/<домен>.md`, раздел `## Gotchas` — указатель в `.claude/rules/code-map.md` |
 | Уроки по коду и процессу | `.claude/rules/lessons.md` или `.claude/rules/<тема>.md` с `paths:` (блок `## VULYK`) |
 | Уроки «как со мной работать» | `C:\Projects\mmorpg-vault\claude-memory\` (личная память Claude) |
 | Что в работе сейчас | `mmorpg-vault/wiki/hot.md` — читать до планирования |
