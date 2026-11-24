@@ -26,6 +26,9 @@ class S1CharacterTasksExclusiveSlot extends Migration
 {
     public function up(): void
     {
+        // down() → up() в одном процессе: кэш списка полей помнит снятые колонки.
+        $this->db->resetDataCache();
+
         if (! $this->db->fieldExists('is_exclusive', 'character_tasks')) {
             $this->db->query(
                 'ALTER TABLE `character_tasks` ADD COLUMN `is_exclusive` TINYINT(1) NOT NULL DEFAULT 0'
@@ -50,6 +53,10 @@ class S1CharacterTasksExclusiveSlot extends Migration
 
         if ($violators !== []) {
             // Возвращаем таблицу к виду до миграции: повторный запуск после ручного разбора начнёт с нуля.
+            // exclusive_slot (от прошлого частичного запуска) вычисляется из is_exclusive — снимаем его первым.
+            if ($this->db->fieldExists('exclusive_slot', 'character_tasks')) {
+                $this->db->query('ALTER TABLE `character_tasks` DROP COLUMN `exclusive_slot`');
+            }
             $this->db->query('ALTER TABLE `character_tasks` DROP COLUMN `is_exclusive`');
 
             throw new \RuntimeException(

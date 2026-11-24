@@ -153,10 +153,15 @@ final class RuinLootService
         $readyBefore = date('Y-m-d H:i:s', $nowTs - $this->cooldownHours() * 3600);
 
         $db = Database::connect();
+        // Вне транзакции `false` — остаток чужой закрытой транзакции (CI4 не сбрасывает его в
+        // transBegin()): без сброса здоровый лут откатывался бы проверкой статуса ниже.
+        if ($db->transDepth === 0) {
+            $db->resetTransStatus();
+        }
         $db->transBegin();
         try {
             if (! $this->log->reserveCooldown($characterId, $sid, $now, $readyBefore)) {
-                $db->transRollback();
+                $this->rollbackClean($db);
 
                 return ['ok' => false, 'reason' => 'cooldown', 'remaining' => $this->remainingCooldownSeconds($characterId, $sid, $nowTs)];
             }
@@ -170,15 +175,14 @@ final class RuinLootService
                 }
             }
         } catch (\Throwable $e) {
-            $db->transRollback();
+            $this->rollbackClean($db);
 
             throw $e;
         }
         // Упавший внутри транзакции запрос CI4 не бросает, а гасит transStatus: коммит отдал бы
         // кулдаун без лута, а испорченный статус ломал бы следующие записи процесса.
         if (! $db->transStatus()) {
-            $db->transRollback();
-            $db->resetTransStatus();
+            $this->rollbackClean($db);
 
             return ['ok' => false, 'reason' => 'invalid'];
         }
@@ -187,5 +191,19 @@ final class RuinLootService
         }
 
         return ['ok' => true, 'awarded' => $awarded];
+    }
+
+    /**
+     * Откат, после которого соединение не остаётся с погашенным статусом для следующих записей процесса.
+     * Внутри внешней транзакции статус не трогаем: её провал должен дожить до внешнего коммита.
+     *
+     * @param \CodeIgniter\Database\BaseConnection<object|resource, object|resource> $db
+     */
+    private function rollbackClean(\CodeIgniter\Database\BaseConnection $db): void
+    {
+        $db->transRollback();
+        if ($db->transDepth === 0) {
+            $db->resetTransStatus();
+        }
     }
 }

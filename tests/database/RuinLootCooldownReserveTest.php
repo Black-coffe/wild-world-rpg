@@ -213,4 +213,24 @@ final class RuinLootCooldownReserveTest extends CIUnitTestCase
         );
         $this->assertTrue(Database::connect()->transStatus(), 'статус транзакции остался испорченным');
     }
+
+    /** Остаток чужой упавшей транзакции на соединении не откатывает здоровый лут. */
+    #[DataProvider('entrances')]
+    public function testStaleFailedStatusDoesNotRollBackAHealthyLoot(string $prefix): void
+    {
+        $db = Database::connect();
+        $db->transBegin();
+        try {
+            $db->query('SELECT `no_such_column` FROM `resources`');
+        } catch (\Throwable) {
+            // статус гасится до броска
+        }
+        $db->transCommit();
+        $this->assertFalse($db->transStatus(), 'предусловие: статус испорчен');
+
+        $result = (new RuinLootService(log: $this->staleSnapshotLog(), keyPrefix: $prefix))
+            ->loot(4444, $this->settlementRow());
+
+        $this->assertTrue($result['ok'], 'здоровый лут откатился из-за чужого статуса');
+    }
 }

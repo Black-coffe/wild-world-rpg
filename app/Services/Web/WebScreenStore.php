@@ -282,7 +282,8 @@ class WebScreenStore
             return $result;
         } catch (\Throwable $e) {
             $this->db->transRollback();
-            if ($statusBefore) {
+            // Внутри внешней транзакции провал должен дожить до её коммита — сбрасываем только снаружи.
+            if ($statusBefore && $this->db->transDepth === 0) {
                 $this->db->resetTransStatus();
             }
 

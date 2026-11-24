@@ -108,6 +108,26 @@ final class S1ExclusiveSlotOnRealSchemaTest extends CIUnitTestCase
         $this->assertNotSame([], $idx->getResultArray(), 'UNIQUE восстановлен повторным up()');
     }
 
+    /** Повтор после частичного запуска при новых дублях: отказ миграции, а не ошибка MySQL на снятии колонки. */
+    public function testRerunWithDuplicatesRefusesWithTheIntendedMessage(): void
+    {
+        $this->applyS1();
+        $this->conn->query('ALTER TABLE `character_tasks` DROP INDEX `uq_ct_exclusive_slot`');
+        $this->insertRow(self::TASK_EXCLUSIVE, 'in_work', 1);
+        $this->insertRow(self::TASK_EXCLUSIVE, 'in_work', 1);
+        $this->conn->resetDataCache();
+
+        try {
+            $this->migration(self::S1, null)->up();
+            $this->fail('миграция приняла дубли');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('разберите дубли', $e->getMessage());
+        }
+        $this->conn->resetDataCache();
+        $this->assertFalse($this->conn->fieldExists('is_exclusive', 'character_tasks'), 'таблица возвращена к виду до миграции');
+        $this->assertFalse($this->conn->fieldExists('exclusive_slot', 'character_tasks'));
+    }
+
     public function testSecondExclusiveInWorkIsRefusedByUnique(): void
     {
         $this->applyS1();
