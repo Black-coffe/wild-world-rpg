@@ -165,3 +165,55 @@ TESTS: vendor/bin/phpstan analyse --memory-limit=512M --no-progress -> pass, no 
 - [minor] [ask 6] The duplicate-refusal branch of `S1QuestStepsUnique` and `S1CharacterResourcesUnique` has no test; only the `character_tasks` one does (C:/laragon/www/mmorpg/tests/database/ExclusiveTaskSlotConstraintTest.php:257). Test: seed two rows of one pair, call `up()`, expect `RuntimeException` naming the table, both rows still present and no `uq_*` index.
 - [minor] [ask 6] `S1CharacterTasksExclusiveSlot::up()` guards only `is_exclusive` with `fieldExists`. If `ADD UNIQUE` fails after `exclusive_slot` was added, a rerun stops on "Duplicate column name". Guard the `exclusive_slot` add the same way.
 ```
+
+## Round 2 - 2026-11-24 - head bc187f0bc35b56ab0edaca6fb08e1a51193f546d
+
+One `vulyk:reviewer` pass (Fable) over the whole brief, `since: a2649ae0`, with round 1's findings as F1–F11.
+
+```
+VERDICT: PASS
+TESTS: vendor/bin/phpunit --no-coverage --no-progress <ten parts from CLAUDE.md> -> pass, 5216 tests, 0 failures, 0 errors, 10 skipped (unit1 1943, unit2 1609, db1 276, db2 232, db3 238, db4 234, db5 156, db8 91, db6 250, db7 187); phpstan -> No errors; php -l of migrations -> clean
+
+## Asks
+1. delivered: UNIQUE by migration, start writers go through insertUnique(); three plain inserts remain as minor F6, C:/laragon/www/mmorpg/app/Database/Migrations/2026-12-25-100010_S1QuestStepsUnique.php:44
+2. delivered: generated column plus UNIQUE on the 🔒 slot, C:/laragon/www/mmorpg/app/Database/Migrations/2026-12-25-100000_S1CharacterTasksExclusiveSlot.php:67
+3. delivered: no direct insert/save of a character_tasks row in app/ outside the core (remaining `taskModel->insert` hits are `TaskModel`, table `tasks`); gather-vs-craft deadlock remains as minor F3, C:/laragon/www/mmorpg/app/Services/Tasks/ActiveTasksService.php:70
+4. delivered: one `INSERT … ON DUPLICATE KEY UPDATE quantity = quantity + ?` behind both methods, C:/laragon/www/mmorpg/app/Models/CharacterResourceModel.php:115
+5. delivered: deductions go through the conditional write, signatures unchanged, C:/laragon/www/mmorpg/app/Models/CharacterResourceModel.php:199
+6. delivered: migrations refuse on duplicates, and the refusal now stops the deploy before the symlink switch, C:/laragon/www/mmorpg/deploy/migrate.sh:14 (minors F9, F10, F11 and one new minor below)
+7. delivered: app/Config/Database.php not in the diff; S1 journal line and S1b in track S and the queue, C:/laragon/www/mmorpg/ROADMAP.md:59, :161, :293
+8. delivered: ADR-199 and tech-writing notes are on disk in the vault, including notes for the six sites touched this round, C:/Projects/mmorpg-vault/decisions/ADR-199-Task-exclusivity-and-resource-pairs-held-by-database.md:144
+9. delivered: unit2 green with both named tests in it; the assertion is still loose (minor F8), C:/laragon/www/mmorpg/tests/unit/Player/PoolAdoptionRepairUpgradeTest.php:244
+10. delivered: robot-gathering start writes through insertExclusiveTaskRow(), both named tests green, C:/laragon/www/mmorpg/app/Controllers/Telegram/Commands/Actions/Camp/Buildings/Robots/StartRobotGatheringAction.php:220
+11. delivered: outside app/ and tests/ the diff carries only ROADMAP.md, phpstan-baseline.neon, deploy/migrate.sh, deploy/post-deploy.sh and this spec's folder; no memory/ or docs/specs/s1-atomicity/ paths
+12. delivered: all ten parts, phpstan and php -l green at head (run this round)
+13. delivered: every credit path found now uses the same upsert, including the six from F1, C:/laragon/www/mmorpg/tests/database/ResourceCreditSitesUpsertTest.php:113
+
+## Findings
+- [minor] [ask 6] The exception check in the migrate gate can miss when spark prints a lot after the exception header, C:/laragon/www/mmorpg/deploy/migrate.sh:24. Under `set -o pipefail`, `grep -q` exits on the first match, `sed` dies on SIGPIPE, the pipeline returns 141 and the `if` reads that as "no exception", so the script exits 0. Probe on this machine (Git Bash): header followed by 300 KB of output passed the gate 30/30 times; up to 80 KB it was caught 30/30. A real exception block is under a few KB, so this does not block. Smallest fix: strip colours into a variable and match with `grep -Eiq '…' <<<"$clean"`, or replace `-q` with `>/dev/null`. Test: fake PHP_BIN printing `[RuntimeException]` then 300 KB of lines, exit 0; assert the gate exits 1.
+- [minor] [ask 3] F3 open: a gather start racing a 🔒 craft start deadlocks instead of refusing, C:/laragon/www/mmorpg/app/Controllers/Telegram/Commands/Actions/GatherAction.php:187-217. Smallest fix: `SELECT id FROM characters WHERE id = ? FOR UPDATE` right after `transBegin()`.
+- [minor] [correctness] F4 open: a queued 🔒 craft stays `queued` silently on `Refused`, C:/laragon/www/mmorpg/app/Services/Craft/CraftQueueService.php:266-268.
+- [minor] [correctness] F5 open: mini-event reward is paid when the resume lost a race (`!== Refused` treats `Missing` as success), C:/laragon/www/mmorpg/app/Controllers/Telegram/Commands/Actions/MarchMiniInvestigateAction.php:128. Smallest fix: award only on `WriteOutcome::Applied`.
+- [minor] [ask 1] F6 open: three plain `QuestStepsModel::insert()` calls remain, C:/laragon/www/mmorpg/app/Services/Quest/QuestChainService.php:212, :414 and C:/laragon/www/mmorpg/app/TaskHandlers/Objects/StrategicLootHandler.php:275.
+- [minor] [correctness] F7 open, still unverified: `down()` may fail on the FK index, C:/laragon/www/mmorpg/app/Database/Migrations/2026-12-25-100010_S1QuestStepsUnique.php:51.
+- [minor] [correctness] F8 open: the test accepts any `\RuntimeException`, C:/laragon/www/mmorpg/tests/unit/Player/PoolAdoptionRepairUpgradeTest.php:244. Smallest fix: assert the pool's message.
+- [minor] [ask 6] F9 open: fixtures declare `exclusive_slot` as `STORED` while the migration says `VIRTUAL`, e.g. C:/laragon/www/mmorpg/tests/database/ExclusiveTaskLockTest.php:55.
+- [minor] [ask 6] F10 open: the duplicate-refusal branch of `S1QuestStepsUnique` and `S1CharacterResourcesUnique` has no test.
+- [minor] [ask 6] F11 open: `up()` guards only `is_exclusive` with `fieldExists`, so a rerun after a failed `ADD UNIQUE` stops on a duplicate column, C:/laragon/www/mmorpg/app/Database/Migrations/2026-12-25-100000_S1CharacterTasksExclusiveSlot.php:29.
+
+## Past findings (round 2 and later)
+F1: fixed - all six sites now call `CharacterResourceModel::addOrIncreaseResource()`; `ResourceModel::addOrIncreaseResource` keeps the name lookup and `false` on an unknown name, then delegates (C:/laragon/www/mmorpg/app/Models/ResourceModel.php:175). The new test covers 6 sites x 2 cases with a second-connection credit and fails on the old read-add-write. No read-add-write credit on `character_resources` is left in app/.
+F2: fixed - post-deploy.sh:62 calls deploy/migrate.sh, which exits 1 on a non-zero spark code or an exception header in the output, before the switch. A migration exception does reach that header: `MigrationRunner` throws, `Migrate::run()` prints `[Class]` through app/Views/errors/cli/error_exception.php, and `DBDebug` is true. The real migrate run against port 1 exits non-zero; C:/laragon/www/mmorpg/tests/unit/PostDeployMigrateGateTest.php is 6/6 green. ADR-199 line 144 now names the gate. One new minor above.
+F3: open - untouched this round
+F4: open - untouched this round
+F5: open - untouched this round
+F6: open - untouched this round
+F7: open - untouched this round, still unverified
+F8: open - untouched this round
+F9: open - untouched this round
+F10: open - untouched this round
+F11: open - untouched this round
+```
+
+Reviewer's note: the brief is unchanged since `plan(s1-atomicity-1124): approved`; MySQL started for the run and
+shut down afterwards; checkout clean at `bc187f0b`.
