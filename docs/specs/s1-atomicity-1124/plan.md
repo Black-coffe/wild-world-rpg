@@ -1,4 +1,5 @@
 # S1 atomicity: finish the parked spec on thin VULYK (plan)
+**Shipped:** 2026-11-24, b1af04ff
 **Brief:** [brief.md](brief.md) · **Branch:** `vulyk/s1-atomicity-1124` · **Approved:** «Одобрить (Рекомендую)», 2026-11-24
 
 ## Goal
@@ -121,3 +122,41 @@ Code only, not spec files; one reviewer pass per area so no pass reads the whole
 
 ## Descoped
 (none)
+
+## Follow-up
+
+Owner's merge answer: «Влить (Рекомендую)», 2026-11-24. The conditions below were in the option he chose and in the
+orchestrator's relayed list (not the owner's words). Merged is not live: nothing has been pushed or deployed.
+
+**Before any push of `develop` (the push deploys preprod and runs the three migrations there):**
+1. Fix the exception check in `deploy/migrate.sh:24`: under `set -o pipefail` a `grep -q` match after >80 KB of
+   output ends in SIGPIPE (141) and the gate exits 0. Match on a variable (`grep -Eiq … <<<"$clean"`) or use
+   `>/dev/null`; test: fake `PHP_BIN` printing `[RuntimeException]` then 300 KB, exit 0 → the gate exits 1.
+2. The owner checks duplicates on all three keys on preprod and on prod (`quest_steps (quest_id, character_id)`,
+   `character_resources (id_characters, id_resources)`, two+ `in_work` 🔒 tasks per character) and decides what
+   happens to any found; the migrations refuse, they do not delete.
+3. F11 recovery step written down before the preprod push: if `S1CharacterTasksExclusiveSlot::up()` fails after
+   adding `exclusive_slot`, a rerun stops on "Duplicate column name"; either guard the add with `fieldExists` or
+   document the manual `ALTER TABLE character_tasks DROP COLUMN exclusive_slot` before rerunning.
+4. F9 as an explicit preprod check: 11 test fixtures declare `exclusive_slot` `STORED`, the migration `VIRTUAL`;
+   after the preprod migration, `SHOW CREATE TABLE character_tasks` must show `VIRTUAL` and `uq_ct_exclusive_slot`.
+
+**Before a prod tag:**
+5. F7 on preprod: `S1QuestStepsUnique::down()` may fail because MySQL may drop the implicit FK index on `quest_id`
+   once the UNIQUE serves it (add a plain index before dropping the UNIQUE).
+6. F11 verified on preprod (rerun guard / recovery step from item 3).
+7. F4 watched in the smoke: a queued 🔒 craft can stay `queued` silently when promotion is refused
+   (`CraftQueueService.php:266-268`); first follow-up spec if seen.
+
+**Open minor findings (review round 2, not fixed):** F3 gather-vs-🔒-craft start race deadlocks, loser gets a generic
+error (`GatherAction.php:187-217`); F5 pre-existing double award on concurrent «Осмотреть» (`MarchMiniInvestigateAction.php:128`);
+F6 three `quest_steps` inserts not via `insertUnique()` (`QuestChainService.php:212,414`, `StrategicLootHandler.php:275`);
+F8 loose assertion in `PoolAdoptionRepairUpgradeTest.php:244`; F10 no test of the duplicate-refusal branch of
+`S1QuestStepsUnique` / `S1CharacterResourcesUnique`. Also from S5 (not in any ask): the six standard-workbench
+`StartCraft*2` actions deduct gold/items without a `>= n` condition and without a transaction.
+
+**Found on the merge (pre-existing, not this spec):** `tests/database/CronSenderBlockedMarkTest.php` (blocked-mark-1124)
+fails 23/24 when run in one process after any test that does `define('PHPUNIT_TESTSUITE', true)` (longman's
+`Request::send()` then fakes every reply): reproduced with `PlantCropSeedConditionalWriteTest` on the develop base and
+with `RobotGatheringStartSlotTest`. The ten-part full suite keeps them in different processes, so it is green. Fix: the
+test should fail loudly or skip when the constant is already defined, or the sender path should not depend on it.
