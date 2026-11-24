@@ -454,9 +454,11 @@ class RepairCraftedItemAction extends BaseAction
      * в чём не бывало» — теперь это тоже бросает, и вызывающий отвечает игроку
      * текстом отказа, а не показывает ложный успех.
      *
-     * s1-atomicity-03 (C2, C6): строка задачи — первой и через ядро слота
-     * `insertExclusiveTaskRow()`; занятый 🔒-слот (`Refused`) откатывает транзакцию
-     * до списания и возвращает `false`.
+     * s1-atomicity-1124 S2 (RED finding 1, ask 9): сначала списание, потом строка
+     * задачи через ядро слота `insertExclusiveTaskRow()` — в одной транзакции.
+     * Проигранная гонка пула бросает до любого запроса к `character_tasks`;
+     * занятый 🔒-слот (`Refused`) откатывает транзакцию вместе со списанием и
+     * возвращает `false`.
      *
      * @param array<string,int> $cost
      * @param array<string,mixed> $taskRow строка `character_tasks`
@@ -469,12 +471,12 @@ class RepairCraftedItemAction extends BaseAction
         $db->transStart();
 
         try {
+            $this->deductResources($characterId, $cost);
             if ((new \App\Services\Tasks\ActiveTasksService())->insertExclusiveTaskRow($taskRow) !== \App\Services\Db\WriteOutcome::Applied) {
-                $db->transRollback();
+                $db->transRollback(); // откатывает и списание выше: ничего не потрачено
 
                 return false;
             }
-            $this->deductResources($characterId, $cost);
         } catch (\RuntimeException $e) {
             $db->transRollback();
             throw $e;

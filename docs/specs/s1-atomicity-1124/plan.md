@@ -47,7 +47,7 @@ asked for, and a green full suite on the merged result. Review is code-only and 
   - result: `decreaseQtyById` has one caller in `app/`, `LootProcessor::deductUpTo()`: on `false` it re-reads the
     row and retries with `min(amount, stock)` up to 3 times, then counts 0 taken. `ResourceTradeService` no longer
     calls it (own conditional write); `DeathService::confirmedResourceLoss()` only reads rows afterwards.
-- [ ] S2 RED finding 1: repair deducts before it takes the slot - asks: 9, 3
+- [x] S2 RED finding 1: repair deducts before it takes the slot - asks: 9, 3
   - files: `app/Controllers/Telegram/Commands/Actions/Craft/Repair/RepairCraftedItemAction.php`,
     `tests/unit/Player/PoolAdoptionRepairUpgradeTest.php`
   - test first: the pair below fails today (the task INSERT runs before the pool race throws); after the fix the
