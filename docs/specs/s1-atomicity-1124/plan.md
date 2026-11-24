@@ -84,9 +84,13 @@ asked for, and a green full suite on the merged result. Review is code-only and 
     `OnboardingChainService::insertStep()` still `QuestStepsModel::insert()`s after its own `hasStep()`, so
     under the new UNIQUE a concurrent insert of the same pair throws a duplicate key there; recorded as an open
     tail in the ADR and the `quest_steps` notes
-- [ ] S6 Full suite on the merged result - asks: 12, 6
-  - files: test fixtures that break on the S1 schema (the six named above, if they do), nothing else
-  - test first: none: verification story
+- [ ] S6 Full suite on the merged result, plus the last quest writer - asks: 12, 6, 1
+  - files: test fixtures that break on the S1 schema (the six named above, if they do; and
+    `tests/database/CraftQueueServiceTest.php`, whose fixture says `exclusive_slot ... STORED` while the migration
+    says VIRTUAL — copy the migration's DDL verbatim); `app/Services/Onboarding/OnboardingChainService.php`
+    (`insertStep()`, found in S5: the third `quest_steps` writer, ask 1) and its test
+  - test first: for `insertStep()` only — a row wedged between `hasStep()` and the insert makes the step a no-op
+    with one row and no exception; fails today with a duplicate key. The rest is verification
   - check: the ten full-suite parts of `CLAUDE.md` `## Команды`, one after another, all green; phpstan; `php -l`
     of migrations; `tests/database/UpdatePipelineTest.php tests/database/CronSenderBlockedMarkTest.php` green
 
