@@ -71,7 +71,7 @@ asked for, and a green full suite on the merged result. Review is code-only and 
   - check: the new/changed test files, then the db part(s) holding them
   - outside: `phpstan-baseline.neon` — six `GatherResultPersister` entries (nullable promoted property,
     read-add-write offsets) no longer match after the rewrite and phpstan fails on unmatched ignores
-- [ ] S5 ADR and tech-writing - asks: 8
+- [x] S5 ADR and tech-writing - asks: 8
   - files (vault, left uncommitted): `mmorpg-vault/decisions/ADR-NNN-*.md` + `decisions/index.md` line (or ADR-167
     addendum), tech-writing notes of every touched model/service/handler (`CharacterResourceModel`,
     `CharacterTaskModel`, `QuestStepsModel`, `ActiveTasksService`, `QuestStartService`, `CraftOrderService`,
@@ -79,6 +79,11 @@ asked for, and a green full suite on the merged result. Review is code-only and 
   - test first: none: documentation
   - check: `grep -l -E "exclusive_slot|uq_cr_char_resource|uq_qs_quest" C:/Projects/mmorpg-vault/decisions C:/Projects/mmorpg-vault/tech-writing -r`
     names the ADR and the notes; `CharacterResourceModel.md` no longer says "пара без UNIQUE"
+  - result: new ADR-199 (not an ADR-167 addendum), three new `db/` notes, three new consolidated handler notes
+    for actions that had none. Found while writing, not fixed (outside asks 1/13):
+    `OnboardingChainService::insertStep()` still `QuestStepsModel::insert()`s after its own `hasStep()`, so
+    under the new UNIQUE a concurrent insert of the same pair throws a duplicate key there; recorded as an open
+    tail in the ADR and the `quest_steps` notes
 - [ ] S6 Full suite on the merged result - asks: 12, 6
   - files: test fixtures that break on the S1 schema (the six named above, if they do), nothing else
   - test first: none: verification story
