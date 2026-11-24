@@ -7,6 +7,7 @@
 > 2. 38 старых веток vulyk/*, docs/vulyk/ADAPTATION.md и локальный хук .git/hooks/post-merge отмечает карту устаревшей и больше никому не нужен. Удалю, если скажете. ДЕЛАЙ
 
 ## Answers
+- 2026-11-24 · merge question (review round 1 PASS, minor F1 legacy list, F2 seventh card) — «Влить (Рекомендую)»
 
 ## Asks
 1. Each of the 6 checks `scripts/defects-*-check.php` runs inside the project's PHPUnit suite, in one of the 10 suite parts listed in `CLAUDE.md` `## Commands`, with no manual step.
