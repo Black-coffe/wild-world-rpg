@@ -193,7 +193,7 @@ player-поверхности — вердикт обычно «нет», но �
 | Архитектурные решения | **`mmorpg-vault/decisions/ADR-NNN-*.md`** (+ строка в `decisions/index.md`); `docs/adr/` — указатель |
 | Доменные знания | **`mmorpg-vault/tech-writing/`** (модели · сервисы · handler'ы · task-handler'ы · контроллеры · db) и **`mmorpg-vault/lore/`** (канон); `docs/wiki/` — указатель |
 | Карта кода | `mmorpg-vault/apps/<подсистема>/index.md` |
-| Классы дефектов | правила — в `.claude/rules/` (`player-text`, `game-integrity`, `web-links-assets`, `cron-and-notifications`, `db-schema`, `lessons`), перенесены 2026-11-24; `docs/defects/` — архив карточек с дословными цитатами владельца. Проверки `scripts/defects-*-check.php` запускаются руками, авто-гейта нет |
+| Классы дефектов | правила — в `.claude/rules/` (`player-text`, `game-integrity`, `web-links-assets`, `cron-and-notifications`, `db-schema`, `lessons`), перенесены 2026-11-24; `docs/defects/` — архив карточек с дословными цитатами владельца. Проверки `scripts/defects-*-check.php` идут в наборе PHPUnit (`tests/unit/Defects/`, часть unit2; живой прогон `task-result-foreign` — `tests/database/DefectTaskResultForeignCheckTest.php`, db3) и работают ручной командой |
 | Карта кода старого улья | `memory/map/<домен>.md`, раздел `## Gotchas` — указатель в `.claude/rules/code-map.md` |
 | Уроки по коду и процессу | `.claude/rules/lessons.md` или `.claude/rules/<тема>.md` с `paths:` (блок `## VULYK`) |
 | Уроки «как со мной работать» | `C:\Projects\mmorpg-vault\claude-memory\` (личная память Claude) |

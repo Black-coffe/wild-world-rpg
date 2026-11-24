@@ -3,6 +3,9 @@ paths: ["app/Services/Player/Trade/**", "app/Controllers/Telegram/Commands/Actio
 ---
 # Целостность игры — классы дефектов
 
+Строки «Проверка: `php scripts/defects-*-check.php`» ниже работают ручной командой и идут в наборе PHPUnit:
+`tests/unit/Defects/` (часть unit2), живой прогон `task-result-foreign` — `tests/database/DefectTaskResultForeignCheckTest.php` (db3).
+
 Перенесено из `docs/defects/` (цитаты владельца и разбор — в карточках).
 
 **Повтор подтверждения необратимого** (`confirm-repeats-irreversible`). Защита от гонки ≠ защита от повтора.

@@ -84,6 +84,12 @@ Three more findings follow the same new/old rule: new is red, older than this RE
 
 ## The gate
 
+**Now (2026-11-24):** `scripts/defects-check.sh` and `defects-index.sh` are gone with the old VULYK. The gate is
+the PHPUnit suite: `tests/unit/Defects/` (part unit2) runs every card's `check:` script as a subprocess against
+each declared fixture (must exit 1) and against today's code or unshipped plans (must exit 0); the live
+`task-result-foreign` run is `tests/database/DefectTaskResultForeignCheckTest.php` (part db3). Each `check:` still
+works as a manual command. The text below describes the old gate and is kept as history.
+
 ```
 bash scripts/defects-check.sh           # audit: debt, effective status, every block check against its fixtures
 bash scripts/defects-check.sh <arg>     # before showing work: debt, then every declared block check with <arg>
