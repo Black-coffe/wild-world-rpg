@@ -1,5 +1,5 @@
 # Defect checks as PHPUnit tests (plan)
-**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/defect-checks-tests-1124` · **Approved:** no
+**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/defect-checks-tests-1124` · **Approved:** «Одобрить (Рекомендую)», 2026-11-24
 
 ## Goal
 The six `scripts/defects-*-check.php` scripts stopped running when the old VULYK gate (`defects-check.sh`) went
