@@ -16,7 +16,7 @@ plans must exit 0 (the defect is not back).
 - Tests live in `tests/unit/Defects/` → suite part **unit2** (`tests/unit/[!S]*`). Measured script cost
   ~7 s in total, well inside 300 s.
 - `task-result-foreign` with no argument took ~29 s with local MySQL down (its catalogs read GameSettings).
-  If the live run needs the local DB, that one case moves to `tests/database/DefectTaskResultForeignCheckTest.php`
+  S1 decides it by running it once with local MySQL up and once down: if the live run needs the DB, that one case moves to `tests/database/DefectTaskResultForeignCheckTest.php`
   (part db3) and the fixture cases stay in unit. Only the local `wildworld_tests` DB, never preprod/prod.
 - `preprod-parity` cannot see live data in a test (it needs SSH to both servers, Ask 5): the test runs its two
   fixtures (must fail) and a synthetic clean snapshot (must pass). The live comparison stays in
@@ -26,7 +26,9 @@ plans must exit 0 (the defect is not back).
   `exploit-fix`, `storage-craft-insurance`, `transport-system`) fail it today: they predate the check (added
   2026-10-12) and are shipped or dormant without a Shipped line. They go into a frozen legacy list in the test
   with that reason; every other and every new plan is checked. A spec's plan is checked on its own branch,
-  which is where it matters.
+  which is where it matters. A thin-VULYK spec reaches `develop` with `**Shipped:**` already filled (the ship
+  commit sets it before the merge, e.g. `c8ddb481`), so a merged plan does not trip the suite; this spec's own
+  plan touches no player surface and passes.
 - The duel script duplicates part of `tests/database/DuelOutcomeTest.php`; it is still wrapped, because its
   fixtures (original, neighbour, first-strike) are the proof the check is not blind, and it needs no DB.
 - Not part of this work: changing what any check detects; removing the scripts; the old cards' front matter.
@@ -43,6 +45,8 @@ plans must exit 0 (the defect is not back).
     confirm-once, duel-knockout, preprod-parity and task-result-foreign must exit non-zero; a deliberately
     clean input (empty dir / clean TSV) must exit 0; then the live runs on `app/` must exit 0. Proved red by
     pointing one case at a fixture with the expectation inverted once, locally, before committing.
+  - helper autoload: `DefectCheckRunner` must load through the project's test autoload (check `composer.json`
+    `autoload-dev`), or be a trait/static inside the test file.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Defects`
 - [ ] S2 Audience surfaces over plans, and the docs - asks: 1, 2, 3, 4
   - files: `tests/unit/Defects/DefectAudienceSurfacesTest.php`, `docs/defects/README.md`,
