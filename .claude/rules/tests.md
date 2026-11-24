@@ -14,8 +14,6 @@ paths: ["tests/**", "phpunit.xml.dist"]
 - Longman `Request::send()` под PHPUnit замыкается сам (`Request.php:698-702`): перехват отправок — через шов
   приложения `Request::send()`, не только `BridgeClient`.
 - Ложно-красный полный набор — общее состояние: забытый `php -S`, два набора разом на `wildworld_tests`.
-- `CronSenderBlockedMarkTest` падает, если в том же процессе до него шёл тест, задающий `PHPUNIT_TESTSUITE`
-  (Follow-up `s1-atomicity-1124`); по частям набора зелёный.
 - Называть причину только после grep: однажды диагноз сослался на несуществующий `BaseConnection::$saveQueries`.
 - CI гонит весь набор **одним процессом**, а локальные 10 частей — разными: зависимость от порядка видна только в
   CI (2026-11-25: 73 падения). Перед push после крупного мерджа — `vendor/bin/phpunit --no-coverage --no-progress`
