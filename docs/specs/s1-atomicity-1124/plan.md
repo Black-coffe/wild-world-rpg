@@ -84,7 +84,7 @@ asked for, and a green full suite on the merged result. Review is code-only and 
     `OnboardingChainService::insertStep()` still `QuestStepsModel::insert()`s after its own `hasStep()`, so
     under the new UNIQUE a concurrent insert of the same pair throws a duplicate key there; recorded as an open
     tail in the ADR and the `quest_steps` notes
-- [ ] S6 Full suite on the merged result, plus the last quest writer - asks: 12, 6, 1
+- [x] S6 Full suite on the merged result, plus the last quest writer - asks: 12, 6, 1
   - files: test fixtures that break on the S1 schema (the six named above, if they do; and
     `tests/database/CraftQueueServiceTest.php`, whose fixture says `exclusive_slot ... STORED` while the migration
     says VIRTUAL — copy the migration's DDL verbatim); `app/Services/Onboarding/OnboardingChainService.php`
@@ -93,6 +93,10 @@ asked for, and a green full suite on the merged result. Review is code-only and 
     with one row and no exception; fails today with a duplicate key. The rest is verification
   - check: the ten full-suite parts of `CLAUDE.md` `## Команды`, one after another, all green; phpstan; `php -l`
     of migrations; `tests/database/UpdatePipelineTest.php tests/database/CronSenderBlockedMarkTest.php` green
+  - result: `insertStep()` writes through `insertUnique()` and returns whether it inserted, so
+    `ensureChainAssigned()` answers false on a wedged row (test: `tests/database/OnboardingChainInsertStepUniqueTest.php`;
+    the unit double's `insertStep()` now returns `bool`). `CraftQueueServiceTest` fixture: STORED -> VIRTUAL. The six
+    hand-written unit fixtures pass unchanged in unit2, so none was touched
 
 ## Review split
 Code only, not spec files; one reviewer pass per area so no pass reads the whole 3.4k-line import:
