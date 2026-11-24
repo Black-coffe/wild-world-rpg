@@ -38,7 +38,9 @@ plans must exit 0 (the defect is not back).
   Guide/tips verdict: no — dev tooling only.
 
 ## Stories
-- [ ] S1 Harness and the five code checks - asks: 1, 2, 3, 5
+- [x] S1 Harness and the five code checks - asks: 1, 2, 3, 5
+  - decided: `task-result-foreign` live run measured exit 0 both ways, <1 s with local MySQL up, ~29 s down →
+    moved to `tests/database/DefectTaskResultForeignCheckTest.php` (db3); its fixture cases stay in unit.
   - files: `tests/unit/Defects/DefectCheckRunner.php` (subprocess helper + card front-matter reader),
     `tests/unit/Defects/DefectCodeChecksTest.php`; possibly `tests/database/DefectTaskResultForeignCheckTest.php`
   - test first: the fixture cases are the test of the gate: each declared fixture of bot-lexicon,
