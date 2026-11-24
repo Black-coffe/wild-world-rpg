@@ -157,6 +157,30 @@ final class WebScreenStoreTest extends CIUnitTestCase
         $this->assertSame(['А2'], array_column($state['history'][0], 'text'), 'история правится на месте, без подъёма');
     }
 
+    /**
+     * Чужая закрытая транзакция, в которой упал запрос (CI4 оставляет transStatus=false до явного
+     * resetTransStatus()), не должна валить запись экрана в том же процессе: так в CI после
+     * RuinLootCooldownReserveTest падали все Web*-тесты, так же падал бы /play после lock-timeout.
+     */
+    public function testStaleFailedStatusOfAClosedTransactionDoesNotBreakTheWrite(): void
+    {
+        $char  = $this->character();
+        $store = new WebScreenStore($this->conn);
+
+        $this->conn->transBegin();
+        try {
+            $this->conn->query('SELECT `no_such_column` FROM `characters`');
+        } catch (\Throwable) {
+            // DBDebug в тестах бросает; статус транзакции CI4 гасит до броска.
+        }
+        $this->conn->transCommit();
+        $this->assertFalse($this->conn->transStatus(), 'предусловие: статус испорчен чужой транзакцией');
+
+        $store->applyCapture($char, $this->capture([$this->msg(1000000000, 'экран')]));
+
+        $this->assertSame(['экран'], array_column($store->state($char)['screen'], 'text'));
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────
 
     /** True — второй писатель упёрся в блокировку; false — прошёл сразу. */

@@ -174,6 +174,14 @@ final class RuinLootService
 
             throw $e;
         }
+        // Упавший внутри транзакции запрос CI4 не бросает, а гасит transStatus: коммит отдал бы
+        // кулдаун без лута, а испорченный статус ломал бы следующие записи процесса.
+        if (! $db->transStatus()) {
+            $db->transRollback();
+            $db->resetTransStatus();
+
+            return ['ok' => false, 'reason' => 'invalid'];
+        }
         if (! $db->transCommit()) {
             return ['ok' => false, 'reason' => 'invalid'];
         }

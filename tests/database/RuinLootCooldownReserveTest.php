@@ -63,6 +63,7 @@ final class RuinLootCooldownReserveTest extends CIUnitTestCase
             CREATE TABLE character_resources (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 id_characters INT NOT NULL, id_resources INT NOT NULL, quantity INT NOT NULL DEFAULT 0,
+                created_at DATETIME NULL, updated_at DATETIME NULL,
                 UNIQUE KEY uq_cr_char_resource (id_characters, id_resources)
             )');
         $db->query('
@@ -188,5 +189,28 @@ final class RuinLootCooldownReserveTest extends CIUnitTestCase
                 ->where('character_id', $charId)->where('settlement_id', $this->settlementId)->countAllResults(),
             'ruin/anomaly loot issued inside the cooldown window'
         );
+    }
+
+    /**
+     * Выдача упала внутри транзакции (CI4 не бросает, а гасит transStatus) — резерв кулдауна не
+     * коммитится без лута, а статус соединения не остаётся испорченным для следующих записей.
+     */
+    #[DataProvider('entrances')]
+    public function testFailedAwardRollsBackTheCooldownAndLeavesTheConnectionClean(string $prefix): void
+    {
+        $charId = 4343;
+        $db     = Database::connect('tests');
+        $db->query('ALTER TABLE character_resources DROP COLUMN created_at');
+
+        $result = (new RuinLootService(log: $this->staleSnapshotLog(), keyPrefix: $prefix))
+            ->loot($charId, $this->settlementRow());
+
+        $this->assertFalse($result['ok'], 'лут без выдачи не может считаться успешным');
+        $this->assertSame(
+            0,
+            $db->table('character_ruin_loot')->where('character_id', $charId)->countAllResults(),
+            'кулдаун зарезервирован, а лут не выдан'
+        );
+        $this->assertTrue(Database::connect()->transStatus(), 'статус транзакции остался испорченным');
     }
 }

@@ -26,6 +26,8 @@ use GuzzleHttp\Psr7\Response;
 use Longman\TelegramBot\Request as LongmanRequest;
 use Longman\TelegramBot\Telegram;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use Psr\Http\Message\RequestInterface;
 
 /** Читает общий журнал TestLogger (все `log_message` теста). */
@@ -83,7 +85,12 @@ final class BlockedMarkObjectProbe extends BaseObjectHandler
  * (`BaseTaskHandler` / `BaseObjectHandler` safeSend*) помечают заблокировавшего бота игрока
  * (`telegram_users.blocked_at`) одной WARNING-строкой вместо ERROR и не повторяют фото текстом.
  * Остальные отказы — как раньше, никого не помечают. Telegram — заглушка Guzzle-клиента Longman.
+ *
+ * Отдельные процессы: соседние тесты определяют `PHPUNIT_TESTSUITE`, и Longman под ним отвечает фейком,
+ * не доходя до заглушки (в CI весь набор идёт одним процессом — 23 из 24 падали).
  */
+#[RunTestsInSeparateProcesses]
+#[PreserveGlobalState(false)]
 final class CronSenderBlockedMarkTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;

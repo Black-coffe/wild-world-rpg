@@ -261,6 +261,12 @@ class WebScreenStore
      */
     private function guarded(int $characterId, callable $apply): bool
     {
+        // Вне транзакции `false` — остаток чужой закрытой транзакции (CI4 не сбрасывает его в
+        // transBegin()), к этой записи он отношения не имеет: без сброса любой упавший раньше в
+        // процессе запрос (lock-timeout, дубль) валил запись экрана /play. Вложенно — уважаем внешнюю.
+        if ($this->db->transDepth === 0) {
+            $this->db->resetTransStatus();
+        }
         $statusBefore = $this->db->transStatus();
         $this->db->transBegin();
         try {
