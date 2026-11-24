@@ -17,3 +17,11 @@ paths: ["tests/**", "phpunit.xml.dist"]
 - `CronSenderBlockedMarkTest` падает, если в том же процессе до него шёл тест, задающий `PHPUNIT_TESTSUITE`
   (Follow-up `s1-atomicity-1124`); по частям набора зелёный.
 - Называть причину только после grep: однажды диагноз сослался на несуществующий `BaseConnection::$saveQueries`.
+- CI гонит весь набор **одним процессом**, а локальные 10 частей — разными: зависимость от порядка видна только в
+  CI (2026-11-25: 73 падения). Перед push после крупного мерджа — `vendor/bin/phpunit --no-coverage --no-progress`
+  целиком одним процессом. Тест, которому нужен настоящий Longman (без `PHPUNIT_TESTSUITE`), —
+  `#[RunTestsInSeparateProcesses]`.
+- Упавший внутри транзакции запрос CI4 не бросает, а оставляет `transStatus=false` на соединении до
+  `resetTransStatus()` — следующий `transBegin()` его не сбрасывает. Код с `transBegin()` проверяет
+  `transStatus()` до коммита, откатывает и сбрасывает; самодельная схема таблицы в тесте отстаёт от миграции
+  молча (так `RuinLootCooldownReserveTest` отравлял все Web*-тесты).
