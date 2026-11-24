@@ -150,6 +150,15 @@ orchestrator's relayed list (not the owner's words). Merged is not live: nothing
   migrations. quest_steps and 🔒 tasks: 0 on preprod. Prod: 0 / 0 / 0 on all three keys (read only).
 - Item 3 done in `c174980b`: `exclusive_slot` and `uq_ct_exclusive_slot` are added only when missing; test
   `testRerunAfterPartialApplyCompletes` (red on the old migration: 1060 Duplicate column name).
+- First push failed CI (run 45497012005, 73 tests: stale `transStatus` from `RuinLootCooldownReserveTest` +
+  `CronSenderBlockedMarkTest` in one process), so nothing reached preprod. Fixed in `d7b722fb` + `ab5e17aa`
+  (Fable review: round 1 PASS with 4 minor, round 2 PASS); full suite in one process 5251/0.
+- Item 4 done 2026-11-25 after run 45505075855 (CI and preprod deploy green, release `2026-11-24-225915`): all three
+  S1 migrations applied (batch 395); `exclusive_slot` is `VIRTUAL`; unique keys present: `uq_ct_exclusive_slot`,
+  `uq_cr_char_resource (id_characters, id_resources)`, `uq_qs_quest_character (quest_id, character_id)`; today's
+  preprod log has no `screen write failed` / CRITICAL.
+- Item 6 (F11): covered by `S1ExclusiveSlotOnRealSchemaTest::testRerunAfterPartialApplyCompletes` and
+  `…WithDuplicatesRefusesWithTheIntendedMessage`; not re-run on preprod (nothing to rerun there).
 
 **Before a prod tag:**
 5. F7 on preprod: `S1QuestStepsUnique::down()` may fail because MySQL may drop the implicit FK index on `quest_id`
