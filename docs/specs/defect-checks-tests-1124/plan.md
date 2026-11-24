@@ -50,7 +50,7 @@ plans must exit 0 (the defect is not back).
   - helper autoload: `DefectCheckRunner` must load through the project's test autoload (check `composer.json`
     `autoload-dev`), or be a trait/static inside the test file.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Defects`
-- [ ] S2 Audience surfaces over plans, and the docs - asks: 1, 2, 3, 4
+- [x] S2 Audience surfaces over plans, and the docs - asks: 1, 2, 3, 4
   - files: `tests/unit/Defects/DefectAudienceSurfacesTest.php`, `docs/defects/README.md`,
     `docs/defects/INDEX.md`, `.claude/rules/player-text.md`, `.claude/rules/game-integrity.md`, `CLAUDE.md`
     (the `docs/defects` line: checks run in the suite)
