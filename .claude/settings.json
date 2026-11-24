@@ -82,6 +82,12 @@
         "source": "github",
         "repo": "Black-coffe/litopys"
       }
+    },
+    "vulyk-thin": {
+      "source": {
+        "source": "github",
+        "repo": "Black-coffe/vulyk-thin"
+      }
     }
   },
   "effortLevel": "medium"
