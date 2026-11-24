@@ -141,6 +141,16 @@ orchestrator's relayed list (not the owner's words). Merged is not live: nothing
 4. F9 as an explicit preprod check: 11 test fixtures declare `exclusive_slot` `STORED`, the migration `VIRTUAL`;
    after the preprod migration, `SHOW CREATE TABLE character_tasks` must show `VIRTUAL` and `uq_ct_exclusive_slot`.
 
+**Status 2026-11-25** (the owner pushed `develop` at `5c465a5a` before items 1–3 were done; the preprod deploy run
+45497012005 started from that push):
+- Item 1 done in `c174980b` (`grep` on a here-string; test: 300 KB after the exception → exit 1). The running
+  deploy still carries the old `migrate.sh`, so its green is not proof: check item 4 by hand.
+- Item 2: preprod had one duplicate group, `character_resources` character 491 (test char) × resource 70, rows
+  3492–3495 (64/69/69/132). Merged into row 3492 = 334, the other three deleted, before the deploy reached
+  migrations. quest_steps and 🔒 tasks: 0 on preprod. Prod: 0 / 0 / 0 on all three keys (read only).
+- Item 3 done in `c174980b`: `exclusive_slot` and `uq_ct_exclusive_slot` are added only when missing; test
+  `testRerunAfterPartialApplyCompletes` (red on the old migration: 1060 Duplicate column name).
+
 **Before a prod tag:**
 5. F7 on preprod: `S1QuestStepsUnique::down()` may fail because MySQL may drop the implicit FK index on `quest_id`
    once the UNIQUE serves it (add a plain index before dropping the UNIQUE).
