@@ -44,7 +44,8 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
         $db->query("CREATE TABLE game_settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(190),
                     value_bool TINYINT NULL)");
         $db->query('CREATE TABLE quest_steps (id INT AUTO_INCREMENT PRIMARY KEY, quest_id INT, character_id INT,
-                    is_completed TINYINT DEFAULT 0, created_at DATETIME)');
+                    is_completed TINYINT DEFAULT 0, created_at DATETIME,
+                    UNIQUE KEY uq_qs_quest_character (quest_id, character_id))');
         $db->query('CREATE TABLE action_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT,
                     action_name VARCHAR(255), action_status VARCHAR(20), created_at DATETIME NULL)');
 
@@ -86,7 +87,7 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
             ['quest_id' => 1, 'character_id' => 1, 'is_completed' => 1, 'created_at' => $now],
             ['quest_id' => 1, 'character_id' => 3, 'is_completed' => 0, 'created_at' => $now],
             ['quest_id' => 2, 'character_id' => 1, 'is_completed' => 0, 'created_at' => $now],
-            ['quest_id' => 2, 'character_id' => 1, 'is_completed' => 0, 'created_at' => '2026-05-01 00:00:00'], // до активации — не в срезе
+            ['quest_id' => 2, 'character_id' => 2, 'is_completed' => 0, 'created_at' => '2026-05-01 00:00:00'], // до активации — не в срезе
         ]);
 
         // E4 — онбординг-цепочка: 3 квеста-шага (Move→Gather→Craft) + прогресс 3 чаров.

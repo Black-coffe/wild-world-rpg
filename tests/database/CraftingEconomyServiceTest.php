@@ -34,7 +34,8 @@ final class CraftingEconomyServiceTest extends CIUnitTestCase
         $db->query('CREATE TABLE crafted_items (id INT PRIMARY KEY, name_rus VARCHAR(255), type VARCHAR(100))');
         $db->query('CREATE TABLE crafted_items_log (id INT AUTO_INCREMENT PRIMARY KEY, crafted_item_id INT, quantity INT, created_at DATETIME)');
         $db->query('CREATE TABLE resources (id INT PRIMARY KEY, name VARCHAR(255))');
-        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_resources INT, quantity BIGINT)');
+        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT NULL, id_resources INT, quantity BIGINT,
+                    UNIQUE KEY uq_cr_char_resource (id_characters, id_resources))');
         $db->query('CREATE TABLE transactions (id INT AUTO_INCREMENT PRIMARY KEY, type VARCHAR(10), price DECIMAL(10,2), quantity INT, transaction_date DATETIME)');
 
         $db->table('characters')->insertBatch([

@@ -38,7 +38,7 @@ final class StreakMilestoneServiceTest extends CIUnitTestCase
         $db->query('CREATE TABLE character_streak_milestones (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, streak_milestone_id INT, claimed_at DATETIME NULL, UNIQUE KEY uniq_char_milestone (character_id, streak_milestone_id))');
         $db->query('CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, login_streak INT DEFAULT 0, gold INT DEFAULT 0, active_title_id INT NULL, telegram_user_id INT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
         $db->query('CREATE TABLE resources (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(128))');
-        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT, id_resources INT, quantity INT DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
+        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT, id_resources INT, quantity INT DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL, UNIQUE KEY uq_cr_char_resource (id_characters, id_resources))');
         $db->query('CREATE TABLE titles (id INT AUTO_INCREMENT PRIMARY KEY, title_key VARCHAR(64), name VARCHAR(128), description VARCHAR(512) NULL, source_type VARCHAR(32) NULL, source_ref VARCHAR(64) NULL, icon VARCHAR(16) NULL, sort_order INT DEFAULT 0, enabled TINYINT DEFAULT 1)');
         $db->query('CREATE TABLE character_titles (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, title_id INT, unlocked_at DATETIME NULL, UNIQUE KEY uniq_char_title (character_id, title_id))');
     }

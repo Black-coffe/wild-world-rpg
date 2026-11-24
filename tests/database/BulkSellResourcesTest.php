@@ -54,7 +54,8 @@ final class BulkSellResourcesTest extends CIUnitTestCase
                 id_resources INT NOT NULL,
                 quantity INT NOT NULL DEFAULT 0,
                 created_at DATETIME NULL,
-                updated_at DATETIME NULL
+                updated_at DATETIME NULL,
+                UNIQUE KEY uq_cr_char_resource (id_characters, id_resources)
             )
         ');
         $db->query('
@@ -110,9 +111,12 @@ final class BulkSellResourcesTest extends CIUnitTestCase
 
     private function giveResource(int $resourceId, int $qty): void
     {
-        Database::connect('tests')->table('character_resources')->insert([
-            'id_characters' => self::CHAR_ID, 'id_resources' => $resourceId, 'quantity' => $qty,
-        ]);
+        // Upsert по UNIQUE (id_characters, id_resources): прибавка к запасу, а не вторая строка (C8).
+        Database::connect('tests')->query(
+            'INSERT INTO character_resources (id_characters, id_resources, quantity) VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)',
+            [self::CHAR_ID, $resourceId, $qty]
+        );
     }
 
     private function seedCharacter(int $gold): void

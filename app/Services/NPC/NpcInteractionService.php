@@ -12,6 +12,7 @@ use App\Models\QuestModel;
 use App\Models\QuestStepsModel;
 use App\Services\GameSettings\GameSettingsService;
 use App\Services\Quest\QuestChainService;
+use App\Services\Quest\QuestStartService;
 use App\Services\PVE\BattleService;
 use App\Services\PVE\BattleLogger;
 use App\Services\PVE\DamageService;
@@ -264,7 +265,9 @@ final class NpcInteractionService
     }
 
     /**
-     * ADR-089 Фаза 4: принять квест у NPC → создать quest_step (как GenericQuestStartAction).
+     * ADR-089 Фаза 4: принять квест у NPC → создать quest_step через
+     * {@see QuestStartService::claimFirstStep()} (как GenericQuestStartAction). `ok=false` — квест
+     * недоступен или уже начат (в т.ч. параллельно).
      *
      * @return array{ok:bool, title?:string, reward?:int, description?:string}
      */
@@ -281,13 +284,12 @@ final class NpcInteractionService
         $rewardRaw  = $quest['reward'] ?? null;
         $reward     = is_numeric($rewardRaw) ? (int) $rewardRaw : 0;
 
-        (new QuestStepsModel())->insert([
-            'quest_id'     => $questId,
-            'character_id' => $charId,
-            'step_order'   => 1,
-            'description'  => $titleRu !== '' ? $titleRu : 'Квест начат',
-            'is_completed' => false,
-        ]);
+        // s1-atomicity-1124 S4: тот же шаг записи, что у старта квеста — проверка и вставка под
+        // блокировкой персонажа, вставка через `insertUnique()` по `UNIQUE (quest_id, character_id)`.
+        // Строка пары, появившаяся после гейта выше (двойной тап, бот и веб), — отказ, не исключение.
+        if (! (new QuestStartService())->claimFirstStep($charId, $questId, $titleRu !== '' ? $titleRu : 'Квест начат')) {
+            return ['ok' => false];
+        }
 
         return ['ok' => true, 'title' => $titleRu, 'reward' => $reward, 'description' => $descr];
     }

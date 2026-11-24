@@ -415,12 +415,13 @@ class DeleteBaseAction extends BaseAction
             $taskId = $relocation['id'];
         }
 
-        // 4) Записываем новую задачу в character_tasks (12 ч)
-        $charTaskModel = new CharacterTaskModel();
+        // 4) Записываем новую задачу в character_tasks (12 ч).
+        //    s1-atomicity-04 (C2, C5): снос — 🔒 (`parallel_execution_allowed = 0`), запись через ядро
+        //    слота; `Refused` — слот успел занять другой старт, игрок видит текст ADR-167.
         $now = Time::now();
         $endTime = $now->addHours(8);
 
-        $charTaskModel->insert([
+        $outcome = $activeTasksService->insertExclusiveTaskRow([
             'character_id'     => $character['id'],
             'telegram_user_id' => $character['telegram_user_id'] ?? 0,
             'task_id'          => $taskId,
@@ -429,6 +430,15 @@ class DeleteBaseAction extends BaseAction
             'status'           => 'in_work',
             'task_settings'    => $settingsJson,
         ]);
+        if ($outcome !== \App\Services\Db\WriteOutcome::Applied) {
+            $charId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $activeTasksService->slotTakenText($charId, 'Планируемый снос'),
+                'parse_mode' => 'Markdown',
+            ]);
+        }
 
         // 5) Сообщаем игроку
         $text = "Ты запустил *Планируемый снос*! (8 ч)\n\n"

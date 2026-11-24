@@ -6,7 +6,10 @@ use App\Models\CharacterTaskModel;
 use App\Models\TaskModel;
 use App\Services\Db\ConditionalWriteService;
 use App\Services\Db\WriteOutcome;
+use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\BaseResult;
 use CodeIgniter\I18n\Time;
+use Config\Database;
 use App\Services\Telegram\Request;
 
 /**
@@ -18,15 +21,32 @@ class ActiveTasksService
     protected $taskModel;
     private ?ConditionalWriteService $writer = null;
 
-    public function __construct()
+    /** @var BaseConnection<object, object>|null */
+    private ?BaseConnection $db;
+
+    /** id строки после последнего `Applied` от insertExclusiveTaskRow() (C3), иначе 0. */
+    private int $lastInsertedTaskId = 0;
+
+    /**
+     * @param BaseConnection<object, object>|null $db соединение для записей `character_tasks`
+     *        (null — общее CI4). Отдельное нужно тесту гонки двух стартов.
+     */
+    public function __construct(?BaseConnection $db = null)
     {
         $this->characterTaskModel = new CharacterTaskModel();
         $this->taskModel          = new TaskModel();
+        $this->db                 = $db;
     }
 
     private function writer(): ConditionalWriteService
     {
-        return $this->writer ??= new ConditionalWriteService();
+        return $this->writer ??= new ConditionalWriteService($this->db());
+    }
+
+    /** @return BaseConnection<object, object> */
+    private function db(): BaseConnection
+    {
+        return $this->db ??= Database::connect();
     }
 
     /**
@@ -52,7 +72,116 @@ class ActiveTasksService
         $now = Time::now()->toDateTimeString();
         $row += ['created_at' => $now, 'updated_at' => $now];
 
-        return $this->writer()->insertUnique('character_tasks', $row);
+        // s1-atomicity-01 (C2, A2): флаг 🔒 — копия `tasks.parallel_execution_allowed = 0` на момент
+        // вставки; при выключенном killswitch ADR-167 строка пишется не-🔒 и слот не занимает.
+        if (! array_key_exists('is_exclusive', $row)) {
+            $row['is_exclusive'] = $this->taskTakesExclusiveSlot($row['task_id'] ?? null) ? 1 : 0;
+        }
+
+        $this->lastInsertedTaskId = 0;
+        // Занятый слот (`UNIQUE uq_ct_exclusive_slot`) — дубль ключа, `insertUnique()` гасит его в `Refused`.
+        $outcome = $this->writer()->insertUnique('character_tasks', $row);
+        if ($outcome === WriteOutcome::Applied) {
+            $this->lastInsertedTaskId = (int) $this->db()->insertID();
+        }
+
+        return $outcome;
+    }
+
+    /**
+     * s1-atomicity-01 (C3) — id строки, вставленной последним `Applied` от
+     * {@see insertExclusiveTaskRow()} этого сервиса; `0`, если последняя вставка не прошла.
+     */
+    public function lastInsertedTaskId(): int
+    {
+        return $this->lastInsertedTaskId;
+    }
+
+    /**
+     * s1-atomicity-01 (C4) — перевод существующей строки (`paused`/`queued`) в `in_work` одной
+     * инструкцией `UPDATE IGNORE`: занятый 🔒-слот (`UNIQUE uq_ct_exclusive_slot`) — пропущенная
+     * строка с предупреждением, а не ошибка запроса, поэтому `transStatus` открытой транзакции
+     * вызывающего не портится и исключения нет.
+     *
+     * `Applied` — переведена; `Refused` — строка всё ещё в `$fromStatus` (слот занят);
+     * `Missing` — строки в `$fromStatus` нет.
+     *
+     * @param array<string, scalar|null> $set дополнительные колонки (`start_time`, `end_time`, …)
+     * @throws \InvalidArgumentException `status`/`exclusive_slot` или невалидное имя в `$set`,
+     *                                   `$fromStatus = 'in_work'`
+     */
+    public function moveToInWork(int $charTaskId, string $fromStatus, array $set = []): WriteOutcome
+    {
+        if ($fromStatus === 'in_work') {
+            throw new \InvalidArgumentException('moveToInWork: строка уже in_work — исход неотличим от отказа');
+        }
+
+        $assignments = ['`status` = ?'];
+        $params      = ['in_work'];
+        foreach ($set as $column => $value) {
+            if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $column) !== 1
+                || in_array($column, ['status', 'exclusive_slot'], true)) {
+                throw new \InvalidArgumentException("moveToInWork: недопустимая колонка в \$set: \"{$column}\"");
+            }
+            $assignments[] = "`{$column}` = ?";
+            $params[]      = $value;
+        }
+
+        $db    = $this->db();
+        $table = $db->prefixTable('character_tasks');
+        $db->query(
+            "UPDATE IGNORE {$table} SET " . implode(', ', $assignments) . ' WHERE id = ? AND status = ?',
+            [...$params, $charTaskId, $fromStatus]
+        );
+
+        if ($db->affectedRows() > 0) {
+            return WriteOutcome::Applied;
+        }
+
+        $still = $db->query("SELECT id FROM {$table} WHERE id = ? AND status = ? LIMIT 1", [$charTaskId, $fromStatus]);
+
+        return $still instanceof BaseResult && $still->getRow() !== null ? WriteOutcome::Refused : WriteOutcome::Missing;
+    }
+
+    /**
+     * s1-atomicity-01 (C5) — текст отказа ADR-167 для любого `Refused` из
+     * {@see insertExclusiveTaskRow()} / {@see moveToInWork()} на игроцком пути: «уже занят …»
+     * с именем текущего блокировщика; если он успел исчезнуть — «уже начато».
+     */
+    public function slotTakenText(int $characterId, string $attemptedNameRus = ''): string
+    {
+        $blocking = $this->findBlockingTask($characterId);
+        if ($blocking === null) {
+            return $this->alreadyStartedExclusiveTaskText();
+        }
+
+        return (new ActionScopeService())->exclusiveBlockText(
+            $blocking['name_rus'],
+            $blocking['minutes_left'],
+            $attemptedNameRus,
+        );
+    }
+
+    /** `tasks.parallel_execution_allowed = 0` у задачи строки и killswitch ADR-167 включён. */
+    private function taskTakesExclusiveSlot(mixed $taskId): bool
+    {
+        if (! is_numeric($taskId)) {
+            return false;
+        }
+
+        $db     = $this->db();
+        $result = $db->query(
+            'SELECT parallel_execution_allowed FROM ' . $db->prefixTable('tasks') . ' WHERE id = ? LIMIT 1',
+            [(int) $taskId]
+        );
+        $task = $result instanceof BaseResult ? $result->getRowArray() : null;
+        $flag = is_array($task) ? ($task['parallel_execution_allowed'] ?? null) : null;
+
+        if (! is_numeric($flag) || (int) $flag !== 0) {
+            return false;
+        }
+
+        return $this->exclusiveLockEnabled();
     }
 
     /**

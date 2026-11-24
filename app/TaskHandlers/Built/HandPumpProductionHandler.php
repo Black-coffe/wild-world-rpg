@@ -191,23 +191,9 @@ class HandPumpProductionHandler extends BaseTaskHandler
      */
     private function addWaterToCharacter(int $characterId, int $amount, int $waterResourceId): void
     {
-        // Ищем, есть ли вода уже
-        $charRes = $this->characterResourceModel
-            ->where('id_characters', $characterId)
-            ->where('id_resources', $waterResourceId)
-            ->first();
-
-        if ($charRes) {
-            // Увеличиваем quantity
-            $newQty = $charRes['quantity'] + $amount;
-            $this->characterResourceModel->update($charRes['id'], ['quantity' => $newQty]);
-        } else {
-            // Создаем новую запись
-            $this->characterResourceModel->insert([
-                'id_characters' => $characterId,
-                'id_resources'  => $waterResourceId,
-                'quantity'      => $amount,
-            ]);
-        }
+        // s1-atomicity-1124 review round 1: атомарный upsert по UNIQUE пары. Прежний
+        // read-add-write под UNIQUE падал дублем ключа при вклинившемся начислении, а цикл
+        // handle() без try/catch обрывал воду всем остальным скважинам тика.
+        $this->characterResourceModel->addOrIncreaseResource($characterId, $waterResourceId, $amount);
     }
 }

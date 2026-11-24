@@ -67,7 +67,7 @@ final class BaseStorageRetrieveTest extends CIUnitTestCase
             $db->query("DROP TABLE IF EXISTS {$t}");
         }
         $db->query('CREATE TABLE resources (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(191), icon_text VARCHAR(16))');
-        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT, id_resources INT, quantity INT DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
+        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT, id_resources INT, quantity INT DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL, UNIQUE KEY uq_cr_char_resource (id_characters, id_resources))');
         $db->query('CREATE TABLE base_storage (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, resource_id INT, quantity INT DEFAULT 0, arrived_from_cell INT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
     }
 

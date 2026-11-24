@@ -56,8 +56,10 @@ ln -sfn "$SHARED/uploads/site" public/uploads/site
 if [[ "$SKIP_DB" == "1" ]]; then
     echo ">>> [post-deploy] SKIP_DB=1 — пропускаю migrate/import/canon (общая игровая БД ведётся ботом)"
 else
+    # s1-atomicity-1124: `spark migrate` выходит 0 и при исключении миграции — шаг-обёртка
+    # ловит его и выходит ненулём, `set -e` останавливает деплой до переключения симлинка.
     echo ">>> [post-deploy] migrate"
-    php spark migrate --all -n
+    bash "$NEW_RELEASE/deploy/migrate.sh"
 
     # ADR-052 — контент публичного сайта: импорт из WP при первом деплое (если site_posts
     # пуст) + ревизия под канон (идемпотентно). Non-fatal: сбой контента не валит деплой.

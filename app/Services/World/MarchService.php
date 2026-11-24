@@ -9,6 +9,7 @@ use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Services\Onboarding\OnboardingHintCatalog;
 use App\Services\Onboarding\OnboardingHintService;
 use App\Services\Player\VehicleActivationService;
+use App\Services\Db\WriteOutcome;
 use App\Services\Tasks\ActiveTasksService;
 use CodeIgniter\Database\BaseResult;
 use Config\CraftRecipes;
@@ -213,8 +214,10 @@ class MarchService
         $settings += ['acc' => [], 'log' => []];
         $start = new \DateTime();
         $end   = (clone $start)->add($this->stepDueInterval());
-        $model = new CharacterTaskModel();
-        $model->insert([
+        // s1-atomicity-05 (C2): вставка через ядро слота — гонку двух 🔒-стартов, прошедших гейт
+        // выше, гасит UNIQUE в `Refused`, а не исключение и не вторая строка `in_work`.
+        $tasks   = new ActiveTasksService();
+        $outcome = $tasks->insertExclusiveTaskRow([
             'character_id'     => $characterId,
             'telegram_user_id' => is_numeric($char['telegram_user_id'] ?? null) ? (int) $char['telegram_user_id'] : null,
             'task_id'          => $marchingTaskId,
@@ -223,7 +226,10 @@ class MarchService
             'status'           => 'in_work',
             'task_settings'    => json_encode($settings),
         ]);
-        $taskId = (int) $model->getInsertID();
+        if ($outcome !== WriteOutcome::Applied) {
+            return $this->slotTaken($characterId) + ['task_id' => null, 'dir' => $dir, 'dir_label' => self::DIR_LABEL[$dir], 'n' => $n];
+        }
+        $taskId = $tasks->lastInsertedTaskId();
 
         return [
             'ok'        => true,
@@ -307,11 +313,19 @@ class MarchService
         }
         $start = new \DateTime();
         $end   = (clone $start)->add($this->stepDueInterval());
-        (new CharacterTaskModel())->update(self::int($task['id'] ?? 0), [
-            'status'     => 'in_work',
+        // s1-atomicity-05 (C4, A3): пауза слот не держит, поэтому возобновление поверх чужой
+        // 🔒 в работе отказывается, а строка остаётся `paused`.
+        $outcome = (new ActiveTasksService())->moveToInWork(self::int($task['id'] ?? 0), 'paused', [
             'start_time' => $start->format('Y-m-d H:i:s'),
             'end_time'   => $end->format('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
         ]);
+        if ($outcome === WriteOutcome::Refused) {
+            return $this->slotTaken($characterId);
+        }
+        if ($outcome === WriteOutcome::Missing) {
+            return ['ok' => false, 'code' => self::NOT_PAUSED, 'message' => 'Походов на паузе нет.'];
+        }
 
         return ['ok' => true, 'code' => self::RESUMED, 'message' => 'Поход возобновлён.'];
     }
@@ -515,6 +529,19 @@ class MarchService
         }
 
         return null;
+    }
+
+    /**
+     * s1-atomicity-05 (C5) — отказ БД из-за занятого 🔒-слота: текст ADR-167 «уже занят …». Исход
+     * сервиса — текст без Markdown (тост бота, flash веба), поэтому разметка снята.
+     *
+     * @return array{ok:false, code:string, message:string}
+     */
+    private function slotTaken(int $characterId): array
+    {
+        $text = (new ActiveTasksService())->slotTakenText($characterId, 'Поход');
+
+        return ['ok' => false, 'code' => self::BUSY, 'message' => str_replace(['*', '_', '`'], '', $text)];
     }
 
     /** @return Preview */

@@ -186,6 +186,33 @@ class StartRobotExplorationAction extends BaseAction
             }
         }
 
+        // 10. Создаём новую задачу "ExploringLocationRobot" (рандомная точка).
+        //     s1-atomicity-04 (C2, C6): через ядро слота и ДО списания прочности; робот
+        //     параллелен, но `Refused` не списывает ничего.
+        $startTime = new \DateTime();
+        $endTime   = (clone $startTime)->add(new \DateInterval('PT' . $hoursUntilBreakdown . 'H'));
+        $activeTasks = new \App\Services\Tasks\ActiveTasksService();
+        $outcome     = $activeTasks->insertExclusiveTaskRow([
+            'character_id'     => $characterId,
+            'telegram_user_id' => $user['id'],
+            'task_id'          => $taskId,
+            'start_time'       => $startTime->format('Y-m-d H:i:s'),
+            'end_time'         => $endTime->format('Y-m-d H:i:s'),
+            'status'           => 'in_work',
+            // V18 (ADR-049): какой именно робот запущен — для tier-aware множителя
+            // в CompleteRobotExplorationHandler (T2 Scout открывает больше клеток).
+            'task_settings'    => json_encode(['crafted_item_id' => (int) $robotId]),
+        ]);
+        if ($outcome !== \App\Services\Db\WriteOutcome::Applied) {
+            // Текст ADR-167 — Markdown, а `sendError()` шлёт без parse_mode.
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $activeTasks->slotTakenText((int) $characterId, 'Робот-исследователь'),
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
         // 9. Списываем requiredDurability
         $newDurability = $currentDurability - $requiredDurability;
         if ($newDurability <= 0) {
@@ -206,21 +233,6 @@ class StartRobotExplorationAction extends BaseAction
                 'durability_count' => $newDurability,
             ]);
         }
-
-        // 10. Создаём новую задачу "ExploringLocationRobot" (рандомная точка)
-        $startTime = new \DateTime();
-        $endTime   = (clone $startTime)->add(new \DateInterval('PT' . $hoursUntilBreakdown . 'H'));
-        $this->characterTaskModel->insert([
-            'character_id'     => $characterId,
-            'telegram_user_id' => $user['id'],
-            'task_id'          => $taskId,
-            'start_time'       => $startTime->format('Y-m-d H:i:s'),
-            'end_time'         => $endTime->format('Y-m-d H:i:s'),
-            'status'           => 'in_work',
-            // V18 (ADR-049): какой именно робот запущен — для tier-aware множителя
-            // в CompleteRobotExplorationHandler (T2 Scout открывает больше клеток).
-            'task_settings'    => json_encode(['crafted_item_id' => (int) $robotId]),
-        ]);
 
         // E20 (ADR-120) — инструментация адопшена (успешные запуски раньше не логировались).
         $this->logActivity((int) $characterId, 'START_ROBOT_EXPLORER', "robot={$robotId} hours={$hoursUntilBreakdown}");

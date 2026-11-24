@@ -20,6 +20,8 @@ class CharacterTaskModel extends Model
         'end_time',
         'status',
         'task_settings',
+        // s1-atomicity (C1): флаг 🔒 пишет приложение; генерируемую `exclusive_slot` — никогда.
+        'is_exclusive',
     ];
 
     protected $useTimestamps = true; // Использовать автоматические метки времени

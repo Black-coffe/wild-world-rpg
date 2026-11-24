@@ -86,6 +86,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
         '2026-12-11-100001_CreateWebPlayTables',
         '2026-12-11-100003_PlayerActionLogWebSource',
         '2026-12-11-100005_SignedTelegramIdColumns',
+        '2026-12-25-100000_S1CharacterTasksExclusiveSlot',
     ];
 
     private const TABLES = [
@@ -1808,7 +1809,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
     private function enableShop(int $charId): void
     {
         $this->conn->query('CREATE TABLE resources (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64), name_en VARCHAR(64) NULL, buy_price DECIMAL(10,2) DEFAULT 0, sell_price DECIMAL(10,2) DEFAULT 0, is_tradeable TINYINT DEFAULT 1, rarity INT DEFAULT 1, level_required INT DEFAULT 0, icon_text VARCHAR(16) NULL)');
-        $this->conn->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT, id_resources INT, quantity INT DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
+        $this->conn->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT, id_resources INT, quantity INT DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL, UNIQUE KEY uq_cr_char_resource (id_characters, id_resources))');
         $this->conn->query('CREATE TABLE resources_bank (id INT AUTO_INCREMENT PRIMARY KEY, resource_id INT, current_quantity INT DEFAULT 0, resources_purchased INT DEFAULT 0, resources_sold INT DEFAULT 0, last_update DATETIME NULL, UNIQUE KEY uq_res (resource_id))');
         $this->conn->table('resources')->insertBatch([
             ['id' => 7, 'name' => 'Ржавый лом', 'buy_price' => 10.0, 'sell_price' => 4.5, 'is_tradeable' => 1, 'rarity' => 1],
@@ -2248,7 +2249,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->conn->query('ALTER TABLE character_tasks ADD task_settings TEXT NULL');
         $this->conn->query('ALTER TABLE tasks ADD handler_key VARCHAR(64) NULL');
         $this->conn->query('CREATE TABLE resources (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL, name_en VARCHAR(255) NULL, type VARCHAR(255) NULL, rarity INT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
-        $this->conn->query('CREATE TABLE character_resources (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, id_characters INT UNSIGNED NOT NULL, id_resources INT UNSIGNED NOT NULL, quantity INT NOT NULL DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
+        $this->conn->query('CREATE TABLE character_resources (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, id_characters INT UNSIGNED NOT NULL, id_resources INT UNSIGNED NOT NULL, quantity INT NOT NULL DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL, UNIQUE KEY uq_cr_char_resource (id_characters, id_resources))');
         $this->conn->query('SET FOREIGN_KEY_CHECKS = 1');
         $this->conn->table('biomes')->insert(['id' => 1, 'name' => 'Лес']);
         foreach ([[100, 10, 10], [200, 20, 20], [300, 15, 15], [400, 40, 40]] as [$cell, $x, $y]) {

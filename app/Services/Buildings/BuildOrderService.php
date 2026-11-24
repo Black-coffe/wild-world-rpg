@@ -9,7 +9,6 @@ use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
-use App\Models\CharacterTaskModel;
 use App\Models\ClaimedCellModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
@@ -334,10 +333,10 @@ final class BuildOrderService
                 );
             }
 
-            $this->consume(new ConditionalWriteService($db), $characterId, $resources, $items);
-
-            $tasks = new CharacterTaskModel();
-            $tasks->insert([
+            // s1-atomicity-04 (C2, C6): задача пишется через ядро слота ДО списания, в той же транзакции.
+            // Стройка параллельна, но `Refused` (слот занят) откатывает всё, ничего не списано.
+            $activeTasks = new ActiveTasksService($db);
+            $outcome     = $activeTasks->insertExclusiveTaskRow([
                 'character_id'     => $characterId,
                 'telegram_user_id' => self::int($character['telegram_user_id'] ?? 0),
                 'task_id'          => self::int($taskRow['id'] ?? 0),
@@ -346,7 +345,18 @@ final class BuildOrderService
                 'status'           => 'in_work',
                 'task_settings'    => json_encode($settings),
             ]);
-            $taskId = (int) $tasks->getInsertID();
+            if ($outcome !== WriteOutcome::Applied) {
+                $db->transRollback();
+
+                return self::fail(
+                    self::RACE,
+                    $activeTasks->slotTakenText($characterId, (string) $recipe['name_rus']),
+                    self::log($action, 'slot_taken')
+                );
+            }
+            $taskId = $activeTasks->lastInsertedTaskId();
+
+            $this->consume(new ConditionalWriteService($db), $characterId, $resources, $items);
 
             if ($db->transStatus() === false) {
                 $db->transRollback();

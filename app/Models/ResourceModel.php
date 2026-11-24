@@ -168,25 +168,14 @@ class ResourceModel extends Model
             return false;
         }
 
-        $builder = $this->db->table('character_resources');
-        $query = $builder->where('id_characters', $characterId)->where('id_resources', $resource['id'])->get();
-        if ($query === false) {
-            return false;
-        }
-        $existing = $query->getRow();
+        // s1-atomicity-1124 review round 1: начисление тем же атомарным upsert по
+        // `UNIQUE (id_characters, id_resources)`, что `CharacterResourceModel` — прежнее
+        // «SELECT, затем INSERT или UPDATE = прочитанное + n» под UNIQUE падало дублем ключа
+        // при вклинившемся начислении, а в ветке UPDATE затирало его устаревшей суммой.
+        $credited = (new CharacterResourceModel($this->db))
+            ->addOrIncreaseResource($characterId, $resource['id'], $quantity);
 
-        if ($existing) {
-            $newQuantity = $existing->quantity + $quantity;
-            $builder->where('id', $existing->id)->update(['quantity' => $newQuantity]);
-        } else {
-            $builder->insert([
-                'id_characters' => $characterId,
-                'id_resources' => $resource['id'],
-                'quantity' => $quantity
-            ]);
-        }
-
-        return true;
+        return $credited !== false;
     }
 
     // F1.7 — кеш справочника ресурсов (70 строк, меняется редко).

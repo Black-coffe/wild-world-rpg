@@ -167,7 +167,8 @@ class DeathService
         );
 
         // 5) Списание у проигравшего.
-        $this->lootProcessor->applyLosses($loserId, $lostResources, $lostGold);
+        // s1-atomicity-10: дальше (след потерь, победитель) идёт фактически списанное.
+        $lostResources = $this->lootProcessor->applyLosses($loserId, $lostResources, $lostGold);
         $this->lootProcessor->applyCraftLosses($loserId, $lostCraftedItems);
 
         // Story chat-requests-batch-11: след потерь в action_log — рождается ЗДЕСЬ, а не

@@ -907,8 +907,8 @@ final class TributeService
     }
 
     /**
-     * Зачислить хозяину ресурсы (карта resource_id→qty). Один whereIn + цикл insert/update
-     * (паттерн GatherResultPersister; без `where()->first()` в цикле — урок builder-quirk).
+     * Зачислить хозяину ресурсы (карта resource_id→qty): по одному атомарному upsert
+     * `CharacterResourceModel::addOrIncreaseResource()` на ресурс.
      *
      * @param array<int,int> $credits
      */
@@ -921,47 +921,17 @@ final class TributeService
         if ($master === null) {
             return;
         }
-        $tuid = $this->numField($master, 'telegram_user_id');
-        $rids = array_map('intval', array_keys($credits));
-
-        $existing = $this->resources
-            ->where('id_characters', $masterId)
-            ->whereIn('id_resources', $rids)
-            ->findAll();
-        $byRid = [];
-        foreach ($existing as $row) {
-            if (! is_array($row)) {
-                continue;
-            }
-            $ridRaw = $row['id_resources'] ?? null;
-            if (is_numeric($ridRaw)) {
-                $byRid[(int) $ridRaw] = $row;
-            }
-        }
-
+        // s1-atomicity-1124 review round 1: каждое зачисление — атомарный upsert по
+        // `UNIQUE (id_characters, id_resources)`. Прежний whereIn + insert/update
+        // (прочитанное + n) под UNIQUE падал дублем ключа при вклинившемся начислении,
+        // а в ветке update затирал его устаревшей суммой.
         foreach ($credits as $rid => $qty) {
             $rid = (int) $rid;
             $qty = (int) $qty;
             if ($qty < 1) {
                 continue;
             }
-            $ex = $byRid[$rid] ?? null;
-            if (is_array($ex)) {
-                $curRaw  = $ex['quantity'] ?? null;
-                $cur     = is_numeric($curRaw) ? (int) $curRaw : 0;
-                $exIdRaw = $ex['id'] ?? null;
-                $exId    = is_numeric($exIdRaw) ? (int) $exIdRaw : 0;
-                if ($exId > 0) {
-                    $this->resources->update($exId, ['quantity' => $cur + $qty]);
-                }
-            } else {
-                $this->resources->insert([
-                    'id_characters'     => $masterId,
-                    'id_resources'      => $rid,
-                    'id_telegram_users' => $tuid,
-                    'quantity'          => $qty,
-                ]);
-            }
+            $this->resources->addOrIncreaseResource($masterId, $rid, $qty);
         }
     }
 

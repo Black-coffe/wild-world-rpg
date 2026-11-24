@@ -184,6 +184,37 @@ class StartCraftArmorDrifterClothes2Action extends BaseAction
             );
         }
 
+        // Создаём задачу
+        $timeForOne = 8; // 8 мин на 1 шт
+        $totalTime  = $timeForOne * $this->quantity;
+        $startTime = new \DateTime();
+        $endTime   = (clone $startTime)->add(new \DateInterval("PT{$totalTime}M"));
+
+        // s1-atomicity-03 (C2, C6): строка задачи — до списаний и только через ядро слота.
+        $activeTasks = new \App\Services\Tasks\ActiveTasksService();
+        if ($activeTasks->insertExclusiveTaskRow([
+            'character_id'     => $character['id'],
+            'telegram_user_id' => $user['id'],
+            'task_id'          => $taskRow['id'],
+            'start_time'       => $startTime->format('Y-m-d H:i:s'),
+            'end_time'         => $endTime->format('Y-m-d H:i:s'),
+            'status'           => 'in_work',
+            'task_settings'    => json_encode([
+                'item_crafted' => 'DrifterClothes',
+                'quantity'     => $this->quantity,
+            ]),
+        ]) !== \App\Services\Db\WriteOutcome::Applied) {
+            // s1-atomicity-03 (C5): 🔒-слот занят между гейтом и вставкой — текст ADR-167, ничего не списано.
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $activeTasks->slotTakenText(
+                    is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0,
+                    is_string($taskRow['name_rus'] ?? null) ? $taskRow['name_rus'] : ''
+                ),
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
         // --- Списываем золото и предметы ---
         $this->characterModel
             ->where('id', $character['id'])
@@ -201,25 +232,6 @@ class StartCraftArmorDrifterClothes2Action extends BaseAction
             $newQty = $logRow['quantity'] - $needed;
             $this->craftedItemsLogModel->update($logRow['id'], ['quantity' => $newQty]);
         }
-
-        // Создаём задачу
-        $timeForOne = 8; // 8 мин на 1 шт
-        $totalTime  = $timeForOne * $this->quantity;
-        $startTime = new \DateTime();
-        $endTime   = (clone $startTime)->add(new \DateInterval("PT{$totalTime}M"));
-
-        $this->characterTaskModel->insert([
-            'character_id'     => $character['id'],
-            'telegram_user_id' => $user['id'],
-            'task_id'          => $taskRow['id'],
-            'start_time'       => $startTime->format('Y-m-d H:i:s'),
-            'end_time'         => $endTime->format('Y-m-d H:i:s'),
-            'status'           => 'in_work',
-            'task_settings'    => json_encode([
-                'item_crafted' => 'DrifterClothes',
-                'quantity'     => $this->quantity,
-            ]),
-        ]);
 
         // Убираем "часики" на inline-кнопке
         Request::answerCallbackQuery([

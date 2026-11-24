@@ -4,7 +4,8 @@ namespace App\TaskHandlers;
 
 use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
-use App\Models\CharacterTaskModel;
+use App\Services\Db\WriteOutcome;
+use App\Services\Tasks\ActiveTasksService;
 use App\Models\ExploredCellsModel;
 use App\Services\Player\PlayerDetectionService;
 use App\Services\Player\Progression\EarlyProgressionService;
@@ -154,7 +155,9 @@ class MarchingTaskHandler extends BaseTaskHandler
         $stepsDone       = $this->asInt($s['steps_done'] ?? 0);
         $vehicleWarning  = is_string($s['vehicle_warning'] ?? null) ? $s['vehicle_warning'] : null;
         unset($s['vehicle_warning']); // предупреждение одноразовое — не тащим его в task_settings дальше
-        $this->spawnNextStep($characterId, $telegramUserId, $s);
+        if (! $this->spawnNextStep($characterId, $telegramUserId, $s)) {
+            return;
+        }
         $this->editMarchMessage($telegramUserId, $s, $character, $stepsDone, $stepsPlanned, $vehicleProfile, $vehicleWarning);
     }
 
@@ -616,7 +619,9 @@ class MarchingTaskHandler extends BaseTaskHandler
         $pausedSettings['paused_reason']   = $reason;
         unset($pausedSettings['vehicle_warning']); // одноразовое — показано ниже, дальше не тащим
 
-        (new CharacterTaskModel())->insert([
+        // s1-atomicity-05 (C2): все вставки `character_tasks` — через ядро слота; `paused` слот не
+        // занимает, но флаг 🔒 нужен строке, чтобы её возобновление (`moveToInWork`) слот заняло.
+        (new ActiveTasksService())->insertExclusiveTaskRow([
             'character_id'     => $characterId,
             'telegram_user_id' => $this->nullableTelegramUserId($telegramUserId),
             'task_id'          => $marchingTaskId,
@@ -661,18 +666,23 @@ class MarchingTaskHandler extends BaseTaskHandler
     /**
      * Спавнит следующую 1-клеточную Marching-задачу (chain).
      *
+     * s1-atomicity-05 (A4): 🔒-слот успел занять другой старт (Worker уже закрыл этот шаг) —
+     * шаг не создаётся, исключения нет, игрок получает текст отказа ADR-167 тем же сообщением
+     * марша. `false` — поход дальше не идёт, прогресс-экран не рисуется.
+     *
      * @param array<int|string, mixed> $s
      */
-    private function spawnNextStep(int $characterId, int $telegramUserId, array $s): void
+    private function spawnNextStep(int $characterId, int $telegramUserId, array $s): bool
     {
         $marchingTaskId = $this->marchingTaskId();
         if ($marchingTaskId === null) {
             log_message('error', '[MarchingTaskHandler] нет строки Marching в tasks — поход не может продолжиться');
-            return;
+            return true;
         }
         $start = new \DateTime();
         $end   = (clone $start)->add($this->stepDueInterval());
-        (new CharacterTaskModel())->insert([
+        $tasks   = new ActiveTasksService();
+        $outcome = $tasks->insertExclusiveTaskRow([
             'character_id'     => $characterId,
             'telegram_user_id' => $this->nullableTelegramUserId($telegramUserId),
             'task_id'          => $marchingTaskId,
@@ -681,6 +691,13 @@ class MarchingTaskHandler extends BaseTaskHandler
             'status'           => 'in_work',
             'task_settings'    => json_encode($s),
         ]);
+        if ($outcome === WriteOutcome::Applied) {
+            return true;
+        }
+
+        $this->deliverMarchMessage($telegramUserId, $s, $tasks->slotTakenText($characterId, 'Поход'), []);
+
+        return false;
     }
 
     /**

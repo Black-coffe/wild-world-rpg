@@ -8,6 +8,8 @@ use App\Entities\CharacterEntity;
 use App\Models\ActionLogModel;
 use App\Models\QuestModel;
 use App\Models\QuestStepsModel;
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\WriteOutcome;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 
 /**
@@ -86,9 +88,10 @@ class OnboardingChainService
         }
 
         $root = OnboardingChainCatalog::steps()[0];
-        $this->insertStep($charId, $rootId, $root['title_ru']);
 
-        return true;
+        // Шаг пары, вклинившийся после hasStep() (два /start, бот и веб разом), держит
+        // UNIQUE (quest_id, character_id): вставка — no-op, не исключение (s1-atomicity, ask 1).
+        return $this->insertStep($charId, $rootId, $root['title_ru']);
     }
 
     /**
@@ -140,15 +143,25 @@ class OnboardingChainService
             ->countAllResults() > 0;
     }
 
-    protected function insertStep(int $charId, int $questId, string $titleRu): void
+    /**
+     * Первая строка `quest_steps` цепочки через `insertUnique()` по `UNIQUE (quest_id, character_id)`.
+     *
+     * @return bool true — строка вставлена; false — строка пары уже была (вклинилась после hasStep())
+     */
+    protected function insertStep(int $charId, int $questId, string $titleRu): bool
     {
-        ($this->questStepsModel ?? new QuestStepsModel())->insert([
+        $model = $this->questStepsModel ?? new QuestStepsModel();
+        $now   = date('Y-m-d H:i:s');
+
+        return (new ConditionalWriteService($model->db))->insertUnique('quest_steps', [
             'quest_id'     => $questId,
             'character_id' => $charId,
             'step_order'   => 1,
             'description'  => $titleRu,
             'is_completed' => 0,
-        ]);
+            'created_at'   => $now,
+            'updated_at'   => $now,
+        ]) === WriteOutcome::Applied;
     }
 
     protected function hasBaseOpenedEvent(int $charId): bool

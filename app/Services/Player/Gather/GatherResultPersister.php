@@ -54,9 +54,10 @@ class GatherResultPersister
     private BaseStorageModel $baseStorageModel;
     private ResourceModel $resourceModel;
     private GatheredResourceLedger $gatheredLedger;
+    private CharacterResourceModel $characterResourceModel;
 
     public function __construct(
-        private ?CharacterResourceModel $characterResourceModel = null,
+        ?CharacterResourceModel $characterResourceModel = null,
         ?EarlyProgressionService $early = null,
         ?VehicleActivationService $vehicleActivation = null,
         ?VehicleEffectsService $vehicleEffects = null,
@@ -127,8 +128,6 @@ class GatherResultPersister
     }
 
     /**
-     * v0.51.33 perf: 1 whereIn для существуючих rows замість N SELECT у loop'і.
-     *
      * transport-08: перед записью в рюкзак делит найденное между рюкзаком и складом
      * базы (карго-профиль активного транспорта). Килсвитч off / нет машины / машина
      * без груза → `cargo_share===0.0` → путь ниже вырождается в старое поведение
@@ -240,37 +239,17 @@ class GatherResultPersister
             return;
         }
 
-        $resourceIds = array_values(array_unique(array_map(
-            static fn ($r): int => (int) $r['resource_id'],
-            $foundResources
-        )));
-        $existingRows = $this->characterResourceModel
-            ->where('id_characters', $character['id'])
-            ->whereIn('id_resources', $resourceIds)
-            ->findAll();
-        $existingByResId = [];
-        foreach ($existingRows as $row) {
-            $existingByResId[(int) $row['id_resources']] = $row;
-        }
-
+        // s1-atomicity-1124 S4: каждое начисление — один upsert по `UNIQUE (id_characters, id_resources)`
+        // ({@see CharacterResourceModel::addOrIncreaseResource()}). Прежнее «прочитать строки → прибавить
+        // в PHP → записать» теряло параллельное начисление (и второе вхождение того же ресурса в одной
+        // находке), а под UNIQUE роняло добычу дублем ключа.
+        $charId = $this->intField($character, 'id');
         foreach ($foundResources as $res) {
             $amount = (int) $res['amount'];
             if ($amount < 1) {
                 continue;
             }
-
-            $existingResource = $existingByResId[(int) $res['resource_id']] ?? null;
-            if ($existingResource) {
-                $newQuantity = $existingResource['quantity'] + $amount;
-                $this->characterResourceModel->update($existingResource['id'], ['quantity' => $newQuantity]);
-            } else {
-                $this->characterResourceModel->insert([
-                    'id_characters'     => $character['id'],
-                    'id_resources'      => $res['resource_id'],
-                    'id_telegram_users' => $character['telegram_user_id'],
-                    'quantity'          => $amount,
-                ]);
-            }
+            $this->characterResourceModel->addOrIncreaseResource($charId, (int) $res['resource_id'], $amount);
         }
     }
 

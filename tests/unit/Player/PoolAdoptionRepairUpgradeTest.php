@@ -128,21 +128,6 @@ final class PoolAdoptionRepairUpgradeTest extends CIUnitTestCase
         return $instance;
     }
 
-    /** Спай `character_tasks->insert()` — story-09: считает вызовы, не трогает БД. */
-    private function characterTaskModelSpy(): CharacterTaskModel
-    {
-        return new class () extends CharacterTaskModel {
-            public bool $insertCalled = false;
-
-            public function insert($row = null, bool $returnID = true)
-            {
-                $this->insertCalled = true;
-
-                return 1;
-            }
-        };
-    }
-
     /** @param array<int,mixed> $args @return mixed */
     private function callPrivate(object $instance, string $method, array $args)
     {
@@ -226,12 +211,24 @@ final class PoolAdoptionRepairUpgradeTest extends CIUnitTestCase
      * одна транзакционная граница (`payAndScheduleRepair()`). Гонка на списании
      * обязана остановить всё целиком: `character_tasks->insert()` не должен
      * вызываться, если оплата не прошла.
+     *
+     * s1-atomicity-11: вставка идёт через `ActiveTasksService::insertExclusiveTaskRow()` мимо
+     * модели, поэтому спай модели ничего не видел бы — слушаем сами запросы к БД (`DBQuery`):
+     * ни одного запроса к `character_tasks` (и общее соединение не остаётся с испорченным
+     * `transStatus` для следующих тестов прогона).
      */
     public function testPayAndScheduleRepairDoesNotInsertTaskWhenResourceRaceFails(): void
     {
         $pool     = $this->poolDouble(backpack: 0, storage: 0, onBase: true); // consume() гарантированно бросит
-        $taskSpy  = $this->characterTaskModelSpy();
-        $instance = $this->repairAction($pool, $taskSpy);
+        $instance = $this->repairAction($pool);
+
+        $taskQueries = [];
+        $listener    = static function (object $query) use (&$taskQueries): void {
+            if ($query instanceof \CodeIgniter\Database\Query && str_contains($query->getQuery(), 'character_tasks')) {
+                $taskQueries[] = $query->getQuery();
+            }
+        };
+        \CodeIgniter\Events\Events::on('DBQuery', $listener);
 
         $threw = false;
         try {
@@ -246,10 +243,12 @@ final class PoolAdoptionRepairUpgradeTest extends CIUnitTestCase
             ]]);
         } catch (\RuntimeException) {
             $threw = true;
+        } finally {
+            \CodeIgniter\Events\Events::removeListener('DBQuery', $listener);
         }
 
         $this->assertTrue($threw, 'payAndScheduleRepair() должен пробросить RuntimeException при гонке на ресурсах');
-        $this->assertFalse($taskSpy->insertCalled, 'задача ремонта не должна создаваться, если оплата не прошла');
+        $this->assertSame([], $taskQueries, 'задача ремонта не должна создаваться, если оплата не прошла');
     }
 
     // ── BuildingUpgradeValidator ──────────────────────────────────────────

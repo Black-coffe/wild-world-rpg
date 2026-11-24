@@ -331,24 +331,8 @@ class GreenhouseProductionHandler extends BaseTaskHandler
             return;
         }
 
-        // Ищем, есть ли такая запись у персонажа
-        $charRes = $this->characterResourceModel
-            ->where('id_characters', $characterId)
-            ->where('id_resources', $resource['id'])
-            ->first();
-
-        if ($charRes) {
-            // Увеличиваем quantity
-            $newQty = $charRes['quantity'] + $quantity;
-            $this->characterResourceModel->update($charRes['id'], ['quantity' => $newQty]);
-        } else {
-            // Создаём новую запись
-            $this->characterResourceModel->insert([
-                'id_characters' => $characterId,
-                'id_resources'  => $resource['id'],
-                'quantity'      => $quantity,
-            ]);
-        }
+        // s1-atomicity-1124 review round 1: атомарный upsert по UNIQUE пары, не read-add-write.
+        $this->characterResourceModel->addOrIncreaseResource($characterId, $resource['id'], $quantity);
     }
 
     /**

@@ -17,7 +17,9 @@ use App\Models\ResourceModel;
 use App\Models\TaskModel;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\Craft\PortableTeleportRecipe;
+use App\Services\Db\WriteOutcome;
 use App\Services\Tasks\ActionScopeService;
+use App\Services\Tasks\ActiveTasksService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -160,27 +162,36 @@ class StartCraftPortableTeleport2Action extends BaseAction
             return $this->error($chatId, 'Портативный телепорт уже собирается — дождись завершения.');
         }
 
-        // Золото списываем ПЕРВЫМ и через decreaseGold: он снимает от свежего значения
-        // под row-lock'ом и сам перепроверяет достаточность (фикс класса lost-update
-        // 2026-07-13). Не прошло — задачу не создаём и материалы не трогаем.
-        if (! $this->charModel->decreaseGold($characterId, $this->recipe->goldCost())) {
-            $this->logRejected($characterId, 'CRAFT_PORTABLE_TELEPORT', 'not_enough_gold');
-
-            return $this->error($chatId, "Не хватает золота: нужно {$this->recipe->goldCost()}.");
-        }
-
         $minutes   = $this->recipe->durationMinutes();
         $startTime = new \DateTime();
         $endTime   = (clone $startTime)->add(new \DateInterval('PT' . $minutes . 'M'));
 
-        $this->charTaskModel->insert([
+        // s1-atomicity-03 (C2, C6): строка задачи — ПЕРВОЙ и только через ядро слота: 🔒-слот,
+        // занятый между гейтом и вставкой, даёт `Refused` и текст ADR-167 — ничего не списано.
+        $activeTasks = new ActiveTasksService();
+        if ($activeTasks->insertExclusiveTaskRow([
             'character_id'     => $characterId,
             'telegram_user_id' => $user['id'],
             'task_id'          => $taskId,
             'start_time'       => $startTime->format('Y-m-d H:i:s'),
             'end_time'         => $endTime->format('Y-m-d H:i:s'),
             'status'           => 'in_work',
-        ]);
+        ]) !== WriteOutcome::Applied) {
+            $this->logRejected($characterId, 'CRAFT_PORTABLE_TELEPORT', 'exclusive_task_busy');
+
+            return $this->error($chatId, $activeTasks->slotTakenText($characterId, PortableTeleportRecipe::ITEM_NAME_RUS), true);
+        }
+        $charTaskId = $activeTasks->lastInsertedTaskId();
+
+        // Золото — через decreaseGold: он снимает от свежего значения под row-lock'ом и сам
+        // перепроверяет достаточность (фикс класса lost-update 2026-07-13). Не прошло — только что
+        // вставленная строка задачи снимается, материалы не трогаем.
+        if (! $this->charModel->decreaseGold($characterId, $this->recipe->goldCost())) {
+            $this->charTaskModel->delete($charTaskId);
+            $this->logRejected($characterId, 'CRAFT_PORTABLE_TELEPORT', 'not_enough_gold');
+
+            return $this->error($chatId, "Не хватает золота: нужно {$this->recipe->goldCost()}.");
+        }
 
         $this->chargeResources($characterId);
         $this->chargeComponents($characterId);
@@ -419,11 +430,12 @@ class StartCraftPortableTeleport2Action extends BaseAction
         );
     }
 
-    private function error(int|string $chatId, string $message): ServerResponse
+    private function error(int|string $chatId, string $message, bool $markdown = false): ServerResponse
     {
         return Request::sendMessage([
             'chat_id'      => $chatId,
             'text'         => $message,
+        ] + ($markdown ? ['parse_mode' => 'Markdown'] : []) + [
             'reply_markup' => json_encode([
                 'inline_keyboard' => [[
                     ['text' => '🌀 К телепортам', 'callback_data' => 'teleportBeaconCraft2'],

@@ -221,9 +221,11 @@ final class FakeChainService extends OnboardingChainService
         return false;
     }
 
-    protected function insertStep(int $charId, int $questId, string $titleRu): void
+    protected function insertStep(int $charId, int $questId, string $titleRu): bool
     {
         $this->inserted[] = ['quest_id' => $questId, 'char_id' => $charId];
+
+        return true;
     }
 
     protected function hasBaseOpenedEvent(int $charId): bool

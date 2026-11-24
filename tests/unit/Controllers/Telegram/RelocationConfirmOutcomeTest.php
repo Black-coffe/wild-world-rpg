@@ -306,7 +306,11 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
     {
         if ($this->db()->tableExists('character_tasks')
             && $this->isColumnNotNullable('character_tasks', 'created_at')
-            && $this->isColumnNotNullable('character_tasks', 'updated_at')) {
+            && $this->isColumnNotNullable('character_tasks', 'updated_at')
+            // s1-atomicity-04 (C9) — без колонок S1 `insertExclusiveTaskRow()` падает на
+            // «Unknown column is_exclusive»; такая форма тоже дрейф и перестраивается.
+            && $this->db()->fieldExists('is_exclusive', 'character_tasks')
+            && $this->db()->fieldExists('exclusive_slot', 'character_tasks')) {
             return;
         }
 
@@ -347,6 +351,19 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
         // AddCriticalIndexes — те же индексы, что у настоящей миграции, по факту отсутствия.
         $this->ensureIndex('character_tasks', 'idx_ct_status_endtime', 'CREATE INDEX idx_ct_status_endtime ON character_tasks(status, end_time)');
         $this->ensureIndex('character_tasks', 'idx_ct_character_status', 'CREATE INDEX idx_ct_character_status ON character_tasks(character_id, status)');
+
+        // s1-atomicity-04 (C9) — колонки и UNIQUE слота 🔒 дословно из
+        // `2026-12-25-100000_S1CharacterTasksExclusiveSlot`.
+        $this->db()->query(
+            'ALTER TABLE `character_tasks` ADD COLUMN `is_exclusive` TINYINT(1) NOT NULL DEFAULT 0'
+        );
+        $this->db()->query(
+            'ALTER TABLE `character_tasks` ADD COLUMN `exclusive_slot` INT UNSIGNED '
+            . "GENERATED ALWAYS AS (IF(`status` = 'in_work' AND `is_exclusive` = 1, `character_id`, NULL)) STORED"
+        );
+        $this->db()->query(
+            'ALTER TABLE `character_tasks` ADD UNIQUE KEY `uq_ct_exclusive_slot` (`exclusive_slot`)'
+        );
     }
 
     private function ensureIndex(string $table, string $indexName, string $createSql): void
@@ -514,6 +531,110 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
 
         $total = $this->db()->table('character_tasks')->where('character_id', $charId)->countAllResults();
         $this->assertSame(0, (int) $total, 'Refused обязан не создавать новую строку — сообщение не должно врать');
+    }
+
+    /**
+     * s1-atomicity-04 (C5) — гонка: между `checkPreconditions()` и вставкой переезда другая 🔒-задача
+     * успела занять слот (`uq_ct_exclusive_slot`). Двойник `SlotTakenRelocationTaskCreator` пишет эту
+     * блокирующую строку и возвращает `Refused`, как сделал бы `insertExclusiveTaskRow()`. Игрок
+     * обязан увидеть текст ADR-167 «Сейчас занят: …» с именем блокировщика, а не «уже начато».
+     */
+    public function testRefusedWithTakenSlotShowsSlotTakenTextNamingBlocker(): void
+    {
+        [$tgId, $charId] = $this->seedCharacterOnSingleBase(300);
+        $tgUid = (int) $this->db()->table('telegram_users')->where('telegram_id', $tgId)->get()->getRowArray()['id'];
+        $this->markExplored($charId, $tgUid, 700);
+
+        $blockerTaskId = $this->exclusiveBlockerTaskId();
+        $response      = $this->handleConfirm(
+            $tgId,
+            50,
+            60,
+            700,
+            new SlotTakenRelocationTaskCreator($this->db(), $blockerTaskId, $tgUid)
+        );
+
+        $this->assertTrue($response->isOk(), 'ответ вебхука обязан остаться успешным — 500 плодит дубли');
+        $result = $response->getResult();
+        $this->assertNotNull($result);
+        $text = (string) $result->getText();
+        $this->assertStringContainsString(
+            'Сейчас занят: ' . self::BLOCKER_NAME_RUS,
+            $text,
+            'S1-RED: Refused relocation must show slotTakenText naming the blocking task'
+        );
+        $this->assertSame((new ActiveTasksService())->slotTakenText($charId, 'Полный переезд'), $text);
+
+        $relocations = $this->db()->table('character_tasks')
+            ->where('character_id', $charId)->where('task_id !=', $blockerTaskId)->countAllResults();
+        $this->assertSame(0, (int) $relocations, 'Refused обязан не начинать переезд');
+    }
+
+    private const BLOCKER_NAME_RUS = 'Гоночная добыча';
+
+    /** `tasks`-строка 🔒-задачи (`parallel_execution_allowed = 0`), которой двойник занимает слот. */
+    private function exclusiveBlockerTaskId(): int
+    {
+        $row = $this->db()->table('tasks')->where('name', 'S1RaceBlocker')->get()->getRowArray();
+        if (is_array($row)) {
+            return (int) $row['id'];
+        }
+
+        $this->db()->table('tasks')->insert([
+            'name'                       => 'S1RaceBlocker',
+            'name_rus'                   => self::BLOCKER_NAME_RUS,
+            'description'                => 's1-atomicity-04 test blocker',
+            'min_duration'               => 60,
+            'max_duration'               => 60,
+            'type'                       => 'exclusive',
+            'difficulty_level'           => 1,
+            'execution_limit'            => 0,
+            'parallel_execution_allowed' => 0,
+            'interruptible'              => 1,
+            'created_at'                 => date('Y-m-d H:i:s'),
+            'updated_at'                 => date('Y-m-d H:i:s'),
+        ]);
+
+        return (int) $this->db()->insertID();
+    }
+}
+
+/**
+ * s1-atomicity-04 — двойник гонки: в момент записи переезда слот 🔒 уже занят другой задачей
+ * (строка вставлена «соседним запросом»), поэтому исход — `Refused`.
+ */
+class SlotTakenRelocationTaskCreator extends RelocationTaskCreator
+{
+    public function __construct(
+        private readonly BaseConnection $db,
+        private readonly int $blockerTaskId,
+        private readonly int $tgUid,
+    ) {
+    }
+
+    public function createTask(
+        int $charId,
+        int $telegramUserId,
+        int $frTaskId,
+        int $mapCellId,
+        int $targetX,
+        int $targetY,
+        int $sourceMapCellId = 0
+    ): WriteOutcome {
+        $now = date('Y-m-d H:i:s');
+        $this->db->table('character_tasks')->insert([
+            'character_id'     => $charId,
+            'telegram_user_id' => $this->tgUid,
+            'task_id'          => $this->blockerTaskId,
+            'start_time'       => $now,
+            'end_time'         => date('Y-m-d H:i:s', time() + 3600),
+            'status'           => 'in_work',
+            'is_exclusive'     => 1,
+            'created_at'       => $now,
+            'updated_at'       => $now,
+        ]);
+
+        return WriteOutcome::Refused;
     }
 }
 

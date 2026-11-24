@@ -37,7 +37,7 @@ final class ResourceShopScreenServiceTest extends CIUnitTestCase
             $db->query("DROP TABLE IF EXISTS {$t}");
         }
         $db->query('CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64) NULL, level INT DEFAULT 1, gold DECIMAL(14,2) DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL)');
-        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT, id_resources INT, quantity INT DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL)');
+        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT, id_resources INT, quantity INT DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL, UNIQUE KEY uq_cr_char_resource (id_characters, id_resources))');
         $db->query('CREATE TABLE resources (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64), name_en VARCHAR(64) NULL, buy_price DECIMAL(10,2) DEFAULT 0, sell_price DECIMAL(10,2) DEFAULT 0, is_tradeable TINYINT DEFAULT 1, rarity INT DEFAULT 1, level_required INT DEFAULT 0, icon_text VARCHAR(16) NULL)');
         $db->query('CREATE TABLE resources_bank (id INT AUTO_INCREMENT PRIMARY KEY, resource_id INT, current_quantity INT DEFAULT 0, resources_purchased INT DEFAULT 0, resources_sold INT DEFAULT 0, last_update DATETIME NULL, UNIQUE KEY uq_res (resource_id))');
 

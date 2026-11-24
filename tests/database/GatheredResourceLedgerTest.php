@@ -47,13 +47,15 @@ final class GatheredResourceLedgerTest extends CIUnitTestCase
                     description TEXT NULL, status VARCHAR(20) DEFAULT 'active', reward INT DEFAULT 0, faction_id INT NULL,
                     objective_type VARCHAR(32) NULL, objective_target VARCHAR(64) NULL, objective_qty INT NULL)");
         $db->query('CREATE TABLE quest_steps (id INT AUTO_INCREMENT PRIMARY KEY, quest_id INT, character_id INT,
-                    is_completed TINYINT DEFAULT 0, created_at DATETIME NULL)');
+                    is_completed TINYINT DEFAULT 0, created_at DATETIME NULL,
+                    UNIQUE KEY uq_qs_quest_character (quest_id, character_id))');
         $db->query("CREATE TABLE action_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NULL, chat_id BIGINT NULL,
                     action_name VARCHAR(255) NOT NULL, action_status ENUM('Pending','Completed','Skipped','REJECTED') NOT NULL,
                     description TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)");
         $db->query('CREATE TABLE resources (id INT PRIMARY KEY, name VARCHAR(100), name_en VARCHAR(100))');
         $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT, id_resources INT,
-                    id_telegram_users INT NULL, quantity INT DEFAULT 0)');
+                    id_telegram_users INT NULL, quantity INT DEFAULT 0,
+                    UNIQUE KEY uq_cr_char_resource (id_characters, id_resources))');
         $db->query('CREATE TABLE telegram_users (id INT PRIMARY KEY, telegram_id BIGINT NULL)');
 
         $db->table('resources')->insertBatch([

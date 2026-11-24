@@ -30,7 +30,7 @@ final class MarchMiniEventServiceTest extends CIUnitTestCase
             $db->query("DROP TABLE IF EXISTS {$t}");
         }
         $db->query('CREATE TABLE resources (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(120) NULL, name_en VARCHAR(120) NULL)');
-        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT NOT NULL, id_resources INT NOT NULL, quantity INT NOT NULL DEFAULT 0)');
+        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT NOT NULL, id_resources INT NOT NULL, quantity INT NOT NULL DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL, UNIQUE KEY uq_cr_char_resource (id_characters, id_resources))');
         $db->query('CREATE TABLE game_settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(191), value_type VARCHAR(16) NULL, value_int INT NULL, value_float DECIMAL(15,5) NULL, value_bool TINYINT NULL, value_string TEXT NULL)');
         foreach (['RareMetals', 'Oil', 'Ironstone', 'Stones', 'Wood', 'Sulfur'] as $en) {
             $db->table('resources')->insert(['name' => $en, 'name_en' => $en]);

@@ -246,7 +246,7 @@ class RepairCraftedItemAction extends BaseAction
         // transStrict) раньше не бросал ничего, и код ниже создавал задачу
         // поверх откаченной оплаты.
         try {
-            $this->payAndScheduleRepair($charId, $cost, [
+            $scheduled = $this->payAndScheduleRepair($charId, $cost, [
                 'character_id'      => $charId,
                 'telegram_user_id'  => $tgUserId,
                 'task_id'           => $repairTaskId,
@@ -260,6 +260,16 @@ class RepairCraftedItemAction extends BaseAction
         } catch (\RuntimeException $e) {
             log_message('error', "[RepairCraftedItemAction] оплата ремонта не прошла для character {$charId}: " . $e->getMessage());
             return $this->errReply($chatId, 'Ресурсы разошлись, пока ты выбирал — проверь запас и попробуй ещё раз.');
+        }
+        if (! $scheduled) {
+            // s1-atomicity-03 (C5): 🔒-слот занял другой старт между гейтом и вставкой — текст ADR-167.
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => (new \App\Services\Tasks\ActiveTasksService())->slotTakenText($charId, $repairNameRus),
+                'parse_mode' => 'Markdown',
+            ]);
         }
 
         Request::answerCallbackQuery([
@@ -444,18 +454,29 @@ class RepairCraftedItemAction extends BaseAction
      * в чём не бывало» — теперь это тоже бросает, и вызывающий отвечает игроку
      * текстом отказа, а не показывает ложный успех.
      *
+     * s1-atomicity-1124 S2 (RED finding 1, ask 9): сначала списание, потом строка
+     * задачи через ядро слота `insertExclusiveTaskRow()` — в одной транзакции.
+     * Проигранная гонка пула бросает до любого запроса к `character_tasks`;
+     * занятый 🔒-слот (`Refused`) откатывает транзакцию вместе со списанием и
+     * возвращает `false`.
+     *
      * @param array<string,int> $cost
-     * @param array<string,mixed> $taskRow строка для `character_tasks->insert()`
+     * @param array<string,mixed> $taskRow строка `character_tasks`
+     * @return bool `false` — 🔒-слот занят, ничего не списано и не создано
      * @throws \RuntimeException на гонку пула ИЛИ на неотслеженный откат транзакции
      */
-    private function payAndScheduleRepair(int $characterId, array $cost, array $taskRow): void
+    private function payAndScheduleRepair(int $characterId, array $cost, array $taskRow): bool
     {
         $db = \Config\Database::connect();
         $db->transStart();
 
         try {
             $this->deductResources($characterId, $cost);
-            $this->characterTaskModel->insert($taskRow);
+            if ((new \App\Services\Tasks\ActiveTasksService())->insertExclusiveTaskRow($taskRow) !== \App\Services\Db\WriteOutcome::Applied) {
+                $db->transRollback(); // откатывает и списание выше: ничего не потрачено
+
+                return false;
+            }
         } catch (\RuntimeException $e) {
             $db->transRollback();
             throw $e;
@@ -465,6 +486,8 @@ class RepairCraftedItemAction extends BaseAction
         if ($db->transStatus() === false) {
             throw new \RuntimeException('Транзакция ремонта откачена без исключения (оплата + задача).');
         }
+
+        return true;
     }
 
     /**

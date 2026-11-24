@@ -182,6 +182,39 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
             return $this->sendError($chatId, "У вас уже идёт крафт Рваной рубахи!");
         }
 
+        // 7) считаем время крафта
+        $timeForOne = 5; // 5 мин на 1 шт.
+        $totalTime  = $timeForOne * $this->quantity;
+
+        $startTime = new \DateTime();
+        $endTime   = (clone $startTime)->add(new \DateInterval("PT{$totalTime}M"));
+
+        // 8) создаём запись в character_tasks
+        // s1-atomicity-03 (C2, C6): строка задачи — до списаний и только через ядро слота.
+        $activeTasks = new \App\Services\Tasks\ActiveTasksService();
+        if ($activeTasks->insertExclusiveTaskRow([
+            'character_id'     => $character['id'],
+            'telegram_user_id' => $user['id'],
+            'task_id'          => $taskRow['id'],
+            'start_time'       => $startTime->format('Y-m-d H:i:s'),
+            'end_time'         => $endTime->format('Y-m-d H:i:s'),
+            'status'           => 'in_work',
+            'task_settings'    => json_encode([
+                'item_crafted' => 'RaggedShirt',
+                'quantity'     => $this->quantity,
+            ]),
+        ]) !== \App\Services\Db\WriteOutcome::Applied) {
+            // s1-atomicity-03 (C5): 🔒-слот занят между гейтом и вставкой — текст ADR-167, ничего не списано.
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $activeTasks->slotTakenText(
+                    is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0,
+                    is_string($taskRow['name_rus'] ?? null) ? $taskRow['name_rus'] : ''
+                ),
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
         // 6) списываем золото и предметы
         // 6.1) золото
         $this->characterModel
@@ -201,27 +234,6 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
             $newQty = $logRow['quantity'] - $totalNeeded;
             $this->craftedItemsLogModel->update($logRow['id'], ['quantity' => $newQty]);
         }
-
-        // 7) считаем время крафта
-        $timeForOne = 5; // 5 мин на 1 шт.
-        $totalTime  = $timeForOne * $this->quantity;
-
-        $startTime = new \DateTime();
-        $endTime   = (clone $startTime)->add(new \DateInterval("PT{$totalTime}M"));
-
-        // 8) создаём запись в character_tasks
-        $this->characterTaskModel->insert([
-            'character_id'     => $character['id'],
-            'telegram_user_id' => $user['id'],
-            'task_id'          => $taskRow['id'],
-            'start_time'       => $startTime->format('Y-m-d H:i:s'),
-            'end_time'         => $endTime->format('Y-m-d H:i:s'),
-            'status'           => 'in_work',
-            'task_settings'    => json_encode([
-                'item_crafted' => 'RaggedShirt',
-                'quantity'     => $this->quantity,
-            ]),
-        ]);
 
         // убираем "часики" на кнопке
         Request::answerCallbackQuery([

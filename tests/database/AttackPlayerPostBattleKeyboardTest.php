@@ -47,7 +47,10 @@ final class AttackPlayerPostBattleKeyboardTest extends CIUnitTestCase
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 character_id INT NULL,
                 task_id INT NULL,
-                status VARCHAR(32) NULL
+                status VARCHAR(32) NULL,
+                `is_exclusive` TINYINT(1) NOT NULL DEFAULT 0,
+                `exclusive_slot` INT UNSIGNED GENERATED ALWAYS AS (IF(`status` = \'in_work\' AND `is_exclusive` = 1, `character_id`, NULL)) STORED,
+                UNIQUE KEY `uq_ct_exclusive_slot` (`exclusive_slot`)
             )
         ');
 

@@ -205,14 +205,13 @@ class BaseShiftingCommand extends UserCommand
                 $sourceCell
             );
 
-            // exploit-fix-12 (ADR-181 §5) — читаем исход, а не рапортуем успех вслепую:
-            // insertUnique() гасит гонку двух почти одновременных подтверждений в `Refused`
-            // (UNIQUE-индекс на `character_tasks` под этот путь не заведён — story 10
-            // ограничена `resources_bank`, см. plan.md `## Descoped`), и экран обязан
-            // сказать то же, что сделал механизм. Текст отказа общий — `ActiveTasksService`.
+            // exploit-fix-12 (ADR-181 §5) — читаем исход, а не рапортуем успех вслепую.
+            // s1-atomicity-04 (C5): `Refused` — 🔒-слот персонажа занят (`uq_ct_exclusive_slot`:
+            // другая 🔒-задача успела стартовать между `checkPreconditions()` и записью). Игрок
+            // видит текст ADR-167 «Сейчас занят: …» с именем блокировщика; ничего не списано.
             if ($outcome !== \App\Services\Db\WriteOutcome::Applied) {
                 return $this->send($chatId, [
-                    'text'       => (new \App\Services\Tasks\ActiveTasksService())->alreadyStartedExclusiveTaskText(),
+                    'text'       => (new \App\Services\Tasks\ActiveTasksService())->slotTakenText($charIdNum, 'Полный переезд'),
                     'parse_mode' => 'Markdown',
                 ]);
             }
