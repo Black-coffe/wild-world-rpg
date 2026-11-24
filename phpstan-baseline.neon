@@ -11854,42 +11854,6 @@ parameters:
 			path: app/Services/Player/Gather/GatherMessageFormatter.php
 
 		-
-			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/Gather/GatherResultPersister.php
-
-		-
-			message: '#^Cannot access offset ''id_resources'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/Gather/GatherResultPersister.php
-
-		-
-			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/Gather/GatherResultPersister.php
-
-		-
-			message: '#^Cannot call method insert\(\) on App\\Models\\CharacterResourceModel\|null\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Services/Player/Gather/GatherResultPersister.php
-
-		-
-			message: '#^Cannot call method update\(\) on App\\Models\\CharacterResourceModel\|null\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Services/Player/Gather/GatherResultPersister.php
-
-		-
-			message: '#^Cannot call method where\(\) on App\\Models\\CharacterResourceModel\|null\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Services/Player/Gather/GatherResultPersister.php
-
-		-
 			message: '#^Cannot access offset ''crafted_item_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1

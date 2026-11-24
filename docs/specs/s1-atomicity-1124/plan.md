@@ -63,12 +63,14 @@ asked for, and a green full suite on the merged result. Review is code-only and 
     Markdown, nothing spent
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/database/RobotGatheringStartSlotTest.php
     tests/unit/Camp/StartRobotGatheringBaseTest.php`; the grep of ask 3 returns nothing
-- [ ] S4 Writers the new UNIQUE keys would break - asks: 1, 13
+- [x] S4 Writers the new UNIQUE keys would break - asks: 1, 13
   - files: `app/Services/NPC/NpcInteractionService.php` (`acceptOfferedQuest`), `app/Services/Craft/CraftQueueService.php`,
     app/Services/Player/Gather/GatherResultPersister.php, their tests (new or existing)
   - test first: a quest step already present for the pair → accept is refused as "already taken", no exception;
     a row inserted between read and write → the credit lands as a sum, no duplicate-key error. Both fail today
   - check: the new/changed test files, then the db part(s) holding them
+  - outside: `phpstan-baseline.neon` — six `GatherResultPersister` entries (nullable promoted property,
+    read-add-write offsets) no longer match after the rewrite and phpstan fails on unmatched ignores
 - [ ] S5 ADR and tech-writing - asks: 8
   - files (vault, left uncommitted): `mmorpg-vault/decisions/ADR-NNN-*.md` + `decisions/index.md` line (or ADR-167
     addendum), tech-writing notes of every touched model/service/handler (`CharacterResourceModel`,

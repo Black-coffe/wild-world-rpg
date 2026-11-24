@@ -15,6 +15,8 @@ use App\TaskHandlers\Craft\GenericCraftCompletionHandler;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Forge;
 use CodeIgniter\Database\Migration;
+use CodeIgniter\Database\Query;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -91,6 +93,9 @@ final class CraftQueueCoreTest extends CIUnitTestCase
     /** @var array<string, string|false> */
     private array $envBackup = [];
 
+    /** @var (callable(mixed): void)|null */
+    private $listener = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -131,6 +136,10 @@ final class CraftQueueCoreTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        if ($this->listener !== null) {
+            Events::removeListener('DBQuery', $this->listener);
+            $this->listener = null;
+        }
         foreach ($this->envBackup as $k => $v) {
             putenv($v === false ? $k : "{$k}={$v}");
         }
@@ -535,6 +544,55 @@ final class CraftQueueCoreTest extends CIUnitTestCase
 
         $this->assertSame(['1' => '24', '2' => '24', '3' => '36'], $this->backpack([1, 2, 3]));
         $this->assertSame([['resource_id' => '1', 'quantity' => '10']], $this->state()['storage']);
+    }
+
+    /**
+     * s1-atomicity-1124 S4 (ask 13): строка пары `character_resources`, появившаяся под возвратом
+     * (параллельное начисление после того, как транзакция отмены взяла снимок), не роняет отмену
+     * дублем `UNIQUE (id_characters, id_resources)` и не теряется — возврат ложится суммой.
+     *
+     * Снимок берёт первое чтение в транзакции (поиск ресурса по имени); в этот момент второе
+     * соединение пишет пару. Чтение «есть ли строка» внутри транзакции её не видит.
+     */
+    public function testCancelRefundLandsAsSumWhenThePairRowAppearsUnderIt(): void
+    {
+        $this->resetCase();
+        $this->conn->query('DELETE FROM character_resources WHERE id_characters = 1 AND id_resources = 1');
+        $id = $this->charTask($this->taskId('craftBandage'), 'queued', 'Bandage', 1, [
+            'resources'     => ['Травы' => ['backpack' => 3, 'storage' => 0]],
+            'crafted_items' => [],
+            'gold'          => 0,
+        ]);
+
+        $deleted        = false;
+        $fired          = false;
+        $this->listener = function ($query) use (&$deleted, &$fired): void {
+            if (! $query instanceof Query || $fired) {
+                return;
+            }
+            $sql = $query->getQuery();
+            if (str_contains($sql, 'DELETE FROM character_tasks')) {
+                $deleted = true;
+
+                return;
+            }
+            if ($deleted && str_contains($sql, 'FROM `resources`')) {
+                $fired = true;
+                $now   = date('Y-m-d H:i:s');
+                Database::connect(null, false)->query(
+                    'INSERT INTO character_resources (id_characters, id_resources, quantity, created_at, updated_at) VALUES (1, 1, 5, ?, ?)',
+                    [$now, $now]
+                );
+            }
+        };
+        Events::on('DBQuery', $this->listener);
+
+        $out = (new CraftQueueService())->cancel(self::CHAR, $id);
+
+        $this->assertTrue($fired, 'поиск ресурса в транзакции отмены не встретился — вклинивание не случилось');
+        $this->assertSame([true, CraftQueueService::CANCELLED], [$out['ok'], $out['code']], 'отмена упала: ' . $out['message']);
+        $rows = $this->conn->query('SELECT quantity FROM character_resources WHERE id_characters = 1 AND id_resources = 1')->getResultArray();
+        $this->assertSame([['quantity' => '8']], $rows, 'возврат и параллельное начисление легли суммой в одну строку');
     }
 
     /**

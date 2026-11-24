@@ -355,7 +355,7 @@ class CraftQueueService
                 continue;
             }
             if ($from['backpack'] > 0) {
-                $this->addToBackpack($db, $writer, $characterId, $resourceId, $from['backpack']);
+                $this->addToBackpack($characterId, $resourceId, $from['backpack']);
             }
             if ($from['storage'] > 0) {
                 $this->addToStorage($db, $writer, $characterId, $resourceId, $from['storage']);
@@ -373,14 +373,15 @@ class CraftQueueService
         }
     }
 
-    /** @param BaseConnection<object, object> $db */
-    private function addToBackpack(BaseConnection $db, ConditionalWriteService $writer, int $characterId, int $resourceId, int $qty): void
+    /**
+     * s1-atomicity-1124 S4: возврат в рюкзак одним upsert по `UNIQUE (id_characters, id_resources)`
+     * ({@see CharacterResourceModel::addOrIncreaseResource()}). Прежнее «прочитать id → прибавить, иначе
+     * вставить» внутри транзакции читало снимок: строка пары, начисленная параллельно, давала дубль
+     * ключа и откат всей отмены.
+     */
+    private function addToBackpack(int $characterId, int $resourceId, int $qty): void
     {
-        $rowId = $this->firstId($db, 'character_resources', ['id_characters' => $characterId, 'id_resources' => $resourceId]);
-        if ($rowId > 0 && $writer->increment('character_resources', ['id' => $rowId], 'quantity', $qty) === WriteOutcome::Applied) {
-            return;
-        }
-        (new CharacterResourceModel())->insert(['id_characters' => $characterId, 'id_resources' => $resourceId, 'quantity' => $qty]);
+        (new CharacterResourceModel())->addOrIncreaseResource($characterId, $resourceId, $qty);
     }
 
     /** @param BaseConnection<object, object> $db */
