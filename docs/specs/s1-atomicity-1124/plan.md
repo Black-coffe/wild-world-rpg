@@ -159,8 +159,9 @@ orchestrator's relayed list (not the owner's words). Merged is not live: nothing
   preprod log has no `screen write failed` / CRITICAL.
 - Item 6 (F11): covered by `S1ExclusiveSlotOnRealSchemaTest::testRerunAfterPartialApplyCompletes` and
   `…WithDuplicatesRefusesWithTheIntendedMessage`; not re-run on preprod (nothing to rerun there).
-
-**Before a prod tag:**
+- Item 5 (F7) done 2026-11-25: `quest_steps` keeps its own FK index `quest_steps_quest_id_foreign (quest_id)` on
+  preprod and on prod (read only), so `S1QuestStepsUnique::down()` (`DROP INDEX uq_qs_quest_character`) cannot hit
+  MySQL 1553. Exercised on preprod: the exact `down()` statement succeeded, then the `up()` statement restored the key.
 5. F7 on preprod: `S1QuestStepsUnique::down()` may fail because MySQL may drop the implicit FK index on `quest_id`
    once the UNIQUE serves it (add a plain index before dropping the UNIQUE).
 6. F11 verified on preprod (rerun guard / recovery step from item 3).
