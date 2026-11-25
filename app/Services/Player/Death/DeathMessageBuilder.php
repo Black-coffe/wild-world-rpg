@@ -28,10 +28,12 @@ use Config\Database;
  * Дальше (batch 3) — будет связано с `last_respawn_at` / чисткой `effect_log` при смерти.
  *
  * ADR-200 (ask 7): причина называет источник и урон — удары событий из `event_effects_log` за окно
- * ({@see recentHits()}), иначе Поход с его расходом ❤️ ({@see recentMarch()}), иначе голод; текст — {@see causeBlock()}.
+ * ({@see recentHits()}), Поход с его расходом ❤️ ({@see recentMarch()}) и голод с фактической просадкой из
+ * `action_log` ({@see recentHunger()}); текст — {@see causeBlock()}.
  *
  * @phpstan-type Hit array{event_id:int, name:string, health_delta:float, event_time:string}
  * @phpstan-type March array{hp:float, started:string, cells:int}
+ * @phpstan-type Hunger array{hp:float, time:string}
  */
 final class DeathMessageBuilder
 {
@@ -62,7 +64,7 @@ final class DeathMessageBuilder
         // ADR-200 (ask 7): причина — какое событие / поход / голод, сколько ❤️ и за какое время.
         $now            = time();
         $hits           = $this->recentHits($charId, $now);
-        $cause          = self::causeBlock($hits, $this->recentMarch($charId, $now), $healthDeath, $now);
+        $cause          = self::causeBlock($hits, $this->recentMarch($charId, $now), $healthDeath, $now, $this->recentHunger($charId, $now));
         $topEventId     = self::topEventId($hits);
         $topEvent       = $topEventId !== null ? $this->safeEventInfo($topEventId) : null;
         $duringEvent    = $topEventId !== null;
@@ -89,13 +91,21 @@ final class DeathMessageBuilder
     private const CAUSE_MAX_EVENTS = 3;
 
     /**
-     * Строка причины смерти: какое событие (сумма фактически применённых ударов) или Поход (накопленный расход ❤️),
-     * сколько ❤️ и за какое время; ни того ни другого в окне — голод или шаг в опасный биом. Чистая функция.
-     *
-     * @param list<Hit>  $hits  удары событий за окно ({@see recentHits()}), в порядке времени
-     * @param March|null $march идущий или недавно кончившийся Поход ({@see recentMarch()})
+     * ADR-200 (ask 7, ревью раунд 1) — окно голода, минут назад от смерти. Голод списывает здоровье раз в сутки,
+     * поэтому окно — сутки: последняя просадка от голода ещё объясняет, куда делось здоровье. Окно отображения.
      */
-    public static function causeBlock(array $hits, ?array $march, float $healthDeath, int $now): string
+    public const HUNGER_WINDOW_MINUTES = 1440;
+
+    /**
+     * Строка причины смерти: какие события (сумма фактически применённых ударов), Поход (накопленный расход ❤️) и
+     * голод (фактическая просадка), сколько ❤️ и за какое время. Ничего из этого — шаг в опасный биом; голод
+     * без записи о просадке не называется (сам он до рулетки не доводит — ask 1). Чистая функция.
+     *
+     * @param list<Hit>   $hits   удары событий за окно ({@see recentHits()}), в порядке времени
+     * @param March|null  $march  идущий или недавно кончившийся Поход ({@see recentMarch()})
+     * @param Hunger|null $hunger последняя просадка от голода за окно голода ({@see recentHunger()})
+     */
+    public static function causeBlock(array $hits, ?array $march, float $healthDeath, int $now, ?array $hunger = null): string
     {
         $parts = [];
         foreach (array_slice(self::eventDamage($hits), 0, self::CAUSE_MAX_EVENTS) as $ev) {
@@ -107,12 +117,16 @@ final class DeathMessageBuilder
                 . " мин пути ({$march['cells']} " . MarchService::plural($march['cells'], 'клетка', 'клетки', 'клеток')
                 . ', опасные биомы стоят дороже)';
         }
+        if ($hunger !== null && $hunger['hp'] > 0.0) {
+            $parts[] = 'голод (не хватило еды или воды): ❤️' . self::num($hunger['hp']) . ', '
+                . self::agoText(self::minutesSince($hunger['time'], $now));
+        }
         $roulette = 'упало до *' . number_format($healthDeath, 2) . '* — сработала «рулетка смерти»: при здоровье ниже 1.0 '
             . 'каждую минуту есть шанс погибнуть, и он тем выше, чем ниже здоровье.';
 
         if ($parts === []) {
             return '💀 *Причина:* за последние ' . intdiv(self::CAUSE_WINDOW_MINUTES, 60) . ' ч ни события, ни дальнего пути — '
-                . 'обычно это голод (кончились еда или вода) или шаг в опасный биом. Здоровье ' . $roulette;
+                . 'обычно это шаг в опасный биом. Здоровье ' . $roulette;
         }
 
         return '💀 *Причина:* ' . implode('; ', $parts) . ".\nЗдоровье " . $roulette;
@@ -177,6 +191,41 @@ final class DeathMessageBuilder
         }
 
         return $hits;
+    }
+
+    /**
+     * Последняя просадка от голода за окно {@see HUNGER_WINDOW_MINUTES}: строка `action_log`
+     * {@see \App\TaskHandlers\FoodAndWaterConsumptionHandler::HEALTH_LOSS_ACTION}, `description` — фактически
+     * списанные ❤️ (после пассивного пола). Нет таблицы или записи — null: текст смерти не падает из-за причины.
+     *
+     * @return Hunger|null
+     */
+    public function recentHunger(int $charId, int $now): ?array
+    {
+        if ($charId <= 0) {
+            return null;
+        }
+        try {
+            $res = Database::connect()->table('action_log')
+                ->select('description, created_at')
+                ->where('character_id', $charId)
+                ->where('action_name', \App\TaskHandlers\FoodAndWaterConsumptionHandler::HEALTH_LOSS_ACTION)
+                ->where('created_at >=', date('Y-m-d H:i:s', $now - self::HUNGER_WINDOW_MINUTES * 60))
+                ->where('created_at <=', date('Y-m-d H:i:s', $now))
+                ->orderBy('id', 'DESC')
+                ->limit(1)
+                ->get();
+            $row = $res instanceof BaseResult ? $res->getRowArray() : null;
+        } catch (\Throwable $e) {
+            log_message('error', '[DeathMessageBuilder] recentHunger: ' . $e->getMessage());
+
+            return null;
+        }
+        if (! is_array($row) || ! is_numeric($row['description'] ?? null) || (float) $row['description'] <= 0.0) {
+            return null;
+        }
+
+        return ['hp' => (float) $row['description'], 'time' => self::asStr($row['created_at'] ?? null)];
     }
 
     /**
@@ -278,6 +327,12 @@ final class DeathMessageBuilder
         $ts = strtotime($time);
 
         return $ts === false ? 1 : max(1, (int) round(($now - $ts) / 60));
+    }
+
+    /** «90 мин назад»; от двух часов — «5 ч назад» (голод бывает раз в сутки, минуты там не читаются). */
+    private static function agoText(int $minutes): string
+    {
+        return $minutes < 120 ? "{$minutes} мин назад" : intdiv($minutes, 60) . ' ч назад';
     }
 
     /** ❤️ без хвостовых нулей: 70.00 → «70», 3.50 → «3.5». */

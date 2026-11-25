@@ -116,6 +116,18 @@ final class ActiveDamageEventLookupTest extends CIUnitTestCase
         $this->assertCount(1, $this->lookup()->forBiome(3));
     }
 
+    /** Ревью раунд 1 (ask 3): Миражи ранят здоровье побочным эффектом (`side_effects.health_loss_range`). */
+    public function testMirageSideEffectHarmsHealth(): void
+    {
+        $cfg = new WorldEvents();
+
+        $this->assertTrue(ActiveDamageEventLookup::harmsHealth($cfg->get('MirageOases'), null, null));
+        $this->assertFalse(ActiveDamageEventLookup::harmsHealth($cfg->get('PolarNight'), null, null), 'only stamina side effect');
+
+        $this->active($this->event('Миражи', 'MirageOases', '[4]'));
+        $this->assertSame(['Миражи'], array_column($this->lookup()->forBiome(4), 'name'));
+    }
+
     public function testCoversBiomeRules(): void
     {
         $this->assertTrue(ActiveDamageEventLookup::coversBiome(null, 5));

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Database;
 
+use App\Services\Player\Death\DeathMessageBuilder;
 use App\TaskHandlers\FoodAndWaterConsumptionHandler;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -62,12 +63,27 @@ final class HungerPassiveFloorTest extends CIUnitTestCase
                 updated_at DATETIME NULL
             )
         ');
+        $this->createIfMissing('action_log', "
+            CREATE TABLE action_log (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                character_id INT UNSIGNED NOT NULL,
+                chat_id BIGINT UNSIGNED NULL,
+                action_name VARCHAR(255) NOT NULL,
+                action_status ENUM('Pending','Completed','Skipped','REJECTED') NOT NULL DEFAULT 'Pending',
+                description TEXT NULL,
+                created_at DATETIME NULL,
+                updated_at DATETIME NULL
+            )
+        ");
     }
 
     protected function tearDown(): void
     {
         try {
             $db = $this->db();
+            if (($this->ownRows['characters'] ?? []) !== [] && $db->tableExists('action_log')) {
+                $db->table('action_log')->whereIn('character_id', $this->ownRows['characters'])->delete();
+            }
             foreach ($this->ownRows as $table => $ids) {
                 if ($ids !== []) {
                     $db->table($table)->whereIn('id', $ids)->delete();
@@ -120,6 +136,27 @@ final class HungerPassiveFloorTest extends CIUnitTestCase
         $caption = HungerSendSpy::$captions[0];
         $this->assertStringContainsString('просело на:* 0.5', $caption, 'message shows the applied drop, not the requested one');
         $this->assertStringContainsString('Текущее здоровье:* 1', $caption);
+    }
+
+    /**
+     * Ревью раунд 1 (ask 7): фактическая просадка от голода записана с временем туда, где её читает сообщение о
+     * смерти; голод, не тронувший здоровье (ниже пола), записи не оставляет.
+     */
+    public function testHungerRecordsTheAppliedDropForTheDeathMessage(): void
+    {
+        $charId = $this->insertTracked('characters', ['telegram_user_id' => null, 'health' => 1.5, 'level' => 10]);
+        $belowFloor = $this->insertTracked('characters', ['telegram_user_id' => null, 'health' => 0.6, 'level' => 10]);
+
+        $this->hunger($charId, 0.75);
+        $this->hunger($belowFloor, 0.3);
+
+        $builder = new DeathMessageBuilder();
+        $hunger  = $builder->recentHunger($charId, time());
+        $this->assertNotNull($hunger, 'hunger drop is recorded');
+        $this->assertEqualsWithDelta(0.5, $hunger['hp'], 0.0001, 'the applied drop, not the requested half');
+        $this->assertLessThanOrEqual(1, abs(time() - (int) strtotime($hunger['time'])) / 60);
+        $this->assertNull($builder->recentHunger($belowFloor, time()), 'no drop — no record');
+        $this->assertNull($builder->recentHunger($charId, time() + (DeathMessageBuilder::HUNGER_WINDOW_MINUTES + 5) * 60), 'outside the window');
     }
 
     private function hunger(int $charId, float $requested): void

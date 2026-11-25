@@ -15,7 +15,8 @@ use Config\WorldEvents;
  * Источник — `active_events` (status `active`, `end_time` не прошёл) × `events.biome_ids` × вид эффекта из
  * {@see WorldEvents}. Событие с пустыми / NULL `biome_ids` глобальное — покрывает каждый биом (как в
  * `EventDispatcher::findAffectedPlayers()`). По здоровью бьёт `damage_health`, кроме цели `tired`
- * (Песчаная буря) и кроме Лихорадки в биоме, где её правило — только выносливость.
+ * (Песчаная буря) и кроме Лихорадки в биоме, где её правило — только выносливость, а также `task_extend` с
+ * побочным `side_effects.health_loss_range` (Миражи).
  *
  * Читает `GatherAction` (отказ начать добычу при низком здоровье в биоме события).
  */
@@ -109,11 +110,15 @@ class ActiveDamageEventLookup
         if ($config === null) {
             return false;
         }
-        $kind = $handlerKey !== null && $handlerKey !== '' ? $handlerKey : ($config['effect_kind'] ?? null);
-        if ($kind !== 'damage_health') {
-            return false;
-        }
+        $kind   = $handlerKey !== null && $handlerKey !== '' ? $handlerKey : ($config['effect_kind'] ?? null);
         $params = is_array($config['effect_params'] ?? null) ? $config['effect_params'] : [];
+        if ($kind !== 'damage_health') {
+            // Побочный урон здоровью у событий другого рода (Миражи: task_extend + side_effects.health_loss_range),
+            // как в EventMessageFormatter::healthHitRange() — ревью раунд 1, ask 3.
+            $side = is_array($params['side_effects'] ?? null) ? $params['side_effects'] : [];
+
+            return $kind === 'task_extend' && array_key_exists('health_loss_range', $side);
+        }
         $target = $params['damage_target'] ?? 'health';
 
         if ($target === 'tired') {
