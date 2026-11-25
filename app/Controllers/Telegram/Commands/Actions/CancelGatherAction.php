@@ -73,6 +73,10 @@ class CancelGatherAction extends BaseAction
         // 3. Прерываем задачу — меняем статус на "interrupted"
         $this->characterTaskModel->update($task['id'], ['status' => 'interrupted']);
 
+        // craft-queue-promote-1125 — 🔒-слот освободился: очередь крафта стартует сразу, сообщение —
+        // после итога отмены.
+        $promoted = \App\Services\Craft\CraftQueueActivationNotice::promote((int) $character['id']);
+
         // 4. Формируем сообщение о том, что игрок уходит с пустыми руками
         $messageText = "*Ты прервал добычу ресурсов!* 😥\n\n";
         $messageText .= "Увы, все старания пошли насмарку — ничего собрать не успел.\n\n";
@@ -104,12 +108,15 @@ class CancelGatherAction extends BaseAction
         // Пример с фото «character_rushes_back_to_his_base.png»
         $imagePath = base_url('uploads/telegram/character_rushes_back_to_his_base.png');
 
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        $response = \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $messageText,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+        \App\Services\Craft\CraftQueueActivationNotice::send($promoted);
+
+        return $response;
     }
 }

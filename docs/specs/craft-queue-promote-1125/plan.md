@@ -52,7 +52,7 @@ wherever a task leaves `in_work`: once in the Worker for every timed task, and i
     other stays `queued`; (d) a queued non-exclusive craft starts beside a 🔒 task; (e) two concurrent calls never
     start two 🔒 rows (second connection, as `CraftQueueCoreTest`).
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/database/CraftQueuePromoteEligibleTest.php tests/database/CraftQueueCoreTest.php tests/database/CraftExclusiveSlotRefusalTest.php`
-- [ ] S2 Wire it everywhere a task leaves `in_work`, one shared message - asks: 1, 3
+- [x] S2 Wire it everywhere a task leaves `in_work`, one shared message - asks: 1, 3
   - files: `app/Controllers/Worker.php`, `app/TaskHandlers/BaseTaskHandler.php`,
     `app/TaskHandlers/Craft/GenericCraftCompletionHandler.php`, `app/Controllers/Telegram/Commands/Actions/FinishTaskAction.php`,
     `.../CancelGatherAction.php`, `.../CancelMarchAction.php` (or `MarchService::stop()` callers),
@@ -62,6 +62,7 @@ wherever a task leaves `in_work`: once in the Worker for every timed task, and i
     the craft `in_work` and one «Очередь активирована» message captured; `FinishTaskAction` interrupting the running
     craft R starts the next queued R; the message text is identical from every caller.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/database/CraftQueuePromoteEligibleTest.php` plus the new wiring tests; phpstan
+  - outside: `phpstan-baseline.neon` — two entries for the removed `notifyQueuedActivated()` body no longer match (phpstan fails on unmatched ignores); entries removed/count lowered, nothing new suppressed
 - [ ] S2b Backstop sweep in the Worker tick - asks: 1, 2
   - files: `app/Controllers/Worker.php` (or a small service it calls), `app/Config/*` for the per-tick limit, test
   - test first: a stranded queued 🔒 craft with no task leaving `in_work` (e.g. the running craft deleted by hand)

@@ -233,12 +233,16 @@ class DeleteBaseAction extends BaseAction
         $activeTasks        = $activeTasksService->getActiveTasksWithDetails($character['id']);
         $characterTaskModel = new CharacterTaskModel();
 
+        $promoted = [];
         foreach ($activeTasks as $taskRow) {
             if ($taskRow['name'] === 'BaseRelocation') {
                 // Прерываем задачу переезда
                 $characterTaskModel->update($taskRow['charTaskId'], [
                     'status' => 'interrupted'
                 ]);
+                // craft-queue-promote-1125 — переезд вышел из работы: очередь крафта получает
+                // освободившийся 🔒-слот; сообщение — после итога сноса.
+                $promoted = \App\Services\Craft\CraftQueueActivationNotice::promote((int) $character['id']);
                 break;
             }
         }
@@ -331,12 +335,15 @@ class DeleteBaseAction extends BaseAction
             ]
         ];
 
-        return Request::sendMessage([
+        $response = Request::sendMessage([
             'chat_id'    => $chatId,
             'text'       => $text,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+        \App\Services\Craft\CraftQueueActivationNotice::send($promoted);
+
+        return $response;
     }
 
     /**

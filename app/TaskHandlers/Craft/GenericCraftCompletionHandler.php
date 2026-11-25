@@ -18,7 +18,6 @@ use App\Models\WeaponModel;
 use App\Services\BuildingEffects\BuildingEffectsService;
 use App\TaskHandlers\BaseTaskHandler;
 use Config\CraftRecipes;
-use DateTime;
 use Longman\TelegramBot\Exception\TelegramException;
 use App\Services\Telegram\Request;
 
@@ -291,39 +290,13 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
             return;
         }
 
-        // notify користувачу про активацію черги
-        $this->notifyQueuedActivated($promoted['telegram_user_id'], $promoted['row'], $promoted['qty'], $promoted['ends_at']);
-    }
-
-    /**
-     * @param array<array-key, mixed> $task
-     */
-    private function notifyQueuedActivated(int $telegramUserId, array $task, int $quantity, DateTime $endTime): void
-    {
-        $userRow = $this->telegramUserModel->where('id', $telegramUserId)->first();
-        if (!$userRow || empty($userRow['telegram_id'])) {
-            return;
+        // notify користувачу про активацію черги — общий текст для всех, кто продвигает очередь
+        // (craft-queue-promote-1125). Worker после этого handler'а зовёт общее продвижение: оно
+        // найдёт уже стартовавший рецепт в работе и второго сообщения не будет.
+        $message = \App\Services\Craft\CraftQueueActivationNotice::message($promoted);
+        if ($message !== null) {
+            $this->safeSendMessage($message['chat_id'], $message['text'], ['parse_mode' => $message['parse_mode']]);
         }
-        $telegramId = (int) $userRow['telegram_id'];
-
-        $recipeKey = $this->extractRecipeKey($task);
-        if ($recipeKey === null) {
-            return;
-        }
-
-        /** @var CraftRecipes $cfg */
-        $cfg    = config('CraftRecipes');
-        $recipe = $cfg->get($recipeKey);
-        if ($recipe === null) {
-            return;
-        }
-
-        $endTimeStr = $endTime->format('H:i');
-        $text = "▶️ *Очередь активирована!*\n\n"
-            . "Запущен крафт: {$recipe['start_caption_name']} x{$quantity} шт.\n\n"
-            . "Завершится в *{$endTimeStr}*.";
-
-        $this->safeSendMessage($telegramId, $text, ['parse_mode' => 'Markdown']);
     }
 
     /**

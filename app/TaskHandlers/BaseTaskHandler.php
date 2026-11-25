@@ -2,6 +2,8 @@
 
 namespace App\TaskHandlers;
 
+use App\Services\Craft\CraftQueueActivationNotice;
+use App\Services\Craft\CraftQueueService;
 use App\Services\Notifications\BlockedRecipient;
 use App\TaskHandlers\Contracts\TaskHandlerInterface;
 use App\Services\Telegram\Request;
@@ -83,6 +85,30 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
         }
 
         return $extra;
+    }
+
+    /**
+     * craft-queue-promote-1125 — задача персонажа вышла из работы: запустить всё, что его очередь
+     * крафта может начать сейчас ({@see CraftQueueService::promoteEligible()}), и сообщить
+     * «▶️ Очередь активирована!» ({@see CraftQueueActivationNotice}) через свою {@see safeSendMessage()}
+     * (отправки крона вне этой базы теряются молча). Зовёт Worker после каждой задачи.
+     *
+     * @return int сколько строк очереди запущено
+     */
+    public function promoteQueuedCrafts(int $characterId): int
+    {
+        if ($characterId < 1) {
+            return 0;
+        }
+        $promoted = (new CraftQueueService())->promoteEligible($characterId);
+        foreach ($promoted as $row) {
+            $message = CraftQueueActivationNotice::message($row);
+            if ($message !== null) {
+                $this->safeSendMessage($message['chat_id'], $message['text'], ['parse_mode' => $message['parse_mode']]);
+            }
+        }
+
+        return count($promoted);
     }
 
     /**

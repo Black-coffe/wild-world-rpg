@@ -13182,7 +13182,7 @@ parameters:
 		-
 			message: '#^Cannot access offset ''telegram_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
+			count: 1
 			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
 
 		-
@@ -13259,12 +13259,6 @@ parameters:
 
 		-
 			message: '#^Part \$recipe\[''item_name_eng''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 1
-			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
-
-		-
-			message: '#^Part \$recipe\[''start_caption_name''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
 			identifier: encapsedStringPart.nonString
 			count: 1
 			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
