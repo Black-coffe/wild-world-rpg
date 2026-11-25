@@ -140,3 +140,8 @@ shows the real HP cost, and the death message names the cause and the damage. De
 
 ## Descoped
 (none)
+
+## Smoke
+- 2026-11-25 preprod-testbot (char 491): parity RED only on the 3 new keys (absent on prod before the tag). Gate refusal in caves under «Подземные толчки» at HP 10; gather at HP 32 → hits 32→26 (one warning) →…→ 4 → 1.0, gather interrupted with the 40/60-min share; start notice renders (376 chars); death at HP 0.5 names «Подземные толчки ❤️37.31 за 14 мин». S5: base HP 10 under «Ураган» → starts; cave HP 20 → starts; cave HP 10 → refused «не меньше 15». Not smoked live: march preview, `/play` screens (covered by tests).
+- 2026-11-25 prod v0.51.714: keys 1.0 / 15 / 30, hunger columns, tip present; no new ERROR after deploy.
+- Follow-up: admin rationale of `health.passive_warn_threshold` still says it equals the gather threshold (round 4 minor).
