@@ -52,11 +52,14 @@ shows the real HP cost, and the death message names the cause and the damage. De
   - files: `app/Services/Events/EventDispatcher.php` (after applying damage: character `is_gathering`, HP at
     the floor → move the in_work Gather row to `interrupted` via `ConditionalWriteService::transitionIfCurrent`,
     `CraftQueueActivationNotice::promote/send` as `CancelGatherAction` does, send a «go to base» message,
-    VirtualChat-aware), new `app/Services/Events/ActiveDamageEventLookup.php` (active damage events covering a
+    VirtualChat-aware; partial loot = one normal roll of the gather persister × elapsed/total, floor-rounded, no
+    minimum, settled only by the call that wins the `in_work → interrupted` transition), new `app/Services/Events/ActiveDamageEventLookup.php` (active damage events covering a
     biome: `active_events` × `events.biome_ids` × `WorldEvents` effect kind), `app/Controllers/Telegram/Commands/Actions/GatherAction.php`
     (refusal after the biome is known, before `transBegin`; menu hint like `staminaHintForMenu`); tech-writing
     `handlers/GatherAction.md`, new `services/ActiveDamageEventLookup.md`.
-  - test first: a gathering character hit to the floor ends with its gather `interrupted` and one message sent;
+  - test first: a gathering character hit to the floor ends with its gather `interrupted` and one message sent
+    naming the partial loot; half the time elapsed gives ≤ floor(half of the same roll), 0 elapsed gives 0; an
+    interrupt racing the Worker's normal completion pays once; manual cancel still pays nothing;
     a non-gathering one or one above the floor keeps its task; a second interrupt attempt is a no-op. Gate: HP
     below `health.event_gather_min` in a biome with an active damage event → refusal text naming the event and
     «на базу / подлечись»; same HP in a biome without such event → gather starts. Lookup: global event (NULL
