@@ -69,7 +69,7 @@ wherever a task leaves `in_work`: once in the Worker for every timed task, and i
     starts on the next Worker tick, one message; a character whose recipe is still running is not touched; the
     sweep does nothing when nothing is stranded.
   - check: the new test file plus `tests/database/CraftQueuePromoteEligibleTest.php`
-- [ ] S3 Docs - asks: 6
+- [x] S3 Docs - asks: 6
   - files: `mmorpg-vault/tech-writing/services/CraftQueueService.md`, `.../controllers/Worker.md`,
     `.../tasks/craft/GenericCraftCompletionHandler.md`, `.../handlers/FinishTaskAction.md`; Follow-up line in
     `docs/specs/s1-atomicity-1124/plan.md` (item 7 → this spec); `.gitignore` gets `writable/worker.lock`

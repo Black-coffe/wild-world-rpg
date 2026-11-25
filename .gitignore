@@ -190,6 +190,9 @@ writable/pikabu-covers/
 # Одноразовые SQL-скрипты миграций-состояния (применяются на проде вручную, аудит в daily/ADR) — не в git.
 writable/*.sql
 
+# Мьютекс Worker'а (flock в processTasks(); создают и тесты, craft-queue-promote-1125 S2b) — не в git.
+writable/worker.lock
+
 # SSH keys
 *.pem
 *.key
