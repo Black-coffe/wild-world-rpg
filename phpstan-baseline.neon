@@ -10558,12 +10558,6 @@ parameters:
 			path: app/Services/Events/EventMessageFormatter.php
 
 		-
-			message: '#^Part \$description \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 1
-			path: app/Services/Events/EventMessageFormatter.php
-
-		-
 			message: '#^Part \$name \(mixed\) of encapsed string cannot be cast to string\.$#'
 			identifier: encapsedStringPart.nonString
 			count: 2
