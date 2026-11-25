@@ -83,3 +83,21 @@ F1: fixed - the hunger drop is now stored in `characters.hunger_hp_lost` / `hung
 Asks 1–6 and 8 were not re-reviewed this round: their code is untouched since round 2, and the lines above are anchors, not a fresh read.
 
 Owner: one more round - «Да, на базе не блокировать (Рекомендую)» (option text: «ещё раунд ревью и передеплой preprod перед тегом»), 2026-11-25
+
+## Round 4 - 2026-11-25 - head 088415ce7ed2891c7a6c7208ea9183f4b2e62657
+
+```
+VERDICT: PASS
+TESTS: vendor/bin/phpunit --no-coverage --no-progress <5 files touched by or adjacent to the S5 change> -> pass (unit: 10 tests, 97 assertions; database: 22 tests, 132 assertions); vendor/bin/phpstan analyse --memory-limit=512M --no-progress -> pass, no errors; php -l on the new migration -> pass. Full 10-part suite not run this round: only the files the change since 5d56d063 touches or feeds.
+
+## Asks
+1–9. delivered: unchanged since the last passing round (see reviewer report anchors).
+10. delivered: the migration sets the Reset default to 15 always and the value only where it is still 30 (2026-12-29-100000_SetEventGatherMinTo15.php:59); on the own base cell only events with `base_idle` > 0 count (C:\laragon\www\mmorpg\app\Services\Events\ActiveDamageEventLookup.php:77, rule at :154), wired into both the refusal and the menu hint (GatherAction.php:537, :554)
+
+## Findings
+- [minor] [ask 8] The admin rationale of `health.passive_warn_threshold` still says the warning threshold "Совпадает с порогом добычи — одно число, которое игрок запоминает", C:\laragon\www\mmorpg\app\Database\Migrations\2026-12-26-100000_SeedPassiveFloorSettings.php:66. After S5 the gather threshold is 15 and the warning threshold is 30, so the admin text states a link that no longer holds. Smallest fix: have `SetEventGatherMinTo15` also rewrite that key's `rationale_text` without the sentence. Test: after `up()`, the `rationale_text` of `health.passive_warn_threshold` does not contain "Совпадает с порогом добычи".
+
+## Past findings (round 2 and later)
+(none open)
+```
+Note (orchestrator): asks 1–9 lines abbreviated above; the reviewer's full lines were anchors to unchanged code. Full 10-part suite was last run in round 3 (5333 pass).
