@@ -121,7 +121,7 @@ shows the real HP cost, and the death message names the cause and the damage. De
     `tests/unit/Services/Admin/WipeServiceCharacterResetTest.php` (its hand schema gains the two reset columns);
     tech-writing `models/CharacterModel.md`.
 
-- [ ] S5 Gate threshold 15 and no gate on the own base - asks: 10
+- [x] S5 Gate threshold 15 and no gate on the own base - asks: 10
   - files: new migration updating `health.event_gather_min` default to 15 (and the value if it is still 30), `app/Controllers/Telegram/Commands/Actions/GatherAction.php` / `ActiveDamageEventLookup` (skip the gate when the character stands on its own base and the event's base modifier is 0), menu hint consistent; tech-writing notes.
   - test first: HP 20 in an event biome → gather starts (today refused at 30); HP 10 → refused; HP 10 on own base during Tremor → starts; HP 10 on own base during Epidemic/Fever (hits on base) → refused.
   - check: `tests/unit/Controllers/Telegram/Commands/Actions/GatherActionEventGateTest.php`, `tests/database/ActiveDamageEventLookupTest.php`, the new migration test; `php -l`.

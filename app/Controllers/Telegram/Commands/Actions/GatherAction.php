@@ -511,14 +511,18 @@ class GatherAction extends BaseAction
         return $text;
     }
 
-    /** ADR-200 (S2) — порог здоровья для добычи в биоме события с уроном; дефолт = посев `SeedPassiveFloorSettings`. */
+    /**
+     * ADR-200 (S2) — порог здоровья для добычи в биоме события с уроном; дефолт = посев `SeedPassiveFloorSettings`,
+     * исправленный `SetEventGatherMinTo15` (S5: слово владельца после preprod-смоука — 15).
+     */
     public const EVENT_GATHER_MIN_KEY     = 'health.event_gather_min';
-    public const EVENT_GATHER_MIN_DEFAULT = 30.0;
+    public const EVENT_GATHER_MIN_DEFAULT = 15.0;
 
     /**
      * ADR-200 (S2) — цена пассивного пола: с здоровьем ниже `health.event_gather_min` в биоме, где идёт событие
      * с уроном здоровью, добыча не начинается. Текст отказа (HTML) или null — можно добывать. Здоровье сверяется
-     * до запроса к событиям: здоровому игроку гейт ничего не стоит.
+     * до запроса к событиям: здоровому игроку гейт ничего не стоит. На клетке своей базы считаются только события,
+     * бьющие и там (S5: Эпидемия, Лихорадка); Толчки, Ураган и прочие с `base_idle` 0 добычу на базе не запрещают.
      *
      * @param array<string,mixed>|\App\Entities\CharacterEntity $character
      */
@@ -530,7 +534,9 @@ class GatherAction extends BaseAction
             return null;
         }
 
-        return self::eventGateText($health, $min, $this->damageEventNames($biomeId, $biomeType));
+        $onBase = $this->onOwnBaseSafe($character);
+
+        return self::eventGateText($health, $min, $this->damageEventNames($biomeId, $biomeType, $onBase), $onBase);
     }
 
     /**
@@ -545,15 +551,19 @@ class GatherAction extends BaseAction
         if ($health >= $min) {
             return '';
         }
-        $names = $this->damageEventNames($biomeId, $biomeType);
+        $onBase = $this->onOwnBaseSafe($character);
+        $names  = $this->damageEventNames($biomeId, $biomeType, $onBase);
         if ($names === []) {
             return '';
         }
         $quoted = implode(', ', array_map(static fn (string $n): string => '«' . str_replace(['*', '_', '`', '['], '', $n) . '»', $names));
+        $way    = $onBase
+            ? 'Это событие достаёт и на базе — подлечись едой или медициной.'
+            : 'Иди на базу и подлечись — или добывай в биоме без события.';
 
         return "\n\n🩸 *Здесь идёт {$quoted} — ранит всех в биоме.* "
             . 'С здоровьем ниже ' . $this->fmtStamina($min, 1) . ' добыча здесь не начнётся (у тебя '
-            . $this->fmtStamina($health, 1) . '). Иди на базу и подлечись — или добывай в биоме без события.';
+            . $this->fmtStamina($health, 1) . '). ' . $way;
     }
 
     protected function eventGatherMin(): float
@@ -563,17 +573,35 @@ class GatherAction extends BaseAction
         return is_numeric($raw) ? (float) $raw : self::EVENT_GATHER_MIN_DEFAULT;
     }
 
+    /**
+     * S5 — стоит ли персонаж на клетке своей активной базы (тот же резолв, что у событий:
+     * {@see \App\Services\Player\PlayerStateService::isCharacterOnBase()} → `ClaimedCellModel::findActiveCell`).
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     */
+    protected function isOnOwnBase(array|\App\Entities\CharacterEntity $character): bool
+    {
+        $id   = $character['id'] ?? null;
+        $cell = $character['cell_number'] ?? null;
+        if (! is_numeric($id) || ! is_numeric($cell)) {
+            return false;
+        }
+
+        return (new \App\Models\ClaimedCellModel())->findActiveCell((int) $id, (int) $cell) !== null;
+    }
+
     protected function damageEventLookup(): \App\Services\Events\ActiveDamageEventLookup
     {
         return new \App\Services\Events\ActiveDamageEventLookup();
     }
 
     /**
-     * Текст отказа (HTML) или null, если в биоме нет события с уроном.
+     * Текст отказа (HTML) или null, если в биоме нет события с уроном. `$onBase` — игрок уже на своей базе, а
+     * событие бьёт и там (S5): не посылать его «на базу», а сказать, что база от этого события не укрывает.
      *
      * @param list<string> $eventNames
      */
-    public static function eventGateText(float $health, float $min, array $eventNames): ?string
+    public static function eventGateText(float $health, float $min, array $eventNames, bool $onBase = false): ?string
     {
         if ($eventNames === []) {
             return null;
@@ -589,15 +617,34 @@ class GatherAction extends BaseAction
         return "🩸 <b>Добыча здесь сейчас опасна.</b>\n\n"
             . "В этом биоме идёт {$quoted} — событие ранит всех, кто здесь.\n"
             . 'Здоровье: <b>' . $fmt($health) . '</b>, а для добычи в биоме события нужно не меньше <b>' . $fmt($min) . "</b>.\n\n"
-            . '🏠 Иди на базу — там событие не достанет — и подлечись едой или медициной. '
-            . 'Или добывай в другом биоме, где события нет.';
+            . ($onBase
+                ? '🏠 Ты на своей базе, но это событие достаёт и на базе — подлечись едой или медициной. '
+                  . 'Или добывай в другом биоме, где события нет.'
+                : '🏠 Иди на базу — там событие не достанет — и подлечись едой или медициной. '
+                  . 'Или добывай в другом биоме, где события нет.');
+    }
+
+    /**
+     * Сбой чтения базы не должен ломать добычу: считаем «не на базе» — гейт строже, а не мягче.
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     */
+    private function onOwnBaseSafe(array|\App\Entities\CharacterEntity $character): bool
+    {
+        try {
+            return $this->isOnOwnBase($character);
+        } catch (\Throwable $e) {
+            log_message('error', '[GatherAction] own-base check failed: ' . $e->getMessage());
+
+            return false;
+        }
     }
 
     /** @return list<string> */
-    private function damageEventNames(int $biomeId, ?string $biomeType): array
+    private function damageEventNames(int $biomeId, ?string $biomeType, bool $onBase): array
     {
         try {
-            return array_column($this->damageEventLookup()->forBiome($biomeId, $biomeType), 'name');
+            return array_column($this->damageEventLookup()->forBiome($biomeId, $biomeType, $onBase), 'name');
         } catch (\Throwable $e) {
             log_message('error', '[GatherAction] damage event lookup failed: ' . $e->getMessage());
 
