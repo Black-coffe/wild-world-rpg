@@ -53,3 +53,5 @@ TESTS: vendor/bin/phpunit --no-coverage --no-progress (10 parts per CLAUDE.md) -
 F1: fixed - `causeBlock()` adds «голод (не хватило еды или воды): ❤️N, M мин назад» from the recorded drop, and the fallback no longer guesses hunger (C:\laragon\www\mmorpg\app\Services\Player\Death\DeathMessageBuilder.php:120-129); the requested assertions pass in C:\laragon\www\mmorpg\tests\unit\Services\Player\Death\DeathMessageBuilderTest.php. The place chosen for the record causes the new major above.
 F2: fixed - `harmsHealth()` is true for `task_extend` with `side_effects.health_loss_range` (C:\laragon\www\mmorpg\app\Services\Events\ActiveDamageEventLookup.php:115-121); `testMirageSideEffectHarmsHealth` passes, and PolarNight stays false.
 ```
+
+Owner: one more round - "Ещё раунд: хранить вне action_log (Рекомендую)", 2026-11-25
