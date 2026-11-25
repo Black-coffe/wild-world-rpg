@@ -48,6 +48,7 @@ final class TelegramSenderBridgeCoverageTest extends CIUnitTestCase
         'ActiveTasksService.php'        => 'webhook: checkRelocationAndBlock() — Controllers/Telegram и Relocation*-сервисы того же запроса',
         'ColdOpenSignalService.php'     => 'webhook: tryReachBait() — только MoveCharacterToDirectionAction; TextMapService (крон) зовёт лишь markerCellsInViewport() без отправки',
         'CraftShortageScreenHelper.php' => 'webhook: render() зовут только Controllers/Telegram',
+        'CraftQueueActivationNotice.php' => 'webhook или /play: send()/promoteAndSend() зовут только Controllers/Telegram (FinishTask/CancelGather/CancelMarch/DeleteBase) и WebNativeScreenService под WebDelivery; крон берёт лишь message() и шлёт через BaseTaskHandler::safeSendMessage',
         'LoginStreakService.php'        => 'webhook: maybeReward() → send() зовёт только BotController',
         'LuckyFindService.php'          => 'webhook: вызывается из NewbieAtmosphereService, а тот — только из Controllers/Telegram',
         'MapService.php'                => 'webhook: showMapWithPlayer() — Controllers/Telegram, NavigationMapService, BotMenuService; GenerateImages берёт только графику',

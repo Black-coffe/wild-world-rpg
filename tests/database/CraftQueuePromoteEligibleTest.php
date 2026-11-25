@@ -205,6 +205,42 @@ final class CraftQueuePromoteEligibleTest extends CIUnitTestCase
         $this->assertSame(['queued', 'in_work'], [$this->statusOf($first), $this->statusOf($second)]);
     }
 
+    /**
+     * Ревью, раунд 1: два продвижения разом по ⏳-рецепту с двумя строками в очереди. Это продвижение
+     * выбрало рецепт по снимку и прочитало голову `queued`, а второе (другое соединение) уже запустило
+     * её. Голова — `Missing`, но рецепт теперь в работе: вторая строка ждёт своего завершения, FIFO
+     * рецепта не идёт в две строки разом.
+     */
+    public function testConcurrentPromoterDoesNotStartASecondRowOfARunningParallelRecipe(): void
+    {
+        $head = $this->row(self::CHAR, 'craftBandage', 'queued', 'Bandage');
+        $tail = $this->row(self::CHAR, 'craftBandage', 'queued', 'Bandage');
+
+        $fired          = false;
+        $this->listener = function ($query) use (&$fired, $head): void {
+            if ($fired || ! $query instanceof Query) {
+                return;
+            }
+            $sql = $query->getQuery();
+            if (str_contains($sql, 'character_tasks') && str_contains($sql, 'queued') && str_contains($sql, '`id` >')
+                && ! str_contains($sql, 'UPDATE') && ! str_contains($sql, 'NOT EXISTS')) {
+                $fired = true;
+                $out   = (new ActiveTasksService(Database::connect(null, false)))->moveToInWork($head, 'queued', [
+                    'start_time' => date('Y-m-d H:i:s'),
+                    'end_time'   => date('Y-m-d H:i:s', time() + 600),
+                ]);
+                $this->assertSame(WriteOutcome::Applied, $out, 'второе продвижение запустило голову');
+            }
+        };
+        Events::on('DBQuery', $this->listener);
+
+        $promoted = (new CraftQueueService())->promoteEligible(self::CHAR);
+
+        $this->assertTrue($fired, 'чтение головы очереди не встретилось — вклинивания не было');
+        $this->assertSame([], $promoted, 'голову уже запустило второе продвижение');
+        $this->assertSame(['in_work', 'queued'], [$this->statusOf($head), $this->statusOf($tail)]);
+    }
+
     /** Строка задачи с флагом S1, как её пишет `insertExclusiveTaskRow()`. */
     private function row(int $characterId, string $task, string $status, ?string $recipe = null): int
     {

@@ -277,6 +277,12 @@ class CraftQueueService
                     'ends_at'          => $end,
                 ];
             }
+            // Ревью craft-queue-promote-1125, раунд 1: строку забрал другой промоутер (или снята
+            // отменой). Рецепт уже в работе — значит её запустил параллельный вызов, и следующая
+            // строка ждёт его завершения: иначе ⏳-рецепт пошёл бы двумя строками разом.
+            if ($this->recipeInWork($characterId, $taskId)) {
+                return null;
+            }
             $afterId = $nextId;
         }
 
@@ -292,8 +298,9 @@ class CraftQueueService
      * атомарность ядра слота сохраняется: 🔒-слот получит не больше одной строки, отказанная
      * (`Refused`) остаётся `queued`; параллельные (⏳) рецепты стартуют рядом с 🔒-задачей.
      *
-     * Выбор рецептов — снимок: два одновременных вызова могут оба выбрать ⏳-рецепт и запустить по
-     * строке; 🔒-строк в работе всё равно не больше одной (UNIQUE слота).
+     * Выбор рецептов — снимок: два одновременных вызова могут оба выбрать один рецепт; проигравший
+     * получает `Missing` на голове, видит рецепт в работе и останавливается ({@see promoteNext()}),
+     * так что рецепт не идёт двумя строками; 🔒-строк в работе не больше одной (UNIQUE слота).
      *
      * @return list<Promoted>
      */
@@ -338,6 +345,19 @@ class CraftQueueService
         }
 
         return $ids;
+    }
+
+    /** У персонажа есть `in_work`-строка этого `task_id` (читается после проигранной записи, не снимок). */
+    protected function recipeInWork(int $characterId, int $taskId): bool
+    {
+        $db     = $this->db();
+        $ct     = $db->prefixTable('character_tasks');
+        $result = $db->query(
+            "SELECT 1 FROM {$ct} WHERE character_id = ? AND task_id = ? AND status = 'in_work' LIMIT 1",
+            [$characterId, $taskId]
+        );
+
+        return $result instanceof BaseResult && $result->getResultArray() !== [];
     }
 
     /**
