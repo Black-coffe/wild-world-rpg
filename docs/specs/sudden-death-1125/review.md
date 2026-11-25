@@ -81,3 +81,5 @@ F1: fixed - the hunger drop is now stored in `characters.hunger_hp_lost` / `hung
 ```
 
 Asks 1–6 and 8 were not re-reviewed this round: their code is untouched since round 2, and the lines above are anchors, not a fresh read.
+
+Owner: one more round - «Да, на базе не блокировать (Рекомендую)» (option text: «ещё раунд ревью и передеплой preprod перед тегом»), 2026-11-25
