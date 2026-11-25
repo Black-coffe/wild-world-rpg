@@ -100,6 +100,11 @@ class FinishTaskAction
                 return $this->replyNotFound($chatId);
         }
 
+        // craft-queue-promote-1125 — задача вышла из работы: очередь крафта получает освободившийся
+        // слот (прерванный крафт R отдаёт место следующему R). Продвижение — сразу, сообщение
+        // «Очередь активирована!» — после итога прерывания.
+        $promoted = \App\Services\Craft\CraftQueueActivationNotice::promote((int) $character['id']);
+
         // При прерывании задачи игрок теряет характеристики.
         // ADR-138 (S3) рычаг D: для новичка (level<cap) штраф ×interrupt_penalty_factor
         // (default 0.0 → не списываем — анти-фрустрация). Dormant/ветеран → factor 1.0 = легаси.
@@ -160,11 +165,14 @@ class FinishTaskAction
                 . "Лучше отложить начатое, чем потерять жизнь. Вперёд, к новым вызовам! 🚀🌈";
         }
 
-        return Request::sendMessage([
+        $response = Request::sendMessage([
             'chat_id' => $chatId,
             'text' => $text,
             'parse_mode' => 'Markdown'
         ]);
+        \App\Services\Craft\CraftQueueActivationNotice::send($promoted);
+
+        return $response;
     }
 
     private function replyNotFound(int|string $chatId): ServerResponse

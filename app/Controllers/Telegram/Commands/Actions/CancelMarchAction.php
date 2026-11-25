@@ -46,6 +46,10 @@ class CancelMarchAction extends BaseAction
         }
         $stepsDone = $outcome['steps_done'];
 
+        // craft-queue-promote-1125 — Поход вышел из работы: очередь крафта получает освободившийся
+        // 🔒-слот; сообщение — после итога остановки.
+        $promoted = \App\Services\Craft\CraftQueueActivationNotice::promote($characterId);
+
         $text = "🚜 *Поход прерван.* Пройдено `{$stepsDone}` " . MarchService::plural($stepsDone, 'клетку', 'клетки', 'клеток') . ".\n"
             . "_Раскрытые клетки остаются на карте._";
         $keyboard = [[['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']]];
@@ -57,15 +61,19 @@ class CancelMarchAction extends BaseAction
             'reply_markup' => json_encode(['inline_keyboard' => $keyboard]),
         ];
         $msgId = $this->callbackQuery->getMessage()->getMessageId();
+        $resp = null;
         try {
-            $resp = Request::editMessageText($payload + ['message_id' => $msgId]);
-            if ($resp->isOk()) {
-                return $resp;
+            $edited = Request::editMessageText($payload + ['message_id' => $msgId]);
+            if ($edited->isOk()) {
+                $resp = $edited;
             }
         } catch (\Throwable $e) {
             // fallthrough
         }
-        return Request::sendMessage($payload);
+        $resp ??= Request::sendMessage($payload);
+        \App\Services\Craft\CraftQueueActivationNotice::send($promoted);
+
+        return $resp;
     }
 
     /**

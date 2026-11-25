@@ -12,6 +12,7 @@ use App\Services\Bases\BuildingCardService;
 use App\Services\Buildings\BuildingUpgradeService;
 use App\Services\Buildings\BuildOrderService;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Craft\CraftQueueActivationNotice;
 use App\Services\Craft\CraftCardHelper;
 use App\Services\Craft\CraftOrderService;
 use App\Services\Craft\CraftQueueService;
@@ -733,7 +734,9 @@ class WebNativeScreenService
             return ['alert' => $this->march->resume($characterId)['message'], 'events' => []];
         }
         if ($op === self::OP_MARCH_STOP) {
-            return ['alert' => $this->march->stop($characterId)['message'], 'events' => []];
+            $stopped = $this->march->stop($characterId);
+
+            return ['alert' => $stopped['message'], 'events' => $stopped['ok'] ? $this->promoteQueuedCrafts($characterId) : []];
         }
 
         $outcome = $this->march->start($characterId, $dir, $n);
@@ -753,6 +756,34 @@ class WebNativeScreenService
         }
 
         return ['alert' => $outcome['message'], 'events' => $capture['sent']];
+    }
+
+    /**
+     * craft-queue-promote-1125 — Поход вышел из работы: очередь крафта получает освободившийся 🔒-слот.
+     * «▶️ Очередь активирована!» идёт под захватом и ложится под экран, как подсказки старта Похода;
+     * без личности персонажа — обычной отправкой (входящие).
+     *
+     * @return list<Msg>
+     */
+    private function promoteQueuedCrafts(int $characterId): array
+    {
+        $identity = (new VirtualIdentityService())->identityForCharacter($characterId);
+        if ($identity === null) {
+            CraftQueueActivationNotice::promoteAndSend($characterId);
+
+            return [];
+        }
+        WebDelivery::beginCapture($identity['telegram_id'], $characterId);
+        try {
+            CraftQueueActivationNotice::promoteAndSend($characterId);
+        } finally {
+            $capture = WebDelivery::endCapture();
+        }
+        if ($capture['sent'] !== []) {
+            (new WebScreenStore())->applyCapture($characterId, $capture);
+        }
+
+        return $capture['sent'];
     }
 
     /**

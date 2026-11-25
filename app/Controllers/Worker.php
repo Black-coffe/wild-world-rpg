@@ -3,9 +3,12 @@ namespace App\Controllers;
 
 use App\Models\CharacterTaskModel;
 use App\Models\TaskModel;
+use App\Services\Craft\CraftQueueSweep;
 use App\Services\Handlers\HandlerRegistry;
+use App\TaskHandlers\BaseTaskHandler;
 use App\TaskHandlers\Contracts\TaskHandlerInterface;
 use CodeIgniter\Controller;
+use Config\CraftQueue;
 use Throwable;
 
 /**
@@ -76,6 +79,8 @@ class Worker extends Controller
                     $this->handleTask($task, $taskDetails);
                 }
             }
+
+            $this->sweepStrandedCraftQueues();
         } finally {
             flock($lockHandle, LOCK_UN);
             fclose($lockHandle);
@@ -118,6 +123,7 @@ class Worker extends Controller
         $logger = \App\Services\Logging\PlayerActionLogger::current();
         $logger->openDeliveryWindow();
 
+        $handler = null;
         try {
             $handler = new $handlerClassName();
             if (method_exists($handler, 'handle')) {
@@ -141,6 +147,53 @@ class Worker extends Controller
                 ->update(['status' => 'interrupted', 'updated_at' => date('Y-m-d H:i:s')]);
             \App\Services\Logging\PlayerActionLogger::current()->recordTaskCompletion($charId, $taskName, 'error', $e->getMessage());
             log_message('error', "[Worker] Handler {$handlerClassName} упал на task #{$task['id']}: " . $e->getMessage());
+        }
+
+        // craft-queue-promote-1125 — задача вышла из работы (completed или interrupted): очередь
+        // крафта персонажа получает освободившийся 🔒-слот, не дожидаясь завершения своего рецепта.
+        // После try/catch обработчика и в своём try/catch: сбой здесь не перевернёт готовую задачу в
+        // `interrupted`.
+        $this->promoteQueuedCrafts($charId, $handler);
+    }
+
+    /**
+     * Продвижение очереди крафта после задачи. Отправка — через `safeSendMessage` обработчика, если
+     * он наследует {@see BaseTaskHandler}; иначе (или он не создался) — через простой экземпляр базы.
+     */
+    protected function promoteQueuedCrafts(?int $characterId, mixed $handler): void
+    {
+        if ($characterId === null || $characterId < 1) {
+            return;
+        }
+        try {
+            $sender = $handler instanceof BaseTaskHandler ? $handler : new class () extends BaseTaskHandler {
+                public function handle(array $task = []): void
+                {
+                }
+            };
+            $sender->promoteQueuedCrafts($characterId);
+        } catch (Throwable $e) {
+            log_message('error', "[Worker] craft queue promotion failed for character {$characterId}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * craft-queue-promote-1125 S2b — страховочный проход раз за тик, после задач тика: очередь, которую
+     * не продвинул ни один хук (выход задачи из работы мимо известных путей — смерть, админка, будущий
+     * код), стартует с задержкой в один тик. Отбор — {@see CraftQueueSweep}, предел на тик —
+     * `Config\CraftQueue::$sweepCharactersPerTick`; запуск и сообщение — тот же путь, что у хука задачи.
+     * Сбой прохода только логируется: тик уже отработал задачи.
+     */
+    protected function sweepStrandedCraftQueues(): void
+    {
+        try {
+            /** @var CraftQueue $cfg */
+            $cfg = config('CraftQueue');
+            foreach ((new CraftQueueSweep())->strandedCharacterIds($cfg->sweepCharactersPerTick) as $characterId) {
+                $this->promoteQueuedCrafts($characterId, null);
+            }
+        } catch (Throwable $e) {
+            log_message('error', '[Worker] craft queue sweep failed: ' . $e->getMessage());
         }
     }
 

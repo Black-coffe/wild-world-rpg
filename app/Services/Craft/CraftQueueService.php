@@ -17,6 +17,7 @@ use App\Services\Db\ConditionalWriteService;
 use App\Services\Db\WriteOutcome;
 use App\Services\Tasks\ActiveTasksService;
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\BaseResult;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\I18n\Time;
 use Config\CraftRecipes;
@@ -276,10 +277,87 @@ class CraftQueueService
                     'ends_at'          => $end,
                 ];
             }
+            // Ревью craft-queue-promote-1125, раунд 1: строку забрал другой промоутер (или снята
+            // отменой). Рецепт уже в работе — значит её запустил параллельный вызов, и следующая
+            // строка ждёт его завершения: иначе ⏳-рецепт пошёл бы двумя строками разом.
+            if ($this->recipeInWork($characterId, $taskId)) {
+                return null;
+            }
             $afterId = $nextId;
         }
 
         return null;
+    }
+
+    /**
+     * craft-queue-promote-1125: продвижение всего, что очередь персонажа может запустить сейчас, —
+     * зовётся, когда из работы выходит любая его задача (завершение, прерывание, отмена). Рецепт
+     * (`task_id`) годен, если у него есть `queued`-строка и нет `in_work`-строки этого персонажа:
+     * рецепт в работе держит свою FIFO и продвигается своим завершением ({@see promoteNext()}).
+     * Годные рецепты идут по старшей `queued`-строке, каждый — через {@see promoteNext()}, поэтому
+     * атомарность ядра слота сохраняется: 🔒-слот получит не больше одной строки, отказанная
+     * (`Refused`) остаётся `queued`; параллельные (⏳) рецепты стартуют рядом с 🔒-задачей.
+     *
+     * Выбор рецептов — снимок: два одновременных вызова могут оба выбрать один рецепт; проигравший
+     * получает `Missing` на голове, видит рецепт в работе и останавливается ({@see promoteNext()}),
+     * так что рецепт не идёт двумя строками; 🔒-строк в работе не больше одной (UNIQUE слота).
+     *
+     * @return list<Promoted>
+     */
+    public function promoteEligible(int $characterId): array
+    {
+        $promoted = [];
+        foreach ($this->eligibleTaskIds($characterId) as $taskId) {
+            $next = $this->promoteNext($characterId, $taskId);
+            if ($next !== null) {
+                $promoted[] = $next;
+            }
+        }
+
+        return $promoted;
+    }
+
+    /**
+     * `task_id` крафтов персонажа с `queued`-строкой и без `in_work`-строки, по старшей `queued`-строке.
+     *
+     * @return list<int>
+     */
+    protected function eligibleTaskIds(int $characterId): array
+    {
+        $db     = $this->db();
+        $ct     = $db->prefixTable('character_tasks');
+        $tasks  = $db->prefixTable('tasks');
+        $result = $db->query(
+            "SELECT q.task_id, MIN(q.id) AS head FROM {$ct} q INNER JOIN {$tasks} t ON t.id = q.task_id"
+            . " WHERE q.character_id = ? AND q.status = 'queued' AND t.type = 'craft'"
+            . " AND NOT EXISTS (SELECT 1 FROM {$ct} w WHERE w.character_id = q.character_id AND w.task_id = q.task_id AND w.status = 'in_work')"
+            . ' GROUP BY q.task_id ORDER BY head ASC',
+            [$characterId]
+        );
+        $rows = $result instanceof BaseResult ? $result->getResultArray() : [];
+
+        $ids = [];
+        foreach ($rows as $row) {
+            $id = $this->int($row['task_id'] ?? null);
+            if ($id > 0) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /** У персонажа есть `in_work`-строка этого `task_id` (читается после проигранной записи, не снимок). */
+    protected function recipeInWork(int $characterId, int $taskId): bool
+    {
+        $db     = $this->db();
+        $ct     = $db->prefixTable('character_tasks');
+        $result = $db->query(
+            "SELECT 1 FROM {$ct} WHERE character_id = ? AND task_id = ? AND status = 'in_work' LIMIT 1",
+            [$characterId, $taskId]
+        );
+
+        return $result instanceof BaseResult && $result->getResultArray() !== [];
     }
 
     /**
