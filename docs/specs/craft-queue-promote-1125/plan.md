@@ -63,7 +63,7 @@ wherever a task leaves `in_work`: once in the Worker for every timed task, and i
     craft R starts the next queued R; the message text is identical from every caller.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/database/CraftQueuePromoteEligibleTest.php` plus the new wiring tests; phpstan
   - outside: `phpstan-baseline.neon` — two entries for the removed `notifyQueuedActivated()` body no longer match (phpstan fails on unmatched ignores); entries removed/count lowered, nothing new suppressed
-- [ ] S2b Backstop sweep in the Worker tick - asks: 1, 2
+- [x] S2b Backstop sweep in the Worker tick - asks: 1, 2
   - files: `app/Controllers/Worker.php` (or a small service it calls), `app/Config/*` for the per-tick limit, test
   - test first: a stranded queued 🔒 craft with no task leaving `in_work` (e.g. the running craft deleted by hand)
     starts on the next Worker tick, one message; a character whose recipe is still running is not touched; the

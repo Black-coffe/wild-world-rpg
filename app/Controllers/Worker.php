@@ -3,10 +3,12 @@ namespace App\Controllers;
 
 use App\Models\CharacterTaskModel;
 use App\Models\TaskModel;
+use App\Services\Craft\CraftQueueSweep;
 use App\Services\Handlers\HandlerRegistry;
 use App\TaskHandlers\BaseTaskHandler;
 use App\TaskHandlers\Contracts\TaskHandlerInterface;
 use CodeIgniter\Controller;
+use Config\CraftQueue;
 use Throwable;
 
 /**
@@ -77,6 +79,8 @@ class Worker extends Controller
                     $this->handleTask($task, $taskDetails);
                 }
             }
+
+            $this->sweepStrandedCraftQueues();
         } finally {
             flock($lockHandle, LOCK_UN);
             fclose($lockHandle);
@@ -170,6 +174,26 @@ class Worker extends Controller
             $sender->promoteQueuedCrafts($characterId);
         } catch (Throwable $e) {
             log_message('error', "[Worker] craft queue promotion failed for character {$characterId}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * craft-queue-promote-1125 S2b — страховочный проход раз за тик, после задач тика: очередь, которую
+     * не продвинул ни один хук (выход задачи из работы мимо известных путей — смерть, админка, будущий
+     * код), стартует с задержкой в один тик. Отбор — {@see CraftQueueSweep}, предел на тик —
+     * `Config\CraftQueue::$sweepCharactersPerTick`; запуск и сообщение — тот же путь, что у хука задачи.
+     * Сбой прохода только логируется: тик уже отработал задачи.
+     */
+    protected function sweepStrandedCraftQueues(): void
+    {
+        try {
+            /** @var CraftQueue $cfg */
+            $cfg = config('CraftQueue');
+            foreach ((new CraftQueueSweep())->strandedCharacterIds($cfg->sweepCharactersPerTick) as $characterId) {
+                $this->promoteQueuedCrafts($characterId, null);
+            }
+        } catch (Throwable $e) {
+            log_message('error', '[Worker] craft queue sweep failed: ' . $e->getMessage());
         }
     }
 

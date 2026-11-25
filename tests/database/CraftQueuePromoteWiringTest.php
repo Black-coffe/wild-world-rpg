@@ -7,6 +7,7 @@ namespace Tests\Database;
 use App\Controllers\Telegram\Commands\Actions\CancelMarchAction;
 use App\Controllers\Telegram\Commands\Actions\FinishTaskAction;
 use App\Controllers\Worker;
+use App\Services\Logging\TelegramDeliveryProbe;
 use App\Services\Web\WebDelivery;
 use App\Services\Web\WebNativeScreenService;
 use App\Services\Web\WebScreenStore;
@@ -15,8 +16,11 @@ use App\TaskHandlers\Contracts\TaskHandlerInterface;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Forge;
 use CodeIgniter\Database\Migration;
+use CodeIgniter\Database\Query;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use Config\CraftQueue;
 use Config\CraftRecipes;
 use Config\Database;
 use Longman\TelegramBot\Entities\CallbackQuery;
@@ -150,6 +154,7 @@ final class CraftQueuePromoteWiringTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        TelegramDeliveryProbe::reset();
         WebDelivery::reset();
         $this->dropTables();
         parent::tearDown();
@@ -251,6 +256,107 @@ final class CraftQueuePromoteWiringTest extends CIUnitTestCase
     }
 
     /**
+     * S2b — страховочный проход: застрявший 🔒-крафт без задачи, вышедшей из работы (идущий крафт
+     * удалён руками), стартует следующим тиком Worker'а, игрок получает одно сообщение.
+     */
+    public function testWorkerTickStartsAStrandedQueuedCraftWithNoTaskLeavingWork(): void
+    {
+        $queuedId = $this->row('craftBasicMedKit', 'queued', 'BasicMedKit');
+
+        $sent = $this->captured(fn () => (new PromoteWiringWorker(PromoteWiringGatherProbe::class))->processTasks());
+
+        $this->assertSame('in_work', $this->statusOf($queuedId), 'тик подобрал застрявшую очередь');
+        $this->assertSame([$this->expectedText($queuedId)], $sent, 'одно сообщение об активации очереди');
+    }
+
+    /** S2b — рецепт ещё в работе: проход его очередь не трогает и молчит. */
+    public function testWorkerTickLeavesTheQueueOfARunningRecipeAlone(): void
+    {
+        $running  = $this->row('craftBasicMedKit', 'in_work', 'BasicMedKit');
+        $queuedId = $this->row('craftBasicMedKit', 'queued', 'BasicMedKit');
+
+        $writes = $this->writesDuring(fn () => $this->captured(fn () => (new PromoteWiringWorker(PromoteWiringGatherProbe::class))->processTasks()), $sent);
+
+        $this->assertSame('in_work', $this->statusOf($running));
+        $this->assertSame('queued', $this->statusOf($queuedId));
+        $this->assertSame([], $sent);
+        $this->assertSame([], $writes, 'проход не пишет в БД');
+    }
+
+    /**
+     * S2b — застрявшего нет: пусто, или слот держит чужая 🔒-задача (крафт откажут — проход его и не
+     * пробует). Ни записи, ни сообщения.
+     */
+    public function testWorkerTickDoesNothingWhenNothingIsStranded(): void
+    {
+        $writes = $this->writesDuring(fn () => $this->captured(fn () => (new PromoteWiringWorker(PromoteWiringGatherProbe::class))->processTasks()), $sent);
+        $this->assertSame([], $sent);
+        $this->assertSame([], $writes, 'пустая очередь — проход не пишет');
+
+        $gather   = $this->row('gatherBlocking', 'in_work');
+        $queuedId = $this->row('craftBasicMedKit', 'queued', 'BasicMedKit');
+
+        $writes = $this->writesDuring(fn () => $this->captured(fn () => (new PromoteWiringWorker(PromoteWiringGatherProbe::class))->processTasks()), $sent);
+
+        $this->assertSame('in_work', $this->statusOf($gather));
+        $this->assertSame('queued', $this->statusOf($queuedId));
+        $this->assertSame([], $sent);
+        $this->assertSame([], $writes, '🔒-слот занят — проход не пробует запуск');
+    }
+
+    /** S2b — проход ограничен пределом на тик: остальные персонажи стартуют следующими тиками, старшие первыми. */
+    public function testWorkerTickSweepIsBoundedPerTick(): void
+    {
+        $this->conn->query('INSERT INTO telegram_users (id, telegram_id, first_name) VALUES (8, 555004, ?)', ['Второй']);
+        $this->conn->query(
+            'INSERT INTO characters (id, telegram_user_id, name, level, experience, health, tired, strength, agility, intellect, gold, cell_number, disable_media)'
+            . " VALUES (2, 8, 'Второй', 99, 1.5, 90, 10, 0.5, 0.5, 0.5, 150, 6, 1)"
+        );
+        $first  = $this->row('craftBasicMedKit', 'queued', 'BasicMedKit');
+        $second = $this->row('craftBasicMedKit', 'queued', 'BasicMedKit', 3570, 2, 8);
+
+        /** @var CraftQueue $cfg */
+        $cfg = config('CraftQueue');
+        $was = $cfg->sweepCharactersPerTick;
+        $cfg->sweepCharactersPerTick = 1;
+        try {
+            $worker = new PromoteWiringWorker(PromoteWiringGatherProbe::class);
+            $this->captured(fn () => $worker->processTasks());
+            $this->assertSame('in_work', $this->statusOf($first), 'старшая строка очереди — первой');
+            $this->assertSame('queued', $this->statusOf($second), 'предел тика исчерпан');
+
+            $this->captured(fn () => $worker->processTasks());
+            $this->assertSame('in_work', $this->statusOf($second), 'следующий тик подобрал остальных');
+        } finally {
+            $cfg->sweepCharactersPerTick = $was;
+        }
+    }
+
+    /**
+     * Записи в БД (INSERT/UPDATE/DELETE) за время `$run`; `$result` — что `$run` вернул.
+     *
+     * @return list<string>
+     */
+    private function writesDuring(callable $run, mixed &$result = null): array
+    {
+        $writes   = [];
+        $listener = static function (Query $q) use (&$writes): void {
+            $sql = ltrim($q->getQuery());
+            if (preg_match('/^(INSERT|UPDATE|DELETE|REPLACE)\b/i', $sql) === 1 && !str_contains($sql, 'action_log')) {
+                $writes[] = $sql;
+            }
+        };
+        Events::on('DBQuery', $listener);
+        try {
+            $result = $run();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        return $writes;
+    }
+
+    /**
      * Прежний текст продвижения (`GenericCraftCompletionHandler::notifyQueuedActivated`), собранный
      * из рецепта и времени окончания, которое записал старт.
      */
@@ -300,7 +406,7 @@ final class CraftQueuePromoteWiringTest extends CIUnitTestCase
     }
 
     /** Строка задачи с флагом S1, как её пишет `insertExclusiveTaskRow()`; `$endIn` — секунды до конца. */
-    private function row(string $task, string $status, ?string $recipe = null, int $endIn = 3570): int
+    private function row(string $task, string $status, ?string $recipe = null, int $endIn = 3570, int $char = self::CHAR, int $tgUser = 7): int
     {
         $taskId    = $this->taskId($task);
         $exclusive = $this->conn->query('SELECT parallel_execution_allowed FROM tasks WHERE id = ?', [$taskId])->getRow('parallel_execution_allowed');
@@ -308,8 +414,8 @@ final class CraftQueuePromoteWiringTest extends CIUnitTestCase
             'INSERT INTO character_tasks (character_id, telegram_user_id, task_id, start_time, end_time, status, task_settings, is_exclusive, created_at, updated_at)'
             . ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
             [
-                self::CHAR,
-                7,
+                $char,
+                $tgUser,
                 $taskId,
                 date('Y-m-d H:i:s', time() - 3600),
                 $status === 'in_work' ? date('Y-m-d H:i:s', time() + $endIn) : null,
