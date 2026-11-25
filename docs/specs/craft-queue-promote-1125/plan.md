@@ -1,4 +1,5 @@
 # Queued 🔒 craft is promoted when any 🔒 task ends (plan)
+**Shipped:** 2026-11-25, 25341f88
 **Brief:** [brief.md](brief.md) · **Branch:** `vulyk/craft-queue-promote-1125` · **Approved:** «Одобрить (Рекомендую)», 2026-11-25
 
 ## Goal
@@ -84,3 +85,7 @@ db3 for Worker/`F*` tests, db7/`tests/session` for the web march-stop path) and 
 
 ## Descoped
 (none)
+
+## Follow-up
+- `CancelGatherAction` and `DeleteBaseAction` are wired without tests of their own (photo-by-URL handlers, many tables); the per-tick sweep backs them up.
+- On the merge: whole suite in one process, 5269 tests, 0 failures.
