@@ -18,6 +18,10 @@ use Config\WorldEvents;
  * (Песчаная буря) и кроме Лихорадки в биоме, где её правило — только выносливость, а также `task_extend` с
  * побочным `side_effects.health_loss_range` (Миражи).
  *
+ * На клетке своей базы (S5, ask 10) считаются только события, которые бьют и там: `state_modifier.base_idle`
+ * > 0 (Эпидемия, Лихорадка, Миражи). Толчки, Ураган и прочие с `base_idle` 0 базу не трогают
+ * ({@see Effects\EffectResultFactory::playerStateKey()}: база доминирует над добычей) — им на базе не отказывать.
+ *
  * Читает `GatherAction` (отказ начать добычу при низком здоровье в биоме события).
  */
 class ActiveDamageEventLookup
@@ -38,11 +42,12 @@ class ActiveDamageEventLookup
     }
 
     /**
-     * Активные события с уроном здоровью, покрывающие биом. Один раз на событие.
+     * Активные события с уроном здоровью, покрывающие биом. Один раз на событие. `$onBase` — персонаж стоит на
+     * клетке своей базы: остаются только события, бьющие и на базе ({@see self::hitsOnBase()}).
      *
      * @return list<array{event_id: int, name: string, name_english: string}>
      */
-    public function forBiome(int $biomeId, ?string $biomeType = null): array
+    public function forBiome(int $biomeId, ?string $biomeType = null, bool $onBase = false): array
     {
         $db       = $this->db ?? Database::connect();
         $active   = $db->prefixTable('active_events');
@@ -65,7 +70,11 @@ class ActiveDamageEventLookup
                 continue;
             }
             $handlerKey = is_string($row['handler_key'] ?? null) ? $row['handler_key'] : null;
-            if (! self::harmsHealth($this->cfg->get($nameEn), $handlerKey, $biomeType)) {
+            $config     = $this->cfg->get($nameEn);
+            if (! self::harmsHealth($config, $handlerKey, $biomeType)) {
+                continue;
+            }
+            if ($onBase && ! self::hitsOnBase($config, $handlerKey)) {
                 continue;
             }
             $out[$eventId] = [
@@ -132,5 +141,26 @@ class ActiveDamageEventLookup
         }
 
         return true;
+    }
+
+    /**
+     * Бьёт ли событие персонажа, стоящего на клетке своей базы: `state_modifier.base_idle` > 0. Без
+     * `state_modifier` в конфиге — дефолт эффекта: `task_extend` 0.25 ({@see Effects\TaskExtendEffect}), остальные 0
+     * ({@see Effects\DamageHealthEffect}).
+     *
+     * @param array<string, mixed>|null $config     строка {@see WorldEvents} события
+     * @param string|null               $handlerKey `events.handler_key` (перекрывает `effect_kind` конфига)
+     */
+    public static function hitsOnBase(?array $config, ?string $handlerKey): bool
+    {
+        if ($config === null) {
+            return false;
+        }
+        $kind     = $handlerKey !== null && $handlerKey !== '' ? $handlerKey : ($config['effect_kind'] ?? null);
+        $params   = is_array($config['effect_params'] ?? null) ? $config['effect_params'] : [];
+        $modifier = is_array($params['state_modifier'] ?? null) ? $params['state_modifier'] : [];
+        $baseIdle = $modifier['base_idle'] ?? ($kind === 'task_extend' ? 0.25 : 0.0);
+
+        return is_numeric($baseIdle) && (float) $baseIdle > 0.0;
     }
 }

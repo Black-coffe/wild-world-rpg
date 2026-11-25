@@ -128,6 +128,48 @@ final class ActiveDamageEventLookupTest extends CIUnitTestCase
         $this->assertSame(['Миражи'], array_column($this->lookup()->forBiome(4), 'name'));
     }
 
+    /**
+     * S5 (ask 10): на клетке своей базы считаются только события, которые бьют и на базе (`state_modifier.base_idle`
+     * > 0: Эпидемия, Лихорадка, Миражи); Толчки и Ураган базу не трогают — гейт там не отказывает.
+     */
+    public function testOnOwnBaseOnlyEventsThatHitOnBaseCount(): void
+    {
+        $this->active($this->event('Подземные толчки', 'Tremor', '[3]'));
+        $this->active($this->event('Ураган', 'Hurricane', null));
+        $this->active($this->event('Эпидемия', 'Epidemic', '[3]'));
+        $this->active($this->event('Лихорадка', 'Fever', '[3]'));
+        $this->active($this->event('Миражи', 'MirageOases', '[3]'));
+
+        $this->assertSame(
+            ['Эпидемия', 'Лихорадка', 'Миражи'],
+            array_column($this->lookup()->forBiome(3, 'wet', true), 'name'),
+            'on own base: only events that still hit there'
+        );
+        $this->assertSame(
+            ['Подземные толчки', 'Ураган', 'Эпидемия', 'Лихорадка', 'Миражи'],
+            array_column($this->lookup()->forBiome(3, 'wet'), 'name'),
+            'off base: every damage event'
+        );
+    }
+
+    public function testHitsOnBaseRule(): void
+    {
+        $cfg = new WorldEvents();
+
+        $this->assertFalse(ActiveDamageEventLookup::hitsOnBase($cfg->get('Tremor'), null), 'Tremor: base_idle 0');
+        $this->assertFalse(ActiveDamageEventLookup::hitsOnBase($cfg->get('Hurricane'), null));
+        $this->assertTrue(ActiveDamageEventLookup::hitsOnBase($cfg->get('Epidemic'), null), 'Epidemic: base_idle 0.06');
+        $this->assertTrue(ActiveDamageEventLookup::hitsOnBase($cfg->get('Fever'), null));
+        $this->assertFalse(
+            ActiveDamageEventLookup::hitsOnBase(['effect_kind' => 'damage_health', 'effect_params' => []], null),
+            'no state_modifier: DamageHealthEffect default base_idle 0'
+        );
+        $this->assertTrue(
+            ActiveDamageEventLookup::hitsOnBase(['effect_kind' => 'task_extend', 'effect_params' => []], null),
+            'no state_modifier: TaskExtendEffect default base_idle 0.25'
+        );
+    }
+
     public function testCoversBiomeRules(): void
     {
         $this->assertTrue(ActiveDamageEventLookup::coversBiome(null, 5));

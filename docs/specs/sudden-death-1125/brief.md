@@ -26,6 +26,9 @@ Screenshot (Image #3), transcribed — the chat on November 24:
 - 2026-11-25 · price of the floor — «Прервать добычу в биоме (Рекомендую)»: at the floor, gathering in the event's biome is interrupted with a «go to base» message; a new one does not start while HP is below a threshold (GameSettings key).
 - 2026-11-25 · loot of a gather interrupted by an event at the floor (today an interrupted gather yields nothing) — «Доля по времени (Рекомендую)»: loot proportional to elapsed time (one normal roll × elapsed/total, rounded down, no guaranteed minimum); the message names what was gathered; manual cancel unchanged.
 
+- 2026-11-25 · after preprod smoke: gather-start threshold `health.event_gather_min` (builder set 30; Hurricane covers all 9 biomes, so everyone under 30 HP could not gather anywhere) — «15 (Рекомендую)».
+- 2026-11-25 · the gather gate also refused on the own base cell, where the event does not hit — «Да, на базе не блокировать (Рекомендую)».
+
 ## Asks
 1. World events and the daily hunger never take HP below a safe floor (GameSettings key, default 1.0, hard lower bound above the roulette threshold 0.99): a character hit only by them never reaches the death roulette. Poison keeps its own floor 1.0.
 2. Chosen risk stays lethal: march and single steps into dangerous biomes, as today.
@@ -36,3 +39,4 @@ Screenshot (Image #3), transcribed — the chat on November 24:
 7. The death message names the cause and the damage that led to it (which event / hunger / march, how many HP over what time).
 8. Every new number is in GameSettings with rationale / effect / above / below, soft and hard bounds; no balance number in code.
 9. ADR for the rule «passive sources do not kill» (🟠); tech-writing notes for every touched service/handler; verdicts for `/guide` and tips stated, with the reason.
+10. `health.event_gather_min` defaults to 15 (seed default and the live value where it still holds the old default 30); the gather gate does not refuse where the event does not hit the character — on the own base cell (base_idle state modifier 0), events that still hit on base (Epidemic, Fever) keep the gate.
