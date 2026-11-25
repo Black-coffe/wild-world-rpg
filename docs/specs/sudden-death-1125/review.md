@@ -23,3 +23,33 @@ TESTS: vendor/bin/phpunit --no-coverage --no-progress, all 10 parts from CLAUDE.
 ```
 
 Ask 3 was changed after `plan(sudden-death-1125): approved` (commit ad80ccdc), and the owner's answer «Доля по времени (Рекомендую)» was added under `## Answers` in the same commit, so that change is not a finding.
+
+## Round 2 - 2026-11-25 - head 50b55b5f74ab5aa42cc1892aa14923e9d8200a82
+
+```
+VERDICT: BLOCK
+TESTS: vendor/bin/phpunit --no-coverage --no-progress (10 parts per CLAUDE.md) -> pass, 5330 tests, 0 failures, 10 skipped; vendor/bin/phpstan analyse --memory-limit=512M --no-progress -> pass, no errors
+
+## Asks
+1. delivered: events and hunger stop at `health.passive_floor`, C:\laragon\www\mmorpg\app\Services\Player\PassiveHealthFloor.php:52, C:\laragon\www\mmorpg\app\Services\Events\IntentApplier.php:113, C:\laragon\www\mmorpg\app\TaskHandlers\FoodAndWaterConsumptionHandler.php:265
+2. delivered: the march and danger-step paths do not use the passive floor, C:\laragon\www\mmorpg\app\TaskHandlers\MarchingTaskHandler.php (not touched since round 1)
+3. delivered: interrupt with time-share loot, C:\laragon\www\mmorpg\app\Services\Events\GatherFloorInterrupt.php:59; the gather gate now also covers «Миражи», C:\laragon\www\mmorpg\app\Services\Events\ActiveDamageEventLookup.php:120
+4. delivered: the start notice states the health damage range and base safety, C:\laragon\www\mmorpg\app\Services\Events\EventMessageFormatter.php:95
+5. delivered: one warning on crossing the threshold, C:\laragon\www\mmorpg\app\Services\Events\PassiveHealthWarning.php:74
+6. delivered: the preview shows the danger surcharge, HP left and the risk line, C:\laragon\www\mmorpg\app\Controllers\Telegram\Commands\Actions\MarchAction.php:97, C:\laragon\www\mmorpg\app\Views\site\_play\native_map.php
+7. delivered: the cause names events, march and hunger with HP and time, C:\laragon\www\mmorpg\app\Services\Player\Death\DeathMessageBuilder.php:108-133
+8. delivered: three keys with rationale, effect and bounds, C:\laragon\www\mmorpg\app\Database\Migrations\2026-12-26-100000_SeedPassiveFloorSettings.php:29-59; the fix round adds no balance number (`HUNGER_WINDOW_MINUTES` is a display window)
+9. delivered: ADR-200 is in the vault; the notes for `DeathMessageBuilder`, `FoodAndWaterConsumptionHandler` and `ActiveDamageEventLookup` carry the round-1 changes (vault commit a87d0cc)
+
+## Findings
+- [major] [correctness] The F1 fix writes the hunger drop into `action_log`, which three readers treat as player activity, C:\laragon\www\mmorpg\app\TaskHandlers\FoodAndWaterConsumptionHandler.php:329. Every starving character under level 20 gets a `hunger_health_loss` row each day at 21:33, indefinitely: regen of 0.05 HP/min lifts them back above the floor before the next run. None of the three readers filters by `action_name`:
+  - `TributeService::actionTimestamps()`, C:\laragon\www\mmorpg\app\Services\PVE\TributeService.php:813. The anti-collusion gate flags a pair only when `concurrentActions === 0` (line 252). Two accounts of one operator that both go hungry get rows in the same cron run, so the gate returns `colluding=false, reason=ok`. Keeping both accounts without food defeats the gate.
+  - `PlayerDetectionService::fetchLastActiveMap()`, C:\laragon\www\mmorpg\app\Services\Player\PlayerDetectionService.php:456. A starving abandoned character is never marked abandoned and sorts to the top of the detection list as recently active.
+  - `RelocateAbandonedCharacters::findCandidates()`, C:\laragon\www\mmorpg\app\Commands\RelocateAbandonedCharacters.php:179. The same characters stop being candidates.
+
+  Smallest fix: exclude `FoodAndWaterConsumptionHandler::HEALTH_LOSS_ACTION` in these three queries, or store the drop somewhere no activity reader looks. Test: after `subtractHealth` drops HP for two characters with no other `action_log` rows, `fetchLastActiveMap([$a, $b])` has no timestamp for either, and `TributeService::countConcurrent(actionTimestamps($a), actionTimestamps($b), 120)` is 0. Now it returns both timestamps and 1. Reviewer proof, fails at head: C:\Users\Andrei\AppData\Local\Temp\claude\5cb5bf1455536ffe\7c573cde-09a6-46a3-b40c-f289be732c86\scratchpad\proof\HungerRowReadAsActivityProofTest.php
+
+## Past findings (round 2 and later)
+F1: fixed - `causeBlock()` adds «голод (не хватило еды или воды): ❤️N, M мин назад» from the recorded drop, and the fallback no longer guesses hunger (C:\laragon\www\mmorpg\app\Services\Player\Death\DeathMessageBuilder.php:120-129); the requested assertions pass in C:\laragon\www\mmorpg\tests\unit\Services\Player\Death\DeathMessageBuilderTest.php. The place chosen for the record causes the new major above.
+F2: fixed - `harmsHealth()` is true for `task_extend` with `side_effects.health_loss_range` (C:\laragon\www\mmorpg\app\Services\Events\ActiveDamageEventLookup.php:115-121); `testMirageSideEffectHarmsHealth` passes, and PolarNight stays false.
+```
