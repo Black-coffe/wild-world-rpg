@@ -48,7 +48,7 @@ shows the real HP cost, and the death message names the cause and the damage. De
     tech-writing `services/PassiveHealthFloor.md` for it. `tests/database/MoveServiceTest.php` — the step
     regression test (its schema's `health` is DECIMAL(7,0) from the old migration, so the test widens it locally).
 
-- [ ] S2 Gather interrupted at the floor; gather gate in an event biome - asks: 3, 8
+- [x] S2 Gather interrupted at the floor; gather gate in an event biome - asks: 3, 8
   - files: `app/Services/Events/EventDispatcher.php` (after applying damage: character `is_gathering`, HP at
     the floor → move the in_work Gather row to `interrupted` via `ConditionalWriteService::transitionIfCurrent`,
     `CraftQueueActivationNotice::promote/send` as `CancelGatherAction` does, send a «go to base» message,
@@ -66,6 +66,15 @@ shows the real HP cost, and the death message names the cause and the damage. De
     biome_ids) covers every biome; tired-only events (Sandstorm) do not count.
   - check: the new tests + `tests/database/GatherActionStaminaCostTest.php`, `GatherActionFastStartTest`;
     `/play` path goes through the same `GatherAction` (ADR-189 bridge) — verified in Tier-3 on both clients.
+  - outside: `app/Services/Events/GatherFloorInterrupt.php` (new) — the interrupt (transition, share of one roll,
+    persist, message, craft-queue promote) as its own class with seams, so the race / share / no-op tests run on a
+    real `character_tasks` without the whole event tick; `EventDispatcher` only decides and calls it; tech-writing
+    `services/GatherFloorInterrupt.md`. `app/TaskHandlers/GatherTaskHandler.php` — the "one normal roll" lives here:
+    extracted to public `rollLoot()` (`handle()` unchanged in effect) plus `?int $wearBlocks`, so an interrupted
+    gather wears tools only for the elapsed blocks, not the whole chosen duration; tech-writing
+    `tasks/GatherTaskHandler.md`. Hunger needs no hook: it only floors HP, and the next event hit in the gather
+    biome sees HP at the floor and interrupts (`shouldInterrupt` accepts "already at/below the floor").
+    `phpstan-baseline.neon` — one entry removed: `rollLoot()` now types `$biomeName` as string, the ignore went unmatched.
 
 - [ ] S3 The player is warned: event notice and threshold warning - asks: 4, 5, 9
   - files: `app/Services/Events/EventMessageFormatter.php` (damage events add a line: hurts health, roughly

@@ -166,6 +166,45 @@ class GatherTaskHandler extends BaseTaskHandler
             return;
         }
 
+        $roll           = $this->rollLoot($task, $character);
+        $foundResources = $roll['found'];
+        $spentMinutes   = $roll['spentMinutes'];
+        $biomeName      = $roll['biomeName'];
+        $biomeId        = $roll['biomeId'];
+
+        // Сохраняем результаты. transport-15: `$cargoNote` — строка про груз, увезённый
+        // грузовой машиной на склад базы (persist() больше не шлёт её отдельным
+        // сообщением сам — она вклеивается в единый ответ ниже).
+        $cargoNote = $this->saveFoundResources($foundResources, $character, $task);
+        $this->characterTaskModel->update($task['id'], ['status' => 'completed']);
+
+        // Отправляем уведомление (V22: + signature-хинт «биом богат на …»).
+        $signatureNames = $this->biomeGatherProfile->signatureNamesFor($biomeId);
+        $this->sendResourcesFoundReply($foundResources, $character, $spentMinutes, $biomeName, $signatureNames, $cargoNote);
+
+        // ADR-085 Склад Фаза 1b: уведомить, если рюкзак переполнился (clamp+notify). Dormant → no-op.
+        $this->notifyWeightCapOverflow($character);
+
+        // V6 (ADR-033): вторичный источник семян (defensive, killswitch+chance).
+        // Изолировано от gather-математики — не влияет на расчёт/сохранение добычи.
+        $this->maybeDropSeed($character);
+    }
+
+    /**
+     * Один обычный бросок добычи за всё время задачи — без записи и без сообщений.
+     *
+     * `handle()` зовёт его для завершённой задачи. ADR-200 (sudden-death-1125 S2): прерывание добычи событием на
+     * пассивном полу ({@see \App\Services\Events\GatherFloorInterrupt}) берёт тот же бросок и платит его долю
+     * «прошло / всего». `$wearBlocks` — сколько 10-минутных блоков реально прошло: инструменты изнашиваются только
+     * за них, бонус инструмента на остальных блоках считается без износа (иначе прерванная 12-часовая добыча
+     * съедала бы прочность за 12 часов). `null` — износ за все блоки, как при обычном завершении.
+     *
+     * @param array<string,mixed>                               $task запись character_tasks
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     * @return array{found: list<array<string,mixed>>, spentMinutes: int, biomeName: string, biomeId: ?int}
+     */
+    public function rollLoot(array $task, array|\App\Entities\CharacterEntity $character, ?int $wearBlocks = null): array
+    {
         // S4: сброс per-session состояния processor'а (защита от повторного
         // использования инстанса между разными gather задачами в worker'е).
         $this->toolDurability->clearBrokenTools();
@@ -176,9 +215,11 @@ class GatherTaskHandler extends BaseTaskHandler
 
         // v0.51.106 (decomp Step 3): single round-trip cell+biome+resources lookup
         // (раніше — duplicate calls у getAvailableResources + handle line 137-139).
+        $cellRaw     = $character['cell_number'] ?? null;
+        $levelRaw    = $character['level'] ?? null;
         $context     = $this->cellQuery->loadCellContext(
-            (int) $character['cell_number'],
-            (int) $character['level']
+            is_numeric($cellRaw) ? (int) $cellRaw : 0,
+            is_numeric($levelRaw) ? (int) $levelRaw : 1
         );
         $resources   = $context['resources'];
         $biome       = $context['biome'];
@@ -191,7 +232,8 @@ class GatherTaskHandler extends BaseTaskHandler
             spentMinutes: $spentMinutes,
             character: $character,
             task: $task,
-            loadedEvents: $loadedEvents
+            loadedEvents: $loadedEvents,
+            wearBlocks: $wearBlocks
         );
 
         // V22 (ADR-054): biome-driven профиль добычи — signature-ресурсы ×буст,
@@ -216,22 +258,12 @@ class GatherTaskHandler extends BaseTaskHandler
         // Overflow-политика «добор до cap + излишек не собран». OFF → byte-identical.
         $foundResources = $this->applyWeightCapClamp($foundResources, $character);
 
-        // Сохраняем результаты. transport-15: `$cargoNote` — строка про груз, увезённый
-        // грузовой машиной на склад базы (persist() больше не шлёт её отдельным
-        // сообщением сам — она вклеивается в единый ответ ниже).
-        $cargoNote = $this->saveFoundResources($foundResources, $character, $task);
-        $this->characterTaskModel->update($task['id'], ['status' => 'completed']);
-
-        // Отправляем уведомление (V22: + signature-хинт «биом богат на …»).
-        $signatureNames = $this->biomeGatherProfile->signatureNamesFor($biomeId);
-        $this->sendResourcesFoundReply($foundResources, $character, $spentMinutes, $biomeName, $signatureNames, $cargoNote);
-
-        // ADR-085 Склад Фаза 1b: уведомить, если рюкзак переполнился (clamp+notify). Dormant → no-op.
-        $this->notifyWeightCapOverflow($character);
-
-        // V6 (ADR-033): вторичный источник семян (defensive, killswitch+chance).
-        // Изолировано от gather-математики — не влияет на расчёт/сохранение добычи.
-        $this->maybeDropSeed($character);
+        return [
+            'found'        => $foundResources,
+            'spentMinutes' => $spentMinutes,
+            'biomeName'    => is_scalar($biomeName) ? (string) $biomeName : '???',
+            'biomeId'      => $biomeId,
+        ];
     }
 
     /**
@@ -427,7 +459,8 @@ class GatherTaskHandler extends BaseTaskHandler
         int $spentMinutes,
         array|\App\Entities\CharacterEntity $character,
         array $task,
-        array $loadedEvents
+        array $loadedEvents,
+        ?int $wearBlocks = null
     ): array {
         // ADR-090 «Мягкий старт»: soft-ramp rarity-доступа вместо бинарного гейта.
         // Killswitch OFF → жёсткий гейт как раньше (byte-identical).
@@ -484,6 +517,11 @@ class GatherTaskHandler extends BaseTaskHandler
 
                 $resourceBonuses[$resId]      = $best['bonus'];
                 $toolsNeeded[$best['name']][] = $resId;
+            }
+
+            // ADR-200 (S2): блок после прерывания — бонус инструмента без износа (см. rollLoot()).
+            if ($wearBlocks !== null && $blockIndex >= $wearBlocks) {
+                $toolsNeeded = [];
             }
 
             // Списываем прочность; cache самообновляется.

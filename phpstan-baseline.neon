@@ -14151,11 +14151,6 @@ parameters:
 			count: 1
 			path: app/TaskHandlers/GatherTaskHandler.php
 
-		-
-			message: '#^Parameter \#4 \$biomeName of method App\\TaskHandlers\\GatherTaskHandler\:\:sendResourcesFoundReply\(\) expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/GatherTaskHandler.php
 
 		-
 			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$characterModel has no type specified\.$#'
