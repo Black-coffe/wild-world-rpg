@@ -43,7 +43,7 @@ wherever a task leaves `in_work`: once in the Worker for every timed task, and i
 - Goes live: nothing on merge; the next `develop` push deploys preprod, a tag deploys prod (owner's word each).
 
 ## Stories
-- [ ] S1 `CraftQueueService::promoteEligible(int $characterId): list<Promoted>` - asks: 1, 2, 4
+- [x] S1 `CraftQueueService::promoteEligible(int $characterId): list<Promoted>` - asks: 1, 2, 4
   - files: `app/Services/Craft/CraftQueueService.php`, `tests/database/CraftQueuePromoteEligibleTest.php`
     (real migrations incl. S1 slot, as `CraftExclusiveSlotRefusalTest` does)
   - test first: (a) F4 race — queued 🔒 craft R, no R in work, a 🔒 gather in work → nothing starts; gather
