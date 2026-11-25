@@ -1,5 +1,5 @@
 # Sudden death without warning (plan)
-**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/sudden-death-1125` · **Approved:** no
+**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/sudden-death-1125` · **Approved:** «Одобряю (Рекомендую)», 2026-11-25
 
 ## Goal
 A world event drains a gathering (or idle-in-biome) character to 0.01 HP with no messages, and the per-minute
