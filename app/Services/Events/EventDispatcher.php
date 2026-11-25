@@ -57,6 +57,7 @@ final class EventDispatcher
     private CraftedItemsLogModel $craftedItemsLogModel;
     private GatherFloorInterrupt $gatherInterrupt;
     private PassiveHealthFloor $passiveFloor;
+    private PassiveHealthWarning $passiveWarning;
 
     public function __construct(
         ?WorldEvents $cfg = null,
@@ -73,6 +74,7 @@ final class EventDispatcher
         ?CraftedItemsLogModel $craftedItemsLogModel = null,
         ?GatherFloorInterrupt $gatherInterrupt = null,
         ?PassiveHealthFloor $passiveFloor = null,
+        ?PassiveHealthWarning $passiveWarning = null,
     ) {
         $this->cfg              = $cfg              ?? config('WorldEvents');
         $this->eventModel       = $eventModel       ?? new EventModel();
@@ -86,6 +88,7 @@ final class EventDispatcher
         $this->craftedItemsLogModel = $craftedItemsLogModel ?? new CraftedItemsLogModel();
         $this->gatherInterrupt  = $gatherInterrupt  ?? new GatherFloorInterrupt();
         $this->passiveFloor     = $passiveFloor     ?? new PassiveHealthFloor();
+        $this->passiveWarning   = $passiveWarning   ?? new PassiveHealthWarning();
 
         $this->applier = $applier ?? new IntentApplier(
             $this->charModel,
@@ -223,8 +226,9 @@ final class EventDispatcher
                 if ($result['applied'] ?? false) {
                     // Immediate apply (game state коректний у real-time)
                     $updated = $this->applier->apply($char, $result);
+                    $appliedDeltas = $this->applier->appliedDeltas();
                     // ADR-200: дальше (лог, итог события) — фактический урон после пассивного пола.
-                    $result = self::resultWithAppliedHealth($result, $this->applier->appliedDeltas());
+                    $result = self::resultWithAppliedHealth($result, $appliedDeltas);
                     $this->handleRevealCells($char, $result);
                     // Audit log (історія всіх дій)
                     $this->logToDb($char, $eventId, $result);
@@ -235,6 +239,8 @@ final class EventDispatcher
                         $result
                     );
                     $stats['effects_applied']++;
+                    // ADR-200 (S3): удар перевёл здоровье через порог предупреждения — одно сообщение сейчас, до пола.
+                    $this->warnOnThreshold($updated, $appliedDeltas, (string) $enrichedActive['name'], is_string($protectionItem) ? $protectionItem : null);
                     // ADR-200 (S2): цена пола — добыча в биоме события прерывается с долей добычи.
                     $this->interruptGatherAtFloor($updated, $result, $context, (string) $enrichedActive['name']);
                 }
@@ -277,6 +283,29 @@ final class EventDispatcher
         $result['health_delta']           = $applied['health'];
 
         return $result;
+    }
+
+    /**
+     * ADR-200 (S3) — удар события перевёл здоровье через `health.passive_warn_threshold` вниз → одно предупреждение
+     * ({@see PassiveHealthWarning}). Здоровье до удара = после − фактически применённая дельта (свежие числа из-под
+     * блокировки строки, а не строка, прочитанная в начале тика). Сбой здесь не валит тик: урон уже записан.
+     *
+     * @param array<string, mixed>|\App\Entities\CharacterEntity $updated персонаж, перечитанный после удара
+     * @param array<string, float> $appliedDeltas {@see IntentApplier::appliedDeltas()}
+     */
+    private function warnOnThreshold(array|\App\Entities\CharacterEntity $updated, array $appliedDeltas, string $eventName, ?string $protectionItem): void
+    {
+        $delta  = $appliedDeltas['health'] ?? null;
+        $health = $updated['health'] ?? null;
+        if ($delta === null || $delta >= 0.0 || ! is_numeric($health)) {
+            return;
+        }
+        try {
+            $this->passiveWarning->maybeWarn($updated, (float) $health - $delta, (float) $health, $eventName, $protectionItem);
+        } catch (Throwable $e) {
+            $charId = $updated['id'] ?? null;
+            log_message('error', '[EventDispatcher] passive warning failed for char_id=' . (is_scalar($charId) ? (string) $charId : '?') . ': ' . $e->getMessage());
+        }
     }
 
     /**

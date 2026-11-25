@@ -76,7 +76,7 @@ shows the real HP cost, and the death message names the cause and the damage. De
     biome sees HP at the floor and interrupts (`shouldInterrupt` accepts "already at/below the floor").
     `phpstan-baseline.neon` — one entry removed: `rollLoot()` now types `$biomeName` as string, the ignore went unmatched.
 
-- [ ] S3 The player is warned: event notice and threshold warning - asks: 4, 5, 9
+- [x] S3 The player is warned: event notice and threshold warning - asks: 4, 5, 9
   - files: `app/Services/Events/EventMessageFormatter.php` (damage events add a line: hurts health, roughly
     the per-hit range from config, safe on own base; caption ≤ 1024), the damage path in `EventDispatcher`
     (when HP crosses `health.passive_warn_threshold` downward in this tick — one message, even if one hit jumps
@@ -89,6 +89,12 @@ shows the real HP cost, and the death message names the cause and the damage. De
     longest event name+description stays ≤ 1024. A hit from 40 → 25 with threshold 30 sends one warning; 40 → 1
     sends one; 25 → 20 (already below) sends none; opted-out player gets none.
   - check: `tests/unit/Services/Events/EventMessageFormatterTest.php`, `GuideCatalogTest`, the new tests.
+  - outside: `app/Services/Events/PassiveHealthWarning.php` (new) — the threshold decision, opt-out and send with
+    seams (chat, item name, send), so 40→25 / 40→1 / 25→20 / opted-out run as unit tests without the event tick;
+    `EventDispatcher` only computes before/after from the applied delta and calls it; tech-writing
+    `services/PassiveHealthWarning.md`. The text builder is extracted as static `LowHealthWarningHandler::warningText()`
+    / `healKeyboard()` (same file keeps the «Мой дорогой выживальщик *» prefix `/play` filters on). Hunger is not
+    hooked: it already sends its own «здоровье просело» message on every cut.
 
 - [ ] S4 Honest march preview and named cause of death - asks: 6, 7
   - files: `app/Services/World/MarchService.php` (`preview` counts danger cells from `routeBreakdown` with

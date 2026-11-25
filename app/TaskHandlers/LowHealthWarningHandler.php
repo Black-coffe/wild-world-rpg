@@ -189,49 +189,9 @@ class LowHealthWarningHandler extends BaseTaskHandler
             // Формируем текст
             $playerNameRaw = $charArr['name'] ?? null;
             $playerName    = is_string($playerNameRaw) ? $playerNameRaw : '';
-            $currentHealth = number_format($health, 2);
 
-            $text = "Мой дорогой выживальщик *{$playerName}*, это я твой друг Роби🤖\n"
-                . "Спешу сообщить тебе, что твой уровень здоровья на текущую минуту составляет ⚠️ *{$currentHealth}* ⚠️\n";
-
-            if ($health < 1.0) {
-                $text .= "_Здоровье критическое — на каждой минуте есть шанс погибнуть, и чем ниже цифра, тем он выше. Действуй прямо сейчас!_\n\n";
-            } else {
-                $text .= "_Я пишу тебе, пока показатель ещё не критический и смерть тебе не угрожает._\n\n"
-                    . "НО! Контролируй показатели, так как если здоровье падёт ниже *1.00*, ты ступаешь на скользкий путь.\n"
-                    . "Здоровье *0.99 - 0.01* подвержено вероятности смерти персонажа, и чем ниже цифра, тем выше шанс умереть уже на следующей минуте!\n\n";
-            }
-
-            if ($dmgEvent !== null && $dmgEvent['name'] !== '') {
-                $protectionItem = $dmgEvent['protection_item'];
-                if ($dmgEvent['is_active']) {
-                    // Событие идёт прямо сейчас — есть что предпринять, чтобы перестало бить.
-                    $text .= "❗️ Сейчас на тебя действует событие *{$dmgEvent['name']}* — оно и просаживает здоровье. "
-                        . "Уйди на базу или ";
-                    $text .= $protectionItem !== null && $protectionItem !== ''
-                        ? "держи в инвентаре защитный предмет (`{$protectionItem}`).\n\n"
-                        : "используй защитный предмет события.\n\n";
-                } else {
-                    // Событие уже закончилось, но здоровье просело из-за него и само быстро не вернётся.
-                    $text .= "❗️ Недавно тебя задело событие *{$dmgEvent['name']}* — оно уже закончилось, "
-                        . "но здоровье из-за него осталось низким и само так быстро не восстановится. "
-                        . "Подлечись (аптечка/еда) и не уходи в минус.\n"
-                        . "_Историю событий с началом и концом смотри в меню «🎉 События»._\n\n";
-                }
-            }
-
-            $text .= "Предприми действия или воспользуйся аптечкой/провизией. Удачи в выживании!";
-
-            // Inline-кнопки — обе полки лечения (аптечка + провизия) рядом с рецептом
-            // лекарств; ButtonPacker гарантирует отсутствие строк-одиночек.
-            $healButtons = [
-                ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
-                ['text' => '🍲 Провизия', 'callback_data' => 'provision'],
-                ['text' => '💊 Лекарства', 'callback_data' => 'medicinesCraft1'],
-            ];
-            $keyboard = [
-                'inline_keyboard' => ButtonPacker::pack($healButtons),
-            ];
+            $text     = self::warningText($playerName, $health, $dmgEvent);
+            $keyboard = self::healKeyboard();
 
             $telegramChatId = $telegramUser['telegram_id'] ?? null;
             if (! is_int($telegramChatId) && ! is_string($telegramChatId)) {
@@ -258,6 +218,75 @@ class LowHealthWarningHandler extends BaseTaskHandler
                 HealthWarningSchedule::fieldsToPersist($decision, $warnStreak, $lastBand, $warnsToday, $warnsDay),
             );
         }
+    }
+
+    /**
+     * Текст предупреждения о здоровье (Markdown). Один построитель на два пути: этот крон (≤ 5 HP, затухание)
+     * и порог пассивного урона в пути события ({@see \App\Services\Events\PassiveHealthWarning}, ADR-200).
+     * Начало «Мой дорогой выживальщик *» — сигнатура, по которой `/play` отсекает его как чужое фоновое
+     * ({@see \App\Services\Web\WebTaskResultPicker::FOREIGN_TEXT_PREFIXES}).
+     *
+     * @param array{name: string, protection_item: ?string, is_active: bool}|null $dmgEvent
+     *        событие, которое бьёт (или недавно било) персонажа
+     * @param string|null $passiveNote строка курсивом после события (путь пассивного урона)
+     */
+    public static function warningText(string $playerName, float $health, ?array $dmgEvent, ?string $passiveNote = null): string
+    {
+        // Legacy Markdown не экранируется: служебные символы в имени дали бы 400 и тихий no-send.
+        $playerName    = str_replace(['*', '_', '`', '['], '', $playerName);
+        $currentHealth = number_format($health, 2);
+
+        $text = "Мой дорогой выживальщик *{$playerName}*, это я твой друг Роби🤖\n"
+            . "Спешу сообщить тебе, что твой уровень здоровья на текущую минуту составляет ⚠️ *{$currentHealth}* ⚠️\n";
+
+        if ($health < 1.0) {
+            $text .= "_Здоровье критическое — на каждой минуте есть шанс погибнуть, и чем ниже цифра, тем он выше. Действуй прямо сейчас!_\n\n";
+        } else {
+            $text .= "_Я пишу тебе, пока показатель ещё не критический и смерть тебе не угрожает._\n\n"
+                . "НО! Контролируй показатели, так как если здоровье падёт ниже *1.00*, ты ступаешь на скользкий путь.\n"
+                . "Здоровье *0.99 - 0.01* подвержено вероятности смерти персонажа, и чем ниже цифра, тем выше шанс умереть уже на следующей минуте!\n\n";
+        }
+
+        if ($dmgEvent !== null && $dmgEvent['name'] !== '') {
+            $protectionItem = $dmgEvent['protection_item'];
+            if ($dmgEvent['is_active']) {
+                // Событие идёт прямо сейчас — есть что предпринять, чтобы перестало бить.
+                $text .= "❗️ Сейчас на тебя действует событие *{$dmgEvent['name']}* — оно и просаживает здоровье. "
+                    . "Уйди на базу или ";
+                $text .= $protectionItem !== null && $protectionItem !== ''
+                    ? "держи в инвентаре защитный предмет (`{$protectionItem}`).\n\n"
+                    : "используй защитный предмет события.\n\n";
+            } else {
+                // Событие уже закончилось, но здоровье просело из-за него и само быстро не вернётся.
+                $text .= "❗️ Недавно тебя задело событие *{$dmgEvent['name']}* — оно уже закончилось, "
+                    . "но здоровье из-за него осталось низким и само так быстро не восстановится. "
+                    . "Подлечись (аптечка/еда) и не уходи в минус.\n"
+                    . "_Историю событий с началом и концом смотри в меню «🎉 События»._\n\n";
+            }
+        }
+
+        if ($passiveNote !== null && $passiveNote !== '') {
+            $text .= "_{$passiveNote}_\n\n";
+        }
+
+        return $text . "Предприми действия или воспользуйся аптечкой/провизией. Удачи в выживании!";
+    }
+
+    /**
+     * Inline-кнопки — обе полки лечения (аптечка + провизия) рядом с рецептом лекарств; ButtonPacker гарантирует
+     * отсутствие строк-одиночек.
+     *
+     * @return array{inline_keyboard: list<list<array{text: string, callback_data: string}>>}
+     */
+    public static function healKeyboard(): array
+    {
+        return [
+            'inline_keyboard' => ButtonPacker::pack([
+                ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
+                ['text' => '🍲 Провизия', 'callback_data' => 'provision'],
+                ['text' => '💊 Лекарства', 'callback_data' => 'medicinesCraft1'],
+            ]),
+        ];
     }
 
     /**
