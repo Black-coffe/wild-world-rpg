@@ -89,3 +89,9 @@ db3 for Worker/`F*` tests, db7/`tests/session` for the web march-stop path) and 
 ## Follow-up
 - `CancelGatherAction` and `DeleteBaseAction` are wired without tests of their own (photo-by-URL handlers, many tables); the per-tick sweep backs them up.
 - On the merge: whole suite in one process, 5269 tests, 0 failures.
+- Preprod 2026-11-25 (run 45594143629, parity green): Tier-3 in Telegram as `aviad_echo` — «Повязка» x1 in work, a
+  second one queued (#2), «⛔️ 1» interrupted the first → «▶️ Очередь активирована! … Завершится в 12:33» at once;
+  DB: 11536 `interrupted`, 11537 `in_work`; no queue errors in the log.
+- Prod 2026-11-25: tag `v0.51.713` on `db853ff4` (owner: «Делай все»), run 45596871191 green, release
+  `2026-11-25-103853`. Before deploy: 0 stranded queued rows on prod (8 queued, all behind a running recipe), so the
+  first sweep had nothing to start. After deploy: 0 ERROR/CRITICAL, 0 overdue `in_work` rows.
