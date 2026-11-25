@@ -12,6 +12,7 @@
 > Делайц
 
 ## Answers
+- 2026-11-25 · merge question (review round 2 PASS; gather-cancel and base-delete wired without own tests) — «Влить (Рекомендую)»
 
 ## Asks
 1. When any 🔒 task of a character ends (completed, interrupted or cancelled — gather, march, explore, repair, relocation, a craft of another recipe, …), that character's queued crafts are offered the freed 🔒 slot; a queued 🔒 craft no longer waits for a craft of its own recipe to finish.
