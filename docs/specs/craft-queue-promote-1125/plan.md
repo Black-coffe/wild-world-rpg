@@ -72,7 +72,8 @@ wherever a task leaves `in_work`: once in the Worker for every timed task, and i
 - [ ] S3 Docs - asks: 6
   - files: `mmorpg-vault/tech-writing/services/CraftQueueService.md`, `.../controllers/Worker.md`,
     `.../tasks/craft/GenericCraftCompletionHandler.md`, `.../handlers/FinishTaskAction.md`; Follow-up line in
-    `docs/specs/s1-atomicity-1124/plan.md` (item 7 → this spec)
+    `docs/specs/s1-atomicity-1124/plan.md` (item 7 → this spec); `.gitignore` gets `writable/worker.lock`
+    (the S2b tests run `processTasks()`, which creates the lock file and left the tree dirty)
   - test first: none: documentation only
   - check: `git diff --stat`
 
