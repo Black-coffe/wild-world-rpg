@@ -1,5 +1,5 @@
 # Queued 🔒 craft is promoted when any 🔒 task ends (plan)
-**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/craft-queue-promote-1125` · **Approved:** no
+**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/craft-queue-promote-1125` · **Approved:** «Одобрить (Рекомендую)», 2026-11-25
 
 ## Goal
 Today a queued craft is offered the slot only by `GenericCraftCompletionHandler` when a craft of the *same*
