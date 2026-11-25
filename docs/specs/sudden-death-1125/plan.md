@@ -1,4 +1,5 @@
 # Sudden death without warning (plan)
+**Shipped:** 2026-11-25, a80522755a20770d47ff5a13f3e1894534e448b0
 **Brief:** [brief.md](brief.md) · **Branch:** `vulyk/sudden-death-1125` · **Approved:** «Одобряю (Рекомендую)», 2026-11-25
 
 ## Goal
