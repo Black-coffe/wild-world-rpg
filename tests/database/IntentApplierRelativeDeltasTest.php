@@ -19,7 +19,7 @@ use Config\Database;
  * F16 (s2-conditional-writes-06) — крон мировых событий пишет дельты относительно, а не со снимка.
  *
  * Форма: один загруженный снимок персонажа, две дельты подряд — в БД сумма обеих; минус золота
- * больше баланса — 0; пол 0.01 у здоровья; метеор, чьё чтение ресурсов устарело (остаток упал
+ * больше баланса — 0; пассивный пол здоровья 1.0 (ADR-200), ниже пола — без изменений; метеор, чьё чтение ресурсов устарело (остаток упал
  * до 1 после SELECT, потеря 3) — 0, не −2. Крон-путь, без Telegram.
  *
  * Схема — по факту отсутствия таблицы; свои таблицы дропаются в tearDown, свои строки удаляются.
@@ -179,13 +179,25 @@ final class IntentApplierRelativeDeltasTest extends CIUnitTestCase
         $this->assertSame(0, (int) $this->charField($charId, 'gold'), self::RED_REASON);
     }
 
-    public function testHealthFloorStaysAtOneHundredth(): void
+    public function testEventHitStopsAtPassiveFloor(): void
+    {
+        $charId = $this->insertTracked('characters', ['gold' => 0, 'health' => 5, 'tired' => 50]);
+
+        $applier = $this->applier();
+        $applier->apply(['id' => $charId, 'gold' => 0, 'health' => 5.0, 'tired' => 50.0], ['health_delta' => -9.0]);
+
+        // ADR-200: пол `health.passive_floor` (дефолт 1.0) выше порога рулетки 0.99; до правки — 0.01.
+        $this->assertEqualsWithDelta(1.0, (float) $this->charField($charId, 'health'), 0.0001, 'event damage went below the passive floor');
+        $this->assertEqualsWithDelta(-4.0, $applier->appliedDeltas()['health'] ?? 0.0, 0.0001, 'applied delta is the real one');
+    }
+
+    public function testBelowFloorEventHitNeitherLowersNorHeals(): void
     {
         $charId = $this->insertTracked('characters', ['gold' => 0, 'health' => 0.5, 'tired' => 50]);
 
         $this->applier()->apply(['id' => $charId, 'gold' => 0, 'health' => 0.5, 'tired' => 50.0], ['health_delta' => -1.0]);
 
-        $this->assertEqualsWithDelta(0.01, (float) $this->charField($charId, 'health'), 0.0001, self::RED_REASON);
+        $this->assertEqualsWithDelta(0.5, (float) $this->charField($charId, 'health'), 0.0001, 'below the floor passive damage leaves HP as is');
     }
 
     public function testTwoResourceGrantsSum(): void

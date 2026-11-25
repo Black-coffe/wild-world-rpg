@@ -12,6 +12,7 @@ use App\Services\Player\Progression\EarlyProgressionService;
 use App\Services\Player\VehicleActivationService;
 use App\Services\PVE\TowerAlertService;
 use App\Services\World\MarchPaceService;
+use App\Services\World\MarchService;
 use App\Services\World\ObjectDiscoveryService;
 use App\Services\World\ObjectSignalService;
 use App\Services\World\TextMapService;
@@ -227,7 +228,7 @@ class MarchingTaskHandler extends BaseTaskHandler
         // — Стоимость / пол выносливости —
         $pace     = new MarchPaceService();
         $hpCost   = $pace->healthCostPerCell($this->healthCostPerCell(), $vehicleProfile);
-        $isDanger = $biome !== null && $this->asInt($biome['danger_level'] ?? 0) >= 8;
+        $isDanger = $biome !== null && $this->asInt($biome['danger_level'] ?? 0) >= MarchService::DANGER_LEVEL_MIN;
         if ($isDanger) {
             $hpCost += $this->dangerHealthSurcharge();
         }

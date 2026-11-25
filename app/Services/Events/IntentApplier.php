@@ -12,6 +12,7 @@ use App\Models\TaskModel;
 use App\Services\Db\ConditionalWriteService;
 use App\Services\Db\WriteOutcome;
 use App\Services\Player\CharacterStatsService;
+use App\Services\Player\PassiveHealthFloor;
 
 /**
  * F7.3 — застосовує EffectResult intents до DB.
@@ -34,7 +35,22 @@ final class IntentApplier
         private ResourceModel $resourceModel,
         private TaskModel $taskModel,
         private CharacterStatsService $statsService = new CharacterStatsService(),
+        private PassiveHealthFloor $passiveFloor = new PassiveHealthFloor(),
     ) {
+    }
+
+    /** @var array<string, float> фактические дельты последнего apply() (после полов и потолков) */
+    private array $appliedDeltas = [];
+
+    /**
+     * ADR-200 — фактически применённые дельты последнего {@see apply()}: `after - before` свежих значений.
+     * Удар −9 по 5 HP при поле 1.0 даёт `['health' => -4.0]`; удар ниже пола — `0.0`. Пусто — записи не было.
+     *
+     * @return array<string, float>
+     */
+    public function appliedDeltas(): array
+    {
+        return $this->appliedDeltas;
     }
 
     /**
@@ -50,18 +66,20 @@ final class IntentApplier
 
         // ============================================================
         // 1. Health / Tired / Gold / Attribute deltas
-        //    s2-conditional-writes-06 (F16): дельтой через CharacterStatsService::adjust()
+        //    s2-conditional-writes-06 (F16): дельтой через CharacterStatsService::mutate()+applyDeltas()
         //    (FOR UPDATE от свежих значений), не абсолютом со снимка $character —
         //    два события от одного снимка складываются, золото зажато ≥ 0 дефолтом
-        //    сервиса; здоровье/усталость/атрибуты — пол 0.01, как было.
+        //    сервиса; усталость/атрибуты — пол 0.01, как было.
+        //    ADR-200: здоровье — пассивный пол `health.passive_floor` (1.0, выше рулетки
+        //    смерти 0.99); ниже пола удар здоровье не меняет и не поднимает.
         // ============================================================
+        $this->appliedDeltas = [];
         $deltas = [];
         $bounds = [];
 
         $healthDelta = $result['health_delta'] ?? 0;
         if (is_numeric($healthDelta) && (float)$healthDelta != 0.0) {
             $deltas['health'] = (float)$healthDelta;
-            $bounds['health'] = ['min' => 0.01];
         }
 
         $tiredDelta = $result['tired_delta'] ?? 0;
@@ -85,7 +103,22 @@ final class IntentApplier
         }
 
         if ($deltas !== []) {
-            $this->statsService->adjust($charId, $deltas, $bounds);
+            $floor   = isset($deltas['health']) ? $this->passiveFloor->floor() : 0.0;
+            $outcome = $this->statsService->mutate(
+                $charId,
+                array_keys($deltas),
+                static function (array $stats) use ($deltas, $bounds, $floor): array {
+                    $new = CharacterStatsService::applyDeltas($stats, $deltas, $bounds);
+                    if (isset($new['health'], $stats['health'])) {
+                        $new['health'] = PassiveHealthFloor::apply($stats['health'], $new['health'], $floor);
+                    }
+
+                    return $new;
+                }
+            );
+            foreach ($outcome['after'] ?? [] as $field => $after) {
+                $this->appliedDeltas[$field] = round($after - ($outcome['before'][$field] ?? $after), 2);
+            }
         }
 
         // ============================================================

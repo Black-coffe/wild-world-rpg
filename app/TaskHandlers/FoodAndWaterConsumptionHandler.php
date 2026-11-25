@@ -250,14 +250,23 @@ class FoodAndWaterConsumptionHandler extends BaseTaskHandler
         $telegramId = (new TelegramChatResolver())->chatIdForCharacter((int) $character['id']);
         // Fix 2026-07-13 (класс lost-update): делим СВЕЖЕЕ здоровье под row-lock'ом
         // (CharacterStatsService::mutate) — только что применённый препарат/бой не
-        // затирается снапшотом крона. Floor 0.01 сохранён (голод не убивает).
+        // затирается снапшотом крона.
+        // ADR-200: голод не убивает — не ниже пассивного пола `health.passive_floor` (1.0, выше
+        // рулетки смерти 0.99; раньше пол 0.01 отдавал персонажа рулетке); ниже пола — без изменений.
         $divisor  = $this->cfg->hungerHealthPenaltyDivisor;
+        $floor    = (new \App\Services\Player\PassiveHealthFloor())->floor();
         $adjusted = (new \App\Services\Player\CharacterStatsService())->mutate(
             (int) $character['id'],
             ['health'],
-            static fn (array $stats): array => ['health' => max(0.01, $stats['health'] / $divisor)]
+            static fn (array $stats): array => [
+                'health' => \App\Services\Player\PassiveHealthFloor::apply($stats['health'], $stats['health'] / $divisor, $floor),
+            ]
         );
-        $newHealth = $adjusted !== null ? ($adjusted['after']['health'] ?? 0.01) : 0.01;
+        $before    = $adjusted !== null ? ($adjusted['before']['health'] ?? 0.0) : 0.0;
+        $newHealth = $adjusted !== null ? ($adjusted['after']['health'] ?? $before) : $before;
+        // В сообщение — фактическая просадка, а не запрошенная половина снимка.
+        $healthToSubtract = round(max(0.0, $before - $newHealth), 2);
+        $this->recordHealthLoss((int) $character['id'], $healthToSubtract);
 
         // Добавляем информацию о недостатке ресурсов в текст сообщения
         $resourceMessage = '';
@@ -299,6 +308,30 @@ class FoodAndWaterConsumptionHandler extends BaseTaskHandler
             $text,
             ['parse_mode' => 'Markdown', 'reply_markup' => json_encode($keyboard)]
         );
+    }
+
+    /**
+     * ADR-200 (ask 7, ревью раунды 1–2): фактическая просадка от голода с временем — в строке персонажа
+     * (`characters.hunger_hp_lost`, `characters.hunger_hp_lost_at`), откуда её читает сообщение о смерти
+     * ({@see \App\Services\Player\Death\DeathMessageBuilder::recentHunger()}). Не в `action_log`: его читают как
+     * активность игрока (анти-сговор подати, детект брошенных), а голод — не действие игрока. Нет просадки — нет
+     * записи (прежняя остаётся). Здоровье уже списано: сбой записи только логируется.
+     */
+    private function recordHealthLoss(int $characterId, float $applied): void
+    {
+        if ($characterId <= 0 || $applied <= 0.0) {
+            return;
+        }
+        try {
+            \Config\Database::connect()->table('characters')
+                ->where('id', $characterId)
+                ->update([
+                    'hunger_hp_lost'    => number_format($applied, 2, '.', ''),
+                    'hunger_hp_lost_at' => date('Y-m-d H:i:s'),
+                ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[FoodAndWaterConsumptionHandler] recordHealthLoss: ' . $e->getMessage());
+        }
     }
 
     public function sendMessageToTelegram($telegramId, $foodToConsume, $waterToConsume, $totalFoodResources, $totalWaterResources): void

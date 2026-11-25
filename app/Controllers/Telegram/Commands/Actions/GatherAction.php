@@ -68,7 +68,7 @@ class GatherAction extends BaseAction
             // 1) Пока только предлагаем выбрать время.
             // Выводим предупреждение и набор кнопок:
             $text = "Ты решил заняться добычей ресурсов.\n\n"
-                . "⚠️ *Внимание!* При прерывании задачи _никакие_ ресурсы не будут получены! "
+                . "⚠️ *Внимание!* Если прервёшь добычу сам — _никакие_ ресурсы не будут получены! "
                 . "Серьёзно отнесись к выбору времени!\n\n"
                 . "🕑 Базовый расчёт идёт за 10 минут,\n"
                 . "но если выберешь больше — лут будет больше (и риск тоже!).";
@@ -115,6 +115,19 @@ class GatherAction extends BaseAction
             // (ONBOARDING-COVERAGE / UX-Discoverability).
             $text .= $this->staminaHintForMenu($character);
 
+            // ADR-200 (S2): блокировка добычи в биоме события видна до выбора времени (UX-discoverability).
+            if ($this->readHealth($character) < $this->eventGatherMin()) {
+                $menuCell  = $this->mapModel->where('cell_number', $character['cell_number'])->first();
+                $menuBiome = is_array($menuCell) ? $this->biomeModel->find($menuCell['biome_id']) : null;
+                if (is_array($menuBiome) && is_numeric($menuBiome['id'] ?? null)) {
+                    $text .= $this->eventGateHintForMenu(
+                        $character,
+                        (int) $menuBiome['id'],
+                        is_string($menuBiome['biome_type'] ?? null) ? $menuBiome['biome_type'] : null
+                    );
+                }
+            }
+
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
@@ -155,6 +168,24 @@ class GatherAction extends BaseAction
             }
 
             $biomeId   = (int) $biome['id'];
+
+            // ADR-200 (S2): с низким здоровьем в биоме события с уроном добыча не начинается — до транзакции,
+            // ничего не списано. Бот и /play идут через этот же экшен (ADR-189).
+            $eventRefusal = $this->eventGateRefusal(
+                $character,
+                $biomeId,
+                is_string($biome['biome_type'] ?? null) ? $biome['biome_type'] : null
+            );
+            if ($eventRefusal !== null) {
+                Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+                return Request::sendMessage([
+                    'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text'         => $eventRefusal,
+                    'parse_mode'   => 'HTML',
+                    'reply_markup' => json_encode(\App\Services\Telegram\NavKeyboards::whatNextWith()),
+                ]);
+            }
+
             $resources = $this->resourcesModel
                 ->where("FIND_IN_SET({$biomeId}, biome_id) > 0", null, false)
                 ->where('level_required <=', $character['level'])
@@ -478,6 +509,108 @@ class GatherAction extends BaseAction
         }
 
         return $text;
+    }
+
+    /** ADR-200 (S2) — порог здоровья для добычи в биоме события с уроном; дефолт = посев `SeedPassiveFloorSettings`. */
+    public const EVENT_GATHER_MIN_KEY     = 'health.event_gather_min';
+    public const EVENT_GATHER_MIN_DEFAULT = 30.0;
+
+    /**
+     * ADR-200 (S2) — цена пассивного пола: с здоровьем ниже `health.event_gather_min` в биоме, где идёт событие
+     * с уроном здоровью, добыча не начинается. Текст отказа (HTML) или null — можно добывать. Здоровье сверяется
+     * до запроса к событиям: здоровому игроку гейт ничего не стоит.
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     */
+    protected function eventGateRefusal(array|\App\Entities\CharacterEntity $character, int $biomeId, ?string $biomeType): ?string
+    {
+        $health = $this->readHealth($character);
+        $min    = $this->eventGatherMin();
+        if ($health >= $min) {
+            return null;
+        }
+
+        return self::eventGateText($health, $min, $this->damageEventNames($biomeId, $biomeType));
+    }
+
+    /**
+     * Та же блокировка на экране выбора времени — до того, как игрок нажмёт длительность (Markdown).
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     */
+    protected function eventGateHintForMenu(array|\App\Entities\CharacterEntity $character, int $biomeId, ?string $biomeType): string
+    {
+        $health = $this->readHealth($character);
+        $min    = $this->eventGatherMin();
+        if ($health >= $min) {
+            return '';
+        }
+        $names = $this->damageEventNames($biomeId, $biomeType);
+        if ($names === []) {
+            return '';
+        }
+        $quoted = implode(', ', array_map(static fn (string $n): string => '«' . str_replace(['*', '_', '`', '['], '', $n) . '»', $names));
+
+        return "\n\n🩸 *Здесь идёт {$quoted} — ранит всех в биоме.* "
+            . 'С здоровьем ниже ' . $this->fmtStamina($min, 1) . ' добыча здесь не начнётся (у тебя '
+            . $this->fmtStamina($health, 1) . '). Иди на базу и подлечись — или добывай в биоме без события.';
+    }
+
+    protected function eventGatherMin(): float
+    {
+        $raw = (new \App\Services\GameSettings\GameSettingsService())->get(self::EVENT_GATHER_MIN_KEY, self::EVENT_GATHER_MIN_DEFAULT);
+
+        return is_numeric($raw) ? (float) $raw : self::EVENT_GATHER_MIN_DEFAULT;
+    }
+
+    protected function damageEventLookup(): \App\Services\Events\ActiveDamageEventLookup
+    {
+        return new \App\Services\Events\ActiveDamageEventLookup();
+    }
+
+    /**
+     * Текст отказа (HTML) или null, если в биоме нет события с уроном.
+     *
+     * @param list<string> $eventNames
+     */
+    public static function eventGateText(float $health, float $min, array $eventNames): ?string
+    {
+        if ($eventNames === []) {
+            return null;
+        }
+        $e      = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $quoted = implode(', ', array_map(static fn (string $n): string => '«' . $e($n) . '»', $eventNames));
+        $fmt    = static function (float $v): string {
+            $s = number_format($v, 1, '.', '');
+
+            return str_contains($s, '.') ? rtrim(rtrim($s, '0'), '.') : $s;
+        };
+
+        return "🩸 <b>Добыча здесь сейчас опасна.</b>\n\n"
+            . "В этом биоме идёт {$quoted} — событие ранит всех, кто здесь.\n"
+            . 'Здоровье: <b>' . $fmt($health) . '</b>, а для добычи в биоме события нужно не меньше <b>' . $fmt($min) . "</b>.\n\n"
+            . '🏠 Иди на базу — там событие не достанет — и подлечись едой или медициной. '
+            . 'Или добывай в другом биоме, где события нет.';
+    }
+
+    /** @return list<string> */
+    private function damageEventNames(int $biomeId, ?string $biomeType): array
+    {
+        try {
+            return array_column($this->damageEventLookup()->forBiome($biomeId, $biomeType), 'name');
+        } catch (\Throwable $e) {
+            log_message('error', '[GatherAction] damage event lookup failed: ' . $e->getMessage());
+
+            return [];
+        }
+    }
+
+    /** @param array<string,mixed>|\App\Entities\CharacterEntity $character */
+    private function readHealth(array|\App\Entities\CharacterEntity $character): float
+    {
+        $raw = $character['health'] ?? null;
+
+        return is_numeric($raw) ? (float) $raw : 100.0;
     }
 
     /**

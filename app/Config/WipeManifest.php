@@ -304,6 +304,8 @@ class WipeManifest extends BaseConfig
         'login_streak_last_day'     => null, // E6 (ADR-108) Ф3 — дата последнего входа → null после вайпа.
         'active_title_id'           => null, // E11 (ADR-112) — экипированный титул → null после вайпа.
         'active_vehicle_log_id'     => null, // transport-03 (ADR-174) — активный транспорт (прогресс) → null после вайпа.
+        'hunger_hp_lost'            => null, // ADR-200 — последняя просадка от голода (для сообщения о смерти) → null после вайпа.
+        'hunger_hp_lost_at'         => null, // ADR-200 — когда она была → null после вайпа.
     ];
 
     /**

@@ -69,6 +69,8 @@ class CharacterModel extends Model
         'low_health_warns_day',   // health-warning-backoff-01 — за какие сутки считается low_health_warns_today
         'health_warnings_enabled', // health-warning-backoff-03 — opt-out тумблер (default 1, как daily_tips_enabled)
         'account_id',             // web-accounts-p0-01 (ADR-188) — аккаунт-владелец персонажа (accounts.id)
+        'hunger_hp_lost',         // ADR-200 — сколько здоровья снял последний суточный голод (сообщение о смерти)
+        'hunger_hp_lost_at',      // ADR-200 — когда последний суточный голод снял здоровье
     ];
 
     protected $useTimestamps = true;

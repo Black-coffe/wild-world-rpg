@@ -467,4 +467,35 @@ final class GuideCatalogTest extends CIUnitTestCase
             }
         }
     }
+
+    // ── ADR-200 (sudden-death-1125 S3): события ранят, но не добивают ──────
+
+    public function testWorldEventsSectionSaysEventsWoundButDoNotKill(): void
+    {
+        $section = GuideCatalog::find('worldevents');
+        $this->assertNotNull($section, 'Раздел «Мировые события» обязан быть в /guide.');
+        $body = $section['body'];
+
+        $this->assertStringContainsString('не добивают', $body, 'Раздел обязан сказать: события ранят, но не убивают.');
+        $this->assertStringContainsString('прерв', $body, 'Раздел обязан сказать: добыча при низком здоровье прерывается.');
+        $this->assertStringContainsString('на базу', $body, 'Раздел обязан назвать путь: на базу.');
+        $this->assertStringContainsString('поход', $body, 'Поход — выбранный риск, он по-прежнему может убить.');
+        $this->assertSame(0, preg_match('/\d/u', $body), 'В разделе нет цифр: пол и пороги здоровья меняются из админки.');
+        $this->assertSame(0, substr_count($body, '*') % 2, 'Markdown: чётное число «*».');
+    }
+
+    public function testEventsWoundTipIsRobiStyleWithoutNumbers(): void
+    {
+        require_once APPPATH . 'Database/Migrations/2026-12-27-100000_SeedEventsWoundNotKillTip.php';
+
+        $content = \App\Database\Migrations\SeedEventsWoundNotKillTip::CONTENT;
+        $this->assertSame('события', \App\Database\Migrations\SeedEventsWoundNotKillTip::TIP_TYPE, 'Категория — «события» из 14 ENUM.');
+        $this->assertSame('EventsWoundNotKill', \App\Database\Migrations\SeedEventsWoundNotKillTip::TITLE_EN);
+        foreach (['не добивают', 'прерв', 'на базу'] as $needle) {
+            $this->assertStringContainsString($needle, $content, "Совет не говорит «{$needle}».");
+        }
+        $this->assertSame(0, preg_match('/\d/u', $content), 'Совет без чисел баланса.');
+        $this->assertSame(0, substr_count($content, '*') % 2, 'Markdown: чётное число «*».');
+        $this->assertSame(0, substr_count($content, '_') % 2, 'Markdown: чётное число «_».');
+    }
 }

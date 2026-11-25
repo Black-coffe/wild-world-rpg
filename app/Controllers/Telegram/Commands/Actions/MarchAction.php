@@ -26,6 +26,8 @@ use App\Services\Telegram\Request;
  *
  * Экраны редактируют сообщение, на котором нажата кнопка (ADR-018 navTarget), с
  * fallback на новое. Остановку похода обрабатывает {@see CancelMarchAction} (`cancelMarch`).
+ *
+ * @phpstan-import-type Preview from MarchService
  */
 class MarchAction extends BaseAction
 {
@@ -84,6 +86,42 @@ class MarchAction extends BaseAction
         return $this->editOrSendText($chatId, $text, $keyboard);
     }
 
+    /**
+     * Текст экрана маршрута. ADR-200 (ask 6): надбавка опасных биомов, остаток ❤️ к концу похода и, если поход
+     * кончится в рулетке смерти, строка «можешь погибнуть» — до потолка заказа и кнопки «Выступить».
+     *
+     * @param Preview $p исход {@see MarchService::preview()} с `ok = true`
+     */
+    public static function routeText(array $p): string
+    {
+        $danger = $p['danger_cells'] > 0
+            ? "☠️ Опасные биомы на пути: {$p['danger_cells']} " . MarchService::plural($p['danger_cells'], 'клетка', 'клетки', 'клеток')
+                . " — из расхода ❤️{$p['danger_hp']}
+"
+            : '';
+
+        return "🚜 *Поход:* {$p['dir_label']} ×{$p['n']}\n\n"
+            . "Видишь впереди (1 клетка): {$p['ahead']}. Дальше — туман.\n"
+            . "В пути возможно (поход тогда прервётся, ты решишь):\n"
+            . "  • встреча с игроком → бой / бегство / пройти мимо\n"
+            . "  • рейдеры → авто-стычка; тяжёлая рана → привал\n"
+            . "  • объект/событие со 100% триггером → отчёт и выбор\n"
+            . "  • чужой лагерь на пути → остановишься не доходя\n"
+            . "  • кончится выносливость → привал раньше срока\n"
+            . "_Прочее (находки, биомы, мелочи) — разгребётся само, отчёт по прибытии._\n\n"
+            . "Расход ≈ ❤️{$p['hp']}  💤{$p['tired']}  ·  в пути ~{$p['eta_minutes']} мин\n"
+            . $danger
+            . "❤️ К концу похода останется ≈{$p['hp_left']}
+"
+            . ($p['risk_line'] !== '' ? "{$p['risk_line']}
+" : '')
+            . ($p['breakdown_line'] !== '' ? "{$p['breakdown_line']}\n" : '')
+            . "_Отряд идёт сам и довольно шустро — темп от ❤️/💤 не зависит "
+            . "(они лишь топливо в пути), но зависит от активного транспорта._\n\n"
+            . $p['cap_line']
+            . ($p['hook'] !== null ? $p['hook']['line'] : '');
+    }
+
     private function showRouteSetup(int $characterId, string $dir, int $n, int $chatId): ServerResponse
     {
         $blocked = $this->blockReason($characterId, $chatId);
@@ -96,21 +134,7 @@ class MarchAction extends BaseAction
         }
         $n = $p['n'];
 
-        $text = "🚜 *Поход:* {$p['dir_label']} ×{$n}\n\n"
-            . "Видишь впереди (1 клетка): {$p['ahead']}. Дальше — туман.\n"
-            . "В пути возможно (поход тогда прервётся, ты решишь):\n"
-            . "  • встреча с игроком → бой / бегство / пройти мимо\n"
-            . "  • рейдеры → авто-стычка; тяжёлая рана → привал\n"
-            . "  • объект/событие со 100% триггером → отчёт и выбор\n"
-            . "  • чужой лагерь на пути → остановишься не доходя\n"
-            . "  • кончится выносливость → привал раньше срока\n"
-            . "_Прочее (находки, биомы, мелочи) — разгребётся само, отчёт по прибытии._\n\n"
-            . "Расход ≈ ❤️{$p['hp']}  💤{$p['tired']}  ·  в пути ~{$p['eta_minutes']} мин\n"
-            . ($p['breakdown_line'] !== '' ? "{$p['breakdown_line']}\n" : '')
-            . "_Отряд идёт сам и довольно шустро — темп от ❤️/💤 не зависит "
-            . "(они лишь топливо в пути), но зависит от активного транспорта._\n\n"
-            . $p['cap_line']
-            . $p['hook']['line'];
+        $text = self::routeText($p);
 
         $minus = max(1, $n - 1);
         $plus  = min($n + MarchService::EXTEND_STEP, $p['cap']);

@@ -10558,12 +10558,6 @@ parameters:
 			path: app/Services/Events/EventMessageFormatter.php
 
 		-
-			message: '#^Part \$description \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 1
-			path: app/Services/Events/EventMessageFormatter.php
-
-		-
 			message: '#^Part \$name \(mixed\) of encapsed string cannot be cast to string\.$#'
 			identifier: encapsedStringPart.nonString
 			count: 2
@@ -14151,11 +14145,6 @@ parameters:
 			count: 1
 			path: app/TaskHandlers/GatherTaskHandler.php
 
-		-
-			message: '#^Parameter \#4 \$biomeName of method App\\TaskHandlers\\GatherTaskHandler\:\:sendResourcesFoundReply\(\) expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/GatherTaskHandler.php
 
 		-
 			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$characterModel has no type specified\.$#'
