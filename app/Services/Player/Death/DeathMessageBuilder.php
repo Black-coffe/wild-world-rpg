@@ -7,6 +7,9 @@ namespace App\Services\Player\Death;
 use App\Entities\CharacterEntity;
 use App\Models\ActiveEventModel;
 use App\Models\EventModel;
+use App\Services\World\MarchService;
+use CodeIgniter\Database\BaseResult;
+use Config\Database;
 
 /**
  * Сборщик понятных уведомлений о смерти (задача «валидация причин смерти», карточка
@@ -23,6 +26,12 @@ use App\Models\EventModel;
  *
  * Используют: {@see DeathRouletteHandler} (рулетка), PVP/AttackPlayerAction (блок «как не допустить»).
  * Дальше (batch 3) — будет связано с `last_respawn_at` / чисткой `effect_log` при смерти.
+ *
+ * ADR-200 (ask 7): причина называет источник и урон — удары событий из `event_effects_log` за окно
+ * ({@see recentHits()}), иначе Поход с его расходом ❤️ ({@see recentMarch()}), иначе голод; текст — {@see causeBlock()}.
+ *
+ * @phpstan-type Hit array{event_id:int, name:string, health_delta:float, event_time:string}
+ * @phpstan-type March array{hp:float, started:string, cells:int}
  */
 final class DeathMessageBuilder
 {
@@ -50,18 +59,14 @@ final class DeathMessageBuilder
         $hasBase      = isset($deathResult['hasBase']) ? (bool) $deathResult['hasBase'] : ($penalty > 0.0 && $penalty < 0.5);
         $newbieProt   = isset($deathResult['newbieProtected']) && (bool) $deathResult['newbieProtected'];
 
-        $recentEvent  = $this->activeDamageEvent($charId);
-        $eventName     = $recentEvent !== null && $recentEvent['name'] !== '' ? $recentEvent['name'] : null;
-        $protectionItem= $recentEvent['protection_item'] ?? null;
-
-        $cause = "💀 *Причина:* здоровье упало до *" . number_format($healthDeath, 2)
-            . "* — сработала «рулетка смерти». При здоровье ниже 1.0 каждую минуту есть шанс погибнуть, "
-            . "и он тем выше, чем ниже здоровье.";
-        if ($eventName !== null) {
-            $cause .= " Скорее всего здоровье просело из-за события *{$eventName}* (либо из-за голода, если кончились еда/вода).";
-        } else {
-            $cause .= " Обычно это голод (кончились еда/вода) или урон от мирового события.";
-        }
+        // ADR-200 (ask 7): причина — какое событие / поход / голод, сколько ❤️ и за какое время.
+        $now            = time();
+        $hits           = $this->recentHits($charId, $now);
+        $cause          = self::causeBlock($hits, $this->recentMarch($charId, $now), $healthDeath, $now);
+        $topEventId     = self::topEventId($hits);
+        $topEvent       = $topEventId !== null ? $this->safeEventInfo($topEventId) : null;
+        $duringEvent    = $topEventId !== null;
+        $protectionItem = $topEvent['protection_item'] ?? null;
 
         // E31 (ADR-131) — новичку показываем честный смягчающий текст (а не «страховка»,
         // ведь потери снижены по уровню/базе, а не страховым списанием).
@@ -71,7 +76,232 @@ final class DeathMessageBuilder
         return $header
             . "\n\n" . $cause
             . "\n\n" . $lossStr
-            . "\n\n" . $this->adviceBlock($eventName !== null, $protectionItem);
+            . "\n\n" . $this->adviceBlock($duringEvent, $protectionItem);
+    }
+
+    /**
+     * ADR-200 (ask 7) — окно причины смерти, минут назад от смерти: удары событий и Поход старше уже не причина.
+     * Окно отображения, а не баланс (план sudden-death-1125, Assumptions).
+     */
+    public const CAUSE_WINDOW_MINUTES = 120;
+
+    /** Сколько событий назвать в причине — длина сообщения, не баланс. */
+    private const CAUSE_MAX_EVENTS = 3;
+
+    /**
+     * Строка причины смерти: какое событие (сумма фактически применённых ударов) или Поход (накопленный расход ❤️),
+     * сколько ❤️ и за какое время; ни того ни другого в окне — голод или шаг в опасный биом. Чистая функция.
+     *
+     * @param list<Hit>  $hits  удары событий за окно ({@see recentHits()}), в порядке времени
+     * @param March|null $march идущий или недавно кончившийся Поход ({@see recentMarch()})
+     */
+    public static function causeBlock(array $hits, ?array $march, float $healthDeath, int $now): string
+    {
+        $parts = [];
+        foreach (array_slice(self::eventDamage($hits), 0, self::CAUSE_MAX_EVENTS) as $ev) {
+            $parts[] = "событие *{$ev['name']}* сняло ❤️" . self::num($ev['hp'])
+                . ' за последние ' . self::minutesSince($ev['first'], $now) . ' мин';
+        }
+        if ($march !== null && $march['hp'] > 0.0) {
+            $parts[] = 'поход: ❤️' . self::num($march['hp']) . ' за ' . self::minutesSince($march['started'], $now)
+                . " мин пути ({$march['cells']} " . MarchService::plural($march['cells'], 'клетка', 'клетки', 'клеток')
+                . ', опасные биомы стоят дороже)';
+        }
+        $roulette = 'упало до *' . number_format($healthDeath, 2) . '* — сработала «рулетка смерти»: при здоровье ниже 1.0 '
+            . 'каждую минуту есть шанс погибнуть, и он тем выше, чем ниже здоровье.';
+
+        if ($parts === []) {
+            return '💀 *Причина:* за последние ' . intdiv(self::CAUSE_WINDOW_MINUTES, 60) . ' ч ни события, ни дальнего пути — '
+                . 'обычно это голод (кончились еда или вода) или шаг в опасный биом. Здоровье ' . $roulette;
+        }
+
+        return '💀 *Причина:* ' . implode('; ', $parts) . ".\nЗдоровье " . $roulette;
+    }
+
+    /**
+     * Событие, сильнее всех ударившее по здоровью за окно (для совета о защитном предмете); null — таких нет.
+     *
+     * @param list<Hit> $hits
+     */
+    public static function topEventId(array $hits): ?int
+    {
+        $top = self::eventDamage($hits)[0] ?? null;
+
+        return $top !== null ? $top['event_id'] : null;
+    }
+
+    /**
+     * Удары событий по персонажу за окно {@see CAUSE_WINDOW_MINUTES}: `event_effects_log.effect_details.health_delta` —
+     * фактически применённая дельта (ADR-200 S1 пишет её после пассивного пола). Нет таблиц — пусто: текст смерти
+     * не должен падать из-за причины.
+     *
+     * @return list<Hit>
+     */
+    public function recentHits(int $charId, int $now): array
+    {
+        if ($charId <= 0) {
+            return [];
+        }
+        try {
+            $res = Database::connect()->table('event_effects_log eel')
+                ->select('eel.event_id, eel.effect_details, eel.event_time, e.name, e.name_english')
+                ->join('events e', 'e.event_id = eel.event_id', 'left')
+                ->where('eel.character_id', $charId)
+                ->where('eel.event_time >=', date('Y-m-d H:i:s', $now - self::CAUSE_WINDOW_MINUTES * 60))
+                ->orderBy('eel.id', 'ASC')
+                ->get();
+            $rows = $res instanceof BaseResult ? $res->getResultArray() : [];
+        } catch (\Throwable $e) {
+            log_message('error', '[DeathMessageBuilder] recentHits: ' . $e->getMessage());
+
+            return [];
+        }
+
+        $hits = [];
+        foreach ($rows as $row) {
+            $details = json_decode(self::asStr($row['effect_details'] ?? null, '{}'), true);
+            $delta   = is_array($details) ? ($details['health_delta'] ?? null) : null;
+            if (! is_numeric($delta)) {
+                continue;
+            }
+            $name = trim(self::asStr($row['name'] ?? null));
+            if ($name === '') {
+                $name = trim(self::asStr($row['name_english'] ?? null));
+            }
+            $hits[] = [
+                'event_id'     => self::asInt($row['event_id'] ?? null),
+                'name'         => $name !== '' ? $name : 'событие',
+                'health_delta' => (float) $delta,
+                'event_time'   => self::asStr($row['event_time'] ?? null),
+            ];
+        }
+
+        return $hits;
+    }
+
+    /**
+     * Поход, который идёт или кончился в окне {@see CAUSE_WINDOW_MINUTES}: накопленный расход ❤️ (`acc.hp` последней
+     * строки цепочки шагов), клетки и начало (первая строка той же цепочки: тот же `started_cell`, `steps_done` не
+     * растёт назад). `acc` последнего тика в строку не пишется — число может быть чуть меньше настоящего. Нет
+     * таблиц или похода — null.
+     *
+     * @return March|null
+     */
+    public function recentMarch(int $charId, int $now): ?array
+    {
+        if ($charId <= 0) {
+            return null;
+        }
+        try {
+            $db      = Database::connect();
+            $taskRes = $db->table('tasks')->select('id')->where('name', 'Marching')->limit(1)->get();
+            $taskRow = $taskRes instanceof BaseResult ? $taskRes->getRowArray() : null;
+            $taskId  = is_array($taskRow) ? self::asInt($taskRow['id'] ?? null) : 0;
+            if ($taskId <= 0) {
+                return null;
+            }
+            $res = $db->table('character_tasks')
+                ->select('start_time, end_time, status, task_settings')
+                ->where('character_id', $charId)
+                ->where('task_id', $taskId)
+                ->groupStart()
+                    ->whereIn('status', ['in_work', 'paused'])
+                    ->orWhere('end_time >=', date('Y-m-d H:i:s', $now - self::CAUSE_WINDOW_MINUTES * 60))
+                ->groupEnd()
+                ->orderBy('id', 'DESC')
+                ->limit(500)
+                ->get();
+            $rows = $res instanceof BaseResult ? $res->getResultArray() : [];
+        } catch (\Throwable $e) {
+            log_message('error', '[DeathMessageBuilder] recentMarch: ' . $e->getMessage());
+
+            return null;
+        }
+        if ($rows === []) {
+            return null;
+        }
+
+        $last        = self::settings($rows[0]);
+        $startedCell = $last['started_cell'] ?? null;
+        $acc         = is_array($last['acc'] ?? null) ? $last['acc'] : [];
+        $steps       = self::asInt($last['steps_done'] ?? null);
+        $started     = self::asStr($rows[0]['start_time'] ?? null);
+        foreach ($rows as $row) {
+            $s = self::settings($row);
+            if (($s['started_cell'] ?? null) !== $startedCell || self::asInt($s['steps_done'] ?? null) > $steps) {
+                break;
+            }
+            $steps   = self::asInt($s['steps_done'] ?? null);
+            $started = self::asStr($row['start_time'] ?? null, $started);
+        }
+
+        return [
+            'hp'      => self::asFloat($acc['hp'] ?? null),
+            'started' => $started,
+            'cells'   => self::asInt($last['steps_done'] ?? null),
+        ];
+    }
+
+    /**
+     * Удары по событиям: сумма урона (только `health_delta < 0`, лечение не причина) и время первого удара,
+     * сильнейшее первым.
+     *
+     * @param list<Hit> $hits
+     *
+     * @return list<array{event_id:int, name:string, hp:float, first:string}>
+     */
+    private static function eventDamage(array $hits): array
+    {
+        $by = [];
+        foreach ($hits as $hit) {
+            if ($hit['health_delta'] >= 0.0) {
+                continue;
+            }
+            $id = $hit['event_id'];
+            if (! isset($by[$id])) {
+                $by[$id] = ['event_id' => $id, 'name' => self::markdownSafe($hit['name']), 'hp' => 0.0, 'first' => $hit['event_time']];
+            }
+            $by[$id]['hp'] += -$hit['health_delta'];
+            if ($hit['event_time'] !== '' && ($by[$id]['first'] === '' || strcmp($hit['event_time'], $by[$id]['first']) < 0)) {
+                $by[$id]['first'] = $hit['event_time'];
+            }
+        }
+        $list = array_values($by);
+        usort($list, static fn (array $a, array $b): int => $b['hp'] <=> $a['hp']);
+
+        return $list;
+    }
+
+    /** Минут от момента `$time` до смерти, не меньше 1. */
+    private static function minutesSince(string $time, int $now): int
+    {
+        $ts = strtotime($time);
+
+        return $ts === false ? 1 : max(1, (int) round(($now - $ts) / 60));
+    }
+
+    /** ❤️ без хвостовых нулей: 70.00 → «70», 3.50 → «3.5». */
+    private static function num(float $v): string
+    {
+        return rtrim(rtrim(number_format($v, 2, '.', ''), '0'), '.');
+    }
+
+    /** Имя события внутри `*…*` legacy Markdown: служебные символы разметки убираются. */
+    private static function markdownSafe(string $name): string
+    {
+        return str_replace(['*', '_', '`', '['], '', $name);
+    }
+
+    /**
+     * @param array<int|string, mixed> $row
+     *
+     * @return array<mixed, mixed>
+     */
+    private static function settings(array $row): array
+    {
+        $s = json_decode(self::asStr($row['task_settings'] ?? null, '{}'), true);
+
+        return is_array($s) ? $s : [];
     }
 
     /** Шапка сообщения о смерти. */
@@ -223,6 +453,22 @@ final class DeathMessageBuilder
         $delta = $logEntry['health_delta'] ?? 0;
 
         return is_numeric($delta) && (float) $delta < 0.0;
+    }
+
+    /**
+     * {@see eventInfo()} без исключения: защитный предмет — подсказка, её отсутствие не валит текст смерти.
+     *
+     * @return array{name: string, name_english: string, protection_item: ?string}|null
+     */
+    private function safeEventInfo(int $eventId): ?array
+    {
+        try {
+            return $this->eventInfo($eventId);
+        } catch (\Throwable $e) {
+            log_message('error', '[DeathMessageBuilder] eventInfo: ' . $e->getMessage());
+
+            return null;
+        }
     }
 
     /**

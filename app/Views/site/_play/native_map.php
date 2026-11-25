@@ -225,8 +225,15 @@ $bottom = array_merge(
                             <div><dt>Клеток</dt><dd><?= $pvN ?> из <?= $pvCap ?> возможных</dd></div>
                             <div><dt>В пути</dt><dd>~<?= (int) $pv['eta_minutes'] ?> мин</dd></div>
                             <div><dt>Расход</dt><dd>❤️ <?= esc($num($pv['hp'] ?? null)) ?> · 💤 <?= esc($num($pv['tired'] ?? null)) ?></dd></div>
+                            <?php if ((int) ($pv['danger_cells'] ?? 0) > 0): ?>
+                                <div><dt>Опасные биомы</dt><dd><?= (int) $pv['danger_cells'] ?> <?= esc(MarchService::plural((int) $pv['danger_cells'], 'клетка', 'клетки', 'клеток')) ?> — из расхода ❤️ <?= esc($num($pv['danger_hp'] ?? null)) ?></dd></div>
+                            <?php endif ?>
+                            <div><dt>К концу</dt><dd>❤️ <?= esc($num($pv['hp_left'] ?? null)) ?></dd></div>
                             <div><dt>Впереди</dt><dd><?= esc((string) $pv['ahead']) ?>, дальше — туман</dd></div>
                         </dl>
+                        <?php if (is_string($pv['risk_line'] ?? null) && $pv['risk_line'] !== ''): ?>
+                            <p class="play-march-meta" role="alert"><?= esc($pv['risk_line']) ?></p>
+                        <?php endif ?>
                         <?php if ($pvLine !== ''): ?>
                             <p class="play-march-meta"><?= esc($pvLine) ?></p>
                         <?php endif ?>

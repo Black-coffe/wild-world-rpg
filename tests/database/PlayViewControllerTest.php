@@ -620,6 +620,7 @@ final class PlayViewControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('60 из 60 возможных', $html);
         $this->assertStringContainsString('<dt>В пути</dt><dd>~0 мин</dd>', $html);
         $this->assertStringContainsString('❤️ 1.2 · 💤 30', $html, 'расход — world.march.* по умолчанию');
+        $this->assertMatchesRegularExpression('~<dt>К концу</dt><dd>❤️ [0-9.]+</dd>~u', $html, 'ADR-200 (ask 6): остаток здоровья к концу похода');
         $this->assertMatchesRegularExpression('~name="op" value="march_start"><input type="hidden" name="dir" value="east"><input type="hidden" name="n" value="60"><input type="hidden" name="intent_id" value="[0-9a-f]{32}"><button class="play-kb-btn is-primary" type="submit">🚜 Выступить</button>~su', $html);
         $this->assertMatchesRegularExpression('~name="op" value="march_preview"><input type="hidden" name="dir" value="east"><input type="hidden" name="n" value="59">~su', $html, '➖');
         $this->assertSame(0, $this->conn->table('character_tasks')->countAllResults(), 'превью ничего не пишет');

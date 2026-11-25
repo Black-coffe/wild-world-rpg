@@ -31,7 +31,7 @@ use Config\Database;
  * Баланс — `world.march.*` (GameSettings, ADR-024), ключи и дефолты прежние.
  *
  * @phpstan-type Hook array{line:string, button:array{text:string,callback_data:string}}
- * @phpstan-type Preview array{ok:bool, code:string, message:string, dir:string, dir_label:string, n:int, cap:int, cap_line:string, ahead:string, hp:float, tired:float, eta_minutes:int, pedestrian_minutes:int, breakdown_line:string, hook:?Hook}
+ * @phpstan-type Preview array{ok:bool, code:string, message:string, dir:string, dir_label:string, n:int, cap:int, cap_line:string, ahead:string, hp:float, tired:float, eta_minutes:int, pedestrian_minutes:int, breakdown_line:string, hook:?Hook, danger_cells:int, danger_hp:float, hp_left:float, death_risk:bool, risk_line:string}
  * @phpstan-type Status array{status:string, heading:string, heading_label:string, steps_done:int, steps_planned:int, eta:?int, paused_reason:?string}
  */
 class MarchService
@@ -86,6 +86,28 @@ class MarchService
     public const NOT_PAUSED   = 'not_paused';
     public const NO_MARCH     = 'no_march';
 
+    /**
+     * Опасный биом для шага Похода: `biomes.danger_level` не ниже этого — шаг несёт надбавку
+     * `world.march.danger_health_surcharge`. Одно правило для шага ({@see \App\TaskHandlers\MarchingTaskHandler})
+     * и превью, чтобы экран не расходился с тем, что снимет поход.
+     */
+    public const DANGER_LEVEL_MIN = 8;
+
+    /**
+     * Порог рулетки смерти: `DeathRouletteHandler` бросает кости для `health <= 0.99`. Не число этого экрана, а
+     * зеркало чужого условия — превью только предупреждает, что поход кончится в зоне рулетки.
+     */
+    public const ROULETTE_HEALTH = 0.99;
+
+    /** Строка «можешь погибнуть» перед «Выступить» (ADR-200, ask 6) — одна для бота и `/play`. */
+    public static function riskLine(float $hpLeft): string
+    {
+        $left = rtrim(rtrim(number_format($hpLeft, 2, '.', ''), '0'), '.');
+
+        return "⚠️ К концу похода здоровья останется ≈{$left} — ниже 1.0 каждую минуту можешь погибнуть. "
+            . 'Подлечись или сократи поход.';
+    }
+
     public static function isDirection(string $dir): bool
     {
         return isset(self::DIRECTIONS[$dir]);
@@ -122,6 +144,13 @@ class MarchService
         $requiredLevel  = self::vehicleRequiredLevel();
         $activeVehicle  = $level >= $requiredLevel ? $this->activeVehicleDisplay($characterId) : null;
 
+        // ADR-200 (ask 6): расход ❤️ честный — опасные клетки маршрута несут надбавку тем же правилом, что шаг
+        // в MarchingTaskHandler; остаток здоровья и предупреждение, если поход кончится в рулетке смерти.
+        $dangerHp  = round($breakdown['danger_cells'] * $this->dangerHealthSurcharge(), 2);
+        $hp        = round($n * $pace->healthCostPerCell($this->healthCostPerCell(), $profile) + $dangerHp, 2);
+        $hpLeft    = round(max(0.0, self::float($char['health'] ?? 0) - $hp), 2);
+        $deathRisk = $hpLeft <= self::ROULETTE_HEALTH;
+
         return [
             'ok'                 => true,
             'code'               => self::PREVIEW,
@@ -132,12 +161,17 @@ class MarchService
             'cap'                => $clamp['cap'],
             'cap_line'           => $clamp['capLine'],
             'ahead'              => $aheadInfo['label'],
-            'hp'                 => round($n * $pace->healthCostPerCell($this->healthCostPerCell(), $profile), 2),
+            'hp'                 => $hp,
             'tired'              => round($n * $pace->tiredCostPerCell($this->tiredCostPerCell(), $profile), 2),
             'eta_minutes'        => $breakdown['total_minutes'],
             'pedestrian_minutes' => $breakdown['pedestrian_minutes'],
             'breakdown_line'     => self::breakdownLine($breakdown, $breakdown['pedestrian_minutes']),
             'hook'               => self::vehicleHookBlock($level, $requiredLevel, $activeVehicle, $vehicleEnabled),
+            'danger_cells'       => $breakdown['danger_cells'],
+            'danger_hp'          => $dangerHp,
+            'hp_left'            => $hpLeft,
+            'death_risk'         => $deathRisk,
+            'risk_line'          => $deathRisk ? self::riskLine($hpLeft) : '',
         ];
     }
 
@@ -551,13 +585,14 @@ class MarchService
             'ok' => false, 'code' => $code, 'message' => $message, 'dir' => $dir, 'dir_label' => self::DIR_LABEL[$dir] ?? '',
             'n' => 0, 'cap' => 0, 'cap_line' => '', 'ahead' => '', 'hp' => 0.0, 'tired' => 0.0, 'eta_minutes' => 0,
             'pedestrian_minutes' => 0, 'breakdown_line' => '', 'hook' => null,
+            'danger_cells' => 0, 'danger_hp' => 0.0, 'hp_left' => 0.0, 'death_risk' => false, 'risk_line' => '',
         ];
     }
 
     /** @return array<int|string, mixed>|null */
     private function character(int $characterId): ?array
     {
-        return $this->fetchRow('SELECT id, telegram_user_id, cell_number, level FROM characters WHERE id = ? LIMIT 1', [$characterId]);
+        return $this->fetchRow('SELECT id, telegram_user_id, cell_number, level, health FROM characters WHERE id = ? LIMIT 1', [$characterId]);
     }
 
     /**
@@ -637,6 +672,12 @@ class MarchService
         return $this->gsFloat('world.march.health_cost_per_cell', 0.02);
     }
 
+    /** Надбавка ❤️ за опасную клетку — тот же ключ и fallback, что у шага в MarchingTaskHandler. */
+    private function dangerHealthSurcharge(): float
+    {
+        return $this->gsFloat('world.march.danger_health_surcharge', 1.0);
+    }
+
     private function tiredCostPerCell(): float
     {
         return $this->gsFloat('world.march.tired_cost_per_cell', 0.5);
@@ -695,11 +736,13 @@ class MarchService
      * Разбивка маршрута по классу местности — один batched SQL на весь заказ; единственный
      * источник ETA экрана (через {@see routeEtaMinutes()}).
      *
-     * @return array{segments: array<string, array{count:int, per_tick:int}>, total_minutes:int, pedestrian_minutes:int}
+     * `danger_cells` — клетки маршрута в опасном биоме ({@see DANGER_LEVEL_MIN}): на них шаг дороже по ❤️.
+     *
+     * @return array{segments: array<string, array{count:int, per_tick:int}>, total_minutes:int, pedestrian_minutes:int, danger_cells:int}
      */
     private function routeBreakdown(int $characterId, int $charCellNumber, string $dir, int $n, ?string $profileKey): array
     {
-        $empty = ['segments' => [], 'total_minutes' => 0, 'pedestrian_minutes' => 0];
+        $empty = ['segments' => [], 'total_minutes' => 0, 'pedestrian_minutes' => 0, 'danger_cells' => 0];
         $start = $this->fetchRow('SELECT coordinate_x, coordinate_y FROM map WHERE cell_number = ? LIMIT 1', [$charCellNumber]);
         if ($start === null || ! self::isDirection($dir)) {
             return $empty;
@@ -724,7 +767,7 @@ class MarchService
             return $empty;
         }
 
-        $sql = 'SELECT b.name AS biome_name, (ec.id IS NOT NULL) AS is_explored '
+        $sql = 'SELECT b.name AS biome_name, b.danger_level, (ec.id IS NOT NULL) AS is_explored '
             . 'FROM (' . implode(' UNION ALL ', $selects) . ') coords '
             . 'JOIN map m ON m.coordinate_x = coords.cx AND m.coordinate_y = coords.cy '
             . 'LEFT JOIN biomes b ON b.id = m.biome_id '
@@ -739,7 +782,11 @@ class MarchService
             MarchPaceService::TERRAIN_UNEXPLORED => 0,
             MarchPaceService::TERRAIN_COLD       => 0,
         ];
+        $danger = 0;
         foreach ($rows as $row) {
+            if (self::int($row['danger_level'] ?? 0) >= self::DANGER_LEVEL_MIN) {
+                $danger++;
+            }
             if (self::isColdBiome(self::str($row['biome_name'] ?? ''))) {
                 $counts[MarchPaceService::TERRAIN_COLD]++;
             } elseif (! empty($row['is_explored'])) {
@@ -767,11 +814,12 @@ class MarchService
             'segments'           => $segments,
             'total_minutes'      => self::routeEtaMinutes($segments, $minutes),
             'pedestrian_minutes' => self::routeEtaMinutes($pedestrianSegments, $minutes),
+            'danger_cells'       => $danger,
         ];
     }
 
     /**
-     * @param array{segments: array<string, array{count:int, per_tick:int}>, total_minutes:int, pedestrian_minutes:int} $breakdown
+     * @param array{segments: array<string, array{count:int, per_tick:int}>, total_minutes:int, pedestrian_minutes:int, danger_cells:int} $breakdown
      */
     private static function breakdownLine(array $breakdown, int $pedestrianMinutes): string
     {
@@ -853,6 +901,11 @@ class MarchService
     private static function int(mixed $v, int $default = 0): int
     {
         return is_numeric($v) ? (int) $v : $default;
+    }
+
+    private static function float(mixed $v, float $default = 0.0): float
+    {
+        return is_numeric($v) ? (float) $v : $default;
     }
 
     private static function str(mixed $v, string $default = ''): string

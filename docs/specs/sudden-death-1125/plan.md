@@ -96,7 +96,7 @@ shows the real HP cost, and the death message names the cause and the damage. De
     / `healKeyboard()` (same file keeps the «Мой дорогой выживальщик *» prefix `/play` filters on). Hunger is not
     hooked: it already sends its own «здоровье просело» message on every cut.
 
-- [ ] S4 Honest march preview and named cause of death - asks: 6, 7
+- [x] S4 Honest march preview and named cause of death - asks: 6, 7
   - files: `app/Services/World/MarchService.php` (`preview` counts danger cells from `routeBreakdown` with
     `b.danger_level`, HP = cells × cost + danger cells × surcharge, shows HP left; if it ends ≤ 0.99 a «можешь
     погибнуть» line before confirm), the march preview renderers (bot and `/play`), `app/Services/Player/Death/DeathMessageBuilder.php`
@@ -107,6 +107,11 @@ shows the real HP cost, and the death message names the cause and the damage. De
     remaining HP; a route ending below 0.99 carries the warning line. Death message with event rows −40 and −30
     of «Подземные толчки» over 25 min names the event, 70 HP, 25 min; with none — march / hunger wording.
   - check: `tests/database/MarchServiceTest.php`, `tests/unit/Services/Player/Death/DeathMessageBuilderTest.php`, the new tests.
+  - outside: `app/TaskHandlers/MarchingTaskHandler.php` — the step's literal `danger_level >= 8` now reads
+    `MarchService::DANGER_LEVEL_MIN`, so the preview and the step count danger cells by one rule (tech-writing
+    `tasks/MarchingTaskHandler.md`, `handlers/MarchAction.md` for the extracted `routeText()`).
+    `tests/database/PlayViewControllerTest.php` — one assertion that `/play` shows the «К концу» row.
+    New `tests/database/DeathCauseLookupTest.php` — the `event_effects_log` / march reads on a real DB.
 
 ## Verdicts
 - `/guide`: yes — section `worldevents` (S3): harmful events wound but don't kill; gathering stops at low HP,
