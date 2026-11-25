@@ -173,6 +173,11 @@ orchestrator's relayed list (not the owner's words). Merged is not live: nothing
   `GenericCraftCompletionHandler.php:289`, so a queued 🔒 craft refused at promotion (another 🔒 task started in the
   gap after the running craft of the same recipe finished) stays `queued` until another craft of that recipe
   completes. Narrow race; first follow-up spec: promote queued crafts on any 🔒 task completion or on opening the queue.
+- Web `/play` live pass on preprod 2026-11-25 (after the tag was pushed, before the prod deploy finished): two
+  `/play/act` actions (inventory, all resources) redrew the screen; 0 `screen write failed` / `web capture failed`.
+- **Prod 2026-11-25:** tag `v0.51.712` on `ab5e17aa` (owner: «Ставить тег (Рекомендую)»), run 45578116354 green;
+  release `2026-11-25-083935`, all three S1 migrations applied (batch 377), `exclusive_slot` VIRTUAL, all three
+  unique keys present; 0 ERROR/CRITICAL in the prod log after 10:39:52. Open: F4 follow-up spec.
 
 **Before a prod tag:**
 5. F7 on preprod: `S1QuestStepsUnique::down()` may fail because MySQL may drop the implicit FK index on `quest_id`
