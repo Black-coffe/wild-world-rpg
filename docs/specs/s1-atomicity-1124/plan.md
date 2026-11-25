@@ -162,6 +162,19 @@ orchestrator's relayed list (not the owner's words). Merged is not live: nothing
 - Item 5 (F7) done 2026-11-25: `quest_steps` keeps its own FK index `quest_steps_quest_id_foreign (quest_id)` on
   preprod and on prod (read only), so `S1QuestStepsUnique::down()` (`DROP INDEX uq_qs_quest_character`) cannot hit
   MySQL 1553. Exercised on preprod: the exact `down()` statement succeeded, then the `up()` statement restored the key.
+- Tier-3 smoke 2026-11-25 on preprod (Telegram Web, account Aviad Exodus = `aviad_echo`, tg 25, after a green
+  `preprod-parity.sh`; char 491 health set 60→100 first): «⛏️ Добыть ресурсы» 10 min started one 🔒 row
+  (`exclusive_slot=491`); «Поход» during it refused with the reason and remaining time; quest «Запас древесины»
+  accepted with one `quest_steps` row, «Каменная кладка» double-tapped → one row, one reply; gather finished at
+  09:54, the result message matches the credited deltas (e.g. зерновые +213, текстильные +192, овощи +249), a new
+  resource row was inserted once, 0 duplicate groups, the slot freed (`completed`, `exclusive_slot` NULL).
+  Not covered: web `/play` live pass.
+- Item 7 (F4) not seen in the smoke and confirmed by reading only: `promoteNext()` is called only from
+  `GenericCraftCompletionHandler.php:289`, so a queued 🔒 craft refused at promotion (another 🔒 task started in the
+  gap after the running craft of the same recipe finished) stays `queued` until another craft of that recipe
+  completes. Narrow race; first follow-up spec: promote queued crafts on any 🔒 task completion or on opening the queue.
+
+**Before a prod tag:**
 5. F7 on preprod: `S1QuestStepsUnique::down()` may fail because MySQL may drop the implicit FK index on `quest_id`
    once the UNIQUE serves it (add a plain index before dropping the UNIQUE).
 6. F11 verified on preprod (rerun guard / recovery step from item 3).
