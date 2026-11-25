@@ -55,3 +55,29 @@ F2: fixed - `harmsHealth()` is true for `task_extend` with `side_effects.health_
 ```
 
 Owner: one more round - "Ещё раунд: хранить вне action_log (Рекомендую)", 2026-11-25
+
+## Round 3 - 2026-11-25 - head 5d56d0633a94c2d1f4be86e733b2f614caaf35a4
+
+```
+VERDICT: PASS
+TESTS: vendor/bin/phpunit --no-coverage --no-progress <all 10 suite parts, one after another> -> pass, 5333 tests, 0 failures, 0 errors (10 skipped); vendor/bin/phpstan analyse --memory-limit=512M --no-progress -> pass, no errors; php -l on the new migration -> pass
+
+## Asks
+1. delivered: events and hunger stop at the `health.passive_floor` floor, C:\laragon\www\mmorpg\app\Services\Player\PassiveHealthFloor.php:52, C:\laragon\www\mmorpg\app\TaskHandlers\FoodAndWaterConsumptionHandler.php:257
+2. delivered: march and steps into dangerous biomes keep their lethal path, C:\laragon\www\mmorpg\app\Services\World\MarchService.php:91
+3. delivered: gather interrupted at the floor with time-proportional loot, and the low-HP gather gate in both clients, C:\laragon\www\mmorpg\app\Services\Events\GatherFloorInterrupt.php:59, C:\laragon\www\mmorpg\app\Controllers\Telegram\Commands\Actions\GatherAction.php:566
+4. delivered: the event start notice states the damage and that the own base is safe, C:\laragon\www\mmorpg\app\Services\Events\EventMessageFormatter.php
+5. delivered: one warning when a hit crosses the threshold, C:\laragon\www\mmorpg\app\Services\Events\PassiveHealthWarning.php:51
+6. delivered: the march preview carries the danger surcharge, HP left and the roulette risk line, C:\laragon\www\mmorpg\app\Services\World\MarchService.php:148
+7. delivered: the death message names event, march and hunger with HP and time; hunger is now read from the character row, C:\laragon\www\mmorpg\app\Services\Player\Death\DeathMessageBuilder.php:204
+8. delivered: the three new keys are seeded with texts and bounds, C:\laragon\www\mmorpg\app\Database\Migrations\2026-12-26-100000_SeedPassiveFloorSettings.php:29
+9. delivered: ADR-200 exists, and the notes for the handler, the death message builder and the character model describe the new columns, C:\Projects\mmorpg-vault\decisions\ADR-200-Passive-damage-does-not-kill.md, C:\Projects\mmorpg-vault\tech-writing\tasks\FoodAndWaterConsumptionHandler.md:51
+
+## Findings
+(none)
+
+## Past findings (round 2 and later)
+F1: fixed - the hunger drop is now stored in `characters.hunger_hp_lost` / `hunger_hp_lost_at` and no longer in `action_log`, C:\laragon\www\mmorpg\app\TaskHandlers\FoodAndWaterConsumptionHandler.php:320. The round 2 proof test now passes at head: no `action_log` rows, an empty `fetchLastActiveMap`, and 0 concurrent actions (C:\Users\Andrei\AppData\Local\Temp\claude\5cb5bf1455536ffe\7c573cde-09a6-46a3-b40c-f289be732c86\scratchpad\proof\HungerRowReadAsActivityProofTest.php). The branch's own test asserts the same, C:\laragon\www\mmorpg\tests\database\HungerPassiveFloorTest.php.
+```
+
+Asks 1–6 and 8 were not re-reviewed this round: their code is untouched since round 2, and the lines above are anchors, not a fresh read.
