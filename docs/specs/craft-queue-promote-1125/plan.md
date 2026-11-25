@@ -23,6 +23,14 @@ wherever a task leaves `in_work`: once in the Worker for every timed task, and i
   - Player paths: `FinishTaskAction` (also web `finishAllTasks_*`), `CancelGatherAction`, `MarchService::stop()`
     callers (`CancelMarchAction`, `WebNativeScreenService:736`), `DeleteBaseAction` (BaseRelocation interrupt).
     They run in the webhook/web request, where the app `Request` reaches both clients (ADR-189 bridge).
+- **Worker hook safety (Sonnet cross-check):** the hook runs *after* the handler's `try/catch`, in its own
+  `try/catch` that only logs — a failed send or query there must never flip a finished task to `interrupted`
+  (`Worker.php:135-144`). When the handler itself failed to construct, the hook uses a plain `BaseTaskHandler`
+  instance for sending.
+- **Backstop sweep (Sonnet cross-check):** exits we did not find (death, admin, future code) would strand the queue
+  again, so each Worker tick also runs one cheap sweep: characters that have a `queued` craft whose `task_id` has no
+  `in_work` row → `promoteEligible()`. Delay for such paths is one cron tick; the event hooks stay for instant start.
+  The sweep is bounded (a `LIMIT` per tick, infrastructure constant in `Config\*`, not balance).
 - **Message:** the existing «▶️ Очередь активирована! … Завершится в HH:MM» text moves from
   `GenericCraftCompletionHandler::notifyQueuedActivated()` into one builder used by every caller; text-only, so it is
   complete with media off. `GenericCraftCompletionHandler` keeps its own same-recipe call (harmless: the general
@@ -54,6 +62,12 @@ wherever a task leaves `in_work`: once in the Worker for every timed task, and i
     the craft `in_work` and one «Очередь активирована» message captured; `FinishTaskAction` interrupting the running
     craft R starts the next queued R; the message text is identical from every caller.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/database/CraftQueuePromoteEligibleTest.php` plus the new wiring tests; phpstan
+- [ ] S2b Backstop sweep in the Worker tick - asks: 1, 2
+  - files: `app/Controllers/Worker.php` (or a small service it calls), `app/Config/*` for the per-tick limit, test
+  - test first: a stranded queued 🔒 craft with no task leaving `in_work` (e.g. the running craft deleted by hand)
+    starts on the next Worker tick, one message; a character whose recipe is still running is not touched; the
+    sweep does nothing when nothing is stranded.
+  - check: the new test file plus `tests/database/CraftQueuePromoteEligibleTest.php`
 - [ ] S3 Docs - asks: 6
   - files: `mmorpg-vault/tech-writing/services/CraftQueueService.md`, `.../controllers/Worker.md`,
     `.../tasks/craft/GenericCraftCompletionHandler.md`, `.../handlers/FinishTaskAction.md`; Follow-up line in
@@ -63,7 +77,7 @@ wherever a task leaves `in_work`: once in the Worker for every timed task, and i
 
 ## Test command
 Per story the `check:` line; before review the parts that hold the touched tests (db1 `tests/database/[AC]*Test.php`,
-db3 for Worker/`F*` tests) and phpstan; before any push the whole suite in one process
+db3 for Worker/`F*` tests, db7/`tests/session` for the web march-stop path) and phpstan; before any push the whole suite in one process
 (`vendor/bin/phpunit --no-coverage --no-progress`), as CI runs it.
 
 ## Descoped
