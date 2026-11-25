@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace Tests\Database;
 
+use App\Database\Migrations\AddHungerLossColumnsToCharacters;
 use App\Services\Player\Death\DeathMessageBuilder;
+use App\Services\Player\PlayerDetectionService;
+use App\Services\PVE\TributeService;
 use App\TaskHandlers\FoodAndWaterConsumptionHandler;
+use CodeIgniter\Database\Forge;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\WipeManifest;
+use ReflectionClass;
 use ReflectionMethod;
 
 /**
@@ -18,7 +24,9 @@ use ReflectionMethod;
  *
  * До правки пол был 0.01: 1.5 HP → 0.75 → рулетка в ту же минуту.
  *
- * Схема — по факту отсутствия таблицы; свои таблицы дропаются в tearDown, свои строки удаляются.
+ * Схема — по факту отсутствия таблицы; свои таблицы дропаются в tearDown, свои строки удаляются. Колонки
+ * последней просадки (`hunger_hp_lost`, `hunger_hp_lost_at`) — из настоящей миграции; добавленные ею в чужую
+ * таблицу снимаются в tearDown.
  *
  * @internal
  */
@@ -33,6 +41,8 @@ final class HungerPassiveFloorTest extends CIUnitTestCase
 
     /** @var array<string, list<int>> */
     private array $ownRows = [];
+
+    private bool $addedHungerColumns = false;
 
     protected function setUp(): void
     {
@@ -75,6 +85,7 @@ final class HungerPassiveFloorTest extends CIUnitTestCase
                 updated_at DATETIME NULL
             )
         ");
+        $this->addHungerColumns();
     }
 
     protected function tearDown(): void
@@ -88,6 +99,9 @@ final class HungerPassiveFloorTest extends CIUnitTestCase
                 if ($ids !== []) {
                     $db->table($table)->whereIn('id', $ids)->delete();
                 }
+            }
+            if ($this->addedHungerColumns && ! in_array('characters', $this->createdTables, true)) {
+                $this->hungerMigration()->down();
             }
             foreach (array_reverse($this->createdTables) as $table) {
                 $db->query("DROP TABLE IF EXISTS {$table}");
@@ -140,7 +154,8 @@ final class HungerPassiveFloorTest extends CIUnitTestCase
 
     /**
      * Ревью раунд 1 (ask 7): фактическая просадка от голода записана с временем туда, где её читает сообщение о
-     * смерти; голод, не тронувший здоровье (ниже пола), записи не оставляет.
+     * смерти; голод, не тронувший здоровье (ниже пола), записи не оставляет. Ревью раунд 2: это строка персонажа
+     * (`hunger_hp_lost`, `hunger_hp_lost_at`), не `action_log`.
      */
     public function testHungerRecordsTheAppliedDropForTheDeathMessage(): void
     {
@@ -150,6 +165,12 @@ final class HungerPassiveFloorTest extends CIUnitTestCase
         $this->hunger($charId, 0.75);
         $this->hunger($belowFloor, 0.3);
 
+        $row = $this->db()->table('characters')->select('hunger_hp_lost, hunger_hp_lost_at')->where('id', $charId)->get()->getRowArray();
+        $this->assertIsArray($row);
+        $this->assertIsNumeric($row['hunger_hp_lost'] ?? null, 'the drop is kept on the character row');
+        $this->assertEqualsWithDelta(0.5, (float) $row['hunger_hp_lost'], 0.0001);
+        $this->assertNotNull($row['hunger_hp_lost_at'] ?? null);
+
         $builder = new DeathMessageBuilder();
         $hunger  = $builder->recentHunger($charId, time());
         $this->assertNotNull($hunger, 'hunger drop is recorded');
@@ -157,6 +178,67 @@ final class HungerPassiveFloorTest extends CIUnitTestCase
         $this->assertLessThanOrEqual(1, abs(time() - (int) strtotime($hunger['time'])) / 60);
         $this->assertNull($builder->recentHunger($belowFloor, time()), 'no drop — no record');
         $this->assertNull($builder->recentHunger($charId, time() + (DeathMessageBuilder::HUNGER_WINDOW_MINUTES + 5) * 60), 'outside the window');
+    }
+
+    /** Сообщение о смерти читает просадку из строки персонажа: 25 ❤️ 90 минут назад — «голод: ❤️25, 90 мин назад». */
+    public function testDeathMessageReadsTheDropFromTheCharacterRow(): void
+    {
+        $now    = time();
+        $charId = $this->insertTracked('characters', [
+            'telegram_user_id'  => null,
+            'health'            => 0.5,
+            'level'             => 10,
+            'hunger_hp_lost'    => 25,
+            'hunger_hp_lost_at' => date('Y-m-d H:i:s', $now - 90 * 60),
+        ]);
+
+        $hunger = (new DeathMessageBuilder())->recentHunger($charId, $now);
+
+        $this->assertNotNull($hunger, 'the drop on the character row is read');
+        $this->assertEqualsWithDelta(25.0, $hunger['hp'], 0.0001);
+        $text = DeathMessageBuilder::causeBlock([], null, 0.5, $now, $hunger);
+        $this->assertStringContainsString('голод', $text);
+        $this->assertStringContainsString('❤️25', $text);
+        $this->assertStringContainsString('90 мин', $text);
+    }
+
+    /**
+     * Ревью раунд 2: голод не оставляет строки в `action_log`, и читатели активности игрока (детект брошенных,
+     * анти-сговор подати) не видят двух голодных персонажей ни активными, ни одновременно активными.
+     */
+    public function testHungerIsNotReadAsPlayerActivity(): void
+    {
+        $a = $this->insertTracked('characters', ['telegram_user_id' => null, 'health' => 100, 'level' => 10]);
+        $b = $this->insertTracked('characters', ['telegram_user_id' => null, 'health' => 100, 'level' => 10]);
+
+        $this->hunger($a, 50.0);
+        $this->hunger($b, 50.0);
+
+        $this->assertEqualsWithDelta(50.0, $this->health($a), 0.0001, 'hunger did drop HP');
+        $this->assertSame(0, $this->db()->table('action_log')->whereIn('character_id', [$a, $b])->countAllResults(), 'no action_log row from hunger');
+
+        $detection = (new ReflectionClass(PlayerDetectionService::class))->newInstanceWithoutConstructor();
+        $map       = (new ReflectionMethod(PlayerDetectionService::class, 'fetchLastActiveMap'))->invoke($detection, [$a, $b]);
+        $this->assertSame([], array_filter(is_array($map) ? $map : []), 'a starving idle character does not look active');
+
+        $tribute = (new ReflectionClass(TributeService::class))->newInstanceWithoutConstructor();
+        $ts      = new ReflectionMethod(TributeService::class, 'actionTimestamps');
+        $since   = date('Y-m-d H:i:s', time() - 86400);
+        $tsA     = $ts->invoke($tribute, $a, $since);
+        $tsB     = $ts->invoke($tribute, $b, $since);
+        $this->assertIsArray($tsA);
+        $this->assertIsArray($tsB);
+        $this->assertSame(0, TributeService::countConcurrent(array_values($tsA), array_values($tsB), 120), 'two hungry accounts are not concurrent activity');
+    }
+
+    /** Колонки — состояние персонажа: вайп их обнуляет. */
+    public function testWipeResetsTheHungerColumns(): void
+    {
+        $values = (new WipeManifest())->characterResetValues;
+        $this->assertArrayHasKey('hunger_hp_lost', $values);
+        $this->assertNull($values['hunger_hp_lost']);
+        $this->assertArrayHasKey('hunger_hp_lost_at', $values);
+        $this->assertNull($values['hunger_hp_lost_at']);
     }
 
     private function hunger(int $charId, float $requested): void
@@ -176,6 +258,28 @@ final class HungerPassiveFloorTest extends CIUnitTestCase
     private function db(): \CodeIgniter\Database\BaseConnection
     {
         return Database::connect('tests');
+    }
+
+    private function addHungerColumns(): void
+    {
+        $db = $this->db();
+        $db->resetDataCache();
+        if ($db->fieldExists('hunger_hp_lost', 'characters') && $db->fieldExists('hunger_hp_lost_at', 'characters')) {
+            return;
+        }
+        $this->hungerMigration()->up();
+        $db->resetDataCache();
+        $this->addedHungerColumns = true;
+    }
+
+    private function hungerMigration(): AddHungerLossColumnsToCharacters
+    {
+        if (! class_exists(AddHungerLossColumnsToCharacters::class, false)) {
+            require_once APPPATH . 'Database/Migrations/2026-12-28-100000_AddHungerLossColumnsToCharacters.php';
+        }
+        $forge = Database::forge('tests');
+
+        return new AddHungerLossColumnsToCharacters($forge instanceof Forge ? $forge : null);
     }
 
     private function createIfMissing(string $table, string $ddl): void

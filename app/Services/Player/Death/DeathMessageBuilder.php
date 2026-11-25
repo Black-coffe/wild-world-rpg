@@ -29,7 +29,7 @@ use Config\Database;
  *
  * ADR-200 (ask 7): причина называет источник и урон — удары событий из `event_effects_log` за окно
  * ({@see recentHits()}), Поход с его расходом ❤️ ({@see recentMarch()}) и голод с фактической просадкой из
- * `action_log` ({@see recentHunger()}); текст — {@see causeBlock()}.
+ * строки персонажа ({@see recentHunger()}); текст — {@see causeBlock()}.
  *
  * @phpstan-type Hit array{event_id:int, name:string, health_delta:float, event_time:string}
  * @phpstan-type March array{hp:float, started:string, cells:int}
@@ -194,9 +194,10 @@ final class DeathMessageBuilder
     }
 
     /**
-     * Последняя просадка от голода за окно {@see HUNGER_WINDOW_MINUTES}: строка `action_log`
-     * {@see \App\TaskHandlers\FoodAndWaterConsumptionHandler::HEALTH_LOSS_ACTION}, `description` — фактически
-     * списанные ❤️ (после пассивного пола). Нет таблицы или записи — null: текст смерти не падает из-за причины.
+     * Последняя просадка от голода за окно {@see HUNGER_WINDOW_MINUTES}: `characters.hunger_hp_lost` — фактически
+     * списанные ❤️ (после пассивного пола), `characters.hunger_hp_lost_at` — когда (пишет
+     * {@see \App\TaskHandlers\FoodAndWaterConsumptionHandler}). Не `action_log`: тот читают как активность игрока.
+     * Нет колонок или записи — null: текст смерти не падает из-за причины.
      *
      * @return Hunger|null
      */
@@ -206,13 +207,11 @@ final class DeathMessageBuilder
             return null;
         }
         try {
-            $res = Database::connect()->table('action_log')
-                ->select('description, created_at')
-                ->where('character_id', $charId)
-                ->where('action_name', \App\TaskHandlers\FoodAndWaterConsumptionHandler::HEALTH_LOSS_ACTION)
-                ->where('created_at >=', date('Y-m-d H:i:s', $now - self::HUNGER_WINDOW_MINUTES * 60))
-                ->where('created_at <=', date('Y-m-d H:i:s', $now))
-                ->orderBy('id', 'DESC')
+            $res = Database::connect()->table('characters')
+                ->select('hunger_hp_lost, hunger_hp_lost_at')
+                ->where('id', $charId)
+                ->where('hunger_hp_lost_at >=', date('Y-m-d H:i:s', $now - self::HUNGER_WINDOW_MINUTES * 60))
+                ->where('hunger_hp_lost_at <=', date('Y-m-d H:i:s', $now))
                 ->limit(1)
                 ->get();
             $row = $res instanceof BaseResult ? $res->getRowArray() : null;
@@ -221,11 +220,11 @@ final class DeathMessageBuilder
 
             return null;
         }
-        if (! is_array($row) || ! is_numeric($row['description'] ?? null) || (float) $row['description'] <= 0.0) {
+        if (! is_array($row) || ! is_numeric($row['hunger_hp_lost'] ?? null) || (float) $row['hunger_hp_lost'] <= 0.0) {
             return null;
         }
 
-        return ['hp' => (float) $row['description'], 'time' => self::asStr($row['created_at'] ?? null)];
+        return ['hp' => (float) $row['hunger_hp_lost'], 'time' => self::asStr($row['hunger_hp_lost_at'] ?? null)];
     }
 
     /**

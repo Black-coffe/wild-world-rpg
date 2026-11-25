@@ -36,9 +36,6 @@ use Config\GameBalance;
 )]
 class FoodAndWaterConsumptionHandler extends BaseTaskHandler
 {
-    /** `action_log.action_name` строки «голод снял ❤️N» (ADR-200, ask 7) — её читает сообщение о смерти. */
-    public const HEALTH_LOSS_ACTION = 'hunger_health_loss';
-
     protected $characterModel;
     protected $biomeModel;
     protected $mapModel;
@@ -269,7 +266,7 @@ class FoodAndWaterConsumptionHandler extends BaseTaskHandler
         $newHealth = $adjusted !== null ? ($adjusted['after']['health'] ?? $before) : $before;
         // В сообщение — фактическая просадка, а не запрошенная половина снимка.
         $healthToSubtract = round(max(0.0, $before - $newHealth), 2);
-        $this->recordHealthLoss((int) $character['id'], $telegramId, $healthToSubtract);
+        $this->recordHealthLoss((int) $character['id'], $healthToSubtract);
 
         // Добавляем информацию о недостатке ресурсов в текст сообщения
         $resourceMessage = '';
@@ -314,27 +311,24 @@ class FoodAndWaterConsumptionHandler extends BaseTaskHandler
     }
 
     /**
-     * ADR-200 (ask 7, ревью раунд 1): фактическая просадка от голода с временем — в `action_log`
-     * (`action_name` {@see HEALTH_LOSS_ACTION}, `description` — ❤️ числом), откуда её читает сообщение о смерти
-     * ({@see \App\Services\Player\Death\DeathMessageBuilder::recentHunger()}). Нет просадки — нет строки.
-     * Здоровье уже списано: сбой записи только логируется.
+     * ADR-200 (ask 7, ревью раунды 1–2): фактическая просадка от голода с временем — в строке персонажа
+     * (`characters.hunger_hp_lost`, `characters.hunger_hp_lost_at`), откуда её читает сообщение о смерти
+     * ({@see \App\Services\Player\Death\DeathMessageBuilder::recentHunger()}). Не в `action_log`: его читают как
+     * активность игрока (анти-сговор подати, детект брошенных), а голод — не действие игрока. Нет просадки — нет
+     * записи (прежняя остаётся). Здоровье уже списано: сбой записи только логируется.
      */
-    private function recordHealthLoss(int $characterId, ?int $telegramId, float $applied): void
+    private function recordHealthLoss(int $characterId, float $applied): void
     {
         if ($characterId <= 0 || $applied <= 0.0) {
             return;
         }
         try {
-            $now = date('Y-m-d H:i:s');
-            \Config\Database::connect()->table('action_log')->insert([
-                'character_id'  => $characterId,
-                'chat_id'       => $telegramId !== null && $telegramId > 0 ? $telegramId : 0,
-                'action_name'   => self::HEALTH_LOSS_ACTION,
-                'action_status' => 'Completed', // enum('Pending','Completed','Skipped','REJECTED')
-                'description'   => number_format($applied, 2, '.', ''),
-                'created_at'    => $now,
-                'updated_at'    => $now,
-            ]);
+            \Config\Database::connect()->table('characters')
+                ->where('id', $characterId)
+                ->update([
+                    'hunger_hp_lost'    => number_format($applied, 2, '.', ''),
+                    'hunger_hp_lost_at' => date('Y-m-d H:i:s'),
+                ]);
         } catch (\Throwable $e) {
             log_message('error', '[FoodAndWaterConsumptionHandler] recordHealthLoss: ' . $e->getMessage());
         }

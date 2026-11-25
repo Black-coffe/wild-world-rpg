@@ -108,6 +108,8 @@ final class WipeServiceCharacterResetTest extends CIUnitTestCase
                 login_streak_last_day DATE NULL,
                 active_title_id INT NULL,
                 active_vehicle_log_id INT NULL,
+                hunger_hp_lost DECIMAL(10,2) NULL,
+                hunger_hp_lost_at DATETIME NULL,
                 cell_number INT NULL,
                 biome_id INT NULL,
                 created_at DATETIME NULL,

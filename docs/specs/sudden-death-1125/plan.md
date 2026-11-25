@@ -112,13 +112,21 @@ shows the real HP cost, and the death message names the cause and the damage. De
     `tasks/MarchingTaskHandler.md`, `handlers/MarchAction.md` for the extracted `routeText()`).
     `tests/database/PlayViewControllerTest.php` — one assertion that `/play` shows the «К концу» row.
     New `tests/database/DeathCauseLookupTest.php` — the `event_effects_log` / march reads on a real DB.
+    Review round 2 (owner: «Ещё раунд: хранить вне action_log»): the last hunger drop moves from an `action_log`
+    row (read as player activity by tribute anti-collusion and abandoned-character detection) to two `characters`
+    columns — new migration `2026-12-28-100000_AddHungerLossColumnsToCharacters.php`, `app/Config/WipeManifest.php`
+    (both in `characterResetValues` → null), `app/Models/CharacterModel.php` (`$allowedFields`),
+    `app/TaskHandlers/FoodAndWaterConsumptionHandler.php` (writes them), `tests/database/HungerPassiveFloorTest.php`,
+    `tests/unit/Services/Admin/WipeServiceCharacterResetTest.php` (its hand schema gains the two reset columns);
+    tech-writing `models/CharacterModel.md`.
 
 ## Verdicts
 - `/guide`: yes — section `worldevents` (S3): harmful events wound but don't kill; gathering stops at low HP,
   go to base.
 - Tips: yes — category of world events (S3): «События ранят, но не добивают — добыча прервётся, иди на базу».
 - Onboarding / discoverability: the gather refusal and the menu hint explain the lock and the way out (S2).
-- Wipe manifest: no new table or column (GameSettings rows are seeds).
+- Wipe manifest: no new table (GameSettings rows are seeds); review round 2 adds `characters.hunger_hp_lost`,
+  `characters.hunger_hp_lost_at` — character state, reset to null in `characterResetValues`.
 
 ## Test command
 `vendor/bin/phpunit --no-coverage --no-progress <files>` per story; before merge — the ten suite parts from
