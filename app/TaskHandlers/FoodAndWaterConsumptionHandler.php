@@ -250,14 +250,22 @@ class FoodAndWaterConsumptionHandler extends BaseTaskHandler
         $telegramId = (new TelegramChatResolver())->chatIdForCharacter((int) $character['id']);
         // Fix 2026-07-13 (класс lost-update): делим СВЕЖЕЕ здоровье под row-lock'ом
         // (CharacterStatsService::mutate) — только что применённый препарат/бой не
-        // затирается снапшотом крона. Floor 0.01 сохранён (голод не убивает).
+        // затирается снапшотом крона.
+        // ADR-200: голод не убивает — не ниже пассивного пола `health.passive_floor` (1.0, выше
+        // рулетки смерти 0.99; раньше пол 0.01 отдавал персонажа рулетке); ниже пола — без изменений.
         $divisor  = $this->cfg->hungerHealthPenaltyDivisor;
+        $floor    = (new \App\Services\Player\PassiveHealthFloor())->floor();
         $adjusted = (new \App\Services\Player\CharacterStatsService())->mutate(
             (int) $character['id'],
             ['health'],
-            static fn (array $stats): array => ['health' => max(0.01, $stats['health'] / $divisor)]
+            static fn (array $stats): array => [
+                'health' => \App\Services\Player\PassiveHealthFloor::apply($stats['health'], $stats['health'] / $divisor, $floor),
+            ]
         );
-        $newHealth = $adjusted !== null ? ($adjusted['after']['health'] ?? 0.01) : 0.01;
+        $before    = $adjusted !== null ? ($adjusted['before']['health'] ?? 0.0) : 0.0;
+        $newHealth = $adjusted !== null ? ($adjusted['after']['health'] ?? $before) : $before;
+        // В сообщение — фактическая просадка, а не запрошенная половина снимка.
+        $healthToSubtract = round(max(0.0, $before - $newHealth), 2);
 
         // Добавляем информацию о недостатке ресурсов в текст сообщения
         $resourceMessage = '';

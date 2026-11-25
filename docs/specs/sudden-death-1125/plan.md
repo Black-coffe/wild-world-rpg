@@ -30,7 +30,7 @@ shows the real HP cost, and the death message names the cause and the damage. De
   three new GameSettings keys and one tip seed run there); prod only by tag. Each step on the owner's word.
 
 ## Stories
-- [ ] S1 Passive floor for events and hunger - asks: 1, 2, 8, 9
+- [x] S1 Passive floor for events and hunger - asks: 1, 2, 8, 9
   - files: `app/Services/Events/IntentApplier.php`, `app/Services/Events/EventDispatcher.php` (log the applied
     delta), `app/TaskHandlers/FoodAndWaterConsumptionHandler.php`, new seed migration
     `*SeedPassiveFloorSettings.php` (`health.passive_floor` float 1.0, hard_min 1.0, hard_max 50, plus the
@@ -43,6 +43,10 @@ shows the real HP cost, and the death message names the cause and the damage. De
     or `MoveService` cost path). Seed test: every key has rationale/above/below and hard bounds, hard_min of the
     floor > 0.99.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/Events/IntentApplierTest.php tests/database/IntentApplierRelativeDeltasTest.php` + the new test files; `php -l` on the migration.
+  - outside: `app/Services/Player/PassiveHealthFloor.php` (new) — the floor rule is shared by events
+    (`IntentApplier`) and hunger (`FoodAndWaterConsumptionHandler`); one class instead of two copies of the rule;
+    tech-writing `services/PassiveHealthFloor.md` for it. `tests/database/MoveServiceTest.php` — the step
+    regression test (its schema's `health` is DECIMAL(7,0) from the old migration, so the test widens it locally).
 
 - [ ] S2 Gather interrupted at the floor; gather gate in an event biome - asks: 3, 8
   - files: `app/Services/Events/EventDispatcher.php` (after applying damage: character `is_gathering`, HP at

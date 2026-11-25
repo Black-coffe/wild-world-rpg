@@ -216,6 +216,8 @@ final class EventDispatcher
                 if ($result['applied'] ?? false) {
                     // Immediate apply (game state коректний у real-time)
                     $this->applier->apply($char, $result);
+                    // ADR-200: дальше (лог, итог события) — фактический урон после пассивного пола.
+                    $result = self::resultWithAppliedHealth($result, $this->applier->appliedDeltas());
                     $this->handleRevealCells($char, $result);
                     // Audit log (історія всіх дій)
                     $this->logToDb($char, $eventId, $result);
@@ -244,6 +246,28 @@ final class EventDispatcher
         }
 
         return true;
+    }
+
+    /**
+     * ADR-200 — подменить запрошенный эффектом `health_delta` фактически применённым (после пассивного пола
+     * {@see \App\Services\Player\PassiveHealthFloor}). Запрошенный остаётся в `health_delta_requested`.
+     * `event_effects_log` и итог события читают уже честное число: по нему называется причина смерти.
+     * Pure → тестируемо без БД.
+     *
+     * @param array<string, mixed> $result  EffectResult
+     * @param array<string, float> $applied {@see IntentApplier::appliedDeltas()}
+     * @return array<string, mixed>
+     */
+    public static function resultWithAppliedHealth(array $result, array $applied): array
+    {
+        if (! array_key_exists('health', $applied) || ! is_numeric($result['health_delta'] ?? null)) {
+            return $result;
+        }
+
+        $result['health_delta_requested'] = (float) $result['health_delta'];
+        $result['health_delta']           = $applied['health'];
+
+        return $result;
     }
 
     /**
@@ -402,6 +426,7 @@ final class EventDispatcher
                 'event_id'       => $eventId,
                 'effect_details' => json_encode([
                     'health_delta'     => $result['health_delta']     ?? 0,
+                    'health_delta_requested' => $result['health_delta_requested'] ?? ($result['health_delta'] ?? 0),
                     'tired_delta'      => $result['tired_delta']      ?? 0,
                     'gold_delta'       => $result['gold_delta']       ?? 0,
                     'attribute_deltas' => $result['attribute_deltas'] ?? [],

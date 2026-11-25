@@ -421,6 +421,23 @@ final class MoveServiceTest extends CIUnitTestCase
         ]], $out['events']);
     }
 
+    /**
+     * ADR-200 (sudden-death-1125, ask 2): пассивный пол здоровья касается только событий и голода.
+     * Шаг — выбранный риск: он по-прежнему опускает здоровье ниже 1.0 (до рулетки смерти).
+     */
+    public function testStepStillTakesHealthBelowThePassiveFloor(): void
+    {
+        // Миграция `CreateCharactersTable` объявляет `'constraint' => 7,2` (PHP читает как 7) → DECIMAL(7,0)
+        // округлил бы 0.5 до 1; прод держит дробное здоровье — здесь колонка как на проде.
+        $this->conn->query('ALTER TABLE characters MODIFY health DECIMAL(7,2) NOT NULL DEFAULT 100');
+        $this->conn->query('UPDATE characters SET health = 0.5 WHERE id = 1');
+
+        $out = (new MoveService())->step(self::CHAR, 'east');
+
+        $this->assertTrue($out['ok']);
+        $this->assertEqualsWithDelta(0.4, (float) $this->row()['health'], 1e-6, 'шаг не упирается в пассивный пол');
+    }
+
     public function testGainPerStepComesFromGameSettings(): void
     {
         $move = new MoveService();

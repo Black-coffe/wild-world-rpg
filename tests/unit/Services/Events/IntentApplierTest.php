@@ -4,6 +4,7 @@ namespace Tests\Unit\Services\Events;
 
 use App\Services\Events\IntentApplier;
 use App\Services\Player\CharacterStatsService;
+use App\Services\Player\PassiveHealthFloor;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
@@ -16,7 +17,8 @@ use CodeIgniter\Test\CIUnitTestCase;
  * значеннями двійника, а записане значення перехоплюється.
  *
  * Перевіряємо що apply():
- *   1. Застосовує floor=0.01 на health (не йдемо в мінус)
+ *   1. ADR-200: здоров'я не нижче пасивного полу (1.0, `health.passive_floor`); нижче полу — не чіпається
+ *      і не лікується; лікування працює як було; повертає фактичну дельту
  *   2. Золото накопичується від свіжого значення, а не від снімка $character
  *   3. health/tired/attribute deltas — одним записом, gold_delta=0 не пишеться
  *   4. Порожній result — жодного запису
@@ -29,8 +31,19 @@ final class IntentApplierTest extends CIUnitTestCase
      * @param array<string, float> $fresh «свіжі» значення статів у БД
      * @param list<array{id: int, fields: list<string>, data: array<string, float>}> $captured
      */
-    private function makeApplier(array $fresh, array &$captured): IntentApplier
+    private function makeApplier(array $fresh, array &$captured, float $floor = 1.0): IntentApplier
     {
+        $passiveFloor = new class($floor) extends PassiveHealthFloor {
+            public function __construct(private float $fixed)
+            {
+            }
+
+            public function floor(): float
+            {
+                return $this->fixed;
+            }
+        };
+
         $stats = new class($fresh, $captured) extends CharacterStatsService {
             /** @var array<string, float> */
             private array $fresh;
@@ -78,23 +91,49 @@ final class IntentApplierTest extends CIUnitTestCase
             new \App\Models\ResourceModel(),
             new \App\Models\TaskModel(),
             $stats,
+            $passiveFloor,
         );
     }
 
-    public function testHealthDeltaCallsUpdateWithFloorOf001(): void
+    public function testEventHitStopsAtPassiveFloorNotAtOneHundredth(): void
     {
         $captured = [];
-        $applier  = $this->makeApplier(['health' => 10.0, 'tired' => 100.0, 'gold' => 0.0], $captured);
+        $applier  = $this->makeApplier(['health' => 5.0, 'tired' => 100.0, 'gold' => 0.0], $captured);
 
-        // Гравець з health=10, отримує -50 → floor 0.01
-        $character = ['id' => 99, 'health' => 10.0, 'tired' => 100.0, 'gold' => 0];
-        $result    = ['health_delta' => -50.0, 'tired_delta' => 0, 'gold_delta' => 0];
+        // HP 5, удар −9 → пол 1.0 (до ADR-200 — 0.01, и рулетка смерти брала 99 %).
+        $applier->apply(['id' => 99, 'health' => 5.0, 'tired' => 100.0, 'gold' => 0], ['health_delta' => -9.0]);
 
-        $applier->apply($character, $result);
-
-        $this->assertNotEmpty($captured, 'adjust() мало бути викликано');
+        $this->assertNotEmpty($captured, 'запис мав бути');
         $this->assertSame(99, $captured[0]['id']);
-        $this->assertSame(0.01, $captured[0]['data']['health'], 'health не йде нижче 0.01');
+        $this->assertSame(1.0, $captured[0]['data']['health'], 'пасивний урон не опускає нижче полу');
+        $this->assertSame(['health' => -4.0], $applier->appliedDeltas(), 'фактична дельта, а не запитана');
+    }
+
+    public function testBelowFloorEventHitLeavesHealthAsIs(): void
+    {
+        $captured = [];
+        $applier  = $this->makeApplier(['health' => 0.5, 'tired' => 100.0, 'gold' => 0.0], $captured);
+
+        // Після походу HP 0.5 — подія не добиває і не «лікує» до полу.
+        $applier->apply(['id' => 7, 'health' => 0.5, 'tired' => 100.0, 'gold' => 0], ['health_delta' => -3.0]);
+
+        $written = $captured[0]['data']['health'] ?? 0.5;
+        $this->assertSame(0.5, $written, 'нижче полу — без змін');
+        $this->assertSame(['health' => 0.0], $applier->appliedDeltas());
+    }
+
+    public function testFloorComesFromSettingAndHealingIsUntouched(): void
+    {
+        $captured = [];
+        $applier  = $this->makeApplier(['health' => 12.0, 'tired' => 100.0, 'gold' => 0.0], $captured, 10.0);
+        $applier->apply(['id' => 1, 'health' => 12.0], ['health_delta' => -8.0]);
+        $this->assertSame(10.0, $captured[0]['data']['health'], 'пол — значення налаштування');
+
+        $captured = [];
+        $applier  = $this->makeApplier(['health' => 0.5, 'tired' => 100.0, 'gold' => 0.0], $captured);
+        $applier->apply(['id' => 1, 'health' => 0.5], ['health_delta' => 2.0]);
+        $this->assertSame(2.5, $captured[0]['data']['health'], 'лікування нижче полу працює як було');
+        $this->assertSame(['health' => 2.0], $applier->appliedDeltas());
     }
 
     public function testGoldDeltaAccumulates(): void
