@@ -193,6 +193,66 @@ final class TipServiceTest extends CIUnitTestCase
         $this->assertNull((new TipService())->pickForCharacter($charId));
     }
 
+    private function seedTributeTipOnly(): void
+    {
+        Database::connect('tests')->table('game_tips')->insert([
+            'title_ru' => 'Подать', 'title_en' => 'TributeDominance', 'tip_type' => 'бой', 'content' => 'Тело подати',
+        ]);
+    }
+
+    private function setTributeFlag(bool $on): void
+    {
+        Database::connect('tests')->table('game_settings')->insert([
+            'setting_key' => 'tribute.enabled', 'category' => 'combat', 'value_type' => 'bool', 'value_bool' => $on ? 1 : 0,
+        ]);
+    }
+
+    /** HONEST-OFF: пока подать выключена, её совет не выдаётся ни /tips, ни «Советом дня» (общий pick). */
+    public function testTributeTipNotPickedWhileFlagOff(): void
+    {
+        $this->seedTributeTipOnly();
+        $this->setTributeFlag(false);
+        $charId = $this->seedCharacter();
+
+        $this->assertNull((new TipService())->pickForCharacter($charId), 'TributeDominance выдан при tribute.enabled=0');
+    }
+
+    /** Строки флага нет вовсе — фича не включалась, совет скрыт. */
+    public function testTributeTipNotPickedWithoutFlagRow(): void
+    {
+        $this->seedTributeTipOnly();
+        $charId = $this->seedCharacter();
+
+        $this->assertNull((new TipService())->serveTip($charId, false));
+    }
+
+    public function testTributeTipPickedWhenFlagOn(): void
+    {
+        $this->seedTributeTipOnly();
+        $this->setTributeFlag(true);
+        $charId = $this->seedCharacter();
+
+        $tip = (new TipService())->pickForCharacter($charId);
+        $this->assertIsArray($tip);
+        $this->assertSame('TributeDominance', $tip['title_en']);
+    }
+
+    /** Фильтр по флагу не теряет советы без title_en (NULL NOT IN … = NULL в SQL). */
+    public function testTipWithoutTitleEnStillPickedWhileFlagOff(): void
+    {
+        $this->seedTributeTipOnly();
+        Database::connect('tests')->table('game_tips')->insert([
+            'title_ru' => 'Без ключа', 'title_en' => null, 'tip_type' => 'общие', 'content' => 'Тело',
+        ]);
+        $charId = $this->seedCharacter();
+
+        for ($i = 0; $i < 10; $i++) {
+            $tip = (new TipService())->pickForCharacter($charId);
+            $this->assertIsArray($tip);
+            $this->assertNull($tip['title_en']);
+        }
+    }
+
     public function testRenderContainsKeyFields(): void
     {
         $html = TipService::renderTip(['id' => 7, 'title_ru' => 'Заголовок', 'tip_type' => 'крафт', 'content' => 'Содержимое']);

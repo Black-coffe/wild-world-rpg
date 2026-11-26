@@ -31,6 +31,15 @@ final class TipService
     public const REWARD_AGILITY    = 0.02;
     public const REWARD_INTELLECT  = 0.04;
 
+    /**
+     * HONEST-OFF (honest-off-1127): совет о фиче за флагом не выдаётся, пока флаг `GameSettings` выключен
+     * (или его строки нет). `title_en` → ключ флага. Строка совета в базе не меняется: включили флаг —
+     * совет вернётся в /tips и «Совет дня» сам. Одно место выбора — {@see pickForCharacter()}.
+     */
+    public const FLAGGED_TIPS = [
+        'TributeDominance' => 'tribute.enabled',
+    ];
+
     private GameTipsModel $tips;
     private CharacterGameTipModel $views;
     private GameSettingsService $settings;
@@ -66,6 +75,14 @@ final class TipService
         if (! empty($recentIds)) {
             $query = $query->whereNotIn('id', $recentIds);
         }
+        $hidden = $this->hiddenTitles();
+        if ($hidden !== []) {
+            // NULL NOT IN (…) в SQL — NULL, поэтому советы без title_en пропускаем явно.
+            $query = $query->groupStart()
+                ->where('title_en', null)
+                ->orWhereNotIn('title_en', $hidden)
+                ->groupEnd();
+        }
         $tip = $query->first();
         if (! is_array($tip)) {
             return null;
@@ -78,6 +95,25 @@ final class TipService
         }
 
         return $out;
+    }
+
+    /**
+     * `title_en` советов, чей флаг сейчас выключен.
+     *
+     * @return list<string>
+     */
+    private function hiddenTitles(): array
+    {
+        $hidden = [];
+        foreach (self::FLAGGED_TIPS as $titleEn => $flag) {
+            $raw = $this->settings->get($flag, false);
+            $on  = is_bool($raw) ? $raw : (is_numeric($raw) && (int) $raw === 1);
+            if (! $on) {
+                $hidden[] = $titleEn;
+            }
+        }
+
+        return $hidden;
     }
 
     /**

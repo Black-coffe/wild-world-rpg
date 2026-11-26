@@ -40,7 +40,7 @@
     ответа Роби. Падает до кода: раздел виден всегда. `testChatSectionExplainsWhatItIsAndOwnerRoute` закрепляет
     старое обещание («Роби», «суток») — переписать под новый текст, сохранив проверку «владельцу» и «без цифр».
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/Onboarding tests/unit/Content/NavigationLabelsInTextsTest.php tests/unit/Web/WebPlayTextsTest.php && php scripts/defects-bot-lexicon-check.php`
-- [ ] S2 Совет подати за флагом и честный совет о чате - asks: 2, 3, 5, 6, 7
+- [x] S2 Совет подати за флагом и честный совет о чате - asks: 2, 3, 5, 6, 7
   - files: `app/Services/Player/TipService.php`, новая миграция `app/Database/Migrations/2026-12-31-100000_CommunityChatTipWithoutRobiAnswers.php`,
     `tests/database/TipServiceTest.php`, `tests/database/CommunityChatTipWithoutRobiAnswersTest.php` (новый),
     tech-writing: `services/TipService.md`, `tasks/tips/DailyTipBroadcastHandler.md`
