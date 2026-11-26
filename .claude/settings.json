@@ -76,7 +76,8 @@
       "source": {
         "source": "github",
         "repo": "Black-coffe/vulyk-thin"
-      }
+      },
+      "autoUpdate": true
     }
   },
   "effortLevel": "medium"
