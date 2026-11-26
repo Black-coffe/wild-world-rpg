@@ -23,3 +23,26 @@ TESTS: vendor/bin/phpunit --no-coverage --no-progress tests/database/BlockedReci
 Reviewer note (outside the report block): ad hoc runs left local `wildworld_tests` with 7 tables; `tests/unit/Craft/CampfireCustomQuantityTest.php` failed on missing tables in that state — unconfirmed as environmental, a full-suite run recreates the database.
 
 Owner: fix the minors, round 2 - "Починить мелочи, раунд 2 (Рекомендую)", 2026-11-26
+
+## Round 2 - 2026-11-26 - head 6fda268e846e1e6f3ad57094762408795f1ade19
+
+```
+VERDICT: PASS
+TESTS: vendor/bin/phpunit --no-coverage --no-progress tests/database/BlockedRecipientGateTest.php tests/database/BroadcastServiceBlockedTest.php tests/database/CronSenderBlockedMarkTest.php tests/database/UpdatePipelineTest.php tests/database/WebDeliveryTest.php -> pass, 92 tests, 1828 assertions (1 PHPUnit deprecation notice)
+
+## Asks
+1. delivered: background sends to a player with `blocked_at` stop before the Bot API call, C:\laragon\www\mmorpg\app\Services\Telegram\Request.php:46 and :59 via C:\laragon\www\mmorpg\app\Services\Notifications\BlockedRecipientGate.php:56. All six crons send through `BaseTaskHandler::safeSend*`; `broadcastToAll` counts the skip as blocked, C:\laragon\www\mmorpg\app\Services\Notifications\BroadcastService.php:94.
+2. delivered: an incoming private-chat update clears `blocked_at`, and `clearBlocked` also drops the player from the in-process set, C:\laragon\www\mmorpg\app\Models\TelegramUserModel.php:90. End-to-end test "blocked -> /start -> background send reaches Telegram" at C:\laragon\www\mmorpg\tests\database\UpdatePipelineTest.php:637.
+3. delivered: the gate runs after `WebDelivery::route()` and ignores virtual chats, C:\laragon\www\mmorpg\app\Services\Notifications\BlockedRecipientGate.php:61-64. Covered by `testVirtualChatBehavesAsBefore` and `testLinkedLoggedInBlockedPlayerGetsInboxRowButNoTelegram`; `WebDeliveryTest` is green.
+4. delivered: only the transport call is skipped; `testCronDoesItsGameWriteAndSkipsSendWithoutError` asserts the game write happened, C:\laragon\www\mmorpg\tests\database\BlockedRecipientGateTest.php:325.
+5. delivered in code, not measurable before the tag: marked recipients no longer reach Telegram from background paths, and skips write no ERROR in the cron bases, the broadcast, or the three extra senders. The day-after log count is still the owner's check.
+6. delivered: no new balance numbers, no pause or throttle added, no `GameSettings` keys in the diff.
+7. delivered: no new tables or columns, no guide or tip changes. Vault notes for every touched handler and service carry the skip and `last_reviewed: 2026-11-26` (C:\Projects\mmorpg-vault\tech-writing\, commit 4f594e6).
+
+## Findings
+(none)
+
+## Past findings (round 2 and later)
+F1: fixed - C:\Projects\mmorpg-vault\tech-writing\tasks\objects\BaseObjectHandler.md now has the "Пропуск помеченного" paragraph (lines 34-38) and `last_reviewed: 2026-11-26`.
+F2: fixed - all three senders are guarded with `BlockedRecipientGate::isSkipped()`: C:\laragon\www\mmorpg\app\Services\Events\PassiveHealthWarning.php:138, C:\laragon\www\mmorpg\app\Services\Events\GatherFloorInterrupt.php:267, C:\laragon\www\mmorpg\app\Services\Player\PlayerDetectionService.php:253. The new test `testBackgroundSendersOutsideCronsSkipWithoutError` (C:\laragon\www\mmorpg\tests\database\BlockedRecipientGateTest.php:353) can fail: a scratch copy with the player unmarked showed all three `sendMessage` calls reaching the transport.
+```
