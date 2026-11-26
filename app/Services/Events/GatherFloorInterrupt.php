@@ -8,6 +8,7 @@ use App\Models\ResourceModel;
 use App\Services\Craft\CraftQueueActivationNotice;
 use App\Services\Db\ConditionalWriteService;
 use App\Services\Db\WriteOutcome;
+use App\Services\Notifications\BlockedRecipientGate;
 use App\Services\Player\Gather\GatherResultPersister;
 use App\Services\Telegram\NavKeyboards;
 use App\Services\Telegram\Request;
@@ -263,7 +264,7 @@ class GatherFloorInterrupt
                 'parse_mode'   => 'HTML',
                 'reply_markup' => json_encode($keyboard),
             ]);
-            if (! $response->isOk()) {
+            if (! $response->isOk() && ! BlockedRecipientGate::isSkipped($response)) {
                 log_message('error', '[GatherFloorInterrupt] message not sent: ' . $response->getDescription());
             }
         } catch (Throwable $e) {

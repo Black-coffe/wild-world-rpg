@@ -6,6 +6,7 @@ namespace App\Services\Events;
 
 use App\Models\CraftedItemsModel;
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Notifications\BlockedRecipientGate;
 use App\Services\Telegram\Request;
 use App\Services\Telegram\TelegramBridge;
 use App\Services\Telegram\TelegramChatResolver;
@@ -134,7 +135,7 @@ class PassiveHealthWarning
                 'parse_mode'   => 'Markdown',
                 'reply_markup' => json_encode($keyboard),
             ]);
-            if (! $response->isOk()) {
+            if (! $response->isOk() && ! BlockedRecipientGate::isSkipped($response)) {
                 log_message('error', '[PassiveHealthWarning] message not sent: ' . $response->getDescription());
             }
         } catch (Throwable $e) {

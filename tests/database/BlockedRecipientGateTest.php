@@ -89,6 +89,36 @@ final class BlockedGateObjectProbe extends BaseObjectHandler
     }
 }
 
+/** Три фоновых отправителя вне кронов: открыт их собственный `send`. */
+final class BlockedGatePassiveProbe extends \App\Services\Events\PassiveHealthWarning
+{
+    public function run(int $chatId): void
+    {
+        $this->send($chatId, 'Здоровье низкое', ['inline_keyboard' => []]);
+    }
+}
+
+final class BlockedGateFloorProbe extends \App\Services\Events\GatherFloorInterrupt
+{
+    public function run(int $chatId): void
+    {
+        $this->send($chatId, 'Добыча прервана', ['inline_keyboard' => []]);
+    }
+}
+
+final class BlockedGateDetectionProbe extends \App\Services\Player\PlayerDetectionService
+{
+    /** Без родительского конструктора: тот переинициализирует Telegram ключом окружения. */
+    public function __construct()
+    {
+    }
+
+    public function run(int $chatId): bool
+    {
+        return $this->sendDetectionNotification($chatId, ['text' => 'Рядом игрок', 'keyboard' => ['inline_keyboard' => []]]);
+    }
+}
+
 /**
  * B16 (спека b16-blocked-recipients-1126, S1): фоновая отправка игроку с `telegram_users.blocked_at`
  * не уходит в Telegram — пропуск в `App\Services\Telegram\Request` после `WebDelivery::route()` и до
@@ -318,6 +348,18 @@ final class BlockedRecipientGateTest extends CIUnitTestCase
         $this->assertSame([], $this->sent);
         $this->assertSame([], $this->levels(BlockedGateObjectProbe::class));
         $this->assertSame([], $this->errors());
+    }
+
+    public function testBackgroundSendersOutsideCronsSkipWithoutError(): void
+    {
+        $this->botOnly(self::PLAYER, self::MARK);
+
+        (new BlockedGatePassiveProbe())->run(self::PLAYER);
+        (new BlockedGateFloorProbe())->run(self::PLAYER);
+        (new BlockedGateDetectionProbe())->run(self::PLAYER);
+
+        $this->assertSame([], $this->sent, 'ни одна из трёх отправок не ушла в Telegram');
+        $this->assertSame([], $this->errors(), 'пропуск не пишет ERROR ни в одном из трёх отправителей');
     }
 
     public function testMarkSetByBlockedRecipientInSameProcessSkipsNextSend(): void
