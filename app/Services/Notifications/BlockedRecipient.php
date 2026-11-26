@@ -23,8 +23,9 @@ use Throwable;
  *
  * Помечается только положительный chat id: группа (отрицательный id) и виртуальный чат `/play`
  * ({@see VirtualChat::is()}) не помечаются никогда. Уже помеченный игрок даты не меняет
- * (`TelegramUserModel::markBlocked` — условный UPDATE). Успешная отправка метку здесь не снимает,
- * и помеченных отправщики не пропускают — только помечают на отказе.
+ * (`TelegramUserModel::markBlocked` — условный UPDATE). Успешная отправка метку здесь не снимает.
+ * Поставленная метка сразу попадает в набор {@see BlockedRecipientGate} этого процесса: следующие
+ * фоновые отправки помеченному в Telegram не уходят (b16-blocked-recipients-1126).
  */
 final class BlockedRecipient
 {
@@ -82,6 +83,7 @@ final class BlockedRecipient
         $line = $logPrefix . ' Telegram ' . $method . ': recipient ' . $chatId . ' blocked the bot';
         try {
             (new TelegramUserModel())->markBlocked((string) $chatId);
+            BlockedRecipientGate::remember($chatId);
             log_message('warning', $line . ', marked: ' . $description);
         } catch (Throwable $e) {
             log_message('error', $line . ', mark failed: ' . $e->getMessage() . ' (' . $description . ')');

@@ -7,6 +7,7 @@ use App\Models\MapModel;
 use App\Models\PlayerDetectionHistoryModel;
 use App\Models\TelegramUserModel;
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Notifications\BlockedRecipientGate;
 use App\Services\Telegram\ButtonPacker;
 use Config\Database;
 use Config\GameBalance;
@@ -249,6 +250,9 @@ class PlayerDetectionService
         }
 
         if (!$response->isOk()) {
+            if (BlockedRecipientGate::isSkipped($response)) {
+                return false; // B16: получатель заблокировал бота — пропуск, не ошибка
+            }
             log_message('error', 'Сообщение обнаружения не доставлено (ok=false): ' . $response->getDescription());
 
             return false;

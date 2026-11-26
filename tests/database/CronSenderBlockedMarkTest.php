@@ -293,27 +293,18 @@ final class CronSenderBlockedMarkTest extends CIUnitTestCase
 
     // ── Ask 4: уже помеченный — дата не переписывается; ask 10 — отправка всё равно идёт ──
 
-    public function testAlreadyMarkedPlayerIsStillSentAndKeepsMarkDate(): void
+    // b16-blocked-recipients-1126 перевернула прежний контракт «помеченного не пропускаем»: фоновая
+    // отправка помеченному в Telegram больше не уходит (BlockedRecipientGateTest), дата метки та же.
+    public function testAlreadyMarkedPlayerIsSkippedAndKeepsMarkDate(): void
     {
         $this->makeTelegramUser(self::PLAYER, self::OLD_MARK);
         $this->answer(403, self::BLOCKED);
 
         (new BlockedMarkTaskProbe())->message(self::PLAYER, 'Текст');
 
-        $this->assertSame(['sendMessage'], $this->sent, 'помеченного не пропускаем');
+        $this->assertSame([], $this->sent, 'помеченному фоновая отправка не уходит');
         $this->assertSame(self::OLD_MARK, $this->blockedAt(self::PLAYER), 'дата метки не переписана');
-        $this->assertSame(['warning'], $this->levels(BlockedMarkTaskProbe::class));
-    }
-
-    public function testAlreadyMarkedPlayerSuccessfulSendLeavesMark(): void
-    {
-        $this->makeTelegramUser(self::PLAYER, self::OLD_MARK);
-
-        (new BlockedMarkTaskProbe())->message(self::PLAYER, 'Текст');
-
-        $this->assertSame(['sendMessage'], $this->sent);
-        $this->assertSame(self::OLD_MARK, $this->blockedAt(self::PLAYER), 'успех метку здесь не снимает');
-        $this->assertSame([], $this->levels(BlockedMarkTaskProbe::class));
+        $this->assertSame([], $this->levels(BlockedMarkTaskProbe::class), 'пропуск без лога');
     }
 
     // ── Ask 4: сбой записи метки залогирован ─────────────────────────────
