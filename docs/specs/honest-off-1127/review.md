@@ -20,3 +20,5 @@ TESTS: vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/Onboar
 ```
 
 Reviewer note: also green — Community guard/voice/contract tests, `tests/unit/Defects`, related DB content tests (207), phpstan on touched services, `php -l` on the new migration. Prod `site_posts`/`site_pages` were checked by the main session with SELECT on 2026-11-27 (no matches).
+
+Owner: fix the minor, round 2 - "Убрать фразу, раунд 2 (Рекомендую)", 2026-11-27
