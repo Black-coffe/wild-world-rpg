@@ -1,5 +1,5 @@
 # HONEST-OFF — не обещать выключенное (plan)
-**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/honest-off-1127` · **Approved:** no
+**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/honest-off-1127` · **Approved:** «Одобряю (Рекомендую)», 2026-11-27
 
 ## Goal
 Справочник и советы перестают описывать как живое то, что выключено. Раздел `/guide` «Трофейная подать» и совет
