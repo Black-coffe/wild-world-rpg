@@ -1,5 +1,5 @@
 # B16 — не слать заблокировавшим бота (plan)
-**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/b16-blocked-recipients-1126` · **Approved:** no
+**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/b16-blocked-recipients-1126` · **Approved:** «Одобряю (Рекомендую)», 2026-11-26
 
 ## Goal
 Фоновые отправки (кроны, задачи, админ-рассылка) перестают стучаться в Telegram к игроку, у которого
