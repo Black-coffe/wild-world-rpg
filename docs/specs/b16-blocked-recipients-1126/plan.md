@@ -1,4 +1,5 @@
 # B16 — не слать заблокировавшим бота (plan)
+**Shipped:** 2026-11-26, 8a3ef769
 **Brief:** [brief.md](brief.md) · **Branch:** `vulyk/b16-blocked-recipients-1126` · **Approved:** «Одобряю (Рекомендую)», 2026-11-26
 
 ## Goal
