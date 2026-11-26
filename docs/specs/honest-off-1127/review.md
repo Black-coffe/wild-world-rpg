@@ -22,3 +22,25 @@ TESTS: vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/Onboar
 Reviewer note: also green — Community guard/voice/contract tests, `tests/unit/Defects`, related DB content tests (207), phpstan on touched services, `php -l` on the new migration. Prod `site_posts`/`site_pages` were checked by the main session with SELECT on 2026-11-27 (no matches).
 
 Owner: fix the minor, round 2 - "Убрать фразу, раунд 2 (Рекомендую)", 2026-11-27
+
+## Round 2 - 2026-11-27 - head daf62071e431391c55b5b2eb9c736b6ae38aeb96
+
+```
+VERDICT: PASS
+TESTS: vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/Onboarding tests/unit/Content/NavigationLabelsInTextsTest.php tests/unit/Web/WebPlayTextsTest.php tests/database/TipServiceTest.php tests/database/DailyTipBroadcastHandlerTest.php tests/database/CommunityChatTipWithoutRobiAnswersTest.php -> pass, 311 tests, 2279 assertions (2 PHPUnit deprecations)
+
+## Asks
+1. delivered: the `tribute` section carries `flag => 'tribute.enabled'` and all player screens go through the filtered list, C:\laragon\www\mmorpg\app\Services\Onboarding\GuideCatalog.php:759 and :1091-1105; index, section and "next" use it at C:\laragon\www\mmorpg\app\Services\Onboarding\GuideService.php:58, :100, :108. Bot and `/play` share `GuideAction`/`GuideCommand`, the only two constructors of `GuideService`.
+2. delivered: `TributeDominance` is excluded in the single pick path while the flag is off, C:\laragon\www\mmorpg\app\Services\Player\TipService.php:39-41 and :78-85; off and on are both tested at C:\laragon\www\mmorpg\tests\database\TipServiceTest.php:217 and :237.
+3. delivered: the chat section no longer promises Robi's answers and keeps where, who answers and the private route, C:\laragon\www\mmorpg\app\Services\Onboarding\GuideCatalog.php:1065-1078; tip 143 is rewritten by C:\laragon\www\mmorpg\app\Database\Migrations\2026-12-31-100000_CommunityChatTipWithoutRobiAnswers.php:26-28.
+4. delivered: tracked `app/Views/site/*` and C:\laragon\www\mmorpg\GAME_DESCRIPTION.md contain neither promise (grep for tribute, wanted board, community chat and Robi answering found nothing). `site_pages` and posts are database rows and cannot be checked from the code.
+5. delivered: both texts have paired markdown and no balance numbers, and the section tests pass (C:\laragon\www\mmorpg\tests\unit\Services\Onboarding\GuideCatalogTest.php:284-299). The live render check in the bot and `/play` leaves no trace in code, so I could not confirm it.
+6. delivered: no new numbers; the migration only updates `game_tips.content`, with no table or column added. `FLAGGED_TIPS` maps a title to an existing flag key.
+7. delivered: no new guide section or tip; the notes `GuideCatalog.md`, `GuideService.md`, `TipService.md`, `GuideAction.md` and `DailyTipBroadcastHandler.md` under C:\Projects\mmorpg-vault\tech-writing\ describe the change, the first and third dated 2026-11-27.
+
+## Findings
+(none)
+
+## Past findings (round 2 and later)
+F1: fixed - the sentence "Роби в чате не пишет…" is gone; the bullet is exactly the owner's wording from `## Answers` (C:\laragon\www\mmorpg\app\Services\Onboarding\GuideCatalog.php:1074), so it is true in both states of `community.enabled`. `testChatSectionHasNoRobiClaimWhenCommunityOn` (C:\laragon\www\mmorpg\tests\unit\Services\Onboarding\GuideServiceFlagTest.php:91-102) fails on the old text and passes now.
+```
