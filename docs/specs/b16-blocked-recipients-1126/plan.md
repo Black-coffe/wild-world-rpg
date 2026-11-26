@@ -29,7 +29,11 @@
   `grep -c "bot was blocked"` в логе прода за первые полные сутки после тега, строкой в журнал §6.
 
 ## Stories
-- [ ] S1 Пропуск фоновой отправки заблокировавшему в `Request` - asks: 1, 3, 4
+- [x] S1 Пропуск фоновой отправки заблокировавшему в `Request` - asks: 1, 3, 4
+  - outside: `tests/database/CronSenderBlockedMarkTest.php` — два теста держали старый контракт
+    «помеченного не пропускаем» (ask 1 его переворачивает): один переписан на «пропущен, дата метки та же,
+    без лога», второй («успешная отправка помеченному метку не снимает») удалён — до помеченного отправка
+    больше не доходит.
   - files: `app/Services/Telegram/Request.php`, новый `app/Services/Notifications/BlockedRecipientGate.php`,
     `app/Libraries/BlockedRecipient.php` (или где он лежит — добавлять в набор при `markBlocked`),
     `app/TaskHandlers/BaseTaskHandler.php` и `BaseObjectHandler` (не логировать узнаваемый пропуск как ERROR),

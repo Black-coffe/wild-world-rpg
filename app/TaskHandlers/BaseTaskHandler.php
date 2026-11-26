@@ -5,6 +5,7 @@ namespace App\TaskHandlers;
 use App\Services\Craft\CraftQueueActivationNotice;
 use App\Services\Craft\CraftQueueService;
 use App\Services\Notifications\BlockedRecipient;
+use App\Services\Notifications\BlockedRecipientGate;
 use App\TaskHandlers\Contracts\TaskHandlerInterface;
 use App\Services\Telegram\Request;
 use App\Services\Telegram\TelegramBridge;
@@ -21,7 +22,8 @@ use Longman\TelegramBot\Telegram;
  *    упасть из-за rate-limit или сетевой ошибки.
  *  - Отказ «игрок заблокировал бота» ({@see BlockedRecipient}, B16): метка
  *    `telegram_users.blocked_at`, одна WARNING вместо ERROR, фото не повторяется
- *    текстом. Прочие отказы — как раньше.
+ *    текстом. Прочие отказы — как раньше. Пропуск фоновой отправки помеченному
+ *    ({@see BlockedRecipientGate}, b16-blocked-recipients-1126) — без лога и без текста.
  *  - Общий слот для DI зависимостей (`config('GameBalance')`, etc.)
  *    подключается один раз в `__construct`.
  *
@@ -135,6 +137,7 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
             ], $extra);
             $response = Request::sendMessage($payload);
             if (!$response->isOk()
+                && ! BlockedRecipientGate::isSkipped($response)
                 && ! BlockedRecipient::handle($chatId, (string) $response->getDescription(), '[' . static::class . ']', 'sendMessage')) {
                 log_message('error', '[' . static::class . '] Telegram sendMessage not ok: '
                     . $response->getDescription());
@@ -190,6 +193,10 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
             ], $extra);
             $response = \App\Services\Notifications\MediaSender::sendPhotoOrText($payload);
             if (!$response->isOk()) {
+                // B16 (b16-blocked-recipients-1126): пропуск фильтром заблокировавших — без лога и без текста.
+                if (BlockedRecipientGate::isSkipped($response)) {
+                    return;
+                }
                 // B16: игрок заблокировал бота → метка, одна WARNING, текстом не повторяем.
                 if (BlockedRecipient::handle($chatId, (string) $response->getDescription(), '[' . static::class . ']', 'sendPhoto')) {
                     return;
@@ -278,6 +285,7 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
             ], $extra);
             $response = Request::sendMessage($payload);
             if (!$response->isOk()
+                && ! BlockedRecipientGate::isSkipped($response)
                 && ! BlockedRecipient::handle($chatId, (string) $response->getDescription(), '[' . static::class . ']', 'sendMessage')) {
                 log_message('error', '[' . static::class . '] degradeToText not ok: '
                     . $response->getDescription());

@@ -3,6 +3,7 @@
 namespace App\TaskHandlers\Objects;
 
 use App\Services\Notifications\BlockedRecipient;
+use App\Services\Notifications\BlockedRecipientGate;
 use App\Services\Telegram\Request;
 use App\Services\Telegram\TelegramBridge;
 use Longman\TelegramBot\Telegram;
@@ -19,7 +20,8 @@ use Longman\TelegramBot\Telegram;
  *  - Уніфіковані `safeSendMessage()` / `safeSendPhoto()` — catch TelegramException,
  *    handler не падає при rate-limit / network error.
  *  - Відмова «гравець заблокував бота» ({@see BlockedRecipient}, B16): мітка
- *    `telegram_users.blocked_at` і один WARNING; інші відмови — як раніше.
+ *    `telegram_users.blocked_at` і один WARNING; інші відмови — як раніше. Пропуск фонової
+ *    відправки поміченому ({@see BlockedRecipientGate}, b16-blocked-recipients-1126) — без логу.
  *
  * Конкретні нащадки додають `implements ObjectHandlerInterface` самі (не форсимо
  * це у parent — щоб не нав'язувати інтерфейс іншим потенційним об'єктним
@@ -51,6 +53,7 @@ abstract class BaseObjectHandler
             ], $extra);
             $response = Request::sendMessage($payload);
             if (!$response->isOk()
+                && ! BlockedRecipientGate::isSkipped($response)
                 && ! BlockedRecipient::handle($chatId, (string) $response->getDescription(), '[' . static::class . ']', 'sendMessage')) {
                 log_message('warning', '[' . static::class . '] Telegram sendMessage not ok: '
                     . $response->getDescription());
@@ -76,6 +79,7 @@ abstract class BaseObjectHandler
             ], $extra);
             $response = \App\Services\Notifications\MediaSender::sendPhotoOrText($payload);
             if (!$response->isOk()
+                && ! BlockedRecipientGate::isSkipped($response)
                 && ! BlockedRecipient::handle($chatId, (string) $response->getDescription(), '[' . static::class . ']', 'sendPhoto')) {
                 log_message('warning', '[' . static::class . '] Telegram sendPhoto not ok: '
                     . $response->getDescription());

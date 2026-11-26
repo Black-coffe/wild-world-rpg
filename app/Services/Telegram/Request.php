@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Telegram;
 
+use App\Services\Notifications\BlockedRecipientGate;
 use App\Services\Web\WebDelivery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request as LongmanRequest;
@@ -27,6 +28,10 @@ use Longman\TelegramBot\Request as LongmanRequest;
  * {@see WebDelivery::route()} — захват экрана `/play`, входящие виртуального чата и копия
  * привязанному игроку. `null` от него — вызов идёт в Telegram ровно как раньше.
  *
+ * B16 (b16-blocked-recipients-1126): после `route()` и до транспорта — {@see BlockedRecipientGate::skip()}:
+ * фоновая отправка (нет актора) игроку с `telegram_users.blocked_at` в Telegram не уходит, ответ — узнаваемый
+ * пропуск. Копия во «входящие» `/play` к этому моменту уже записана `route()`.
+ *
  * Всё остальное (encodeFile, getMe, …) наследуется без изменений — вызовы в коде
  * менять не нужно, отличается только строка `use`.
  */
@@ -37,7 +42,9 @@ class Request extends LongmanRequest
     {
         $data = KeyboardNormalizer::normalize($data);
 
-        return WebDelivery::route($action, $data) ?? static::transport($action, $data);
+        return WebDelivery::route($action, $data)
+            ?? BlockedRecipientGate::skip($action, $data)
+            ?? static::transport($action, $data);
     }
 
     /**
@@ -48,7 +55,9 @@ class Request extends LongmanRequest
     {
         $data = KeyboardNormalizer::normalize($data);
 
-        return WebDelivery::route('sendMessage', $data) ?? static::transportSendMessage($data, $extras);
+        return WebDelivery::route('sendMessage', $data)
+            ?? BlockedRecipientGate::skip('sendMessage', $data)
+            ?? static::transportSendMessage($data, $extras);
     }
 
     /**
