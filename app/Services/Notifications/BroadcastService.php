@@ -20,6 +20,10 @@ use Throwable;
  *
  * 🔑 Longman НЕ бросает на 403/429 — проверяем $resp->isOk(), иначе счётчик «sent»
  * завышен (memory feedback_broadcast_isok_real_reachable_audience).
+ *
+ * B16 (b16-blocked-recipients-1126): игроку с `telegram_users.blocked_at` {@see Request} в Telegram не шлёт
+ * ({@see BlockedRecipientGate}); такой пропуск считается в `blocked`, метку не меняет и в лог не пишется.
+ * Виртуальные чаты `/play` получают рассылку во «входящие», как раньше.
  */
 final class BroadcastService
 {
@@ -83,6 +87,12 @@ final class BroadcastService
                 if ($resp->isOk()) {
                     $sent++;
                     $this->userModel->clearBlocked($telegramId);
+                    continue;
+                }
+                // B16 (b16-blocked-recipients-1126): помеченному Request в Telegram не шлёт — он и есть
+                // заблокировавший; считаем в blocked, метку не трогаем, ERROR не пишем.
+                if (BlockedRecipientGate::isSkipped($resp)) {
+                    $blocked++;
                     continue;
                 }
                 $desc = $resp->getDescription();

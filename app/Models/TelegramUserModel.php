@@ -1,5 +1,6 @@
 <?php namespace App\Models;
 
+use App\Services\Notifications\BlockedRecipientGate;
 use CodeIgniter\Model;
 
 class TelegramUserModel extends Model
@@ -75,6 +76,10 @@ class TelegramUserModel extends Model
      * настоящий входящий апдейт из лички с ботом ({@see \App\Services\Telegram\UpdatePipeline},
      * только вебхук, не `/play`, не `my_chat_member` со статусом `kicked`).
      * Условный UPDATE (только если был отмечен) — self-heal без лишних записей.
+     *
+     * b16-blocked-recipients-1126: игрок забывается и в наборе {@see BlockedRecipientGate} этого процесса —
+     * следующая фоновая отправка ему снова уходит в Telegram, не дожидаясь нового процесса. Здесь, а не у
+     * вызывающих: метку снимают `UpdatePipeline`, `BroadcastService`, `PveNotificationSender` и nudge-кроны.
      */
     public function clearBlocked(string $telegramId): void
     {
@@ -82,5 +87,6 @@ class TelegramUserModel extends Model
             ->where('telegram_id', $telegramId)
             ->where('blocked_at !=', null)
             ->update(['blocked_at' => null]);
+        BlockedRecipientGate::forget($telegramId);
     }
 }

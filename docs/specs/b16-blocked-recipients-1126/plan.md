@@ -44,7 +44,10 @@
     на базе `BaseTaskHandler` выполняет свою запись в БД и не пишет ERROR при пропуске. Падает до кода: сейчас
     транспорт вызывается всегда.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/database/BlockedRecipientGateTest.php tests/database/CronSenderBlockedMarkTest.php tests/database/WebDeliveryTest.php`
-- [ ] S2 Рассылка и сквозной путь «разблокировал → снова получает» - asks: 1, 2, 7
+- [x] S2 Рассылка и сквозной путь «разблокировал → снова получает» - asks: 1, 2, 7
+  - outside: `app/Models/TelegramUserModel.php` — `clearBlocked()` зовёт `BlockedRecipientGate::forget()`: метку снимают
+    `UpdatePipeline`, `BroadcastService`, `PveNotificationSender` и nudge-кроны, и без этого набор процесса держал бы
+    разблокировавшего до следующего процесса; одна точка в модели вместо правки каждого вызывающего.
   - files: `app/Services/Notifications/BroadcastService.php`, `tests/database/BroadcastServiceBlockedTest.php`,
     `tests/database/UpdatePipelineTest.php` (сквозной случай), tech-writing: `services/BlockedRecipient.md`,
     `services/UpdatePipeline.md`, `services/WebDelivery.md`, `tasks/BaseTaskHandler.md`, `models/TelegramUserModel.md`,

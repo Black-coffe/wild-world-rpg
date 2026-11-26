@@ -9,8 +9,10 @@ use App\Services\GameSettings\GameSettingsService;
 use App\Services\Logging\ActionOrigin;
 use App\Services\Logging\PlayerActionLogger;
 use App\Services\Logging\TelegramDeliveryProbe;
+use App\Services\Notifications\BlockedRecipientGate;
 use App\Services\Player\ReturnDigestService;
 use App\Services\Quest\DailyTaskService;
+use App\Services\Telegram\Request;
 use App\Services\Telegram\UpdatePipeline;
 use App\Services\Web\AccountService;
 use App\Services\Web\DeliveryContext;
@@ -32,6 +34,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response;
+use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request as LongmanRequest;
 use Longman\TelegramBot\Telegram;
 use Psr\Http\Message\RequestInterface;
@@ -46,6 +49,25 @@ final class PipelineSpyBotController extends BotController
     protected function dispatchToTelegram(): void
     {
         $this->dispatchCalls++;
+    }
+}
+
+/** Шпион транспорта: дошла ли фоновая отправка до Telegram (b16-blocked-recipients-1126). */
+final class PipelineTransportSpyRequest extends Request
+{
+    /** @var list<array{0:string, 1:array<string,mixed>}> */
+    public static array $calls = [];
+
+    protected static function transport(string $action, array $data): ServerResponse
+    {
+        self::$calls[] = [$action, $data];
+
+        return new ServerResponse(['ok' => true, 'result' => ['message_id' => 77, 'chat' => ['id' => 1], 'date' => 1]], '');
+    }
+
+    protected static function transportSendMessage(array $data, ?array &$extras = []): ServerResponse
+    {
+        return self::transport('sendMessage', $data);
     }
 }
 
@@ -605,6 +627,31 @@ final class UpdatePipelineTest extends CIUnitTestCase
 
         $this->controllerFor($after)->webhook();
         $this->assertNull($this->row('telegram_users', ['id' => $tgUser])['blocked_at'], 'признак жизни снял метку');
+    }
+
+    /**
+     * b16-blocked-recipients-1126 S2, ask 2 — сквозной путь в одном процессе: метка стоит → фоновая отправка
+     * пропущена → игрок прислал `/start` → метка снята → следующая фоновая отправка уходит в Telegram.
+     * Процесс один: набор заблокированных {@see BlockedRecipientGate} уже прочитан и обязан забыть игрока.
+     */
+    public function testBlockedThenStartUpdateThenBackgroundSendReachesTelegram(): void
+    {
+        $tgUser = $this->makeTelegramUser(self::REAL_TG, self::BLOCKED_AT);
+        $this->makeCharacter($tgUser);
+        PipelineTransportSpyRequest::$calls = [];
+
+        $before = PipelineTransportSpyRequest::sendMessage(['chat_id' => self::REAL_TG, 'text' => 'Голод']);
+        $this->assertTrue(BlockedRecipientGate::isSkipped($before), 'пока метка стоит — фон пропущен');
+        $this->assertSame([], PipelineTransportSpyRequest::$calls);
+
+        $this->controllerFor($this->textUpdate(self::REAL_TG, '/start'))->webhook();
+        $this->assertNull($this->row('telegram_users', ['id' => $tgUser])['blocked_at'], '`/start` снял метку');
+        $this->assertNull(DeliveryContext::actor(), 'после апдейта снова фон');
+
+        $after = PipelineTransportSpyRequest::sendMessage(['chat_id' => self::REAL_TG, 'text' => 'Голод']);
+        $this->assertFalse(BlockedRecipientGate::isSkipped($after), 'разблокировал — снова получает');
+        $this->assertCount(1, PipelineTransportSpyRequest::$calls, 'фоновая отправка дошла до транспорта');
+        $this->assertSame(self::REAL_TG, PipelineTransportSpyRequest::$calls[0][1]['chat_id']);
     }
 
     /** Approval addition 5 — сбой записи метки логируется с причиной, апдейт не ломается. */
