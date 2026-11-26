@@ -27,6 +27,20 @@ class GuideService
     /** Префикс callback_data раздела: `guide_<key>`. */
     public const CALLBACK_PREFIX = 'guide_';
 
+    /** @var (\Closure(string): bool)|null чтение флагов разделов; null — `GameSettings`. */
+    private ?\Closure $isOn;
+
+    /**
+     * HONEST-OFF (honest-off-1127): раздел с выключенным `flag` не попадает ни в оглавление,
+     * ни в «Дальше», а его callback падает в оглавление. Замыкание — шов для тестов; в бою null.
+     *
+     * @param (\Closure(string): bool)|null $isOn
+     */
+    public function __construct(?\Closure $isOn = null)
+    {
+        $this->isOn = $isOn;
+    }
+
     /**
      * Payload оглавления: вступление + сгруппированный список тем + сетка кнопок.
      *
@@ -41,7 +55,7 @@ class GuideService
 
         $rows  = [];
         $byGroup = [];
-        foreach (GuideCatalog::sections() as $section) {
+        foreach (GuideCatalog::visibleSections($this->isOn) as $section) {
             $byGroup[$section['group']][] = $section;
         }
 
@@ -83,7 +97,7 @@ class GuideService
      */
     public function sectionPayload(string $key): array
     {
-        $section = GuideCatalog::find($key);
+        $section = GuideCatalog::find($key, $this->isOn);
         if ($section === null) {
             return $this->indexPayload();
         }
@@ -91,9 +105,9 @@ class GuideService
         $text = $section['title'] . "\n\n" . $section['body'];
 
         $navRow  = [['text' => '⬅️ К оглавлению', 'callback_data' => self::CALLBACK_INDEX]];
-        $nextKey = GuideCatalog::nextKey($key);
+        $nextKey = GuideCatalog::nextKey($key, $this->isOn);
         if ($nextKey !== null) {
-            $next = GuideCatalog::find($nextKey);
+            $next = GuideCatalog::find($nextKey, $this->isOn);
             if ($next !== null) {
                 $navRow[] = [
                     'text'          => 'Дальше: ' . $next['button'] . ' ▶️',

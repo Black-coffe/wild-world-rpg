@@ -31,7 +31,7 @@
   `post-deploy.sh`.
 
 ## Stories
-- [ ] S1 Раздел `/guide` за флагом и честный раздел чата - asks: 1, 3, 5, 7
+- [x] S1 Раздел `/guide` за флагом и честный раздел чата - asks: 1, 3, 5, 7
   - files: `app/Services/Onboarding/GuideCatalog.php`, `app/Services/Onboarding/GuideService.php`,
     `tests/unit/Services/Onboarding/GuideCatalogTest.php`, `tests/unit/Services/Onboarding/GuideServiceFlagTest.php` (новый),
     tech-writing: `services/GuideCatalog.md`, `services/GuideService.md`, `handlers/guide/GuideAction.md`

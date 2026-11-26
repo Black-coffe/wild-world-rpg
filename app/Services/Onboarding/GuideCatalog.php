@@ -48,9 +48,16 @@ class GuideCatalog
      *   group  — этап (ключ из GROUPS);
      *   button — короткая подпись кнопки в оглавлении;
      *   title  — заголовок экрана раздела;
-     *   body   — само пояснение (Markdown, самодостаточно в тексте).
+     *   body   — само пояснение (Markdown, самодостаточно в тексте);
+     *   flag   — необязательный ключ `GameSettings` фичи, которую раздел описывает. Пока флаг
+     *            выключен, раздел не виден игроку (HONEST-OFF, honest-off-1127): справочник не
+     *            выдаёт выключенное за живое. Фильтр — {@see visibleSections()}.
      *
-     * @return list<array{key:string, group:string, button:string, title:string, body:string}>
+     * Список здесь НЕ фильтруется флагами: из него строит корпус community-бот
+     * (`CommunityGuard`), где выключенные фичи уже стоп-темы. Экраны игроку строятся только
+     * через {@see visibleSections()}, {@see find()} и {@see nextKey()}.
+     *
+     * @return list<array{key:string, group:string, button:string, title:string, body:string, flag?:string}>
      */
     public static function sections(): array
     {
@@ -749,6 +756,7 @@ class GuideCatalog
             [
                 'key'    => 'tribute',
                 'group'  => 'end',
+                'flag'   => 'tribute.enabled',
                 'button' => '⚖️ Трофейная подать',
                 'title'  => '⚖️ Трофейная подать',
                 'body'   => "На острове кто сильнее — берёт долю. Если опытный боец раз за разом громит "
@@ -1059,12 +1067,11 @@ class GuideCatalog
                     . "и подсказывают новичкам.\n\n"
                     . "• 📍 *Где он* — это отдельная группа Telegram, а не экран внутри бота. Ссылку "
                     . "на неё владелец объявляет отдельно; сам бот туда не ведёт.\n"
-                    . "• 🤖 *Роби читает чат.* Обратишься к нему напрямую или зададешь заметный "
-                    . "вопрос, на который никто из игроков не откликнулся, — он может ответить сам, "
-                    . "коротко и по делу, тем, что уже есть в справочнике и советах. Секретов и "
-                    . "точных чисел баланса он не раскрывает.\n"
-                    . "• ⏳ *Ответ приходит не мгновенно.* Новый вопрос ждёт ответа до суток — либо "
-                    . "от живых участников, либо от Роби, либо владелец ответит вручную.\n"
+                    // HONEST-OFF (honest-off-1127): пока `community.enabled` выключен, Роби в чате
+                    // не пишет (на проде `community_messages` = 0), и раздел не обещает его ответов.
+                    // Включение community-бота (пункт COMM) вернёт этот пункт своей спекой.
+                    . "• 🙋 *Кто отвечает.* Живые выжившие — и владелец игры, когда заглядывает. "
+                    . "Роби в чате не пишет: его подсказки — здесь, в справочнике, и в */tips*.\n"
                     . "• 🤝 *Личные споры и жалобы* — не в общий чат: пиши владельцу личным "
                     . "сообщением, вопрос решится без публичного разбирательства.\n\n"
                     . "_Общий чат — живое общение выживших, а не служба поддержки: ответ не всегда "
@@ -1074,13 +1081,40 @@ class GuideCatalog
     }
 
     /**
-     * Раздел по ключу (или null, если ключ неизвестен).
+     * Разделы, которые видит игрок: без тех, чей `flag` сейчас выключен (HONEST-OFF).
+     * Единственное место проверки флагов справочника: бот и `/play` (тот же `GuideAction`
+     * через мост) получают одно и то же. Включили флаг — раздел вернулся без правки кода.
      *
-     * @return array{key:string, group:string, button:string, title:string, body:string}|null
+     * @param (\Closure(string): bool)|null $isOn чтение флага; null — `GameSettings` (шов для тестов)
+     *
+     * @return list<array{key:string, group:string, button:string, title:string, body:string, flag?:string}>
      */
-    public static function find(string $key): ?array
+    public static function visibleSections(?\Closure $isOn = null): array
     {
+        $isOn ??= self::settingsFlagReader();
+
+        $visible = [];
         foreach (self::sections() as $section) {
+            if (isset($section['flag']) && ! $isOn($section['flag'])) {
+                continue;
+            }
+            $visible[] = $section;
+        }
+
+        return $visible;
+    }
+
+    /**
+     * Видимый раздел по ключу. null — ключ неизвестен или раздел скрыт флагом (тогда
+     * `GuideService` отдаёт оглавление).
+     *
+     * @param (\Closure(string): bool)|null $isOn
+     *
+     * @return array{key:string, group:string, button:string, title:string, body:string, flag?:string}|null
+     */
+    public static function find(string $key, ?\Closure $isOn = null): ?array
+    {
+        foreach (self::visibleSections($isOn) as $section) {
             if ($section['key'] === $key) {
                 return $section;
             }
@@ -1090,12 +1124,14 @@ class GuideCatalog
     }
 
     /**
-     * Ключ следующего раздела по порядку (для кнопки «Следующая тема ▶️»).
-     * null — если это последний раздел.
+     * Ключ следующего ВИДИМОГО раздела по порядку (для кнопки «Следующая тема ▶️»): раздел,
+     * скрытый флагом, пропускается. null — последний видимый раздел или ключ скрыт.
+     *
+     * @param (\Closure(string): bool)|null $isOn
      */
-    public static function nextKey(string $key): ?string
+    public static function nextKey(string $key, ?\Closure $isOn = null): ?string
     {
-        $sections = self::sections();
+        $sections = self::visibleSections($isOn);
         foreach ($sections as $i => $section) {
             if ($section['key'] === $key) {
                 return $sections[$i + 1]['key'] ?? null;
@@ -1103,5 +1139,23 @@ class GuideCatalog
         }
 
         return null;
+    }
+
+    /**
+     * Флаг фичи из `GameSettings` (кэш 60 с). Нет строки или таблицы — false: раздел о фиче,
+     * которую не включали, остаётся скрытым.
+     *
+     * @return \Closure(string): bool
+     */
+    private static function settingsFlagReader(): \Closure
+    {
+        return static function (string $flag): bool {
+            $raw = (new \App\Services\GameSettings\GameSettingsService())->get($flag, false);
+            if (is_bool($raw)) {
+                return $raw;
+            }
+
+            return is_numeric($raw) && (int) $raw === 1;
+        };
     }
 }
