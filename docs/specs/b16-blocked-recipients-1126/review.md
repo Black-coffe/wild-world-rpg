@@ -21,3 +21,5 @@ TESTS: vendor/bin/phpunit --no-coverage --no-progress tests/database/BlockedReci
 ```
 
 Reviewer note (outside the report block): ad hoc runs left local `wildworld_tests` with 7 tables; `tests/unit/Craft/CampfireCustomQuantityTest.php` failed on missing tables in that state — unconfirmed as environmental, a full-suite run recreates the database.
+
+Owner: fix the minors, round 2 - "Починить мелочи, раунд 2 (Рекомендую)", 2026-11-26
