@@ -199,6 +199,10 @@ final class BlockedRecipientGateTest extends CIUnitTestCase
         WebDelivery::reset();
         DeliveryContext::reset();
         BlockedGateSpyRequest::$calls = [];
+        // Мост строит `Telegram` из окружения: ключ теста, а не из `.env` машины. На CI ключа нет, и без этого
+        // мост пишет «Telegram init failed» в тот же лог, который тесты сверяют на отсутствие ERROR.
+        putenv('telegram.API_KEY=123456:TEST_TOKEN');
+        putenv('telegram.BOT_USERNAME=wildworldtest_bot');
 
         TelegramBridge::ensure();
         TelegramDeliveryProbe::install();

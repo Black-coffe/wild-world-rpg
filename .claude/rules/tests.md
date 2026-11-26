@@ -17,7 +17,9 @@ paths: ["tests/**", "phpunit.xml.dist"]
 - Называть причину только после grep: однажды диагноз сослался на несуществующий `BaseConnection::$saveQueries`.
 - CI гонит весь набор **одним процессом**, а локальные 10 частей — разными: зависимость от порядка видна только в
   CI (2026-11-25: 73 падения). Перед push после крупного мерджа — `vendor/bin/phpunit --no-coverage --no-progress`
-  целиком одним процессом. Тест, которому нужен настоящий Longman (без `PHPUNIT_TESTSUITE`), —
+  целиком одним процессом и без ключа, как на CI: `env 'telegram.API_KEY=' vendor/bin/phpunit --no-coverage
+  --no-progress` (2026-11-26: тест «ERROR не пишется» ловил «Telegram init failed» моста — ключ теста через
+  `putenv` в `setUp`). Тест, которому нужен настоящий Longman (без `PHPUNIT_TESTSUITE`), —
   `#[RunTestsInSeparateProcesses]`.
 - Упавший внутри транзакции запрос CI4 не бросает, а оставляет `transStatus=false` на соединении до
   `resetTransStatus()` — следующий `transBegin()` его не сбрасывает. Код с `transBegin()` проверяет
