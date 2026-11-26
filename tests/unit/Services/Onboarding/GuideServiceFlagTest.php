@@ -83,6 +83,24 @@ final class GuideServiceFlagTest extends CIUnitTestCase
         }
     }
 
+    /**
+     * Ревью р.1 (honest-off-1127): раздел `chat` не флагован, поэтому его текст обязан быть верным
+     * в обоих состояниях `community.enabled`. «Роби в чате не пишет» стало бы ложью при включении
+     * community-бота — пункт «Кто отвечает» говорит только то, что верно всегда.
+     */
+    public function testChatSectionHasNoRobiClaimWhenCommunityOn(): void
+    {
+        $section = GuideCatalog::find('chat', static fn (string $flag): bool => true);
+        $this->assertNotNull($section);
+
+        $this->assertStringNotContainsString('Роби в чате не пишет', $section['body'], 'При community.enabled=1 раздел «Общий чат» не должен утверждать, что Роби в чате не пишет.');
+        $this->assertStringContainsString(
+            "• 🙋 *Кто отвечает.* Живые выжившие — и владелец игры, когда заглядывает.\n",
+            $section['body'],
+            'Пункт «Кто отвечает» — ровно слова владельца (brief ## Answers).'
+        );
+    }
+
     private function service(bool $tributeOn): GuideService
     {
         return new GuideService(static fn (string $flag): bool => $flag === 'tribute.enabled' ? $tributeOn : false);

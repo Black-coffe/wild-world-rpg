@@ -277,9 +277,9 @@ final class GuideCatalogTest extends CIUnitTestCase
      * `meta`). Guide-вердикт Редколлегии: ДА — про навигацию и понятия (что это, где искать,
      * кто там отвечает, куда с личным вопросом), без чисел баланса.
      *
-     * HONEST-OFF (honest-off-1127): пока `community.enabled` выключен, Роби в чате не пишет —
-     * раздел не обещает его ответов (на проде `community_messages` = 0), а честно говорит,
-     * что отвечают живые выжившие и владелец, а подсказки Роби — в справочнике и /tips.
+     * HONEST-OFF (honest-off-1127): раздел не обещает ответов Роби (на проде
+     * `community_messages` = 0) и не отрицает их (ревью р.1) — говорит только верное в обоих
+     * состояниях `community.enabled`: отвечают живые выжившие и владелец.
      */
     public function testChatSectionExplainsWhatItIsAndOwnerRoute(): void
     {
@@ -288,12 +288,12 @@ final class GuideCatalogTest extends CIUnitTestCase
         $this->assertSame('meta', $section['group'], 'Общий чат — раздел «Полезное».');
 
         $body = $section['body'];
-        foreach (['📍 *Где он*', '🙋 *Кто отвечает.*', 'Живые выжившие', 'Роби в чате не пишет', '*/tips*', 'владельцу'] as $needle) {
+        foreach (['📍 *Где он*', '🙋 *Кто отвечает.*', 'Живые выжившие', 'владелец игры', 'владельцу'] as $needle) {
             $this->assertStringContainsString($needle, $body, "Раздел «Общий чат» не упоминает «{$needle}».");
         }
 
         // Обещания ответа Роби в чате быть не должно, пока community-бот выключен.
-        foreach (['Роби читает чат', 'может ответить сам', 'от Роби', 'суток'] as $promise) {
+        foreach (['Роби читает чат', 'может ответить сам', 'от Роби', 'суток', 'Роби в чате не пишет'] as $promise) {
             $this->assertStringNotContainsString($promise, $body, "Раздел «Общий чат» всё ещё обещает «{$promise}».");
         }
 
