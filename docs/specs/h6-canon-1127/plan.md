@@ -1,5 +1,6 @@
 # H6.2 — canon and lore match the code (plan)
 **Brief:** [brief.md](brief.md) · **Branch:** `vulyk/h6-canon-1127` · **Approved:** «Одобряю (Рекомендую)», 2026-11-27
+**Shipped:** 2026-11-27, 40663f6a
 
 ## Goal
 `GAME_DESCRIPTION.md` and `mmorpg-vault/lore/` were last synced at v0.51.148. Bring them in line with the code and with
