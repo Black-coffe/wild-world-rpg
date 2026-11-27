@@ -102,7 +102,11 @@ full rationale/above/below, hard bounds), so the owner can tune it from the admi
 - Why: ADR-198 already chose «keep in gather»; at WAU ≈19 the 3–4 active veterans are the core audience and a sudden
   ~80% cut of their cave income is a retention risk; the yield becomes tunable as ADR-024 requires. 🟡, ADR-198 is
   accepted with an amendment.
-- Minus: the faucet keeps running at ≈1.16M per 12h for each level-100 gatherer until someone turns the lever.
+- Minus: this is a deferral, not a fix — at default 1.0 the faucet keeps running at ≈1.16M per 12h for each
+  level-100 gatherer until the owner turns the lever. Natural next step: lower it to 0.25–0.5 from the admin panel
+  (option B without a new ADR).
+- Scope inside A: the lever sits on the common grant path so it also covers robot gathering (no `level_required`
+  filter there); the `IntentApplier` level check is fixed as a bug regardless of the option.
 
 **B — cut the yield now (same key, default below 1.0, e.g. 0.1–0.25), stock kept.**
 Relics become genuinely scarce in gather; canon «редкая находка» becomes true. Needs an ADR amendment and an
