@@ -51,7 +51,7 @@ claim is fixed. The three renames (H6.3) are not done here.
     «Старая ферма» in the `:746` list; each of the 7 systems has a heading with its on/off state
   - check: `grep -nE "T4|мистич|Приоритет по редкости" GAME_DESCRIPTION.md` returns only lines stating the corrected truth;
     `php scripts/defects-bot-lexicon-check.php` is not relevant (not player text)
-- [ ] S2 Lore notes - asks: 4, 5
+- [x] S2 Lore notes - asks: 4, 5
   - files:
     - fix: `mmorpg-vault/lore/food/Питание-и-выживание.md:18`, `lore/factions/Фракции.md:42`, `lore/combat/PvP.md:112`,
       `lore/events/Мировые-события.md:28`, `lore/endgame/Endgame-scenarios.md` (strategic objects lines)
