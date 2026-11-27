@@ -6,6 +6,7 @@ namespace App\Services\PVE;
 
 use App\Models\CharacterResourceModel;
 use App\Repositories\CI4CharacterRepository;
+use App\Services\Inventory\WeaponGrantService;
 use Config\Database;
 
 /**
@@ -135,44 +136,18 @@ class LootTableService
         return "💰 +{$amount} золота";
     }
 
-    /** Оружие: upsert characters_weapons (quantity+1, полная прочность из определения). */
+    /**
+     * Оружие: upsert characters_weapons (quantity+1, полная прочность из определения).
+     * Сама выдача — общий {@see WeaponGrantService} (H6.1: им же выдаёт стратегический лут).
+     */
     protected function grantWeapon(int $characterId, int $weaponId): ?string
     {
-        if ($weaponId <= 0) {
-            return null;
-        }
-        $db     = Database::connect();
-        $weapon = $this->rowOrNull($db->table('weapons')->where('id', $weaponId));
+        $weapon = (new WeaponGrantService())->grantById($characterId, $weaponId, 1);
         if ($weapon === null) {
             return null;
         }
 
-        $existing = $this->rowOrNull(
-            $db->table('characters_weapons')
-                ->where('character_id', $characterId)
-                ->where('weapon_id', $weaponId)
-        );
-
-        if (is_array($existing) && is_numeric($existing['id'] ?? null)) {
-            $qRaw = $existing['quantity'] ?? 0;
-            $db->table('characters_weapons')->where('id', (int) $existing['id'])->update([
-                'quantity' => (is_numeric($qRaw) ? (int) $qRaw : 0) + 1,
-            ]);
-        } else {
-            $durRaw = $weapon['durability'] ?? 0;
-            $db->table('characters_weapons')->insert([
-                'character_id'       => $characterId,
-                'weapon_id'          => $weaponId,
-                'quantity'           => 1,
-                'current_durability' => is_numeric($durRaw) ? (int) $durRaw : 0,
-                'equipped'           => 0,
-            ]);
-        }
-
-        $name   = is_scalar($weapon['name'] ?? null) ? (string) $weapon['name'] : ('#' . $weaponId);
-        $rarity = is_scalar($weapon['rarity'] ?? null) ? (string) $weapon['rarity'] : '';
-
-        return '⚔️ ' . $name . ($rarity !== '' ? " ({$rarity})" : '');
+        return '⚔️ ' . $weapon['name'] . ($weapon['rarity'] !== '' ? " ({$weapon['rarity']})" : '');
     }
 
     // ── Seam'ы (overridable в тестах) ────────────────────────────────────────

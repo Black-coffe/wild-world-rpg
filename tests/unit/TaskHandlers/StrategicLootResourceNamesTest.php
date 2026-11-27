@@ -41,6 +41,13 @@ final class StrategicLootResourceNamesTest extends CIUnitTestCase
             . 'id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, name_en VARCHAR(255) NOT NULL'
             . ') DEFAULT CHARSET=utf8mb4'
         );
+        $this->db->query('DROP TEMPORARY TABLE IF EXISTS character_resources');
+        $this->db->query(
+            'CREATE TEMPORARY TABLE character_resources ('
+            . 'id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT, id_resources INT, quantity INT DEFAULT 0, '
+            . 'created_at DATETIME NULL, updated_at DATETIME NULL, '
+            . 'UNIQUE KEY uq_cr_char_resource (id_characters, id_resources))'
+        );
         $this->db->query(
             "INSERT INTO resources (id, name, name_en) VALUES
                 (45, 'Зерновые культуры', 'Crops'),
@@ -53,6 +60,7 @@ final class StrategicLootResourceNamesTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->db->query('DROP TEMPORARY TABLE IF EXISTS character_resources');
         $this->db->query('DROP TEMPORARY TABLE IF EXISTS resources');
         parent::tearDown();
     }
@@ -60,7 +68,7 @@ final class StrategicLootResourceNamesTest extends CIUnitTestCase
     /**
      * @param array<string, int> $resources
      */
-    private function discoveryText(array $resources): string
+    private function handler(): StrategicLootResourceNamesCapturingHandler
     {
         $handler = (new ReflectionClass(StrategicLootResourceNamesCapturingHandler::class))
             ->newInstanceWithoutConstructor();
@@ -77,6 +85,16 @@ final class StrategicLootResourceNamesTest extends CIUnitTestCase
                 return ['telegram_id' => 1];
             }
         });
+
+        return $handler;
+    }
+
+    /**
+     * @param array<string, int> $resources
+     */
+    private function discoveryText(array $resources): string
+    {
+        $handler = $this->handler();
 
         $m = new ReflectionMethod(StrategicLootHandler::class, 'sendDiscoveryMessage');
         $m->setAccessible(true);
@@ -108,12 +126,45 @@ final class StrategicLootResourceNamesTest extends CIUnitTestCase
         }
     }
 
-    public function testUnknownResourceKeyStaysRawWithoutFatal(): void
+    /**
+     * H6.1 (ask 2): ключ без ресурса не выдаётся — и в находке его нет; промах пишет ERROR с объектом и
+     * ключом. Раньше `awardContents()` не смотрел на `false` от `addOrIncreaseResource()` и обещал
+     * «— *NoSuchResourceXyz*: 4 шт.», не положив ничего.
+     */
+    public function testUnknownResourceKeyIsNotListedAndLogsError(): void
     {
-        $text = $this->discoveryText(['NoSuchResourceXyz' => 4, 'Wood' => 1]);
+        $text = $this->lootText(['resources' => ['NoSuchResourceXyz' => 4, 'Wood' => 1]]);
 
-        $this->assertStringContainsString('— *NoSuchResourceXyz*: 4 шт.', $text);
+        $this->assertStringNotContainsString('NoSuchResourceXyz', $text, 'невыданный ключ показан игроку');
         $this->assertStringContainsString('— *Древесина*: 1 шт.', $text);
+        $this->assertLogContains('error', 'StrategicLootHandler: IslandFarm resources key NoSuchResourceXyz not granted');
+
+        $rows = $this->db->table('character_resources')->where('id_characters', 1)->get()->getResultArray();
+        $this->assertCount(1, $rows, 'выдана только древесина');
+        $this->assertSame(2, (int) $rows[0]['id_resources']);
+        $this->assertSame(1, (int) $rows[0]['quantity']);
+    }
+
+    /**
+     * Полный путь лута: `awardContents()` выдаёт, `sendDiscoveryMessage()` показывает выданное.
+     *
+     * @param array<string, mixed> $contents
+     */
+    private function lootText(array $contents): string
+    {
+        $handler = $this->handler();
+        $object  = ['name' => 'Старая ферма', 'name_en' => 'IslandFarm'];
+        $char    = ['id' => 1, 'telegram_user_id' => 1];
+
+        $award = new ReflectionMethod(StrategicLootHandler::class, 'awardContents');
+        $award->setAccessible(true);
+        $found = $award->invoke($handler, $char, $contents, $object);
+
+        $send = new ReflectionMethod(StrategicLootHandler::class, 'sendDiscoveryMessage');
+        $send->setAccessible(true);
+        $send->invoke($handler, $object, $char, $found);
+
+        return $handler->caption;
     }
 }
 
