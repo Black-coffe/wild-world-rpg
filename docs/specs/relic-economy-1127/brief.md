@@ -12,7 +12,7 @@ not only the «once in a lifetime» event drop. Options offered: keep and make c
 starts with a read-only report on how much gold relics have already brought in via the bank.)
 
 ## Answers
-<empty for now>
+- 2026-11-27, option: «A: честный канон + рычаг (Рекомендую)» — next code spec; merge: «Мерджить (Рекомендую)».
 
 ## Asks
 1. A report (`report.md`) with facts from prod (SELECT only) and code `file:line`: how relics are obtained (gather
