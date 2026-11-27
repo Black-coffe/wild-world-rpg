@@ -15,6 +15,7 @@ use App\Models\QuestStepsModel;
 use App\Models\ResourceModel;
 use App\Models\TelegramUserModel;
 use App\Services\Endgame\EndgameProgressionService;
+use App\Services\Inventory\WeaponGrantService;
 
 /**
  * v0.51.109 — Strategic objects content phase (Bunker / Technopark / GhostCity).
@@ -47,6 +48,7 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
     private EndgameProgressionService $endgameService;
     private QuestModel $questModel;
     private QuestStepsModel $questStepsModel;
+    private WeaponGrantService $weaponGrantService;
 
     public function __construct()
     {
@@ -59,6 +61,7 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
         $this->endgameService           = new EndgameProgressionService();
         $this->questModel               = new QuestModel();
         $this->questStepsModel          = new QuestStepsModel();
+        $this->weaponGrantService       = new WeaponGrantService();
     }
 
     public function handle($object, $cell, $character): void
@@ -99,7 +102,7 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
 
         // Auto-loot.
         $contents = json_decode($object['contents'] ?? '[]', true) ?: [];
-        $foundItems = $this->awardContents($character, $contents[0] ?? []);
+        $foundItems = $this->awardContents($character, $contents[0] ?? [], $object);
 
         // Mark cleared.
         $biomeMapRow = $this->biomeWorldObjectMapModel
@@ -123,42 +126,73 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
     }
 
     /**
+     * Выдаёт каждую строку `contents` и возвращает только реально выданное (H6.1): ключ, которому
+     * нет ресурса / предмета / оружия, не попадает в находку и пишет ERROR с объектом и ключом.
+     *
+     * @param array<string, mixed> $character
      * @param array<string, mixed> $contents
-     * @return array{resources: array<string, int>, crafted_items: array<string, int>}
+     * @param array<string, mixed> $object
+     * @return array{resources: array<string, int>, crafted_items: array<string, int>, weapons: list<array{name: string, qty: int}>}
      */
-    private function awardContents(array $character, array $contents): array
+    private function awardContents(array $character, array $contents, array $object = []): array
     {
         $foundResources = [];
         $foundCrafted   = [];
+        $foundWeapons   = [];
+        $charId         = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
 
         if (isset($contents['resources']) && is_array($contents['resources'])) {
             foreach ($contents['resources'] as $resourceName => $maxAmount) {
-                $randomAmount = rand(1, max(1, (int) $maxAmount));
-                $this->resourceModel->addOrIncreaseResource($character['id'], $resourceName, $randomAmount);
+                $resourceName = (string) $resourceName;
+                $randomAmount = rand(1, max(1, is_numeric($maxAmount) ? (int) $maxAmount : 1));
+                if ($this->resourceModel->addOrIncreaseResource($charId, $resourceName, $randomAmount) === false) {
+                    $this->logMiss($object, 'resources', $resourceName);
+                    continue;
+                }
                 $foundResources[$resourceName] = $randomAmount;
             }
         }
 
         if (isset($contents['crafted_items']) && is_array($contents['crafted_items'])) {
             foreach ($contents['crafted_items'] as $itemName => $maxAmount) {
-                $randomAmount = rand(1, max(1, (int) $maxAmount));
-                $itemRow = $this->craftedItemsModel->getRowByName($itemName);
-                if ($itemRow && isset($itemRow['id'])) {
-                    $this->craftedItemsModel->addOrIncreaseItem(
-                        (int) $character['id'],
-                        $itemName,
-                        $randomAmount
-                    );
-                    $foundCrafted[$itemName] = $randomAmount;
+                $itemName     = (string) $itemName;
+                $randomAmount = rand(1, max(1, is_numeric($maxAmount) ? (int) $maxAmount : 1));
+                if ($this->craftedItemsModel->addOrIncreaseItem($charId, $itemName, $randomAmount) !== true) {
+                    $this->logMiss($object, 'crafted_items', $itemName);
+                    continue;
                 }
+                $foundCrafted[$itemName] = $randomAmount;
             }
         }
 
-        return ['resources' => $foundResources, 'crafted_items' => $foundCrafted];
+        // H6.1: оружие (Бункер) — тем же upsert'ом, что PvE-лут: полная прочность, не экипировано.
+        if (isset($contents['weapons']) && is_array($contents['weapons'])) {
+            foreach ($contents['weapons'] as $weaponName => $maxAmount) {
+                $weaponName   = (string) $weaponName;
+                $randomAmount = rand(1, max(1, is_numeric($maxAmount) ? (int) $maxAmount : 1));
+                $granted      = $this->weaponGrantService->grantByNameEn($charId, $weaponName, $randomAmount);
+                if ($granted === null) {
+                    $this->logMiss($object, 'weapons', $weaponName);
+                    continue;
+                }
+                $foundWeapons[] = ['name' => $granted['name'], 'qty' => $randomAmount];
+            }
+        }
+
+        return ['resources' => $foundResources, 'crafted_items' => $foundCrafted, 'weapons' => $foundWeapons];
     }
 
     /**
-     * @param array{resources: array<string, int>, crafted_items: array<string, int>} $foundItems
+     * @param array<string, mixed> $object
+     */
+    private function logMiss(array $object, string $section, string $key): void
+    {
+        $objectKey = is_string($object['name_en'] ?? null) ? $object['name_en'] : 'unknown';
+        log_message('error', "StrategicLootHandler: {$objectKey} {$section} key {$key} not granted (no matching row)");
+    }
+
+    /**
+     * @param array{resources: array<string, int>, crafted_items: array<string, int>, weapons?: list<array{name: string, qty: int}>} $foundItems
      */
     private function sendDiscoveryMessage(array $object, array $character, array $foundItems): void
     {
@@ -203,7 +237,19 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
             $msg .= "\n";
         }
 
-        if (empty($foundItems['resources']) && empty($foundItems['crafted_items'])) {
+        $foundWeapons = $foundItems['weapons'] ?? [];
+        if ($foundWeapons !== []) {
+            $msg .= "⚔️ *Добытое оружие:*
+";
+            foreach ($foundWeapons as $weapon) {
+                $msg .= "— *{$weapon['name']}*: {$weapon['qty']} шт.
+";
+            }
+            $msg .= "
+";
+        }
+
+        if (empty($foundItems['resources']) && empty($foundItems['crafted_items']) && $foundWeapons === []) {
             $msg .= "_Внутри ничего ценного не нашлось..._\n\n";
         }
 

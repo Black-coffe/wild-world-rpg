@@ -30,7 +30,9 @@ that every key resolves.
   applies the migration there. A tag deploys to prod. Each step is taken only on the owner's word.
 
 ## Stories
-- [ ] S1 Handler grants honestly + weapons section - asks: 2, 3, 6
+- [x] S1 Handler grants honestly + weapons section - asks: 2, 3, 6
+  - outside: `phpstan-baseline.neon`: two `StrategicLootHandler` entries became unmatched (non-ignorable) after the
+    rewrite of `awardContents()` (`cast.int` 3 -> 1, `awardContents $character` iterable type now declared)
   - files: `app/TaskHandlers/Objects/StrategicLootHandler.php`, `app/Services/PVE/LootTableService.php`, new shared
     weapon-grant helper (e.g. `app/Services/Inventory/WeaponGrantService.php`),
     `tests/unit/TaskHandlers/StrategicLootResourceNamesTest.php`, a new database test for the weapon section
