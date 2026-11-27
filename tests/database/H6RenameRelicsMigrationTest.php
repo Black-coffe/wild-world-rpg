@@ -46,6 +46,11 @@ final class H6RenameRelicsMigrationTest extends CIUnitTestCase
         71 => 'Релейный венец Глубины',
     ];
 
+    /** `rationale_text` настройки редкого события, как его посеяла S10SeedRareEventGameSettings (локальная копия testbot 2026-11-27). */
+    private const RARE_RATIONALE_OLD = '10% за tick — компромисс между «редкое событие, ощутимо когда срабатывает» (П1/П3 game-stories) и «не настолько частое, чтобы T3-ресурсы стали тривиальными» (П8 economy, П10 onboarding). Событие «Открытие скрытых подземелий» спавнит Сердце Дракона/Древняя Книга/Корона (keyword=RevealingHiddenCameras) в биоме Пещеры (id=7).';
+
+    private const SETTING_TEXT_COLUMNS = ['rationale_text', 'effect_text', 'above_effect_text', 'below_effect_text'];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -61,7 +66,7 @@ final class H6RenameRelicsMigrationTest extends CIUnitTestCase
         $db->query("CREATE TABLE {$db->prefixTable('collection_slots')} (id INT AUTO_INCREMENT PRIMARY KEY, collection_id INT, resource_name VARCHAR(128) COLLATE utf8mb4_general_ci NOT NULL, required_qty INT DEFAULT 1, sort_order INT DEFAULT 0) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
         $db->query("CREATE TABLE {$db->prefixTable('character_collection_slots')} (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, collection_slot_id INT, donated_at DATETIME NULL, UNIQUE KEY uniq_ccs (character_id, collection_slot_id)) DEFAULT CHARSET=utf8mb4");
         $db->query("CREATE TABLE {$db->prefixTable('site_posts')} (id INT AUTO_INCREMENT PRIMARY KEY, slug VARCHAR(255), title VARCHAR(255) NULL, content_html MEDIUMTEXT NULL, excerpt TEXT NULL, updated_at DATETIME NULL) DEFAULT CHARSET=utf8mb4");
-        $db->query("CREATE TABLE {$db->prefixTable('game_settings')} (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(64) NOT NULL, value_type VARCHAR(16) NULL, value_int INT NULL, value_bool TINYINT NULL, value_string TEXT NULL, below_effect_text TEXT NULL) DEFAULT CHARSET=utf8mb4");
+        $db->query("CREATE TABLE {$db->prefixTable('game_settings')} (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(64) NOT NULL, value_type VARCHAR(16) NULL, value_int INT NULL, value_bool TINYINT NULL, value_string TEXT NULL, default_value_text TEXT NULL, rationale_text TEXT NULL, effect_text TEXT NULL, above_effect_text TEXT NULL, below_effect_text TEXT NULL, updated_at DATETIME NULL) DEFAULT CHARSET=utf8mb4");
         $db->query("CREATE TABLE {$db->prefixTable('weapons')} (id INT PRIMARY KEY, name VARCHAR(150) NOT NULL, name_en VARCHAR(150) NULL, updated_at DATETIME NULL) DEFAULT CHARSET=utf8mb3");
         $db->query("CREATE TABLE {$db->prefixTable('tasks')} (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, description MEDIUMTEXT NOT NULL) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
@@ -80,6 +85,17 @@ final class H6RenameRelicsMigrationTest extends CIUnitTestCase
             'value_type'        => 'bool',
             'value_bool'        => 1,
             'below_effect_text' => 'false — прежнее поведение: любой ресурс покупается на любом уровне, если хватает золота (персонаж 1 уровня берёт «Корону подземного короля» за 5000).',
+        ]);
+        $db->table('game_settings')->insert([
+            'setting_key'    => 'rare_event.RevealingHiddenCameras.chance_per_tick',
+            'value_type'     => 'float',
+            'rationale_text' => self::RARE_RATIONALE_OLD,
+        ]);
+        $db->table('game_settings')->insert([
+            'setting_key'       => 'test.relics.all_columns',
+            'value_type'        => 'int',
+            'effect_text'       => 'Выдаёт Древняя Книга раз в сутки.',
+            'above_effect_text' => 'Выше — Сердце Дракона и Корона подземного короля становятся обычными.',
         ]);
 
         $db->table('resources')->insertBatch([
@@ -228,6 +244,40 @@ final class H6RenameRelicsMigrationTest extends CIUnitTestCase
         $this->assertSame('Ракетница (Firebomb)', $db->table('weapons')->where('id', 10)->get()->getRowArray()['name']);
         $this->assertSame('Создание самодельного Pipe Gun', $db->table('tasks')->where('id', 56)->get()->getRowArray()['description']);
         $this->assertStringContainsString('«Корону подземного короля»', (string) $db->table('game_settings')->where('setting_key', 'economy.shop.buy_level_gate_enabled')->get()->getRowArray()['below_effect_text']);
+    }
+
+    /**
+     * Ask 5a (review round 1, minor 2): после up() ни одна текстовая колонка `game_settings` (rationale, effect,
+     * above, below) не называет старые реликвии — в том числе обоснование редкого события «Открытие скрытых
+     * подземелий»; повтор up() ничего не меняет, down() возвращает старый текст.
+     */
+    public function testUpTwiceLeavesNoOldRelicNameInAnyGameSettingsText(): void
+    {
+        $db    = Database::connect('tests');
+        $forge = Database::forge('tests');
+
+        (new H6RenameRelicsAndBracketWeapons($forge))->up();
+        (new H6RenameRelicsAndBracketWeapons($forge))->up();
+
+        foreach ($db->table('game_settings')->orderBy('id')->get()->getResultArray() as $row) {
+            foreach (self::SETTING_TEXT_COLUMNS as $col) {
+                $text = (string) ($row[$col] ?? '');
+                foreach (['Сердце Дракона', 'Древняя Книга', 'подземного короля', '/Корона'] as $old) {
+                    $this->assertStringNotContainsString($old, $text, "{$row['setting_key']}.{$col} не называет «{$old}»");
+                }
+            }
+        }
+
+        $rare = (string) $db->table('game_settings')->where('setting_key', 'rare_event.RevealingHiddenCameras.chance_per_tick')->get()->getRowArray()['rationale_text'];
+        $this->assertStringContainsString('спавнит Изотопное ядро „Дракон-4“/Архивный носитель Предтеч/Релейный венец Глубины (keyword=RevealingHiddenCameras)', $rare);
+        $all = $db->table('game_settings')->where('setting_key', 'test.relics.all_columns')->get()->getRowArray();
+        $this->assertSame('Выдаёт Архивный носитель Предтеч раз в сутки.', $all['effect_text']);
+        $this->assertSame('Выше — Изотопное ядро „Дракон-4“ и Релейный венец Глубины становятся обычными.', $all['above_effect_text']);
+
+        (new H6RenameRelicsAndBracketWeapons($forge))->down();
+
+        $this->assertSame(self::RARE_RATIONALE_OLD, $db->table('game_settings')->where('setting_key', 'rare_event.RevealingHiddenCameras.chance_per_tick')->get()->getRowArray()['rationale_text']);
+        $this->assertSame('Выдаёт Древняя Книга раз в сутки.', $db->table('game_settings')->where('setting_key', 'test.relics.all_columns')->get()->getRowArray()['effect_text']);
     }
 
     /** Текст поста на сайте до H6.3: фрагмент о реликвиях, как он лежит на проде и в канон-файле до правки. */
