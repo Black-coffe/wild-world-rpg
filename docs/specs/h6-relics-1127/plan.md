@@ -1,4 +1,5 @@
 # H6.3: post-apocalyptic names for three artifacts + English-in-brackets class (plan)
+**Shipped:** 2026-11-27, cfcd2569
 **Brief:** [brief.md](brief.md) · **Branch:** `vulyk/h6-relics-1127` · **Approved:** «Одобряю (Рекомендую)», 2026-11-27
 
 ## Goal
