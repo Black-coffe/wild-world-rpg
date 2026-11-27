@@ -42,7 +42,7 @@ that every key resolves.
     today because the section is ignored. (c) PvE `LootTableService` weapon drop still works after the move (an
     existing test, or a new one if none).
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/unit/TaskHandlers/StrategicLootResourceNamesTest.php` + the new DB test file
-- [ ] S2 Idempotent seed fix migration - asks: 1, 4
+- [x] S2 Idempotent seed fix migration - asks: 1, 4
   - files: `app/Database/Migrations/2026-11-27-*_H6FixStrategicLootKeys.php`, a unit test of its pure transform
   - test first: the pure function `fixContents(array): array` applied to the five prod-shaped contents gives the
     expected result, and applying it twice gives the same result. It fails before the function exists.
