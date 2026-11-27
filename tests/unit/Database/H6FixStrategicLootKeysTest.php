@@ -18,7 +18,7 @@ final class H6FixStrategicLootKeysTest extends CIUnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        require_once APPPATH . 'Database/Migrations/2026-11-27-120000_H6FixStrategicLootKeys.php';
+        require_once APPPATH . 'Database/Migrations/2027-01-01-100000_H6FixStrategicLootKeys.php';
     }
 
     /**
