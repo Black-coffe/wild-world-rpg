@@ -29,6 +29,10 @@ final class FixEndgameCraftTipNoT4Test extends CIUnitTestCase
         $this->assertStringContainsString('Профессиональный верстак', $content);
         $this->assertStringContainsString('фракци', $content);
         $this->assertStringContainsString('захват', $content);
+        // Фракция и квест захвата нужны фракционным вещам, а не всему Профессиональному крафту: большинство
+        // рецептов верстака требуют только его (`Config\CraftRecipes`); ревью раунд 1.
+        $this->assertStringContainsString('Для них', $content);
+        $this->assertStringNotContainsString('Для него', $content);
         foreach (['title' => $title, 'content' => $content] as $what => $text) {
             $this->assertNotSame('', $text, $what);
             $this->assertStringNotContainsString('T4', $text, $what);
