@@ -1,5 +1,5 @@
 # H6.1 — strategic-object loot gives what it says (plan)
-**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/h6-loot-1127` · **Approved:** no
+**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/h6-loot-1127` · **Approved:** «Одобряю (Рекомендую)», 2026-11-27
 
 ## Goal
 Strategic objects hand out loot from `world_objects.contents`. Several keys resolve to nothing on prod. Resource
