@@ -1,4 +1,5 @@
 # H6.1 — strategic-object loot gives what it says (plan)
+**Shipped:** 2026-11-27, c94c17b8 (merge into develop; not yet on preprod/prod)
 **Brief:** [brief.md](brief.md) · **Branch:** `vulyk/h6-loot-1127` · **Approved:** «Одобряю (Рекомендую)», 2026-11-27
 
 ## Goal
