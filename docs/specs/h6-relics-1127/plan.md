@@ -33,7 +33,7 @@ English-in-brackets weapon names (ids 3, 10), the hardcoded «(Pipe Gun)» and t
   prod gets it only by a tag, each step on the owner's word.
 
 ## Stories
-- [ ] S1 Relics renamed in place, collection slots follow - asks: 1, 1a, 2, 3, 5
+- [x] S1 Relics renamed in place, collection slots follow - asks: 1, 1a, 2, 3, 5
   - files: `app/Database/Migrations/2027-01-03-100000_H6RenameRelicsAndBracketWeapons.php` (relic part),
     `tests/database/H6RenameRelicsMigrationTest.php`, `tests/database/LootTableServiceTest.php` (fixture name),
     `GAME_DESCRIPTION.md:556-557`, `app/Data/site_canon/syre-biom-peshhery-…html`

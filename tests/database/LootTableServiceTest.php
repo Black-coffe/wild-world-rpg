@@ -47,7 +47,7 @@ final class LootTableServiceTest extends CIUnitTestCase
                     value_type VARCHAR(16) NULL, value_int INT NULL, value_bool TINYINT NULL, value_string TEXT NULL)');
 
         $db->table('characters')->insert(['id' => 491, 'gold' => 1000]);
-        $db->table('resources')->insert(['id' => 69, 'name' => 'Сердце Дракона', 'rarity' => 1]);
+        $db->table('resources')->insert(['id' => 69, 'name' => 'Изотопное ядро „Дракон-4“', 'rarity' => 1]);
         $db->table('weapons')->insert(['id' => 24, 'name' => 'Коса Жатвы', 'rarity' => 'Legendary', 'durability' => 80]);
 
         // Таблица 703: ресурс @100% / золото @100% / оружие @12% / ресурс-пустышка @0%.
@@ -98,7 +98,7 @@ final class LootTableServiceTest extends CIUnitTestCase
         // roll=10 ≤ 12% → оружие выпало; @0% строка не выпадает никогда.
         $lines = $this->svc(10)->rollAndGrant(703, 491);
 
-        $this->assertSame(['Сердце Дракона ×2', '💰 +9000 золота', '⚔️ Коса Жатвы (Legendary)'], $lines);
+        $this->assertSame(['Изотопное ядро „Дракон-4“ ×2', '💰 +9000 золота', '⚔️ Коса Жатвы (Legendary)'], $lines);
 
         $db  = Database::connect('tests');
         $res = $db->table('character_resources')->where('id_characters', 491)->where('id_resources', 69)->get()->getRowArray();
@@ -115,7 +115,7 @@ final class LootTableServiceTest extends CIUnitTestCase
         // roll=50 > 12% → оружие НЕ выпало, гарантированные строки выпали.
         $lines = $this->svc(50)->rollAndGrant(703, 491);
 
-        $this->assertSame(['Сердце Дракона ×2', '💰 +9000 золота'], $lines);
+        $this->assertSame(['Изотопное ядро „Дракон-4“ ×2', '💰 +9000 золота'], $lines);
         $this->assertSame(0, Database::connect('tests')->table('characters_weapons')->countAllResults());
     }
 
