@@ -22,6 +22,11 @@ use CodeIgniter\Database\Migration;
  * `php spark site:apply-canon`, поэтому миграция правит `site_posts.content_html` этого slug теми же заменами,
  * что внесены в файл, — сайт меняется с деплоем.
  *
+ * Английский в скобках (S2): имена оружия 3 «Трубчатый пистолет (Pipe Gun)» и 10 «Ракетница (Firebomb)» и описание
+ * задачи 56 «Создание самодельного Pipe Gun» становятся русскими; `weapons.name_en` (ключ картинки) не трогается,
+ * «Обрез (усиленный)» — русский и остаётся. Описание настройки `economy.shop.buy_level_gate_enabled` в админке
+ * называет реликвию 71 новым именем.
+ *
  * Идемпотентно: ресурс ищется по старому или новому имени (UNIQUE name) и получает новые имя и описание; слоты и
  * пост меняются заменой старой строки, которой после первого прогона нет. down() возвращает старые имена и
  * описания (копия локальной базы со снимка testbot 2026-11-27: классы миграций не автозагружаются). Схема не
@@ -76,9 +81,36 @@ class H6RenameRelicsAndBracketWeapons extends Migration
         'Корона подземного короля' => 'Релейный венец Глубины',
     ];
 
+    /**
+     * Оружие: id → [старое имя, новое имя]. Обновление по id и старому имени: повтор и чужая строка не задеваются.
+     *
+     * @var array<int, array{0:string,1:string}>
+     */
+    public const WEAPONS = [
+        3  => ['Трубчатый пистолет (Pipe Gun)', 'Трубчатый пистолет'],
+        10 => ['Ракетница (Firebomb)', 'Ракетница'],
+    ];
+
+    /**
+     * Задачи: id → [старое описание, новое описание].
+     *
+     * @var array<int, array{0:string,1:string}>
+     */
+    public const TASKS = [
+        56 => ['Создание самодельного Pipe Gun', 'Создание самодельного трубчатого пистолета'],
+    ];
+
+    public const GATE_SETTING = 'economy.shop.buy_level_gate_enabled';
+
+    /** Описание настройки в админке: старый фрагмент → новый (винительный падеж). */
+    public const GATE_REPLACE = ['«Корону подземного короля»' => '«Релейный венец Глубины»'];
+
     public function up(): void
     {
         $now = date('Y-m-d H:i:s');
+
+        $this->renameBrackets(0, 1, $now);
+        $this->replaceInGateSetting(self::GATE_REPLACE, $now);
 
         foreach (self::RELICS as [$oldName, $newName, , $newDescription]) {
             $this->db->table('resources')
@@ -97,6 +129,9 @@ class H6RenameRelicsAndBracketWeapons extends Migration
     {
         $now = date('Y-m-d H:i:s');
 
+        $this->renameBrackets(1, 0, $now);
+        $this->replaceInGateSetting(array_flip(self::GATE_REPLACE), $now);
+
         foreach (self::RELICS as [$oldName, $newName, $oldDescription]) {
             $this->db->table('resources')
                 ->where('name', $newName)
@@ -108,6 +143,57 @@ class H6RenameRelicsAndBracketWeapons extends Migration
         }
 
         $this->replaceInSitePost(array_flip(self::SITE_REPLACE), $now);
+    }
+
+    /**
+     * Оружие и задачи: значение с позиции $from меняется на значение с позиции $to (0 — старое, 1 — новое).
+     *
+     * @param 0|1 $from
+     * @param 0|1 $to
+     */
+    private function renameBrackets(int $from, int $to, string $now): void
+    {
+        if ($this->db->tableExists('weapons')) {
+            $hasUpdatedAt = $this->db->fieldExists('updated_at', 'weapons');
+            foreach (self::WEAPONS as $id => $names) {
+                $set = ['name' => $names[$to]] + ($hasUpdatedAt ? ['updated_at' => $now] : []);
+                $this->db->table('weapons')->where('id', $id)->where('name', $names[$from])->update($set);
+            }
+        }
+
+        if ($this->db->tableExists('tasks')) {
+            foreach (self::TASKS as $id => $texts) {
+                $this->db->table('tasks')->where('id', $id)->where('description', $texts[$from])
+                    ->update(['description' => $texts[$to]]);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, string> $replace
+     */
+    private function replaceInGateSetting(array $replace, string $now): void
+    {
+        if (! $this->db->tableExists('game_settings')) {
+            return;
+        }
+
+        $row = $this->db->table('game_settings')
+            ->select('id, below_effect_text')
+            ->where('setting_key', self::GATE_SETTING)
+            ->get()
+            ->getRowArray();
+        if (! is_array($row) || ! is_string($row['below_effect_text'] ?? null)) {
+            return;
+        }
+
+        $text = str_replace(array_keys($replace), array_values($replace), $row['below_effect_text']);
+        if ($text === $row['below_effect_text']) {
+            return;
+        }
+
+        $set = ['below_effect_text' => $text] + ($this->db->fieldExists('updated_at', 'game_settings') ? ['updated_at' => $now] : []);
+        $this->db->table('game_settings')->where('id', $row['id'])->update($set);
     }
 
     /**

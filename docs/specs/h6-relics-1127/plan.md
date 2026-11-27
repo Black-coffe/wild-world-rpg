@@ -41,7 +41,7 @@ English-in-brackets weapon names (ids 3, 10), the hardcoded «(Pipe Gun)» and t
     rows/quantities identical, sets new names/descriptions, slot names equal new `resources.name`, and
     `CollectionService` sees the held quantity for a holder; fails before because the migration does not exist.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/database/H6RenameRelicsMigrationTest.php tests/database/LootTableServiceTest.php` and `php -l` of the migration
-- [ ] S2 English-in-brackets weapons class - asks: 4, 5
+- [x] S2 English-in-brackets weapons class - asks: 4, 5
   - files: same migration (weapons 3, 10; tasks 56; game_settings / site_posts text rows),
     `app/Controllers/Telegram/Commands/Actions/…/WeaponsCraft2Select.php:23`, the migration test
   - test first: after the migration no `weapons.name` matches `\([A-Za-z]` and task 56 has no «Pipe Gun»; a unit

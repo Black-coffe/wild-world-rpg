@@ -20,7 +20,7 @@ class WeaponsCraft2Select extends BaseAction
             . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
             . "Выбирай нужную модель и приступай к изготовлению:\n\n"
             . "1) 🗡️ *Металлическое копьё*\n"
-            . "2) 🔫 *Трубчатый пистолет (Pipe Gun)*\n"
+            . "2) 🔫 *Трубчатый пистолет*\n"
             . "3) 🏏 *Усовершенствованная бита*\n"
             . "4) 🏹 *Арбалет Mk.I*\n";
 

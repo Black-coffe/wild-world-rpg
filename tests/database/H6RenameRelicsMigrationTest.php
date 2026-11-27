@@ -11,7 +11,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 
 /**
- * H6.3 (h6-relics-1127, S1, asks 1, 1a, 2, 3, 5) — реликвии 69/70/71 переименованы на месте.
+ * H6.3 (h6-relics-1127, S1 asks 1, 1a, 2, 3, 5; S2 asks 4, 5) — реликвии 69/70/71 переименованы на месте, английский в скобках убран.
  *
  * На схеме с прод-коллациями (`resources.name` unicode_ci, `collection_slots.resource_name` general_ci) и старыми
  * строками: держатели, слоты «Сокровищ глубин» с пожертвованием и пост сайта о пещерах. up() дважды: строки
@@ -29,7 +29,7 @@ final class H6RenameRelicsMigrationTest extends CIUnitTestCase
 
     private const TABLES = [
         'resources', 'character_resources', 'collections', 'collection_slots', 'character_collection_slots',
-        'site_posts', 'game_settings',
+        'site_posts', 'game_settings', 'weapons', 'tasks',
     ];
 
     private const SLUG = 'syre-biom-peshhery-i-podzemelja-vot-spisok-syrja-kotoroe-mozhet-byt-najdeno-i-ispolzovano';
@@ -61,7 +61,26 @@ final class H6RenameRelicsMigrationTest extends CIUnitTestCase
         $db->query("CREATE TABLE {$db->prefixTable('collection_slots')} (id INT AUTO_INCREMENT PRIMARY KEY, collection_id INT, resource_name VARCHAR(128) COLLATE utf8mb4_general_ci NOT NULL, required_qty INT DEFAULT 1, sort_order INT DEFAULT 0) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
         $db->query("CREATE TABLE {$db->prefixTable('character_collection_slots')} (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, collection_slot_id INT, donated_at DATETIME NULL, UNIQUE KEY uniq_ccs (character_id, collection_slot_id)) DEFAULT CHARSET=utf8mb4");
         $db->query("CREATE TABLE {$db->prefixTable('site_posts')} (id INT AUTO_INCREMENT PRIMARY KEY, slug VARCHAR(255), title VARCHAR(255) NULL, content_html MEDIUMTEXT NULL, excerpt TEXT NULL, updated_at DATETIME NULL) DEFAULT CHARSET=utf8mb4");
-        $db->query("CREATE TABLE {$db->prefixTable('game_settings')} (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(64) NOT NULL, value_type VARCHAR(16) NULL, value_int INT NULL, value_bool TINYINT NULL, value_string TEXT NULL) DEFAULT CHARSET=utf8mb4");
+        $db->query("CREATE TABLE {$db->prefixTable('game_settings')} (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(64) NOT NULL, value_type VARCHAR(16) NULL, value_int INT NULL, value_bool TINYINT NULL, value_string TEXT NULL, below_effect_text TEXT NULL) DEFAULT CHARSET=utf8mb4");
+        $db->query("CREATE TABLE {$db->prefixTable('weapons')} (id INT PRIMARY KEY, name VARCHAR(150) NOT NULL, name_en VARCHAR(150) NULL, updated_at DATETIME NULL) DEFAULT CHARSET=utf8mb3");
+        $db->query("CREATE TABLE {$db->prefixTable('tasks')} (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, description MEDIUMTEXT NOT NULL) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        $db->table('weapons')->insertBatch([
+            ['id' => 3, 'name' => 'Трубчатый пистолет (Pipe Gun)', 'name_en' => 'PipeGun'],
+            ['id' => 6, 'name' => 'Обрез (усиленный)', 'name_en' => 'ShortenedShotgun'],
+            ['id' => 10, 'name' => 'Ракетница (Firebomb)', 'name_en' => 'FirebombLauncher'],
+            ['id' => 1, 'name' => 'Металлическое копьё', 'name_en' => 'MetalSpear'],
+        ]);
+        $db->table('tasks')->insertBatch([
+            ['id' => 56, 'name' => 'craftPipeGun', 'description' => 'Создание самодельного Pipe Gun'],
+            ['id' => 57, 'name' => 'craftMetalSpear', 'description' => 'Не трогать.'],
+        ]);
+        $db->table('game_settings')->insert([
+            'setting_key'       => 'economy.shop.buy_level_gate_enabled',
+            'value_type'        => 'bool',
+            'value_bool'        => 1,
+            'below_effect_text' => 'false — прежнее поведение: любой ресурс покупается на любом уровне, если хватает золота (персонаж 1 уровня берёт «Корону подземного короля» за 5000).',
+        ]);
 
         $db->table('resources')->insertBatch([
             ['id' => 69, 'name' => self::OLD[69], 'description' => 'Огненный камень, пульсирующий энергией. Говорят, что он обладает огромной силой. Завладеть таким считается настоящим событием и достижением.', 'rarity' => 1],
@@ -168,6 +187,47 @@ final class H6RenameRelicsMigrationTest extends CIUnitTestCase
         $this->assertSame(self::OLD[69], $db->table('collection_slots')->where('id', 4)->get()->getRowArray()['resource_name']);
         $this->assertSame($this->normalize($this->oldSitePost()), $this->normalize((string) $db->table('site_posts')->where('slug', self::SLUG)->get()->getRowArray()['content_html']));
         $this->assertSame($holdings, $db->table('character_resources')->orderBy('id')->get()->getResultArray());
+    }
+
+    /**
+     * S2 (ask 4, 5): английский в скобках уходит из имён оружия 3 и 10, из описания задачи 56 и из текста экрана
+     * крафта; «Обрез (усиленный)» — русский и остаётся; повтор up() ничего не меняет, down() возвращает старое.
+     */
+    public function testUpTwiceDropsEnglishInBracketsFromWeaponsTaskAndCraftScreen(): void
+    {
+        $db    = Database::connect('tests');
+        $forge = Database::forge('tests');
+
+        (new H6RenameRelicsAndBracketWeapons($forge))->up();
+        (new H6RenameRelicsAndBracketWeapons($forge))->up();
+
+        foreach ($db->table('weapons')->orderBy('id')->get()->getResultArray() as $w) {
+            $this->assertDoesNotMatchRegularExpression('~\([A-Za-z]~', (string) $w['name'], "оружие {$w['id']} без английского в скобках");
+        }
+        $names = array_column($db->table('weapons')->orderBy('id')->get()->getResultArray(), 'name', 'id');
+        $this->assertSame([1 => 'Металлическое копьё', 3 => 'Трубчатый пистолет', 6 => 'Обрез (усиленный)', 10 => 'Ракетница'], $names);
+        $this->assertSame('PipeGun', $db->table('weapons')->where('id', 3)->get()->getRowArray()['name_en'], 'name_en (ключ картинки) не тронут');
+
+        $task = (string) $db->table('tasks')->where('id', 56)->get()->getRowArray()['description'];
+        $this->assertStringNotContainsString('Pipe Gun', $task);
+        $this->assertDoesNotMatchRegularExpression('~[A-Za-z]~', $task, 'описание задачи 56 по-русски');
+        $this->assertSame('Не трогать.', $db->table('tasks')->where('id', 57)->get()->getRowArray()['description']);
+
+        $gate = (string) $db->table('game_settings')->where('setting_key', 'economy.shop.buy_level_gate_enabled')->get()->getRowArray()['below_effect_text'];
+        $this->assertStringNotContainsString('подземного короля', $gate, 'описание настройки называет новое имя');
+        $this->assertStringContainsString('«Релейный венец Глубины»', $gate);
+
+        $source = (string) file_get_contents(APPPATH . 'Controllers/Telegram/Commands/Actions/Craft/WorkbenchStandard/Weapons/WeaponsCraft2Select.php');
+        $code   = implode("\n", array_filter(explode("\n", $source), static fn (string $l): bool => ! str_starts_with(ltrim($l), '//')));
+        $this->assertDoesNotMatchRegularExpression('~\([A-Za-z][^)]*\)\*~', $code, 'экран крафта без английского в скобках');
+        $this->assertStringContainsString('2) 🔫 *Трубчатый пистолет*', $code);
+
+        (new H6RenameRelicsAndBracketWeapons($forge))->down();
+
+        $this->assertSame('Трубчатый пистолет (Pipe Gun)', $db->table('weapons')->where('id', 3)->get()->getRowArray()['name']);
+        $this->assertSame('Ракетница (Firebomb)', $db->table('weapons')->where('id', 10)->get()->getRowArray()['name']);
+        $this->assertSame('Создание самодельного Pipe Gun', $db->table('tasks')->where('id', 56)->get()->getRowArray()['description']);
+        $this->assertStringContainsString('«Корону подземного короля»', (string) $db->table('game_settings')->where('setting_key', 'economy.shop.buy_level_gate_enabled')->get()->getRowArray()['below_effect_text']);
     }
 
     /** Текст поста на сайте до H6.3: фрагмент о реликвиях, как он лежит на проде и в канон-файле до правки. */
