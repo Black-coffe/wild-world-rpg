@@ -47,12 +47,16 @@ English-in-brackets weapon names (ids 3, 10), the hardcoded «(Pipe Gun)» and t
   - test first: after the migration no `weapons.name` matches `\([A-Za-z]` and task 56 has no «Pipe Gun»; a unit
     check that WeaponsCraft2Select text has no Latin in brackets; fails before on the current rows/hardcode.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/database/H6RenameRelicsMigrationTest.php tests/database/StrategicLootWeaponsTest.php`
-- [ ] S3 Canon, vault and tech-writing sync - asks: 1, 6
+- [x] S3 Canon, vault and tech-writing sync - asks: 1, 6
   - files: `C:/Projects/mmorpg-vault/lore/craft/Редкие-ресурсы.md`, `tech-writing/services/CollectionService.md`,
     `tech-writing/services/LootTableService.md`, `ROADMAP.md:257` (mark (3) done after ship is ship's job — here only
     canon text), `LORE_AND_GAMEPLAY_ROADMAP.md` G1.1 marked done
   - test first: none: documentation only
   - check: `git grep -F "Сердце Дракона" -- app GAME_DESCRIPTION.md` returns only historic migrations and comments
+  - outside: vault `tech-writing/handlers/craft/WeaponsCraft2Select.md` (new) and `tech-writing/db/collection_slots.md`
+    (new, + row in `tech-writing/db/index.md`) — tech-writing rule for the controller and the migration touched in S1/S2.
+  - G1.1 marked done for the relic reskin only: its last point (trophies tied to collections and Strongholds) is not
+    this work and stays open; the «сияние» point is H6.2's, not re-marked.
 
 ## Test command
 `vendor/bin/phpunit --no-coverage --no-progress tests/database/LootTableServiceTest.php tests/database/StrategicLootWeaponsTest.php` (today: OK, 10 tests, 47 assertions, 1 PHPUnit deprecation)
