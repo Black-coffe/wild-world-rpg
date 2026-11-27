@@ -48,7 +48,9 @@ that every key resolves.
     expected result, and applying it twice gives the same result. It fails before the function exists.
   - check: the unit test + `php -l` on the migration + `php spark migrate` locally; later on preprod, the resolve
     SELECT from the brief returns 0 NULL rows
-- [ ] S3 Docs and verdicts - asks: 5, 7
+- [x] S3 Docs and verdicts - asks: 5, 7
+  - outside: `mmorpg-vault/tech-writing/db/index.md`: the `world_objects` row links the new table note (tech-writing
+    rule: new notes get back-links)
   - files: `mmorpg-vault/tech-writing/handlers/StrategicLootHandler.md`, the note for the weapon-grant helper (new) and
     `services/LootTableService.md` if it exists, `tech-writing/db/world_objects.md`; ROADMAP H6 line (1) wording fixed
   - test first: none: docs only
