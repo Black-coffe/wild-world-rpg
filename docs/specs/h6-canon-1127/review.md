@@ -24,3 +24,19 @@ TESTS: vendor/bin/phpunit --no-coverage --no-progress tests/unit/Database/FixEnd
 ```
 
 Owner: fix minors, round 2 - "Починить minor, раунд 2 (Рекомендую)", 2026-11-27
+
+## Round 2 - 2026-11-27 - head e9442b1295bd0fcf4417229fb4b917e07f382d7e
+
+```
+VERDICT: PASS
+TESTS: FixEndgameCraftTipNoT4Test.php -> pass, 2 tests, 19 assertions; tests/database/FixEndgameCraftTipNoT4MigrationTest.php -> pass, 1 test, 13 assertions; php -l on all migrations -> pass; phpstan -> no errors
+
+## Findings
+(none)
+
+## Past findings
+F1: fixed - tip says «Для них нужны три вещи»; canon scopes the three gates to the 8 faction recipes (CraftRecipes.php:1861-2108); unit test asserts «Для них».
+F2: fixed - lore/website/index.md:33, Devblog-list.md:50, Sobytiya-list.md:16 corrected (vault 0253b7e).
+F3: fixed - AttributeBoostEffect.php:47; only «враждебная» has a caption (SettlementHubAction.php:139-143); Oracle lock after the tap (OracleAction.php:63), in canon and lore.
+F4: fixed - database test seeds row 47 and a neighbour, runs up() twice, asserts the fields and the untouched neighbour, then down().
+```
