@@ -1,4 +1,5 @@
 # HONEST-OFF — не обещать выключенное (plan)
+**Shipped:** 2026-11-27, ef2ce446
 **Brief:** [brief.md](brief.md) · **Branch:** `vulyk/honest-off-1127` · **Approved:** «Одобряю (Рекомендую)», 2026-11-27
 
 ## Goal
