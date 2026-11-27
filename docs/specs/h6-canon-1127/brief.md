@@ -29,6 +29,7 @@ Source item, `ROADMAP.md:256-259` (roadmap text, not the owner's words):
   (Милитари…), so the only faction modifier (`PvPController.php:193`, admin simulator, `== 'Militia'`) never fires.
 - 2026-11-27 Recon: a live player tip on prod, `game_tips` id 47 `EndgameCraftT4` «🏆 Эндгейм-крафт (T4)», repeats the
   T4 claim — added as ask 8.
+- 2026-11-27 Owner, after review round 1 PASS with 4 minors: «Починить minor, раунд 2 (Рекомендую)».
 
 ## Asks
 1. Each of the five wrong claims named in the source item is corrected in `GAME_DESCRIPTION.md` to what the code
