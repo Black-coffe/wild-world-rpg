@@ -43,13 +43,18 @@ final class GuideCatalogTest extends CIUnitTestCase
     /**
      * 🔴 Шейп раздела — РОВНО {key, group, button, title, body}. Если кто-то добавит
      * `reward`/`gold`/`grant` — тест упадёт: справочник не должен носить награды.
+     * Единственное служебное поле — необязательный `flag` (HONEST-OFF): ключ `GameSettings`,
+     * который только прячет раздел, пока фича выключена, и ничего не выдаёт.
      */
     public function testSectionShapeHasNoRewardLikeFields(): void
     {
         foreach (GuideCatalog::sections() as $section) {
+            if (array_key_exists('flag', $section)) {
+                $this->assertMatchesRegularExpression('/^[a-z_]+(\.[a-z_]+)+$/', $section['flag'], 'flag раздела — ключ GameSettings вида category.name.');
+            }
             $this->assertSame(
                 ['key', 'group', 'button', 'title', 'body'],
-                array_keys($section),
+                array_values(array_diff(array_keys($section), ['flag'])),
                 'Раздел справочника должен содержать только текстовые поля — никаких наград/выдачи.'
             );
         }
@@ -94,7 +99,8 @@ final class GuideCatalogTest extends CIUnitTestCase
 
     public function testNextKeyFormsValidChainEndingInNull(): void
     {
-        $sections = GuideCatalog::sections();
+        // Цепочка «Дальше» идёт по разделам, которые игрок видит; скрытые флагом — в GuideServiceFlagTest.
+        $sections = GuideCatalog::visibleSections();
         $count    = count($sections);
 
         foreach ($sections as $i => $section) {
@@ -269,7 +275,11 @@ final class GuideCatalogTest extends CIUnitTestCase
     /**
      * ADR-176 (community-chat-bot), story 15 — раздел «💬 Общий чат» (ключ `chat`, группа
      * `meta`). Guide-вердикт Редколлегии: ДА — про навигацию и понятия (что это, где искать,
-     * что Роби там читает и отвечает, срок ответа, куда с личным вопросом), без чисел баланса.
+     * кто там отвечает, куда с личным вопросом), без чисел баланса.
+     *
+     * HONEST-OFF (honest-off-1127): раздел не обещает ответов Роби (на проде
+     * `community_messages` = 0) и не отрицает их (ревью р.1) — говорит только верное в обоих
+     * состояниях `community.enabled`: отвечают живые выжившие и владелец.
      */
     public function testChatSectionExplainsWhatItIsAndOwnerRoute(): void
     {
@@ -278,8 +288,13 @@ final class GuideCatalogTest extends CIUnitTestCase
         $this->assertSame('meta', $section['group'], 'Общий чат — раздел «Полезное».');
 
         $body = $section['body'];
-        foreach (['Роби', 'владельцу', 'суток'] as $needle) {
-            $this->assertStringContainsStringIgnoringCase($needle, $body, "Раздел «Общий чат» не упоминает «{$needle}».");
+        foreach (['📍 *Где он*', '🙋 *Кто отвечает.*', 'Живые выжившие', 'владелец игры', 'владельцу'] as $needle) {
+            $this->assertStringContainsString($needle, $body, "Раздел «Общий чат» не упоминает «{$needle}».");
+        }
+
+        // Обещания ответа Роби в чате быть не должно, пока community-бот выключен.
+        foreach (['Роби читает чат', 'может ответить сам', 'от Роби', 'суток', 'Роби в чате не пишет'] as $promise) {
+            $this->assertStringNotContainsString($promise, $body, "Раздел «Общий чат» всё ещё обещает «{$promise}».");
         }
 
         // Без чисел баланса — раздел про навигацию и понятия, не про настраиваемые пороги.
@@ -340,7 +355,9 @@ final class GuideCatalogTest extends CIUnitTestCase
 
     public function testIndexExposesButtonForEverySection(): void
     {
-        $payload = (new GuideService())->indexPayload();
+        // Все флаги включены: каждый раздел каталога достижим из оглавления. Как прячется
+        // раздел выключенной фичи — GuideServiceFlagTest.
+        $payload = (new GuideService(static fn (string $flag): bool => true))->indexPayload();
         $markup  = json_decode($payload['reply_markup'], true);
         $this->assertIsArray($markup);
         $rows = $markup['inline_keyboard'] ?? null;
@@ -415,7 +432,8 @@ final class GuideCatalogTest extends CIUnitTestCase
      */
     public function testRenderedTextHasBalancedMarkdownEntities(): void
     {
-        $service = new GuideService();
+        // Все флаги включены — проверяем и тексты разделов, скрытых сейчас флагом.
+        $service = new GuideService(static fn (string $flag): bool => true);
 
         $texts = [$service->indexPayload()['text']];
         foreach (GuideCatalog::sections() as $section) {
