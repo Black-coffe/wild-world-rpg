@@ -45,7 +45,7 @@ claim is fixed. The three renames (H6.3) are not done here.
   preprod at push and on prod at tag, each on the owner's word.
 
 ## Stories
-- [ ] S1 GAME_DESCRIPTION.md: five corrections + seven sections + W11/W12 «готовится» + stamp - asks: 1, 2, 3, 5, 6, 7
+- [x] S1 GAME_DESCRIPTION.md: five corrections + seven sections + W11/W12 «готовится» + stamp - asks: 1, 2, 3, 5, 6, 7
   - files: `GAME_DESCRIPTION.md`
   - test first: none: prose only. Check by grep: no «T4», no «мистич», no «Фракционные модификаторы» as a live claim;
     «Старая ферма» in the `:746` list; each of the 7 systems has a heading with its on/off state
