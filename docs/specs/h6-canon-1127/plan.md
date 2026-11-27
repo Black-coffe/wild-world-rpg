@@ -58,7 +58,7 @@ claim is fixed. The three renames (H6.3) are not done here.
     - add: new notes for the 7 systems (or link existing ADR from a note), plus `lore/index.md` links
   - test first: none: docs only
   - check: `grep -rnE "мистич|сначала потребляются \*\*редкие" C:/Projects/mmorpg-vault/lore` is empty; `lore/index.md` links each new note
-- [ ] S3 Tip 47 without T4 - asks: 8
+- [x] S3 Tip 47 without T4 - asks: 8
   - files: `app/Database/Migrations/2027-01-02-100000_FixEndgameCraftTipNoT4.php` (prefix after the latest, unique)
   - test first: a unit test that the migration's new title and text contain no «T4», no digits, and name the
     Профессиональный верстак. It fails before the class exists. Idempotent: `UPDATE … WHERE title_en='EndgameCraftT4'`
