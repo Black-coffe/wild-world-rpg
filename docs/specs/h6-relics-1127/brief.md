@@ -28,5 +28,8 @@ Tail from `ROADMAP.md:256`:
 3. `collection_slots.resource_name` rows that name these artifacts are updated by the same migration, so collections stay complete for players who had them.
 4. No English in brackets on player screens for this class: weapons 3 «Трубчатый пистолет» and 10 «Ракетница», the craft screen text (`WeaponsCraft2Select`), task 56 description — in the bot and in `/play`.
 5. The migration is idempotent and safe to re-run; `php -l` passes.
+5a. No `game_settings` text column (rationale, effect, above, below) names the old relics after the migration (admin text).
 6. Verdicts recorded: guide «нет — раздел лора позже (ROADMAP)», tips — yes/no with reason; WipeManifest untouched unless a new table/column appears.
 7. Tier-3 on preprod-testbot shows the new names in the bot and in `/play`.
+
+- 2026-11-27, review round 1 minor 2: «Починить minor 2, потом мердж (Рекомендую)» — the same migration also replaces the old relic names in every `game_settings` text column (rationale/effect/above/below), with a test.
