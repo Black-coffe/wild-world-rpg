@@ -1,5 +1,5 @@
 # H6.3: post-apocalyptic names for three artifacts + English-in-brackets class (plan)
-**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/h6-relics-1127` · **Approved:** no
+**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/h6-relics-1127` · **Approved:** «Одобряю (Рекомендую)», 2026-11-27
 
 ## Goal
 Rename the three fantasy relics (resources 69/70/71) to the roadmap's post-apocalyptic names and rewrite their
