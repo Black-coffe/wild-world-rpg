@@ -38,7 +38,9 @@ fitting candidates.
     level-100 candidate → nothing granted and the effect returns skipped (no `resource_grant_intents`); level-100
     character → grant as before. Fails today because the query has no level filter.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/database/IntentApplierRelativeDeltasTest.php tests/unit/Services/Events` and `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
-- [ ] S2 Docs and prod evidence - asks: 3, 5
+- [x] S2 Docs and prod evidence - asks: 3, 5
+  - outside: `C:/Projects/mmorpg-vault/tech-writing/models/ResourceModel.md` — S1 added
+    `ResourceModel::eventGrantCandidates()`; the tech-writing rule wants a note for every touched model.
   - files: `C:/Projects/mmorpg-vault/tech-writing/services/IntentApplier.md` (level rule, `last_reviewed`),
     `C:/Projects/mmorpg-vault/tech-writing/services/RareResourceGrantEffect.md` if it exists, `docs/specs/relic-event-level-1128/evidence.md` (the prod SELECT results above)
   - test first: none: documentation only
