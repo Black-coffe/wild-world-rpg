@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Events\Effects;
 
 use App\Attributes\HandlerKey;
+use App\Models\ResourceModel;
 use App\Services\Events\EventEffectInterface;
 use App\Services\GameSettings\GameSettingsService;
 
@@ -21,7 +22,8 @@ use App\Services\GameSettings\GameSettingsService;
  *   - rarity_filter      : ?int    — null або 1
  *   - amount_range       : [min, max]
  *   - chance_per_tick    : float
- *   - requires_state     : 'gather' | null *   - biome_type_filter  : 'cave' | null — додатковий фільтр для DungeonOpening
+ *   - requires_state     : 'gather' | null
+ *   - biome_type_filter  : 'cave' | null — додатковий фільтр для DungeonOpening
  */
 #[HandlerKey(
     key: 'rare_resource_grant',
@@ -41,14 +43,20 @@ final class RareResourceGrantEffect implements EventEffectInterface
     /** @var (callable(string,mixed):mixed)|null */
     private $tunableReader;
 
+    /** @var (callable(?string,?int,?int,int):array<mixed>)|null */
+    private $candidateFinder;
+
     /**
      * @param (callable(string,mixed):mixed)|null $tunableReader  Tests injection point;
      *   у проді null → lazy `new GameSettingsService()->get($key, $default)`.
      *   GameSettingsService — final, тому extend не варіант; callable cleaner.
+     * @param (callable(?string,?int,?int,int):array<mixed>)|null $candidateFinder  Tests injection point;
+     *   у проді null → `new ResourceModel()->eventGrantCandidates(...)` — тот же запрос, что у IntentApplier.
      */
-    public function __construct(?callable $tunableReader = null)
+    public function __construct(?callable $tunableReader = null, ?callable $candidateFinder = null)
     {
-        $this->tunableReader = $tunableReader;
+        $this->tunableReader   = $tunableReader;
+        $this->candidateFinder = $candidateFinder;
     }
 
     public function compute(array|\App\Entities\CharacterEntity $character, array $eventConfig, array $activeEvent, array $context): array
@@ -82,6 +90,24 @@ final class RareResourceGrantEffect implements EventEffectInterface
             }
         }
 
+        // Фільтр: уровень. Нет ресурса, который персонаж может держать по уровню
+        // (`level_required <= level`, правило добычи) — не выпало: итог события не скажет «+N» впустую.
+        $keyword = $params['resource_keyword'] ?? null;
+        $biomeId = (int)($character['biome_id'] ?? 0) ?: null;
+        $rarity  = $params['rarity_filter'] ?? null;
+        $level   = is_numeric($character['level'] ?? null) ? (int)$character['level'] : 0;
+        $finder  = $this->candidateFinder ?? static fn (?string $k, ?int $b, ?int $r, int $l): array
+            => (new ResourceModel())->eventGrantCandidates($k, $b, $r, $l);
+        $found   = $finder(
+            is_string($keyword) ? $keyword : null,
+            $biomeId,
+            is_numeric($rarity) ? (int)$rarity : null,
+            $level
+        );
+        if ($found === []) {
+            return EffectResultFactory::skipped("Нет ресурса по уровню (level={$level})");
+        }
+
         // Готуємо intent — amount_range також live-tunable через GameSettings.
         $amountRange   = $params['amount_range'] ?? [1, 3];
         $defaultMin    = (int)$amountRange[0];
@@ -97,9 +123,9 @@ final class RareResourceGrantEffect implements EventEffectInterface
         $amount = max(1, (int) round($amount * (new \App\Services\Events\EventLevelTierService())->boonFactorFor($character)));
 
         $intent = [
-            'keyword'  => $params['resource_keyword'] ?? null,
-            'biome_id' => (int)($character['biome_id'] ?? 0) ?: null,
-            'rarity'   => $params['rarity_filter'] ?? null,
+            'keyword'  => $keyword,
+            'biome_id' => $biomeId,
+            'rarity'   => $rarity,
             'amount'   => $amount,
         ];
 

@@ -27,7 +27,10 @@ fitting candidates.
   each on the owner's word.
 
 ## Stories
-- [ ] S1 Event grant respects the resource's required level - asks: 1, 2, 4
+- [x] S1 Event grant respects the resource's required level - asks: 1, 2, 4
+  - outside: `phpstan-baseline.neon` — the effect's new «no fitting candidate» early return is one more
+    `EffectResultFactory::skipped()` (untyped `array`) return, so the existing `return.type` entry for
+    `RareResourceGrantEffect::compute()` goes from count 3 to 4; no new entry.
   - files: `app/Services/Events/IntentApplier.php`, `app/Services/Events/Effects/RareResourceGrantEffect.php`, a shared
     candidate query (e.g. method on `app/Models/ResourceModel.php`), `tests/database/IntentApplierRelativeDeltasTest.php`
     (+ `ensureColumns` gets `resources.level_required`, `characters.level`), `tests/unit/Services/Events/Effects/RareResourceGrantEffectTest.php`

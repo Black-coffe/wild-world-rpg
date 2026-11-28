@@ -107,11 +107,12 @@ final class IntentApplierRelativeDeltasTest extends CIUnitTestCase
         // недостающие колонки, которые нужны этому тесту.
         $this->ensureColumns('characters', [
             'gold' => 'INT NULL DEFAULT 0', 'health' => 'DECIMAL(10,2) NULL DEFAULT 100',
-            'tired' => 'DECIMAL(10,2) NULL DEFAULT 100', 'created_at' => 'DATETIME NULL', 'updated_at' => 'DATETIME NULL',
+            'tired' => 'DECIMAL(10,2) NULL DEFAULT 100', 'level' => 'INT NULL DEFAULT 1',
+            'created_at' => 'DATETIME NULL', 'updated_at' => 'DATETIME NULL',
         ]);
         $this->ensureColumns('resources', [
             'name' => 'VARCHAR(255) NULL', 'name_en' => 'VARCHAR(255) NULL', 'keyword' => 'VARCHAR(100) NULL',
-            'biome_id' => 'TEXT NULL', 'rarity' => 'INT NULL DEFAULT 1',
+            'biome_id' => 'TEXT NULL', 'rarity' => 'INT NULL DEFAULT 1', 'level_required' => 'INT NULL',
             'created_at' => 'DATETIME NULL', 'updated_at' => 'DATETIME NULL',
         ]);
         $this->ensureColumns('character_resources', [
@@ -202,12 +203,13 @@ final class IntentApplierRelativeDeltasTest extends CIUnitTestCase
 
     public function testTwoResourceGrantsSum(): void
     {
-        $charId  = $this->insertTracked('characters', ['gold' => 0, 'health' => 50, 'tired' => 50]);
+        $charId  = $this->insertTracked('characters', ['gold' => 0, 'health' => 50, 'tired' => 50, 'level' => 1]);
         $keyword = 'ia_rel_' . random_int(100_000, 999_999);
         $resId   = $this->insertTracked('resources', [
             'name' => 'Тест ' . $keyword, 'name_en' => 'Test ' . $keyword, 'keyword' => $keyword, 'rarity' => 1,
+            'level_required' => 1,
         ]);
-        $snapshot = ['id' => $charId, 'gold' => 0, 'health' => 50.0, 'tired' => 50.0];
+        $snapshot = ['id' => $charId, 'gold' => 0, 'health' => 50.0, 'tired' => 50.0, 'level' => 1];
         $intent   = ['keyword' => $keyword, 'biome_id' => null, 'rarity' => null, 'amount' => 1];
 
         $applier = $this->applier();
@@ -222,6 +224,53 @@ final class IntentApplierRelativeDeltasTest extends CIUnitTestCase
         $total = array_sum(array_map(static fn (array $r): int => (int) $r['quantity'], $rows));
 
         $this->assertSame(2, $total, self::RED_REASON);
+    }
+
+    public function testEventGrantNeverGivesResourceAboveCharacterLevel(): void
+    {
+        $charId  = $this->insertTracked('characters', ['gold' => 0, 'health' => 50, 'tired' => 50, 'level' => 2]);
+        $keyword = 'ia_lvl_' . random_int(100_000, 999_999);
+        $lowId   = $this->insertResource($keyword, 'low', 1);
+        $highId  = $this->insertResource($keyword, 'high', 100);
+        $snapshot = ['id' => $charId, 'gold' => 0, 'health' => 50.0, 'tired' => 50.0, 'level' => 2];
+        $intent   = ['keyword' => $keyword, 'biome_id' => null, 'rarity' => null, 'amount' => 1];
+
+        $applier = $this->applier();
+        for ($i = 0; $i < 30; $i++) {
+            $applier->apply($snapshot, ['resource_grant_intents' => [$intent]]);
+        }
+
+        $this->assertSame(0, $this->heldQuantity($charId, $highId), 'level-2 character got a level-100 resource from an event');
+        $this->assertSame(30, $this->heldQuantity($charId, $lowId), 'every grant lands on the fitting candidate');
+    }
+
+    public function testEventGrantWithNoFittingCandidateGivesNothing(): void
+    {
+        $charId  = $this->insertTracked('characters', ['gold' => 0, 'health' => 50, 'tired' => 50, 'level' => 2]);
+        $keyword = 'ia_lvl_' . random_int(100_000, 999_999);
+        $highId  = $this->insertResource($keyword, 'high', 100);
+        $snapshot = ['id' => $charId, 'gold' => 0, 'health' => 50.0, 'tired' => 50.0, 'level' => 2];
+
+        $this->applier()->apply($snapshot, ['resource_grant_intents' => [
+            ['keyword' => $keyword, 'biome_id' => null, 'rarity' => null, 'amount' => 3],
+        ]]);
+
+        $this->assertSame(0, $this->heldQuantity($charId, $highId), 'level-2 character got a level-100 resource from an event');
+        $this->assertSame(0, $this->db()->table('character_resources')->where('id_characters', $charId)->countAllResults());
+    }
+
+    public function testEventGrantAtRequiredLevelStillLands(): void
+    {
+        $charId  = $this->insertTracked('characters', ['gold' => 0, 'health' => 50, 'tired' => 50, 'level' => 100]);
+        $keyword = 'ia_lvl_' . random_int(100_000, 999_999);
+        $highId  = $this->insertResource($keyword, 'high', 100);
+        $snapshot = ['id' => $charId, 'gold' => 0, 'health' => 50.0, 'tired' => 50.0, 'level' => 100];
+
+        $this->applier()->apply($snapshot, ['resource_grant_intents' => [
+            ['keyword' => $keyword, 'biome_id' => null, 'rarity' => null, 'amount' => 3],
+        ]]);
+
+        $this->assertSame(3, $this->heldQuantity($charId, $highId), 'character at the required level gets the grant as before');
     }
 
     public function testMeteorOnStaleReadNeverGoesNegative(): void
@@ -293,6 +342,25 @@ final class IntentApplierRelativeDeltasTest extends CIUnitTestCase
         $this->ownRows[$table][] = $id;
 
         return $id;
+    }
+
+    private function insertResource(string $keyword, string $tag, int $levelRequired): int
+    {
+        return $this->insertTracked('resources', [
+            'name' => "Тест {$tag} {$keyword}", 'name_en' => "Test {$tag} {$keyword}", 'keyword' => $keyword,
+            'rarity' => 1, 'level_required' => $levelRequired,
+        ]);
+    }
+
+    private function heldQuantity(int $charId, int $resId): int
+    {
+        $rows = $this->db()->table('character_resources')
+            ->where('id_characters', $charId)->where('id_resources', $resId)->get()->getResultArray();
+        foreach ($rows as $row) {
+            $this->ownRows['character_resources'][] = (int) $row['id'];
+        }
+
+        return array_sum(array_map(static fn (array $r): int => (int) $r['quantity'], $rows));
     }
 
     private function charField(int $charId, string $field): mixed

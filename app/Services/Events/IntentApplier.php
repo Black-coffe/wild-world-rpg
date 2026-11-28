@@ -124,8 +124,9 @@ final class IntentApplier
         // ============================================================
         // 2. Resource grant intents (RareResource, DungeonOpening)
         // ============================================================
+        $level = is_numeric($character['level'] ?? null) ? (int)$character['level'] : 0;
         foreach (($result['resource_grant_intents'] ?? []) as $intent) {
-            $this->applyResourceGrant($charId, $intent);
+            $this->applyResourceGrant($charId, $intent, $level);
         }
 
         // ============================================================
@@ -162,24 +163,21 @@ final class IntentApplier
     /**
      * Знайти resource по keyword/biome/rarity та додати в character_resources.
      *
+     * Кандидаты — только по уровню персонажа ({@see ResourceModel::eventGrantCandidates()},
+     * `level_required <= level`, правило добычи): событие не выдаёт ресурс выше уровня.
+     * Подходящих нет — ничего не пишем. Уровня в снимке нет — 0: ничего не выдаём
+     * (у каждого ресурса `level_required` ≥ 1), лишнего не даём никогда.
+     *
      * @param array{keyword: ?string, biome_id: ?int, rarity: ?int, amount: int} $intent
      */
-    private function applyResourceGrant(int $charId, array $intent): void
+    private function applyResourceGrant(int $charId, array $intent, int $characterLevel): void
     {
-        $query = $this->resourceModel;
+        $keyword = is_string($intent['keyword'] ?? null) ? $intent['keyword'] : null;
+        $biomeId = is_numeric($intent['biome_id'] ?? null) ? (int)$intent['biome_id'] : null;
+        $rarity  = is_numeric($intent['rarity'] ?? null) ? (int)$intent['rarity'] : null;
 
-        if (!empty($intent['keyword'])) {
-            $query = $query->where('keyword', $intent['keyword']);
-        }
-        if (!empty($intent['biome_id'])) {
-            $query = $query->where('biome_id', $intent['biome_id']);
-        }
-        if (isset($intent['rarity'])) {
-            $query = $query->where('rarity', $intent['rarity']);
-        }
-
-        $candidates = $query->findAll();
-        if (empty($candidates)) {
+        $candidates = $this->resourceModel->eventGrantCandidates($keyword, $biomeId, $rarity, $characterLevel);
+        if ($candidates === []) {
             return;
         }
 
