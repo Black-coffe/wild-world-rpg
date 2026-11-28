@@ -1,4 +1,5 @@
 # Robot gathering ignores character level — hotfix (plan)
+**Shipped:** 2026-11-28, f11f4393
 **Brief:** [brief.md](brief.md) · **Branch:** `vulyk/robot-gather-level-1128` · **Approved:** «Approve (Recommended)», 2026-11-28
 
 ## Goal
