@@ -18,7 +18,7 @@ workshop brings rarity-1 relics to any character. Add a shared `ResourceModel` s
   preprod smoke = prod tag).
 
 ## Stories
-- [ ] S1 Robot gathering respects required level via a shared scope - asks: 1, 2, 3, 4, 5
+- [x] S1 Robot gathering respects required level via a shared scope - asks: 1, 2, 3, 4, 5
   - files: `app/Models/ResourceModel.php`, `app/TaskHandlers/CompleteRobotGatheringHandler.php`, a DB test under
     `tests/database/` (e.g. extend `RobotGatheringRelativeAwardTest.php` or a new `RobotGatheringLevelGateTest.php`),
     vault notes `tech-writing/models/ResourceModel.md`, `tech-writing/tasks/**/CompleteRobotGatheringHandler.md`
@@ -26,6 +26,9 @@ workshop brings rarity-1 relics to any character. Add a shared `ResourceModel` s
     level-1 one is awarded; only a level-100 resource → completion finishes with nothing awarded and no exception;
     level-100 character → both as before. Fails today: no level filter in the robot query.
   - check: `vendor/bin/phpunit --no-coverage --no-progress tests/database/RobotGatheringRelativeAwardTest.php tests/database/IntentApplierRelativeDeltasTest.php tests/unit/Services/Events` (+ the new test file) and phpstan
+  - outside: `tests/unit/TaskHandlers/CompleteRobotGatheringBaseTest.php` (`resources.level_required`, `characters.level`) and
+    `tests/database/WebOnlyCharacterWorkerTest.php` (`resources.level_required`): their hand-made schemas lacked the
+    columns the robot query now filters on (`Unknown column 'level_required'`).
 
 ## Test command
 `vendor/bin/phpunit --no-coverage --no-progress tests/database/RobotGatheringRelativeAwardTest.php tests/database/IntentApplierRelativeDeltasTest.php tests/unit/Services/Events`

@@ -95,7 +95,7 @@ final class WebOnlyCharacterWorkerTest extends CIUnitTestCase
      * от неё `character_resources`. Колонки — те, что читают/пишут handler'ы.
      */
     private const RAW_TABLES = [
-        'resources'           => 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64) NULL, name_en VARCHAR(64) NULL, biome_id VARCHAR(64) NULL, rarity INT NULL, type VARCHAR(64) NULL, created_at DATETIME NULL, updated_at DATETIME NULL',
+        'resources'           => 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64) NULL, name_en VARCHAR(64) NULL, biome_id VARCHAR(64) NULL, rarity INT NULL, level_required INT NOT NULL DEFAULT 1, type VARCHAR(64) NULL, created_at DATETIME NULL, updated_at DATETIME NULL',
         'character_resources' => 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, id_characters INT NULL, id_resources INT NULL, quantity INT NULL, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL',
         // Нет миграции в репозитории; читается марш-энкаунтером NPC.
         'npc_spawns'          => 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, coordinate_x INT NOT NULL, coordinate_y INT NOT NULL, status VARCHAR(50) NOT NULL',

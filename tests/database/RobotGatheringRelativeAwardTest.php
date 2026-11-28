@@ -60,7 +60,7 @@ final class RobotGatheringRelativeAwardTest extends CIUnitTestCase
     ];
 
     private const RAW_TABLES = [
-        'resources'           => 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64) NULL, name_en VARCHAR(64) NULL, biome_id VARCHAR(64) NULL, rarity INT NULL, type VARCHAR(64) NULL, created_at DATETIME NULL, updated_at DATETIME NULL',
+        'resources'           => 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64) NULL, name_en VARCHAR(64) NULL, biome_id VARCHAR(64) NULL, rarity INT NULL, level_required INT NOT NULL, type VARCHAR(64) NULL, created_at DATETIME NULL, updated_at DATETIME NULL',
         'character_resources' => 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, id_characters INT UNSIGNED NOT NULL, id_resources INT UNSIGNED NOT NULL, quantity BIGINT UNSIGNED DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL',
     ];
 
@@ -113,45 +113,8 @@ final class RobotGatheringRelativeAwardTest extends CIUnitTestCase
 
     public function testConcurrentAwardIsSummedNotOverwritten(): void
     {
-        $now = date('Y-m-d H:i:s');
-        $this->conn->table('biomes')->insert([
-            'id' => 1, 'name' => 'Биом 1', 'danger_level' => 1, 'survival_difficulty' => 1, 'created_at' => $now, 'updated_at' => $now,
-        ]);
-        $this->conn->table('map')->insert([
-            'id' => self::BASE_CELL, 'cell_number' => self::BASE_CELL, 'coordinate_x' => 10, 'coordinate_y' => 10,
-            'biome_id' => 1, 'created_at' => $now, 'updated_at' => $now,
-        ]);
-        $this->conn->table('telegram_users')->insert([
-            'telegram_id' => random_int(770_000_000, 779_999_999), 'username' => 'robo', 'created_at' => $now, 'updated_at' => $now,
-        ]);
-        $tgUid = (int) $this->conn->insertID();
-        $this->conn->table('characters')->insert([
-            'telegram_user_id' => $tgUid, 'name' => 'Robo', 'level' => 5, 'experience' => 1, 'health' => 100, 'tired' => 100,
-            'strength' => 1, 'agility' => 1, 'intellect' => 1, 'gold' => 0, 'cell_number' => self::BASE_CELL,
-            'created_at' => $now, 'updated_at' => $now,
-        ]);
-        $charId = (int) $this->conn->insertID();
-        $this->conn->table('buildings')->insert([
-            'name_ru' => 'Мастерская робототехники', 'name_en' => 'RoboticsWorkshop', 'description' => '', 'building_type' => 'engineering',
-            'hp' => 1, 'construction_time' => 1, 'tax' => 0, 'level' => 1, 'usage' => 'personal', 'required_resources' => '{}',
-            'min_character_level' => 1, 'effects' => '{}', 'days_until_disappearance' => 0, 'usage_count' => 0,
-        ]);
-        $workshopId = (int) $this->conn->insertID();
-        $this->conn->table('claimed_cells')->insert([
-            'character_id' => $charId, 'map_cell_id' => self::BASE_CELL, 'claimed_at' => $now, 'status' => 'active',
-        ]);
-        $this->conn->table('character_buildings')->insert([
-            'character_id' => $charId, 'building_id' => $workshopId, 'map_cell_id' => self::BASE_CELL, 'amount' => 1,
-            'character_level_during_construction' => 1, 'hp' => 1, 'level' => 1, 'built_at' => $now, 'building_type' => 'engineering',
-            'tax' => 0, 'usage' => 'personal', 'created_at' => $now, 'updated_at' => $now,
-        ]);
-        $this->conn->table('resources')->insert(['name' => 'Кристалл', 'name_en' => 'Crystal', 'biome_id' => '1', 'rarity' => 10, 'type' => 'mineral']);
-        $resourceId = (int) $this->conn->insertID();
-        $this->conn->table('tasks')->insert([
-            'name' => 'robotGathering', 'name_rus' => 'Сбор роботом', 'description' => '', 'min_duration' => 1, 'max_duration' => 1,
-            'type' => 'test', 'difficulty_level' => 1, 'created_at' => $now, 'updated_at' => $now,
-        ]);
-        $taskId = (int) $this->conn->insertID();
+        [$charId, $tgUid, $taskId] = $this->seedRobotWorld(5, 1);
+        $resourceId = $this->addResource('Кристалл', 'Crystal', 10, 1);
 
         // 1) Строки нет — выдача создаёт одну строку; её количество и есть размер выдачи A.
         mt_srand(424242);
@@ -190,6 +153,104 @@ final class RobotGatheringRelativeAwardTest extends CIUnitTestCase
         $rows = $this->resourceRows($charId, $resourceId);
         $this->assertCount(1, $rows, self::RED_REASON . ' (still one row)');
         $this->assertSame($award + $award + self::FOREIGN, (int) $rows[0]['quantity'], self::RED_REASON);
+    }
+
+    /**
+     * robot-gather-level-1128 S1: Мастерская 10 открывает редкость 1 (реликвии) — робот приносит только то,
+     * что персонаж может держать по уровню (`level_required <= characters.level`), как событие и добыча.
+     */
+    public function testUnderLevelCharacterGetsOnlyResourcesOfItsLevel(): void
+    {
+        [$charId, $tgUid, $taskId] = $this->seedRobotWorld(59, 10);
+        $common = $this->addResource('Камень', 'Stone', 1, 1);
+        $relic  = $this->addResource('Реликвия', 'Relic', 1, 100);
+
+        mt_srand(424242);
+        (new RelativeAwardRobotGathering())->handle($this->makeTask($charId, $tgUid, $taskId));
+
+        $this->assertCount(1, $this->resourceRows($charId, $common), 'предусловие: ресурс по уровню собран');
+        $this->assertSame([], $this->resourceRows($charId, $relic), 'robot brought a resource above the character level');
+    }
+
+    public function testOnlyAboveLevelResourcesFinishWithNothingGathered(): void
+    {
+        [$charId, $tgUid, $taskId] = $this->seedRobotWorld(59, 10);
+        $relic = $this->addResource('Реликвия', 'Relic', 1, 100);
+
+        $handler = new RelativeAwardRobotGathering();
+        mt_srand(424242);
+        $handler->handle($this->makeTask($charId, $tgUid, $taskId));
+
+        $this->assertSame([], $this->resourceRows($charId, $relic), 'robot brought a resource above the character level');
+        $this->assertCount(1, $handler->texts, 'один отчёт игроку');
+        $this->assertStringContainsString('ничего не собрано', $handler->texts[0]);
+    }
+
+    public function testCharacterAtRequiredLevelGetsBothAsBefore(): void
+    {
+        [$charId, $tgUid, $taskId] = $this->seedRobotWorld(100, 10);
+        $common = $this->addResource('Камень', 'Stone', 1, 1);
+        $relic  = $this->addResource('Реликвия', 'Relic', 1, 100);
+
+        mt_srand(424242);
+        (new RelativeAwardRobotGathering())->handle($this->makeTask($charId, $tgUid, $taskId));
+
+        $this->assertCount(1, $this->resourceRows($charId, $common));
+        $this->assertCount(1, $this->resourceRows($charId, $relic), 'персонаж нужного уровня получает реликвию, как раньше');
+    }
+
+    /** @return array{int,int,int} [character id, telegram_users.id, tasks.id] — база с Мастерской уровня $workshopLevel. */
+    private function seedRobotWorld(int $charLevel, int $workshopLevel): array
+    {
+        $now = date('Y-m-d H:i:s');
+        $this->conn->table('biomes')->insert([
+            'id' => 1, 'name' => 'Биом 1', 'danger_level' => 1, 'survival_difficulty' => 1, 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $this->conn->table('map')->insert([
+            'id' => self::BASE_CELL, 'cell_number' => self::BASE_CELL, 'coordinate_x' => 10, 'coordinate_y' => 10,
+            'biome_id' => 1, 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $this->conn->table('telegram_users')->insert([
+            'telegram_id' => random_int(770_000_000, 779_999_999), 'username' => 'robo', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $tgUid = (int) $this->conn->insertID();
+        $this->conn->table('characters')->insert([
+            'telegram_user_id' => $tgUid, 'name' => 'Robo', 'level' => $charLevel, 'experience' => 1, 'health' => 100, 'tired' => 100,
+            'strength' => 1, 'agility' => 1, 'intellect' => 1, 'gold' => 0, 'cell_number' => self::BASE_CELL,
+            'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $charId = (int) $this->conn->insertID();
+        $this->conn->table('buildings')->insert([
+            'name_ru' => 'Мастерская робототехники', 'name_en' => 'RoboticsWorkshop', 'description' => '', 'building_type' => 'engineering',
+            'hp' => 1, 'construction_time' => 1, 'tax' => 0, 'level' => 1, 'usage' => 'personal', 'required_resources' => '{}',
+            'min_character_level' => 1, 'effects' => '{}', 'days_until_disappearance' => 0, 'usage_count' => 0,
+        ]);
+        $workshopId = (int) $this->conn->insertID();
+        $this->conn->table('claimed_cells')->insert([
+            'character_id' => $charId, 'map_cell_id' => self::BASE_CELL, 'claimed_at' => $now, 'status' => 'active',
+        ]);
+        $this->conn->table('character_buildings')->insert([
+            'character_id' => $charId, 'building_id' => $workshopId, 'map_cell_id' => self::BASE_CELL, 'amount' => 1,
+            'character_level_during_construction' => 1, 'hp' => 1, 'level' => $workshopLevel, 'built_at' => $now, 'building_type' => 'engineering',
+            'tax' => 0, 'usage' => 'personal', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $this->conn->table('tasks')->insert([
+            'name' => 'robotGathering', 'name_rus' => 'Сбор роботом', 'description' => '', 'min_duration' => 1, 'max_duration' => 1,
+            'type' => 'test', 'difficulty_level' => 1, 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $taskId = (int) $this->conn->insertID();
+
+        return [$charId, $tgUid, $taskId];
+    }
+
+    private function addResource(string $name, string $nameEn, int $rarity, int $levelRequired): int
+    {
+        $this->conn->table('resources')->insert([
+            'name' => $name, 'name_en' => $nameEn, 'biome_id' => '1', 'rarity' => $rarity, 'type' => 'mineral',
+            'level_required' => $levelRequired,
+        ]);
+
+        return (int) $this->conn->insertID();
     }
 
     /** @return array<string,mixed> строка character_tasks (Worker метит completed до handle()). */
@@ -238,8 +299,12 @@ final class RobotGatheringRelativeAwardTest extends CIUnitTestCase
 
 final class RelativeAwardRobotGathering extends CompleteRobotGatheringHandler
 {
+    /** @var list<string> */
+    public array $texts = [];
+
     protected function safeSendMessage($chatId, string $text, array $extra = []): void
     {
+        $this->texts[] = $text;
     }
 
     protected function safeSendPhoto($chatId, string $photoPath, string $caption = '', array $extra = []): void
