@@ -10,7 +10,7 @@ Source finding: `docs/specs/relic-economy-1127/report.md:48-49,124` — event `R
 `app/Services/Events/IntentApplier.php:167-186` does not check level, so a level-2 character can get relic 71.
 
 ## Answers
-<empty for now>
+- 2026-11-28, plan approval: «Approve, leave as is (Recommended)» — the 13 under-level relic units on prod stay with their holders; a deliberate decision, not a deferral (source not provable; bank purchase and boss loot are legitimate). They cannot be taken back later without new evidence.
 
 ## Asks
 1. An event resource grant never gives a character a resource whose required level is above the character's level;
