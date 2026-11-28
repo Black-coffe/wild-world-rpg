@@ -1,5 +1,5 @@
 # Robot gathering ignores character level — hotfix (plan)
-**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/robot-gather-level-1128` · **Approved:** no
+**Brief:** [brief.md](brief.md) · **Branch:** `vulyk/robot-gather-level-1128` · **Approved:** «Approve (Recommended)», 2026-11-28
 
 ## Goal
 `CompleteRobotGatheringHandler` picks resources by rarity window and biome only (`:232-236`), so a level-10
