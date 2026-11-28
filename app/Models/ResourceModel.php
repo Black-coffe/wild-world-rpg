@@ -204,6 +204,31 @@ class ResourceModel extends Model
         return $rows;
     }
 
+    /**
+     * Кандидаты события `rare_resource_grant`: ресурсы по keyword / biome_id / rarity, которые персонаж
+     * может держать по уровню — то же правило, что у добычи (`GatherCellResourceQuery`):
+     * `level_required <= characters.level`. Один запрос на эффект (решает, выпало ли) и на
+     * {@see \App\Services\Events\IntentApplier} (выбирает, что выдать), чтобы проверки не разошлись.
+     *
+     * @return list<ResourceEntity>
+     */
+    public function eventGrantCandidates(?string $keyword, ?int $biomeId, ?int $rarity, int $characterLevel): array
+    {
+        $query = $this->where('level_required <=', $characterLevel);
+
+        if ($keyword !== null && $keyword !== '') {
+            $query->where('keyword', $keyword);
+        }
+        if ($biomeId !== null && $biomeId !== 0) {
+            $query->where('biome_id', $biomeId);
+        }
+        if ($rarity !== null) {
+            $query->where('rarity', $rarity);
+        }
+
+        return $query->findAll();
+    }
+
     protected function bustListCache(array $data): array
     {
         \Config\Services::cache()->delete(self::CACHE_KEY);

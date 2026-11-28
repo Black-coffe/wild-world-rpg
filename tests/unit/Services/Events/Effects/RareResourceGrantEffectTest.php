@@ -32,9 +32,76 @@ final class RareResourceGrantEffectTest extends CIUnitTestCase
             => $overrides[$key] ?? $default;
     }
 
+    /**
+     * Фейк общего запроса кандидатов: фикстура ресурсов, отфильтрованная тем же правилом, что
+     * `ResourceModel::eventGrantCandidates()` (`level_required <= level`).
+     *
+     * @param  list<array{id: int, level_required: int}> $resources
+     * @param  list<array<string, mixed>>                $calls
+     * @return callable(?string, ?int, ?int, int): list<array<string, mixed>>
+     */
+    private function fakeFinder(array $resources, array &$calls = []): callable
+    {
+        return static function (?string $keyword, ?int $biomeId, ?int $rarity, int $level) use ($resources, &$calls): array {
+            $calls[] = ['keyword' => $keyword, 'biome_id' => $biomeId, 'rarity' => $rarity, 'level' => $level];
+
+            return array_values(array_filter($resources, static fn (array $r): bool => $r['level_required'] <= $level));
+        };
+    }
+
+    /**
+     * @return array{effect_params: array<string, mixed>}
+     */
+    private function camerasConfig(): array
+    {
+        return ['effect_params' => [
+            'resource_keyword'  => 'relic',
+            'rarity_filter'     => null,
+            'amount_range'      => [1, 3],
+            'chance_per_tick'   => 1.0,
+            'requires_state'    => 'gather',
+            'biome_type_filter' => 'cave',
+        ]];
+    }
+
+    public function testNoCandidateAtCharacterLevelSkipsWithoutIntent(): void
+    {
+        $calls  = [];
+        $effect = new RareResourceGrantEffect($this->fakeReader([]), $this->fakeFinder([['id' => 71, 'level_required' => 100]], $calls));
+
+        $r = $effect->compute(
+            ['biome_id' => 7, 'level' => 2],
+            $this->camerasConfig(),
+            [],
+            ['is_gathering' => true, 'biome' => ['biome_type' => 'cave']]
+        );
+
+        $this->assertFalse($r['applied'], 'level-2 character: the only candidate is level 100, the event must not grant');
+        $this->assertSame([], $r['resource_grant_intents'] ?? []);
+        $this->assertSame([['keyword' => 'relic', 'biome_id' => 7, 'rarity' => null, 'level' => 2]], $calls);
+    }
+
+    public function testCandidateAtCharacterLevelGrantsAsBefore(): void
+    {
+        $effect = new RareResourceGrantEffect($this->fakeReader([]), $this->fakeFinder([['id' => 71, 'level_required' => 100]]));
+
+        $r = $effect->compute(
+            ['biome_id' => 7, 'level' => 100],
+            $this->camerasConfig(),
+            [],
+            ['is_gathering' => true, 'biome' => ['biome_type' => 'cave']]
+        );
+
+        $this->assertTrue($r['applied']);
+        $intent = $r['resource_grant_intents'][0];
+        $this->assertSame(['keyword' => 'relic', 'biome_id' => 7, 'rarity' => null], array_intersect_key($intent, ['keyword' => 1, 'biome_id' => 1, 'rarity' => 1]));
+        $this->assertGreaterThanOrEqual(1, $intent['amount']);
+        $this->assertLessThanOrEqual(3, $intent['amount']);
+    }
+
     public function testFallbackToEffectParamsWhenEventNameMissing(): void
     {
-        $effect = new RareResourceGrantEffect($this->fakeReader([]));
+        $effect = new RareResourceGrantEffect($this->fakeReader([]), $this->fakeFinder([['id' => 1, 'level_required' => 1]]));
         $r      = $effect->compute(
             ['biome_id' => 8, 'level' => 20],
             ['effect_params' => [
@@ -61,7 +128,7 @@ final class RareResourceGrantEffectTest extends CIUnitTestCase
     {
         $effect = new RareResourceGrantEffect($this->fakeReader([
             'rare_event.VolcanicFuelCache.chance_per_tick' => 0.0,
-        ]));
+        ]), $this->fakeFinder([['id' => 1, 'level_required' => 1]]));
 
         // Effect_params chance=1.0, але GameSettings перевизначає на 0.0 → завжди skip.
         for ($i = 0; $i < 50; $i++) {
@@ -84,7 +151,7 @@ final class RareResourceGrantEffectTest extends CIUnitTestCase
     {
         $effect = new RareResourceGrantEffect($this->fakeReader([
             'rare_event.VolcanicFuelCache.chance_per_tick' => 1.0,
-        ]));
+        ]), $this->fakeFinder([['id' => 1, 'level_required' => 1]]));
 
         // Effect_params chance=0.0, але GameSettings перевизначає на 1.0 → завжди apply.
         $applied = 0;
@@ -112,7 +179,7 @@ final class RareResourceGrantEffectTest extends CIUnitTestCase
         $effect = new RareResourceGrantEffect($this->fakeReader([
             'rare_event.MountainArmyDepot.amount_min' => 7,
             'rare_event.MountainArmyDepot.amount_max' => 7,
-        ]));
+        ]), $this->fakeFinder([['id' => 1, 'level_required' => 1]]));
 
         $r = $effect->compute(
             ['biome_id' => 2, 'level' => 18],
@@ -136,7 +203,7 @@ final class RareResourceGrantEffectTest extends CIUnitTestCase
         $effect = new RareResourceGrantEffect($this->fakeReader([
             'rare_event.IndustrialDumpFind.amount_min' => 5,
             'rare_event.IndustrialDumpFind.amount_max' => 1,
-        ]));
+        ]), $this->fakeFinder([['id' => 1, 'level_required' => 1]]));
 
         $r = $effect->compute(
             ['biome_id' => 5, 'level' => 15],
@@ -159,7 +226,7 @@ final class RareResourceGrantEffectTest extends CIUnitTestCase
         // Не gather → skip (незалежно від GameSettings overrides).
         $effect = new RareResourceGrantEffect($this->fakeReader([
             'rare_event.VolcanicFuelCache.chance_per_tick' => 1.0,
-        ]));
+        ]), $this->fakeFinder([['id' => 1, 'level_required' => 1]]));
 
         $r = $effect->compute(
             ['biome_id' => 8, 'level' => 20],
@@ -178,7 +245,7 @@ final class RareResourceGrantEffectTest extends CIUnitTestCase
     public function testBiomeTypeFilterRegression(): void
     {
         // RevealingHiddenCameras має biome_type_filter='cave'; гравець у Forest → skip.
-        $effect = new RareResourceGrantEffect($this->fakeReader([]));
+        $effect = new RareResourceGrantEffect($this->fakeReader([]), $this->fakeFinder([['id' => 1, 'level_required' => 1]]));
 
         $r = $effect->compute(
             ['biome_id' => 1, 'level' => 30],
