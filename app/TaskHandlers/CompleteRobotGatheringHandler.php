@@ -227,10 +227,14 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         // 8) Расчёт ресурсов
         $biomeGroupedResources = [];
         $minRarity = max(1, 10 - ($workshopLevel - 1));
+        // robot-gather-level-1128: только ресурсы по уровню персонажа (общее правило с событием и добычей).
+        // Фильтр оставил биом пустым — пустая карта, ниже обычный путь «ничего не собрано».
+        $characterLevel = (int) $character['level'];
 
         foreach ($biomeCellCounts as $bId => $bCount) {
             $biomeId   = (int) $bId;
             $available = $this->resourceModel
+                ->withinCharacterLevel($characterLevel)
                 ->where('rarity >=', $minRarity)
                 ->where('rarity <=', 10)
                 ->where("FIND_IN_SET({$biomeId}, biome_id) > 0", null, false)

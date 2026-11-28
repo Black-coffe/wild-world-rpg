@@ -205,16 +205,28 @@ class ResourceModel extends Model
     }
 
     /**
+     * Ресурсы, которые персонаж может держать по уровню: `level_required <= characters.level` — то же
+     * правило, что у добычи (`GatherCellResourceQuery`). Одно место условия для выдачи событием
+     * ({@see eventGrantCandidates()}) и сбора роботом ({@see \App\TaskHandlers\CompleteRobotGatheringHandler}).
+     * Накладывает условие на билдер модели и возвращает её же для цепочки до `findAll()`.
+     */
+    public function withinCharacterLevel(int $characterLevel): static
+    {
+        $this->where('level_required <=', $characterLevel);
+
+        return $this;
+    }
+
+    /**
      * Кандидаты события `rare_resource_grant`: ресурсы по keyword / biome_id / rarity, которые персонаж
-     * может держать по уровню — то же правило, что у добычи (`GatherCellResourceQuery`):
-     * `level_required <= characters.level`. Один запрос на эффект (решает, выпало ли) и на
+     * может держать по уровню ({@see withinCharacterLevel()}). Один запрос на эффект (решает, выпало ли) и на
      * {@see \App\Services\Events\IntentApplier} (выбирает, что выдать), чтобы проверки не разошлись.
      *
      * @return list<ResourceEntity>
      */
     public function eventGrantCandidates(?string $keyword, ?int $biomeId, ?int $rarity, int $characterLevel): array
     {
-        $query = $this->where('level_required <=', $characterLevel);
+        $query = $this->withinCharacterLevel($characterLevel);
 
         if ($keyword !== null && $keyword !== '') {
             $query->where('keyword', $keyword);
