@@ -53,3 +53,7 @@ Value at sell price: 3 × 1425 + 6 × 1900 + 4 × 4750 = 34 675 gold.
 
 Owner, 2026-11-28 (brief `## Answers`): «Approve, leave as is (Recommended)». The 13 units stay with their holders;
 a deliberate decision, not a deferral. They are not taken back later without new evidence.
+
+## Verdicts
+- Guide: нет — backend fix, no new mechanic or screen.
+- Tips: нет — nothing new for a player to learn; relic texts and tips belong to the option A spec.
