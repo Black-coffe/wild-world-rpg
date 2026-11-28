@@ -1,4 +1,5 @@
 # Relic event ignores character level — hotfix (plan)
+**Shipped:** 2026-11-28, cd44c4fb
 **Brief:** [brief.md](brief.md) · **Branch:** `vulyk/relic-event-level-1128` · **Approved:** «Approve, leave as is (Recommended)», 2026-11-28
 
 ## Goal
